@@ -2,9 +2,17 @@ import random
 import threading
 import time
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from .db import FishingDB
 from astrbot.api import logger
+
+UTC4 = timezone(timedelta(hours=4))
+
+def get_utc4_now():
+    return datetime.now(UTC4)
+
+def get_utc4_today():
+    return get_utc4_now().date()
 
 class FishingService:
     def __init__(self, db_path: str):
@@ -1112,7 +1120,7 @@ class FishingService:
         """检查用户今天是否已经进行了3次擦弹"""
         with self.db._get_connection() as conn:
             cursor = conn.cursor()
-            today = date.today().isoformat()
+            today = get_utc4_today().isoformat()
             cursor.execute("""
                 SELECT COUNT(*) as count FROM wipe_bomb_log
                 WHERE user_id = ? AND DATE(timestamp) = ?
@@ -1129,7 +1137,7 @@ class FishingService:
         # 检查是否已经进行过擦弹
         with self.db._get_connection() as conn:
             cursor = conn.cursor()
-            today = date.today().isoformat()
+            today = get_utc4_today().isoformat()
             cursor.execute("""
                 SELECT COUNT(*) as count FROM wipe_bomb_log
                 WHERE user_id = ? AND DATE(timestamp) = ?
@@ -1237,7 +1245,7 @@ class FishingService:
                 records.append(record)
             
             # 获取今天的擦弹次数
-            today = date.today().isoformat()
+            today = get_utc4_today().isoformat()
             cursor.execute("""
                 SELECT COUNT(*) as count FROM wipe_bomb_log
                 WHERE user_id = ? AND DATE(timestamp) = ?

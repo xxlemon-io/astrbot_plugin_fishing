@@ -1,6 +1,6 @@
 import threading
 import sqlite3
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Dict, List, Optional, Any, Tuple
 import time
 import os
@@ -9,6 +9,14 @@ from astrbot.api import logger
 
 # --- Constants ---
 DEFAULT_COINS = 200
+
+UTC4 = timezone(timedelta(hours=4))
+
+def get_utc4_now():
+    return datetime.now(UTC4)
+
+def get_utc4_today():
+    return get_utc4_now().date()
 
 class FishingDB:
     def __init__(self, db_path: str):
@@ -719,7 +727,7 @@ class FishingDB:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 # 使用Python的datetime.now()获取当前时间，东八区
-                current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                current_time = get_utc4_now().strftime('%Y-%m-%d %H:%M:%S')
                 cursor.execute("UPDATE users SET last_fishing_time = ? WHERE user_id = ?", (current_time, user_id))
                 conn.commit()
                 return cursor.rowcount > 0
@@ -795,7 +803,7 @@ class FishingDB:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 # 使用Python的datetime.now()获取当前时间，东八区
-                current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                current_time = get_utc4_now().strftime('%Y-%m-%d %H:%M:%S')
                 cursor.execute("""
                     UPDATE users 
                     SET total_fishing_count = total_fishing_count + 1,
@@ -1181,7 +1189,7 @@ class FishingDB:
                     
                 # 设置用户当前鱼饵并消耗一个鱼饵
                 # 使用Python的datetime.now()获取当前时间，东八区
-                current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                current_time = get_utc4_now().strftime('%Y-%m-%d %H:%M:%S')
                 
                 # 获取鱼饵持续时间（如果有）
                 cursor.execute("SELECT duration_minutes FROM baits WHERE bait_id = ?", (bait_id,))
@@ -1225,7 +1233,7 @@ class FishingDB:
                 # 计算剩余时间（如果有持续时间的话）
                 if bait_info.get('duration_minutes', 0) > 0 and bait_info.get('bait_start_time'):
                     start_time = datetime.strptime(bait_info['bait_start_time'], '%Y-%m-%d %H:%M:%S')
-                    elapsed_minutes = (datetime.now() - start_time).total_seconds() / 60
+                    elapsed_minutes = (get_utc4_now() - start_time).total_seconds() / 60
                     bait_info['remaining_minutes'] = max(0, bait_info['duration_minutes'] - elapsed_minutes)
                     # 如果已经过期，清除当前鱼饵
                     if bait_info['remaining_minutes'] <= 0:
@@ -1362,7 +1370,7 @@ class FishingDB:
         """检查用户今天是否已经签到"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            today = date.today().isoformat()
+            today = get_utc4_today().isoformat()
             cursor.execute("""
                 SELECT 1 FROM check_ins
                 WHERE user_id = ? AND check_in_date = ?
@@ -1374,7 +1382,7 @@ class FishingDB:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                today = date.today().isoformat()
+                today = get_utc4_today().isoformat()
                 
                 # 记录签到
                 cursor.execute("""
@@ -1401,7 +1409,7 @@ class FishingDB:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                yesterday = (date.today() - timedelta(days=1)).isoformat()
+                yesterday = (get_utc4_today() - timedelta(days=1)).isoformat()
                 
                 # 检查昨天是否签到
                 cursor.execute("""
@@ -1622,7 +1630,7 @@ class FishingDB:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-                now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                now = get_utc4_now().strftime('%Y-%m-%d %H:%M:%S')
                 
                 # 检查是否已有记录
                 cursor.execute("""

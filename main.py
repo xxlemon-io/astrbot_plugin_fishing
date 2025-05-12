@@ -2,7 +2,6 @@ import os
 import logging
 import time
 import pandas as pd
-from PIL.ImagePalette import random
 
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
@@ -10,7 +9,7 @@ from astrbot.api.message_components import Node, Plain
 from astrbot.api import logger
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 from astrbot.core.star.filter.permission import PermissionType
-
+import random
 from .service import FishingService
 
 
@@ -18,6 +17,10 @@ def get_Node(user_id: str, name: str, message: str) -> Node:
     """将消息转换为Node对象"""
     return Node(uin=user_id, name=name, content=[Plain(message)])
 
+def get_coins_name():
+    """获取金币名称"""
+    coins_names = ["星声", "原石", "社会信用点", "精粹", "黑油", "馒头", "马内", "🍓", "米线"]
+    return random.choice(coins_names)
 
 @register("fish2.0", "tinker", "升级版的钓鱼插件", "1.0.0",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
@@ -73,7 +76,7 @@ class FishingPlugin(Star):
         user_coins = self.FishingService.db.get_user_coins(user_id)
 
         if user_coins < fishing_cost:
-            yield event.plain_result(f"💰 金币不足，钓鱼需要 {fishing_cost} 金币")
+            yield event.plain_result(f"💰 {get_coins_name()}不足，钓鱼需要 {fishing_cost} {get_coins_name()}")
             return
 
         # 扣除金币
@@ -88,7 +91,7 @@ class FishingPlugin(Star):
             message = f"🎣 恭喜你钓到了 {fish_info.get('name', '未知鱼类')}！\n"
             message += f"✨ 品质：{'★' * fish_info.get('rarity', 1)}\n"
             message += f"⚖️ 重量：{fish_info.get('weight', 0)}g\n"
-            message += f"💰 价值：{fish_info.get('value', 0)}金币"
+            message += f"💰 价值：{fish_info.get('value', 0)}{get_coins_name()}"
             if isinstance(event, AiocqhttpMessageEvent):
                 # 如果是AiocqhttpMessageEvent，使用get_Node函数
                 yield event.chain_result([get_Node(event.get_sender_id(), "钓鱼", message)])
@@ -119,7 +122,7 @@ class FishingPlugin(Star):
                     pass
 
             if coins_earned > 0:
-                message = f"💰 成功出售所有鱼！获得 {coins_earned} 金币"
+                message = f"💰 成功出售所有鱼！获得 {coins_earned} {get_coins_name()}"
             else:
                 message = f"💰 {original_message}"
         else:
@@ -162,7 +165,7 @@ class FishingPlugin(Star):
                         pass
 
                 if coins_earned > 0:
-                    message = f"💰 成功出售稀有度 {rarity} 的鱼！获得 {coins_earned} 金币"
+                    message = f"💰 成功出售稀有度 {rarity} 的鱼！获得 {coins_earned} {get_coins_name()}"
                 else:
                     message = f"💰 {original_message}"
             else:
@@ -213,7 +216,7 @@ class FishingPlugin(Star):
             for fish in fishes_by_rarity[rarity]:
                 message += f"- {fish.get('name')} x{fish.get('quantity')} ({fish.get('base_value', 0)}金币/个)\n"
 
-        message += f"\n💰 总价值: {total_value}金币"
+        message += f"\n💰 总价值: {total_value}{get_coins_name()}"
 
         if isinstance(event, AiocqhttpMessageEvent):
             # 如果是AiocqhttpMessageEvent，使用get_Node函数
@@ -243,7 +246,7 @@ class FishingPlugin(Star):
                     pass
 
             if coins_earned > 0:
-                message = f"📅 签到成功！获得 {coins_earned} 金币 💰"
+                message = f"📅 签到成功！获得 {coins_earned} {get_coins_name()} 💰"
             else:
                 message = f"📅 {original_message}"
         elif "已经" in original_message and "签到" in original_message:
@@ -389,7 +392,7 @@ class FishingPlugin(Star):
         message += "\n【🎣 鱼饵】\n"
         for bait in all_baits.get("baits", []):
             if bait.get("cost", 0) > 0:  # 只显示可购买的
-                message += f"ID:{bait.get('bait_id')} - {bait.get('name')} (💰 {bait.get('cost')}金币)"
+                message += f"ID:{bait.get('bait_id')} - {bait.get('name')} (💰 {bait.get('cost')}{get_coins_name()})"
                 if bait.get("description"):
                     message += f" - {bait.get('description')}"
                 message += "\n"
@@ -398,7 +401,7 @@ class FishingPlugin(Star):
         message += "\n【🎣 鱼竿】\n"
         for rod in all_rods.get("rods", []):
             if rod.get("source") == "shop" and rod.get("purchase_cost", 0) > 0:
-                message += f"ID:{rod.get('rod_id')} - {rod.get('name')} (💰 {rod.get('purchase_cost')}金币)"
+                message += f"ID:{rod.get('rod_id')} - {rod.get('name')} (💰 {rod.get('purchase_cost')}{get_coins_name()})"
                 message += f" - 稀有度:{'★' * rod.get('rarity', 1)}"
                 if rod.get("bonus_fish_quality_modifier", 1.0) > 1.0:
                     message += f" - 品质加成:⬆️ {int((rod.get('bonus_fish_quality_modifier', 1.0) - 1) * 100)}%"
@@ -541,7 +544,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result(message)
 
-    @filter.command("抽卡", alias={"gacha"})
+    @filter.command("抽卡", alias={"gacha", "抽奖"})
     async def do_gacha(self, event: AstrMessageEvent):
         """进行单次抽卡"""
         user_id = event.get_sender_id()
@@ -561,8 +564,7 @@ class FishingPlugin(Star):
                     message += f"ID:{pool.get('gacha_pool_id')} - {pool.get('name')}"
                     if pool.get("description"):
                         message += f" - {pool.get('description')}"
-                    message += "\n"
-                    message += f"    💰 花费: {pool.get('cost_coins')}金币/次\n\n"
+                    message += f"    💰 花费: {pool.get('cost_coins')}{get_coins_name()}/次\n\n"
 
                 # 添加卡池详细信息
                 message += "【📋 卡池详情】使用「查看卡池 ID」命令查看详细物品概率\n"
@@ -652,7 +654,7 @@ class FishingPlugin(Star):
         except ValueError:
             yield event.plain_result("⚠️ 请输入有效的抽卡池ID")
 
-    @filter.command("查看卡池", alias={"pool"})
+    @filter.command("查看卡池", alias={"pool", "查看奖池"})
     async def view_gacha_pool(self, event: AstrMessageEvent):
         """查看卡池详细信息"""
         user_id = event.get_sender_id()
@@ -671,7 +673,7 @@ class FishingPlugin(Star):
                 return
 
             message = f"【{pool_details.get('name')}】{pool_details.get('description', '')}\n\n"
-            message += f"抽取花费: {pool_details.get('cost_coins', 0)}金币\n\n"
+            message += f"抽取花费: {pool_details.get('cost_coins', 0)}{get_coins_name()}金币\n\n"
 
             message += "可抽取物品:\n"
             # 按稀有度分组
@@ -691,7 +693,7 @@ class FishingPlugin(Star):
                     quantity = item.get('quantity', 1)
 
                     if item.get('item_type') == 'coins':
-                        item_name = f"{quantity}金币"
+                        item_name = f"{quantity}{get_coins_name()}"
                     elif quantity > 1:
                         item_name = f"{item_name} x{quantity}"
 
@@ -832,7 +834,7 @@ class FishingPlugin(Star):
         except ValueError:
             yield event.plain_result("⚠️ 请输入有效的抽卡池ID")
 
-    @filter.command("金币", alias={"coins"})
+    @filter.command("coins")
     async def check_coins(self, event: AstrMessageEvent):
         """查看用户金币数量"""
         user_id = event.get_sender_id()
@@ -851,10 +853,10 @@ class FishingPlugin(Star):
 
         coins = result.get("coins", 0)
 
-        message = f"💰 你的金币: {coins}"
+        message = f"💰 你的{get_coins_name()}: {coins}"
         yield event.plain_result(message)
 
-    @filter.command("排行榜", alias={"rank"})
+    @filter.command("排行榜", alias={"rank", "排行"})
     async def show_ranking(self, event: AstrMessageEvent):
         """显示钓鱼排行榜"""
         try:
@@ -872,7 +874,7 @@ class FishingPlugin(Star):
             coins_ranking = sorted(top_users, key=lambda x: x.get('coins', 0), reverse=True)[:10]
             for idx, user in enumerate(coins_ranking, 1):
                 rank_emoji = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"{idx}."
-                message += f"{rank_emoji} {user.get('nickname', '未知用户')} - {user.get('coins', 0)}金币\n"
+                message += f"{rank_emoji} {user.get('nickname', '未知用户')} - {user.get('coins', 0)}{get_coins_name()}\n"
 
             # 钓鱼大师榜 - 按钓鱼次数排序
             message += "\n🎣 钓鱼大师榜 🎣\n"
@@ -918,12 +920,12 @@ class FishingPlugin(Star):
     async def show_help(self, event: AstrMessageEvent):
         """显示钓鱼游戏帮助信息"""
         prefix = """前言：使用/注册指令即可开始，鱼饵是一次性的（每次钓鱼随机使用），可以一次买多个鱼饵例如：/购买鱼饵 3 200。鱼竿购买后可以通过/鱼竿查看，如果你嫌钓鱼慢，可以玩玩/擦弹 金币数量，随机获得0-10倍收益"""
-        message = """【🎣 钓鱼系统帮助】
+        message = f"""【🎣 钓鱼系统帮助】
     📋 基础命令:
      - /注册: 注册钓鱼用户
-     - /钓鱼: 进行一次钓鱼(消耗10金币，3分钟CD)
+     - /钓鱼: 进行一次钓鱼(消耗10{get_coins_name()}，3分钟CD)
      - /签到: 每日签到领取奖励
-     - /金币: 查看当前金币
+     - /金币: 查看当前{get_coins_name()}
     
     🎒 背包相关:
      - /鱼塘: 查看鱼类背包
@@ -953,7 +955,7 @@ class FishingPlugin(Star):
      - /自动钓鱼: 开启/关闭自动钓鱼功能
      - /排行榜: 查看钓鱼排行榜
      - /鱼类图鉴: 查看所有鱼的详细信息
-     - /擦弹 [金币数]: 向公共奖池投入金币，获得随机倍数回报（0-10倍）
+     - /擦弹 [金币数]: 向公共奖池投入{get_coins_name()}，获得随机倍数回报（0-10倍）
      - /擦弹历史： 查看擦弹历史记录
      - /查看称号: 查看已获得的称号
      - /查看成就: 查看可达成的成就
@@ -1064,14 +1066,14 @@ class FishingPlugin(Star):
                     # 根据倍数和盈利情况选择不同的表情
                     if multiplier >= 2:
                         if profit > 0:
-                            message = f"🎰 大成功！你投入 {amount} 金币，获得了 {multiplier}倍 回报！\n💰 奖励: {reward} 金币 (盈利: +{profit})"
+                            message = f"🎰 大成功！你投入 {amount} {get_coins_name()}，获得了 {multiplier}倍 回报！\n💰 奖励: {reward} {get_coins_name()} (盈利: +{profit})"
                         else:
-                            message = f"🎰 你投入 {amount} 金币，获得了 {multiplier}倍 回报！\n💰 奖励: {reward} 金币 (亏损: {profit})"
+                            message = f"🎰 你投入 {amount} {get_coins_name()}，获得了 {multiplier}倍 回报！\n💰 奖励: {reward} {get_coins_name()} (亏损: {profit})"
                     else:
                         if profit > 0:
-                            message = f"🎲 你投入 {amount} 金币，获得了 {multiplier}倍 回报！\n💰 奖励: {reward} 金币 (盈利: +{profit})"
+                            message = f"🎲 你投入 {amount} {get_coins_name()}，获得了 {multiplier}倍 回报！\n💰 奖励: {reward} {get_coins_name()} (盈利: +{profit})"
                         else:
-                            message = f"💸 你投入 {amount} 金币，获得了 {multiplier}倍 回报！\n💰 奖励: {reward} 金币 (亏损: {profit})"
+                            message = f"💸 你投入 {amount} {get_coins_name()}，获得了 {multiplier}倍 回报！\n💰 奖励: {reward} {get_coins_name()} (亏损: {profit})"
                 else:
                     message = f"🎲 {original_message}"
             else:
@@ -1135,7 +1137,7 @@ class FishingPlugin(Star):
                 emoji = "💸"  # 亏损用钱飞走表情
 
             message += f"{idx}. ⏱️ {timestamp}\n"
-            message += f"   {emoji} 投入: {contribution} 金币，获得 {multiplier}倍 ({reward} 金币)\n"
+            message += f"   {emoji} 投入: {contribution} {get_coins_name()}，获得 {multiplier}倍 ({reward} {get_coins_name()})\n"
             message += f"   {profit_text}\n"
 
         # 添加是否可以再次擦弹的提示
@@ -1312,7 +1314,7 @@ class FishingPlugin(Star):
             king_size = "👑 " if record.get('is_king_size', 0) else ""
 
             message += f"{idx}. ⏱️ {time_str} {king_size}{fish_name} {rarity_stars}\n"
-            message += f"   ⚖️ 重量: {weight}g | 💰 价值: {value}金币\n"
+            message += f"   ⚖️ 重量: {weight}g | 💰 价值: {value}{get_coins_name()}\n"
             message += f"   🔧 装备: {rod_name} | 🎣 鱼饵: {bait_name}\n"
         if isinstance(event, AiocqhttpMessageEvent):
             # 如果是AiocqhttpMessageEvent，使用get_Node函数
@@ -1359,7 +1361,7 @@ class FishingPlugin(Star):
                 
                 # 格式化用户信息
                 message += f"{idx}. 👤 {nickname} (ID: {user_id})\n"
-                message += f"   💰 金币: {user_currency.get('coins', 0)}\n"
+                message += f"   💰 {get_coins_name()}: {user_currency.get('coins', 0)}\n"
                 message += f"   🎣 钓鱼次数: {user_stats.get('total_fishing_count', 0)}\n"
                 message += f"   🐟 鱼塘数量: {total_fish}\n"
                 message += f"   ⚖️ 总重量: {user_stats.get('total_weight_caught', 0)}g\n"
@@ -1547,8 +1549,8 @@ class FishingPlugin(Star):
                 user_currency = self.FishingService.db.get_user_currency(user_id)
                 current_coins = user_currency.get('coins', 0)
                 
-                message = f"✅ 成功为用户 {user_id} 增加 {amount} 金币\n"
-                message += f"💰 当前金币数：{current_coins}"
+                message = f"✅ 成功为用户 {user_id} 增加 {amount} {get_coins_name()}\n"
+                message += f"💰 当前{get_coins_name()}数：{current_coins}"
             else:
                 message = "❌ 增加金币失败，请稍后重试"
                 
@@ -1565,3 +1567,4 @@ class FishingPlugin(Star):
         logger.info("钓鱼插件正在终止...")
         # 停止自动钓鱼线程
         self.FishingService.stop_auto_fishing_task()
+        self.FishingService.stop_achievement_check_task()
