@@ -834,7 +834,7 @@ class FishingPlugin(Star):
         except ValueError:
             yield event.plain_result("⚠️ 请输入有效的抽卡池ID")
 
-    @filter.command("coins")
+    @filter.command("金币")
     async def check_coins(self, event: AstrMessageEvent):
         """查看用户金币数量"""
         user_id = event.get_sender_id()
