@@ -4,6 +4,10 @@
 
 一个功能齐全的钓鱼游戏系统插件，为您的机器人添加有趣的钓鱼休闲游戏。
 
+## 💡Future 
+
+如果你有什么想法，欢迎到[#4](https://github.com/tinkerbellqwq/astrbot_plugin_fishing/issues/4) 提交！期待您天马行空的想法
+
 ## ✨ 功能特点
 
 - 完整的钓鱼游戏系统
