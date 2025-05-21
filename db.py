@@ -1233,6 +1233,7 @@ class FishingDB:
                 # 计算剩余时间（如果有持续时间的话）
                 if bait_info.get('duration_minutes', 0) > 0 and bait_info.get('bait_start_time'):
                     start_time = datetime.strptime(bait_info['bait_start_time'], '%Y-%m-%d %H:%M:%S')
+                    start_time = start_time.replace(tzinfo=UTC4)
                     elapsed_minutes = (get_utc4_now() - start_time).total_seconds() / 60
                     bait_info['remaining_minutes'] = max(0, bait_info['duration_minutes'] - elapsed_minutes)
                     # 如果已经过期，清除当前鱼饵
