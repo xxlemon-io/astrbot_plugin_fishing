@@ -1,3 +1,4 @@
+import asyncio
 import os
 import logging
 import time
@@ -10,6 +11,8 @@ from astrbot.api import logger
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 from astrbot.core.star.filter.permission import PermissionType
 import random
+
+from .po import UserFishing
 from .service import FishingService
 
 
@@ -1561,6 +1564,47 @@ class FishingPlugin(Star):
         except Exception as e:
             logger.error(f"增加金币时出错: {e}")
             yield event.plain_result(f"❌ 操作失败：{str(e)}")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("导入数据")
+    async def import_data(self, event: AstrMessageEvent):
+        """导入数据（管理员命令）"""
+        # 这里可以实现数据导入的逻辑
+        OLD_DATABASE = "data/fishing.db"
+        if not os.path.exists(OLD_DATABASE):
+            yield event.plain_result("⚠️ 旧数据库文件不存在")
+            return
+        old_data = self.FishingService.get_old_database_data(OLD_DATABASE)
+        # 批量插入用户数据
+        yield event.plain_result(f"获取到旧数据{len(old_data)}条, 开始导入数据...")
+        if old_data:
+            import_users = []
+            for data in old_data:
+                user_id = data.get("user_id")
+                coins = data.get("coins", 0)
+                nickname = None
+                if isinstance(event, AiocqhttpMessageEvent):
+                    bot = event.bot
+                    try:
+                        # 如果user_id里面有QQ号，获取用户信息
+                        if isinstance(user_id, str) and user_id.isdigit():
+                            info = await bot.get_stranger_info(user_id=int(user_id))
+                            nickname = info.get("nickname")
+                            logger.info(f"获取到用户昵称: {nickname}")
+                        else:
+                            nickname = None
+                            logger.info(f"获取用户信息失败: {user_id} 不是有效的QQ号")
+                    except Exception as e:
+                        logger.error(f"获取用户信息失败: {e}")
+                        nickname = None
+                    # 休眠1秒，避免频繁请求
+                    # await asyncio.sleep(1)
+                if nickname is None:
+                    nickname = data.get("user_id")
+                user = UserFishing(user_id, nickname, coins)
+                import_users.append(user)
+            result = self.FishingService.insert_users(import_users)
+            yield event.plain_result(result.get("message", "导入数据失败"))
 
     async def terminate(self):
         """插件被卸载/停用时调用"""

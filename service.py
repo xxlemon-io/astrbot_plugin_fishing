@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime, date, timedelta, timezone
 from .db import FishingDB
 from astrbot.api import logger
+from .po import UserFishing
 
 UTC4 = timezone(timedelta(hours=4))
 
@@ -1496,3 +1497,11 @@ class FishingService:
             """, (user_id,))
             result = cursor.fetchone()
             return result['deep_sea_count'] if result else 0
+
+    def get_old_database_data(self, OLD_DATABASE: str):
+        """获取旧数据库数据"""
+        return self.db.get_old_database_data(OLD_DATABASE)
+
+    def insert_users(self, users):
+        """插入用户数据"""
+        return self.db.insert_users(users)
