@@ -6,6 +6,7 @@ import time
 import os
 import random # Needed for gacha simulation if done here
 from astrbot.api import logger
+from data.plugins.astrbot_plugin_fishing.po import UserFishing
 
 # --- Constants ---
 DEFAULT_COINS = 200
@@ -693,8 +694,6 @@ class FishingDB:
                 # 初始化时调整奖池权重，避免出现重复物品
                 self.adjust_gacha_pool_weights()
 
-                # --- Initialize User Achievements ---
-                # ... (其他初始化代码保持不变)
                 
                 conn.commit()
         except sqlite3.Error as e:
@@ -1961,7 +1960,7 @@ class FishingDB:
                 """)
                 
                 conn.commit()
-                logger.info("奖池数据已重置，移除了钻石类物品并使用金币替代")
+                # logger.info("奖池数据已重置，移除了钻石类物品并使用金币替代")
                 return True
                 
         except sqlite3.Error as e:
@@ -2392,3 +2391,65 @@ class FishingDB:
         except sqlite3.Error as e:
             logger.error(f"获取抽卡记录失败: {e}")
             return []
+    def get_old_database_data(self, OLD_DATABASE):
+        old_conn = sqlite3.connect(OLD_DATABASE)
+        old_conn.row_factory = sqlite3.Row
+        old_corsor = old_conn.cursor()
+        try:
+            # 获取所有用户的ID
+            old_corsor.execute("SELECT * FROM user_fishing;")
+            user_data = old_corsor.fetchall()
+            return [dict(row) for row in user_data]
+        except sqlite3.Error as e:
+            logger.error(f"获取旧数据库数据失败: {e}")
+            return []
+        finally:
+            old_conn.close()
+
+    def insert_users(self, users):
+        """批量插入用户数据"""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        success_count = 0
+        fail_count = 0
+
+        try:
+            for user in users:
+                try:
+                    # 检查用户是否已存在
+                    cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user.user_id,))
+                    existing_user = cursor.fetchone()
+
+                    if existing_user:
+                        # 如果用户已存在，更新金币数量
+                        cursor.execute(
+                            "UPDATE users SET coins = coins + ? WHERE user_id = ?",
+                            (user.coins, user.user_id)
+                        )
+                        logger.info(f"更新用户 {user.user_id} 的金币: +{user.coins}")
+                    else:
+                        # 如果用户不存在，则插入新用户
+                        # 只使用必要的字段：user_id, nickname, coins
+                        cursor.execute(
+                            "INSERT INTO users (user_id, nickname, coins) VALUES (?, ?, ?)",
+                            (user.user_id, user.nickname, user.coins)
+                        )
+                        logger.info(f"插入新用户 {user.user_id}, 昵称: {user.nickname}, 金币: {user.coins}")
+
+                    success_count += 1
+                except Exception as e:
+                    logger.error(f"插入单个用户 {user.user_id} 失败: {e}")
+                    fail_count += 1
+
+            conn.commit()
+            return {
+                "success": True,
+                "message": f"成功导入 {success_count} 名用户，失败 {fail_count} 名用户"
+            }
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"批量插入用户数据失败: {e}")
+            return {
+                "success": False,
+                "message": f"导入数据失败: {str(e)}"
+            }
