@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import os
 import logging
 import time
@@ -59,7 +60,9 @@ class FishingPlugin(Star):
 
         # 检查CD时间
         last_fishing_time = self.FishingService.db.get_last_fishing_time(user_id)
-        current_time = time.time() + 4 * 3600
+        utc_time = datetime.datetime.utcnow()
+        utc_plus_4 = utc_time + datetime.timedelta(hours=4)
+        current_time = utc_plus_4.timestamp()
         # 查看用户是否装备了海洋之心
         equipped_rod = self.FishingService.db.get_user_equipped_accessories(user_id)
         if equipped_rod and equipped_rod.get("name") == "海洋之心":
