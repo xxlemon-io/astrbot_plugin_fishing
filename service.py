@@ -374,7 +374,7 @@ class FishingService:
                 
             if equipment_effects:
                 result["equipment_effects"] = equipment_effects
-            
+            self.db.set_user_last_fishing_time(user_id)
             return result
         else:
             # 钓鱼失败时，单独更新最后钓鱼时间

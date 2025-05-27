@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import os
 import logging
 import time
@@ -59,13 +60,16 @@ class FishingPlugin(Star):
 
         # 检查CD时间
         last_fishing_time = self.FishingService.db.get_last_fishing_time(user_id)
-        current_time = time.time()
+        utc_time = datetime.datetime.utcnow()
+        utc_plus_4 = utc_time + datetime.timedelta(hours=4)
+        current_time = utc_plus_4.timestamp()
         # 查看用户是否装备了海洋之心
         equipped_rod = self.FishingService.db.get_user_equipped_accessories(user_id)
         if equipped_rod and equipped_rod.get("name") == "海洋之心":
             # 如果装备了海洋之心，CD时间减少到1分钟
             last_fishing_time = max(0, last_fishing_time - 120)
-        # logger.info(f"用户 {user_id} 上次钓鱼时间: {last_fishing_time}, 当前时间: {current_time}")
+            logger.info(f"用户 {user_id} 装备了海洋之心，{last_fishing_time}")
+        logger.info(f"用户 {user_id} 上次钓鱼时间: {last_fishing_time}, 当前时间: {current_time}")
         # 3分钟CD (180秒)
         if last_fishing_time > 0 and current_time - last_fishing_time < 180:
             remaining_seconds = int(180 - (current_time - last_fishing_time))
@@ -95,11 +99,7 @@ class FishingPlugin(Star):
             message += f"✨ 品质：{'★' * fish_info.get('rarity', 1)}\n"
             message += f"⚖️ 重量：{fish_info.get('weight', 0)}g\n"
             message += f"💰 价值：{fish_info.get('value', 0)}{get_coins_name()}"
-            if isinstance(event, AiocqhttpMessageEvent):
-                # 如果是AiocqhttpMessageEvent，使用get_Node函数
-                yield event.chain_result([get_Node(event.get_sender_id(), "钓鱼", message)])
-            else:
-                yield event.plain_result(message)
+            yield event.plain_result(message)
         else:
             yield event.plain_result(result.get("message", "💨 什么都没钓到..."))
 
@@ -221,11 +221,7 @@ class FishingPlugin(Star):
 
         message += f"\n💰 总价值: {total_value}{get_coins_name()}"
 
-        if isinstance(event, AiocqhttpMessageEvent):
-            # 如果是AiocqhttpMessageEvent，使用get_Node函数
-            yield event.chain_result([get_Node(event.get_sender_id(), "鱼塘", message)])
-        else:
-            yield event.plain_result(message)
+        yield event.plain_result(message)
 
     @filter.command("签到", alias={"signin"})  # ok
     async def daily_sign_in(self, event: AstrMessageEvent):
@@ -415,12 +411,7 @@ class FishingPlugin(Star):
                 message += "\n"
 
         message += "\n💡 使用「购买鱼饵 ID nums」或「购买鱼竿 ID」命令购买物品"
-
-        if isinstance(event, AiocqhttpMessageEvent):
-            # 如果是AiocqhttpMessageEvent，使用get_Node函数
-            yield event.chain_result([get_Node(event.get_sender_id(), "商店", message)])
-        else:
-            yield event.plain_result(message)
+        yield event.plain_result(message)
 
     @filter.command("购买鱼竿", alias={"buyrod"})
     async def buy_rod(self, event: AstrMessageEvent):
@@ -541,11 +532,7 @@ class FishingPlugin(Star):
                 if rod.get("bonus_rare_fish_chance", 0.0) > 0:
                     message += f"  稀有度加成: +{rod.get('bonus_rare_fish_chance', 0.0) * 100:.0f}%\n"
 
-        if isinstance(event, AiocqhttpMessageEvent):
-            # 如果是AiocqhttpMessageEvent，使用get_Node函数
-            yield event.chain_result([get_Node(event.get_sender_id(), "鱼竿", message)])
-        else:
-            yield event.plain_result(message)
+        yield event.plain_result(message)
 
     @filter.command("抽卡", alias={"gacha", "抽奖"})
     async def do_gacha(self, event: AstrMessageEvent):
@@ -573,16 +560,11 @@ class FishingPlugin(Star):
                 message += "【📋 卡池详情】使用「查看卡池 ID」命令查看详细物品概率\n"
                 message += "【🎲 抽卡命令】使用「抽卡 ID」命令选择抽卡池进行单次抽卡\n"
                 message += "【🎯 十连命令】使用「十连 ID」命令进行十连抽卡"
-                if isinstance(event, AiocqhttpMessageEvent):
-                    # 如果是AiocqhttpMessageEvent，使用get_Node函数
-                    yield event.chain_result([get_Node(event.get_sender_id(), "抽卡池", message)])
-                else:
-                    yield event.plain_result(message)
+                yield event.plain_result(message)
                 return
             else:
                 yield event.plain_result("❌ 获取抽卡池失败！")
                 return
-
         try:
             pool_id = int(args[1])
             result = self.FishingService.gacha(user_id, pool_id)
@@ -642,12 +624,7 @@ class FishingPlugin(Star):
                     # 显示饰品特殊效果
                     if item_type == 'accessory' and details.get('other_bonus_description'):
                         message += f"🔮 特殊效果: {details.get('other_bonus_description')}\n"
-
-                if isinstance(event, AiocqhttpMessageEvent):
-                    # 如果是AiocqhttpMessageEvent，使用get_Node函数
-                    yield event.chain_result([get_Node(event.get_sender_id(), "抽卡", message)])
-                else:
-                    yield event.plain_result(message)
+                yield event.plain_result(message)
             else:
                 original_message = result.get("message", "抽卡失败！")
                 if "不足" in original_message:
@@ -729,11 +706,7 @@ class FishingPlugin(Star):
                     effect_description = item.get('effect_description')
                     if effect_description:
                         message += f"  效果: {effect_description}\n"
-            if isinstance(event, AiocqhttpMessageEvent):
-                # 如果是AiocqhttpMessageEvent，使用get_Node函数
-                yield event.chain_result([get_Node(event.get_sender_id(), "卡池详情", message)])
-            else:
-                yield event.plain_result(message)
+            yield event.plain_result(message)
 
         except ValueError:
             yield event.plain_result("请输入有效的卡池ID")
@@ -823,11 +796,7 @@ class FishingPlugin(Star):
                                     message += f"  🔮 特殊效果: {details.get('other_bonus_description')}\n"
 
                     message += "\n"
-                if isinstance(event, AiocqhttpMessageEvent):
-                    # 如果是AiocqhttpMessageEvent，使用get_Node函数
-                    yield event.chain_result([get_Node(event.get_sender_id(), "十连抽卡", message)])
-                else:
-                    yield event.plain_result(message)
+                yield event.plain_result(message)
             else:
                 original_message = result.get("message", "十连抽卡失败！")
                 if "不足" in original_message:
@@ -893,11 +862,7 @@ class FishingPlugin(Star):
                 rank_emoji = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"{idx}."
                 message += f"{rank_emoji} {user.get('nickname', '未知用户')} - {user.get('total_weight_caught', 0)}g\n"
 
-            if isinstance(event, AiocqhttpMessageEvent):
-                # 如果是AiocqhttpMessageEvent，使用get_Node函数
-                yield event.chain_result([get_Node(event.get_sender_id(), "排行榜", message)])
-            else:
-                yield event.plain_result(message)
+            yield event.plain_result(message)
         except Exception as e:
             logger.error(f"获取排行榜失败: {e}")
             yield event.plain_result(f"❌ 获取排行榜时出错，请稍后再试！")
@@ -966,11 +931,7 @@ class FishingPlugin(Star):
     """
         # message = prefix + "\n" + message
 
-        if isinstance(event, AiocqhttpMessageEvent):
-            # 如果是AiocqhttpMessageEvent，使用get_Node函数
-            yield event.chain_result([get_Node(event.get_sender_id(), "钓鱼帮助", message)])
-        else:
-            yield event.plain_result(message)
+        yield event.plain_result(message)
 
     @filter.command("鱼类图鉴", alias={"鱼图鉴", "图鉴"})
     async def show_fish_catalog(self, event: AstrMessageEvent):
@@ -1086,11 +1047,7 @@ class FishingPlugin(Star):
                 else:
                     message = f"❌ {original_message}"
 
-            if isinstance(event, AiocqhttpMessageEvent):
-                # 如果是AiocqhttpMessageEvent，使用get_Node函数
-                yield event.chain_result([get_Node(event.get_sender_id(), "擦弹", message)])
-            else:
-                yield event.plain_result(message)
+            yield event.plain_result(message)
 
         except ValueError:
             yield event.plain_result("⚠️ 请输入有效的金币数量")
@@ -1150,11 +1107,7 @@ class FishingPlugin(Star):
         else:
             message += "\n⏳ 今天你已经进行过擦弹了，明天再来吧"
 
-        if isinstance(event, AiocqhttpMessageEvent):
-            # 如果是AiocqhttpMessageEvent，使用get_Node函数
-            yield event.chain_result([get_Node(event.get_sender_id(), "擦弹历史", message)])
-        else:
-            yield event.plain_result(message)
+        yield event.plain_result(message)
 
     @filter.command("查看称号", alias={"称号", "titles"})
     async def show_titles(self, event: AstrMessageEvent):
@@ -1189,11 +1142,7 @@ class FishingPlugin(Star):
 
         message += "\n💡 提示：完成特定成就可以获得更多称号！"
 
-        if isinstance(event, AiocqhttpMessageEvent):
-            # 如果是AiocqhttpMessageEvent，使用get_Node函数
-            yield event.chain_result([get_Node(event.get_sender_id(), "称号", message)])
-        else:
-            yield event.plain_result(message)
+        yield event.plain_result(message)
 
     @filter.command("查看成就", alias={"成就", "achievements"})
     async def show_achievements(self, event: AstrMessageEvent):
@@ -1270,12 +1219,7 @@ class FishingPlugin(Star):
 
             message += "💡 提示：完成成就可以获得各种奖励，包括金币、称号、特殊物品等！"
 
-            if isinstance(event, AiocqhttpMessageEvent):
-                # 如果是AiocqhttpMessageEvent，使用get_Node函数
-                yield event.chain_result([get_Node(event.get_sender_id(), "成就进度", message)])
-            else:
-                yield event.plain_result(message)
-
+            yield event.plain_result(message)
         except Exception as e:
             logger.error(f"获取成就进度失败: {e}")
             yield event.plain_result("获取成就进度时出错，请稍后再试")
@@ -1319,11 +1263,7 @@ class FishingPlugin(Star):
             message += f"{idx}. ⏱️ {time_str} {king_size}{fish_name} {rarity_stars}\n"
             message += f"   ⚖️ 重量: {weight}g | 💰 价值: {value}{get_coins_name()}\n"
             message += f"   🔧 装备: {rod_name} | 🎣 鱼饵: {bait_name}\n"
-        if isinstance(event, AiocqhttpMessageEvent):
-            # 如果是AiocqhttpMessageEvent，使用get_Node函数
-            yield event.chain_result([get_Node(event.get_sender_id(), "钓鱼记录", message)])
-        else:
-            yield event.plain_result(message)
+        yield event.plain_result(message)
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("用户列表", alias={"users"})
     async def show_all_users(self, event: AstrMessageEvent):
@@ -1375,12 +1315,7 @@ class FishingPlugin(Star):
             total_users = len(all_users)
             message += f"📊 总用户数: {total_users}"
 
-            if isinstance(event, AiocqhttpMessageEvent):
-                # 如果是AiocqhttpMessageEvent，使用get_Node函数
-                yield event.chain_result([get_Node(event.get_sender_id(), "用户列表", message)])
-            else:
-                yield event.plain_result(message)
-                
+            yield event.plain_result(message)
         except Exception as e:
             logger.error(f"获取用户列表失败: {e}")
             yield event.plain_result(f"❌ 获取用户列表时出错，请稍后再试！错误信息：{str(e)}")
@@ -1425,11 +1360,7 @@ class FishingPlugin(Star):
             if quantity > 1:
                 message += f"   📦 数量: x{quantity}\n"
 
-        if isinstance(event, AiocqhttpMessageEvent):
-            # 如果是AiocqhttpMessageEvent，使用get_Node函数
-            yield event.chain_result([get_Node(event.get_sender_id(), "抽卡记录", message)])
-        else:
-            yield event.plain_result(message)
+        yield event.plain_result(message)
 
     @filter.command("饰品", alias={"accessories"})
     async def show_accessories(self, event: AstrMessageEvent):
@@ -1484,12 +1415,7 @@ class FishingPlugin(Star):
                 message += f"  🔮 特殊效果: {accessory['other_bonus_description']}\n"
 
         message += "\n💡 使用「使用饰品 ID」命令装备饰品"
-
-        if isinstance(event, AiocqhttpMessageEvent):
-            # 如果是AiocqhttpMessageEvent，使用get_Node函数
-            yield event.chain_result([get_Node(event.get_sender_id(), "饰品", message)])
-        else:
-            yield event.plain_result(message)
+        yield event.plain_result(message)
 
     @filter.command("使用饰品", alias={"useaccessory"})
     async def use_accessory(self, event: AstrMessageEvent):
