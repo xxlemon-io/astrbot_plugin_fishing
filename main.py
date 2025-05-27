@@ -288,7 +288,8 @@ class FishingPlugin(Star):
             # 只显示数量大于0的鱼饵
             if bait.get("quantity", 0) > 0:
                 has_baits = True
-                message += f"- {bait.get('name')} x{bait.get('quantity')}"
+                bait_id = bait.get("bait_id")
+                message += f"ID: {bait_id} - {bait.get('name')} x{bait.get('quantity')}"
                 if bait.get("effect_description"):
                     message += f" ({bait.get('effect_description')})"
                 message += "\n"
