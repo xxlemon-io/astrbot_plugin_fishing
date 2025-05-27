@@ -885,7 +885,9 @@ class FishingService:
                     for user_id in auto_fishing_users:
                         try:
                             # 检查CD时间
-                            current_time = time.time()
+                            utc_time = datetime.utcnow()
+                            utc_plus_4 = utc_time + timedelta(hours=4)
+                            current_time = utc_plus_4.timestamp()
                             last_time = self.db.get_last_fishing_time(user_id)
 
                             # 检查用户是否装备了海洋之心
