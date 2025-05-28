@@ -1117,7 +1117,7 @@ class FishingPlugin(Star):
         message = "【🏆 已获得称号】\n\n"
 
         for title in titles:
-            message += f"ID:{title.get("title_id")} - {title.get('name')}\n"
+            message += f"ID:{title.get('title_id')} - {title.get('name')}\n"
             if title.get('description'):
                 message += f"  📝 {title.get('description')}\n"
 

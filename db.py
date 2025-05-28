@@ -2548,10 +2548,10 @@ class FishingDB:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT ut.title_id, t.name, t.description
-                    FROM user_titles ut
-                    JOIN titles t ON ut.title_id = t.title_id
-                    WHERE ut.user_id = ? AND ut.is_equipped = 1
+                    SELECT t.title_id, t.name, t.description
+                    FROM users u
+                    JOIN titles t ON u.current_title_id = t.title_id
+                    WHERE u.user_id = ? 
                 """, (user_id,))
                 result = cursor.fetchone()
                 return dict(result) if result else None
