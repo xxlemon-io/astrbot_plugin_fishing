@@ -15,7 +15,7 @@ import random
 
 from .po import UserFishing
 from .service import FishingService
-
+from .draw import draw_fishing_ranking
 
 def get_Node(user_id: str, name: str, message: str) -> Node:
     """将消息转换为Node对象"""
@@ -833,37 +833,17 @@ class FishingPlugin(Star):
     async def show_ranking(self, event: AstrMessageEvent):
         """显示钓鱼排行榜"""
         try:
-            # 查询排行榜数据
-            top_users = self.FishingService.db.get_leaderboard(limit=1000)  # 获取更多用户数据以进行不同排序
 
-            if not top_users:
+            info = self.FishingService.db.get_leaderboard_with_details(limit=1000)
+
+            ouput_path = os.path.join(os.path.dirname(__file__), "fishing_ranking.png")
+
+            if not info:
                 yield event.plain_result("📊 暂无排行榜数据，快去争当第一名吧！")
                 return
-
-            message = "【🏆 钓鱼排行榜 - TOP 10】\n\n"
-
-            # 金币富豪榜 - 按金币数量排序
-            message += "💰 金币富豪榜 💰\n"
-            coins_ranking = sorted(top_users, key=lambda x: x.get('coins', 0), reverse=True)[:10]
-            for idx, user in enumerate(coins_ranking, 1):
-                rank_emoji = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"{idx}."
-                message += f"{rank_emoji} {user.get('nickname', '未知用户')} - {user.get('coins', 0)}{get_coins_name()}\n"
-
-            # 钓鱼大师榜 - 按钓鱼次数排序
-            message += "\n🎣 钓鱼大师榜 🎣\n"
-            fishing_ranking = sorted(top_users, key=lambda x: x.get('total_fishing_count', 0), reverse=True)[:10]
-            for idx, user in enumerate(fishing_ranking, 1):
-                rank_emoji = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"{idx}."
-                message += f"{rank_emoji} {user.get('nickname', '未知用户')} - {user.get('total_fishing_count', 0)}条鱼\n"
-
-            # 总重量榜 - 按总重量排序
-            message += "\n⚖️ 总重量榜 ⚖️\n"
-            weight_ranking = sorted(top_users, key=lambda x: x.get('total_weight_caught', 0), reverse=True)[:10]
-            for idx, user in enumerate(weight_ranking, 1):
-                rank_emoji = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"{idx}."
-                message += f"{rank_emoji} {user.get('nickname', '未知用户')} - {user.get('total_weight_caught', 0)}g\n"
-
-            yield event.plain_result(message)
+            draw_fishing_ranking(info, ouput_path)
+            # 发送图片
+            yield event.image_result(ouput_path)
         except Exception as e:
             logger.error(f"获取排行榜失败: {e}")
             yield event.plain_result(f"❌ 获取排行榜时出错，请稍后再试！")
@@ -1137,13 +1117,39 @@ class FishingPlugin(Star):
         message = "【🏆 已获得称号】\n\n"
 
         for title in titles:
-            message += f"- {title.get('name')}\n"
+            message += f"ID:{title.get("title_id")} - {title.get('name')}\n"
             if title.get('description'):
                 message += f"  📝 {title.get('description')}\n"
 
         message += "\n💡 提示：完成特定成就可以获得更多称号！"
 
         yield event.plain_result(message)
+
+    @filter.command("使用称号")
+    async def use_title(self, event: AstrMessageEvent):
+        """使用指定称号"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+
+        # 检查用户是否注册
+        if not self.FishingService.is_registered(user_id):
+            yield event.plain_result("请先注册才能使用此功能")
+            return
+
+        if len(args) < 2:
+            yield event.plain_result("请指定要使用的称号ID，例如：/使用称号 1")
+            return
+
+        try:
+            title_id = int(args[1])
+            result = self.FishingService.use_title(user_id, title_id)
+
+            if result.get("success"):
+                yield event.plain_result(result.get("message", "使用称号成功！"))
+            else:
+                yield event.plain_result(result.get("message", "使用称号失败"))
+        except ValueError:
+            yield event.plain_result("请输入有效的称号ID")
 
     @filter.command("查看成就", alias={"成就", "achievements"})
     async def show_achievements(self, event: AstrMessageEvent):

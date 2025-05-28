@@ -2022,6 +2022,51 @@ class FishingDB:
             logger.error(f"Failed to get leaderboard: {e}")
             return []
 
+    def get_leaderboard_with_details(self, limit: int = 10) -> List[Dict]:
+        """获取用户排行榜数据，包含更详细的信息
+
+        Args:
+            limit: 最多返回的用户数量
+
+        Returns:
+            包含用户昵称、称号、金币数、鱼竿、饰品和钓鱼总数的排序列表
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT 
+                        u.user_id,
+                        u.nickname, 
+                        u.coins,
+                        u.total_fishing_count as fish_count,
+                        t.name as title,
+                        r.name as fishing_rod,
+                        a.name as accessory
+                    FROM users u
+                    LEFT JOIN titles t ON u.current_title_id = t.title_id
+                    LEFT JOIN user_rods ur ON u.equipped_rod_instance_id = ur.rod_instance_id
+                    LEFT JOIN rods r ON ur.rod_id = r.rod_id
+                    LEFT JOIN user_accessories ua ON ua.user_id = u.user_id AND ua.is_equipped = 1
+                    LEFT JOIN accessories a ON ua.accessory_id = a.accessory_id
+                    ORDER BY u.coins DESC
+                    LIMIT ?
+                """, (limit,))
+
+                results = []
+                for row in cursor.fetchall():
+                    user_data = dict(row)
+                    # 确保即使某些字段为空也有默认值
+                    user_data['title'] = user_data.get('title_name', '无称号')
+                    user_data['fishing_rod'] = user_data.get('rod_name', '无鱼竿')
+                    user_data['accessory'] = user_data.get('accessory_name', '无饰品')
+                    results.append(user_data)
+
+                return results
+        except sqlite3.Error as e:
+            logger.error(f"获取排行榜详细数据失败: {e}")
+            return []
+
     def equip_rod(self, user_id: str, rod_instance_id: int) -> bool:
         """装备指定的鱼竿"""
         try:
@@ -2461,3 +2506,55 @@ class FishingDB:
                 "success": False,
                 "message": f"导入数据失败: {str(e)}"
             }
+
+    def use_title(self, user_id, title_id):
+        """使用指定的称号
+
+        Args:
+            user_id: 用户ID
+            title_id: 称号ID
+
+        Returns:
+            bool: 是否成功使用称号
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # 检查用户是否拥有该称号
+                cursor.execute("""
+                    SELECT 1 FROM user_titles 
+                    WHERE user_id = ? AND title_id = ?
+                """, (user_id, title_id))
+                if not cursor.fetchone():
+                    return False
+
+                # 更新用户的当前称号
+                cursor.execute("""
+                    UPDATE users 
+                    SET current_title_id = ? 
+                    WHERE user_id = ?
+                """, (title_id, user_id))
+
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"使用称号失败: {e}")
+            return False
+
+    def get_user_current_title(self, user_id):
+        """获取用户当前使用的称号"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT ut.title_id, t.name, t.description
+                    FROM user_titles ut
+                    JOIN titles t ON ut.title_id = t.title_id
+                    WHERE ut.user_id = ? AND ut.is_equipped = 1
+                """, (user_id,))
+                result = cursor.fetchone()
+                return dict(result) if result else None
+        except sqlite3.Error as e:
+            logger.error(f"获取用户当前称号失败: {e}")
+            return None

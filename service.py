@@ -1507,3 +1507,24 @@ class FishingService:
     def insert_users(self, users):
         """插入用户数据"""
         return self.db.insert_users(users)
+
+    def use_title(self, user_id, title_id):
+        """使用指定的称号"""
+        error = self._check_registered_or_return(user_id)
+        if error:
+            return error
+
+        # 检查称号是否存在并属于用户
+        if self.db.use_title(user_id, title_id):
+            # 获取当前使用的称号
+            current_title = self.db.get_user_current_title(user_id)
+            return {
+                "success": True,
+                "message": f"🎉 成功使用称号【{current_title['name']}】！",
+                "title": current_title
+            }
+        else:
+            return {
+                "success": False,
+                "message": "使用称号失败，请确认该称号属于你"
+            }
