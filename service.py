@@ -783,6 +783,8 @@ class FishingService:
             success = self.db.add_bait_to_inventory(user_id, item_id, quantity)
         elif item_type == 'coins':
             success = self.db.update_user_coins(user_id, quantity)
+        elif item_type == 'titles':
+            success = self.db.add_title_to_user(user_id, item_id)
         elif item_type == 'premium_currency':
             success = self.db.update_user_currency(user_id, 0, item_id * quantity)
 
