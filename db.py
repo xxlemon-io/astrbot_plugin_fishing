@@ -2057,9 +2057,9 @@ class FishingDB:
                 for row in cursor.fetchall():
                     user_data = dict(row)
                     # 确保即使某些字段为空也有默认值
-                    user_data['title'] = user_data.get('title_name', '无称号')
-                    user_data['fishing_rod'] = user_data.get('rod_name', '无鱼竿')
-                    user_data['accessory'] = user_data.get('accessory_name', '无饰品')
+                    user_data['title'] = user_data.get('title', '无称号')
+                    user_data['fishing_rod'] = user_data.get('fishing_rod', '无鱼竿')
+                    user_data['accessory'] = user_data.get('accessory', '无饰品')
                     results.append(user_data)
 
                 return results

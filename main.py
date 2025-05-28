@@ -26,7 +26,7 @@ def get_coins_name():
     coins_names = ["星声", "原石", "社会信用点", "精粹", "黑油", "馒头", "马内", "🍓", "米线"]
     return random.choice(coins_names)
 
-@register("fish2.0", "tinker", "升级版的钓鱼插件", "1.0.0",
+@register("fish2.0", "tinker", "升级版的钓鱼插件", "1.0.9",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
 class FishingPlugin(Star):
     def __init__(self, context: Context):
