@@ -1443,7 +1443,7 @@ class FishingService:
                 if target_fish_id in [-1, -2]:
                     return False
                 specific_fish_count = self.db.get_user_specific_fish_count(user_id, target_fish_id)
-                return specific_fish_count >= target_value
+                return specific_fish_count >= 1
                 
         elif target_type == 'total_coins_earned':
             return stats.get('total_value', 0) >= target_value

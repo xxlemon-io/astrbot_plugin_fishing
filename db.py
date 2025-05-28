@@ -2200,13 +2200,21 @@ class FishingDB:
 
     def get_user_specific_fish_count(self, user_id: str, fish_id: int) -> int:
         """获取用户钓到的特定鱼的数量"""
+        fish_id_mapping = {
+            7:89,
+            34:93,
+            93:78,
+            95:80,
+            45:52,
+            54:77
+        }
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT COUNT(*)
                 FROM user_fish_inventory
                 WHERE user_id = ? AND fish_id = ?
-            """, (user_id, fish_id))
+            """, (user_id, fish_id_mapping.get(fish_id, fish_id)))
             return cursor.fetchone()[0] or 0
 
     def has_caught_heavy_fish(self, user_id: str, min_weight: int) -> bool:
