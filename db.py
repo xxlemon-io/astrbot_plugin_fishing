@@ -2060,6 +2060,12 @@ class FishingDB:
                     user_data['title'] = user_data.get('title', '无称号')
                     user_data['fishing_rod'] = user_data.get('fishing_rod', '无鱼竿')
                     user_data['accessory'] = user_data.get('accessory', '无饰品')
+                    if user_data['title'] is None:
+                        user_data['title'] = '无称号'
+                    if user_data['fishing_rod'] is None:
+                        user_data['fishing_rod'] = '无鱼竿'
+                    if user_data['accessory'] is None:
+                        user_data['accessory'] = '无饰品'
                     results.append(user_data)
 
                 return results
