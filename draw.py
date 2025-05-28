@@ -113,9 +113,9 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str = "fishing_rank
     # 奖杯符号
     trophy_symbols = []
     try:
-        gold_trophy = Image.open("gold.png").resize((40, 40))  # 减小奖杯尺寸
-        silver_trophy = Image.open("silver.png").resize((35, 35))
-        bronze_trophy = Image.open("bronze.png").resize((35, 35))
+        gold_trophy = Image.open(os.path.join(os.path.dirname(__file__),"resource", "gold.png") ).resize((40, 40))  # 减小奖杯尺寸
+        silver_trophy = Image.open(os.path.join(os.path.dirname(__file__),"resource", "silver.png")).resize((35, 35))
+        bronze_trophy = Image.open(os.path.join(os.path.dirname(__file__),"resource", "bronze.png")).resize((35, 35))
         trophy_symbols = [gold_trophy, silver_trophy, bronze_trophy]
     except Exception as e:
         logger.warning(f"加载奖杯图片失败: {e}")
