@@ -184,7 +184,7 @@ class FishingDB:
                         record_id INTEGER PRIMARY KEY AUTOINCREMENT,
                         user_id TEXT NOT NULL,
                         gacha_pool_id INTEGER NOT NULL,
-                        item_type TEXT NOT NULL CHECK (item_type IN ('rod', 'accessory', 'bait', 'fish', 'coins', 'premium_currency')),
+                        item_type TEXT NOT NULL CHECK (item_type IN ('rod', 'accessory', 'bait', 'fish', 'coins', 'titles','premium_currency')),
                         item_id INTEGER NOT NULL,
                         item_name TEXT NOT NULL,
                         quantity INTEGER DEFAULT 1,
@@ -1820,6 +1820,7 @@ class FishingDB:
                            WHEN gpi.item_type = 'bait' THEN b.name
                            WHEN gpi.item_type = 'fish' THEN f.name
                            WHEN gpi.item_type = 'coins' THEN '金币'
+                           WHEN gpi.item_type = 'titles' THEN t.name
                            WHEN gpi.item_type = 'premium_currency' THEN '钻石'
                            ELSE '未知物品'
                        END as item_name,
@@ -1836,6 +1837,7 @@ class FishingDB:
                            WHEN gpi.item_type = 'accessory' THEN a.description
                            WHEN gpi.item_type = 'bait' THEN b.description
                            WHEN gpi.item_type = 'fish' THEN f.description
+                           WHEN gpi.item_type = 'titles' THEN t.description
                            WHEN gpi.item_type = 'coins' THEN '获得一定数量的金币'
                            WHEN gpi.item_type = 'premium_currency' THEN '获得一定数量的高级货币'
                            ELSE NULL
@@ -1865,6 +1867,7 @@ class FishingDB:
                 LEFT JOIN accessories a ON gpi.item_type = 'accessory' AND gpi.item_id = a.accessory_id
                 LEFT JOIN baits b ON gpi.item_type = 'bait' AND gpi.item_id = b.bait_id
                 LEFT JOIN fish f ON gpi.item_type = 'fish' AND gpi.item_id = f.fish_id
+                LEFT JOIN titles t ON gpi.item_type = 'titles' AND gpi.item_id = t.title_id
                 WHERE gpi.gacha_pool_id = ?
                 ORDER BY item_rarity DESC, gpi.weight
             """, (pool_id,))
@@ -2450,6 +2453,14 @@ class FishingDB:
         except sqlite3.Error as e:
             logger.error(f"获取抽卡记录失败: {e}")
             return []
+    def get_title_info(self, title_id: int) -> Dict:
+        """获取称号信息"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM titles WHERE title_id = ?", (title_id,))
+            title = cursor.fetchone()
+            return dict(title) if title else None
+            
     def get_old_database_data(self, OLD_DATABASE):
         old_conn = sqlite3.connect(OLD_DATABASE)
         old_conn.row_factory = sqlite3.Row
