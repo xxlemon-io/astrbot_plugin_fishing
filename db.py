@@ -2575,3 +2575,36 @@ class FishingDB:
         except sqlite3.Error as e:
             logger.error(f"获取用户当前称号失败: {e}")
             return None
+
+    def get_full_inventory_with_values(self, user_id: str) -> List[Dict]:
+        """获取完整库存数据（包含基础价值）"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 
+                    f.fish_id,
+                    f.name,
+                    f.rarity,
+                    f.base_value,
+                    ufi.quantity as quantity
+                FROM user_fish_inventory ufi
+                JOIN fish f ON ufi.fish_id = f.fish_id
+                WHERE ufi.user_id = ?
+                GROUP BY f.fish_id
+                HAVING COUNT(*) > 0
+                ORDER BY f.rarity DESC, f.base_value DESC
+            """, (user_id,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_user_fish_total_value(self, user_id: str) -> float:
+        """精确计算当前总价值"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT SUM(f.base_value) as total
+                FROM user_fish_inventory ufi
+                JOIN fish f ON ufi.fish_id = f.fish_id
+                WHERE ufi.user_id = ?
+            """, (user_id,))
+            row = cursor.fetchone()
+            return float(row['total']) if row and row['total'] else 0.0
