@@ -1530,3 +1530,72 @@ class FishingService:
                 "success": False,
                 "message": "使用称号失败，请确认该称号属于你"
             }
+
+    def sell_all_fish_keep_one_batch(self, user_id: str) -> Dict:
+        """卖出用户所有鱼，但每种保留1条。"""
+
+        try:
+            inventory = self.db.get_full_inventory_with_values(user_id)
+            if not inventory:
+                return {"success": False, "message": "你的鱼塘是空的"}
+
+            total_value = 0.0
+            sell_details = []
+
+            with self.db._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("BEGIN TRANSACTION")
+
+                try:
+                    for fish in inventory:
+                        current_qty = fish['quantity']
+                        if current_qty > 1:
+                            sell_qty = current_qty - 1
+                            sell_value = sell_qty * fish['base_value']
+
+                            # 更新数量字段，只保留1条
+                            cursor.execute("""
+                                UPDATE user_fish_inventory
+                                SET quantity = 1
+                                WHERE user_id = ? AND fish_id = ?
+                            """, (user_id, fish['fish_id']))
+
+                            total_value += sell_value
+                            sell_details.append({
+                                "name": fish['name'],
+                                "sell_count": sell_qty,
+                                "value_per": fish['base_value'],
+                                "total_value": sell_value,
+                            })
+
+                    if not sell_details:
+                        conn.rollback()
+                        return {"success": False, "message": "没有可卖出的鱼（每种至少保留一条）"}
+
+                    # 更新用户水晶
+                    cursor.execute("""
+                        UPDATE users
+                        SET coins = coins + ?
+                        WHERE user_id = ?
+                    """, (total_value, user_id))
+
+                    conn.commit()
+
+                    report = "🐟 卖出明细：\n" + "\n".join(
+                        f"- {item['name']}×{item['sell_count']} ({item['value_per']}水晶/个)"
+                        for item in sorted(sell_details, key=lambda x: -x['value_per'])
+                    )
+
+                    return {
+                        "success": True,
+                        "message": f"✅ 成功卖出！获得 {total_value} 水晶\n{report}",
+                        "total_value": total_value,
+                        "details": sell_details
+                    }
+
+                except Exception as e:
+                    conn.rollback()
+                    return {"success": False, "message": f"交易失败: {str(e)}"}
+
+        except Exception as e:
+            return {"success": False, "message": f"系统错误: {str(e)}"}
