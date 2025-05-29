@@ -1568,7 +1568,7 @@ class FishingPlugin(Star):
                 )
             
             # 如果消息太长，分段发送
-            if len(result["message"]) > 50000:
+            if len(result["message"]) > 500000:
                 yield event.plain_result(f"✅ 成功卖出！获得 {result['total_value']} 水晶")
                 yield event.plain_result("🐟 卖出明细：")
                 for op in result["details"][:5]:  # 只显示前5条
