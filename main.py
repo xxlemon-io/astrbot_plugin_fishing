@@ -1545,3 +1545,39 @@ class FishingPlugin(Star):
         # 停止自动钓鱼线程
         self.FishingService.stop_auto_fishing_task()
         self.FishingService.stop_achievement_check_task()
+        
+    @filter.command("保留卖出", alias={"safe_sell"})
+    async def safe_sell_all_fish(self, event: AstrMessageEvent):
+        user_id = event.get_sender_id()
+        
+        # 记录卖出前总价值（用于验证）
+        before_value = self.FishingService.db.get_user_fish_total_value(user_id)
+        
+        result = self.FishingService.sell_all_fish_keep_one_batch(user_id)
+        
+        if result["success"]:
+            # 验证卖出金额
+            after_value = self.FishingService.db.get_user_fish_total_value(user_id)
+            actual_diff = before_value - after_value
+            
+            # 添加警告日志（如果差异过大）
+            if abs(actual_diff - result["total_value"]) > 1.0:
+                logger.warning(
+                    f"价值计算异常！用户:{user_id}\n"
+                    f"计算值:{result['total_value']} 实际差值:{actual_diff}"
+                )
+            
+            # 如果消息太长，分段发送
+            if len(result["message"]) > 50000:
+                yield event.plain_result(f"✅ 成功卖出！获得 {result['total_value']} 水晶")
+                yield event.plain_result("🐟 卖出明细：")
+                for op in result["details"][:5]:  # 只显示前5条
+                    yield event.plain_result(
+                        f"- {op['name']}×{op['sell_count']} ({op['value_per']}水晶/个)"
+                    )
+                if len(result["details"]) > 5:
+                    yield event.plain_result(f"...等共{len(result['details'])}种鱼")
+            else:
+                yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result(f"❌ {result['message']}")
