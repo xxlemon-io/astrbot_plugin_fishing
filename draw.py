@@ -59,6 +59,17 @@ def get_text_metrics(text, font, draw):
     text_height = bbox[3] - bbox[1]
     return bbox, (text_width, text_height)
 
+def format_large_number(number):
+    """将大数字格式化为带单位的字符串（K、M、B等）"""
+    if number < 1000:
+        return str(number)
+    elif number < 1000000:
+        return f"{number/1000:.1f}K".replace('.0K', 'K')
+    elif number < 1000000000:
+        return f"{number/1000000:.1f}M".replace('.0M', 'M')
+    else:
+        return f"{number/1000000000:.1f}B".replace('.0B', 'B')
+
 def draw_fishing_ranking(user_data: List[Dict], output_path: str = "fishing_ranking.png"):
     """
     绘制钓鱼排行榜图片
@@ -130,7 +141,7 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str = "fishing_rank
         fishing_rod = user.get("fishing_rod", "普通鱼竿")
         accessory = user.get("accessory", "无饰品")
 
-        logger.info(f"绘制用户: {nickname}, 称号: {title}, 金币: {coins}, 钓鱼数量: {fish_count}, 鱼竿: {fishing_rod}, 饰品: {accessory}")
+        logger.debug(f"绘制用户: {nickname}, 称号: {title}, 金币: {coins}, 钓鱼数量: {fish_count}, 鱼竿: {fishing_rod}, 饰品: {accessory}")
 
         # 排名颜色
         rank_color = COLOR_TEXT_GOLD if idx == 0 else COLOR_TEXT_SILVER if idx == 1 else COLOR_TEXT_BRONZE if idx == 2 else COLOR_TEXT_DARK
@@ -181,11 +192,11 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str = "fishing_rank
 
         # 绘制钓鱼数据
         fish_y = name_y + get_text_metrics(nickname, font_name, draw)[1][1] + 8
-        draw.text((name_x, fish_y), f"钓获: {fish_count}条", font=font_regular, fill=COLOR_FISH_COUNT)
+        draw.text((name_x, fish_y), f"钓获: {format_large_number(fish_count)}条", font=font_regular, fill=COLOR_FISH_COUNT)
 
         # 绘制金币（使用更深的金色） - 调整间距
         coins_x = name_x + 140  # 减小间距
-        draw.text((coins_x, fish_y), f"金币: {coins}", font=font_regular, fill=COLOR_COINS)
+        draw.text((coins_x, fish_y), f"金币: {format_large_number(coins)}", font=font_regular, fill=COLOR_COINS)
 
         # 绘制装备 - 鱼竿放左侧固定位置
         equip_x = coins_x + 140  # 从金币位置算起
