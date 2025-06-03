@@ -1151,7 +1151,7 @@ class FishingService:
             count = result['count']
             if count >= 3:
                 return {"success": False, "message": "你今天已经使用了3次擦弹，明天再来吧！"}
-            
+
         # 验证投入金额
         if contribution_amount <= 0:
             return {"success": False, "message": "投入金额必须大于0"}
@@ -1205,9 +1205,9 @@ class FishingService:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO wipe_bomb_log 
-                (user_id, contribution_amount, reward_multiplier, reward_amount)
-                VALUES (?, ?, ?, ?)
-            """, (user_id, contribution_amount, reward_multiplier, reward_amount))
+                (user_id, contribution_amount, reward_multiplier, reward_amount, timestamp)
+                VALUES (?, ?, ?, ?, ?)
+            """, (user_id, contribution_amount, reward_multiplier, reward_amount,get_utc4_now().isoformat()))
             conn.commit()
         
         # 构建返回消息
