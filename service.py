@@ -885,7 +885,7 @@ class FishingService:
                 # 新的一天，对资产大于1000000的用户扣除2%的税
                 if now_today != self.today:
                     self.today = now_today
-                    self.db.apply_daily_tax_to_high_value_users(0.02, 1000000)
+                    self.db.apply_daily_tax_to_high_value_users()
                 if auto_fishing_users:
                     self.LOG.info(f"执行自动钓鱼任务，{len(auto_fishing_users)}个用户")
                     

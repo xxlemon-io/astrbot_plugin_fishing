@@ -3076,13 +3076,9 @@ class FishingDB:
                 'message': f"购买物品失败: {str(e)}"
             }
 
-    def apply_daily_tax_to_high_value_users(self, param, param1):
+    def apply_daily_tax_to_high_value_users(self):
         """对高价值用户应用每日税收
-
-        Args:
-            param: 税收比例
-            param1: 最低价值门槛
-
+           对于不同资产值的用户，应用不同的税率
         Returns:
             dict: 应用结果，包括成功与否和消息
         """
@@ -3095,7 +3091,7 @@ class FishingDB:
                     SELECT user_id, coins 
                     FROM users 
                     WHERE coins >= ?
-                """, (param1,))
+                """, (10000,))
                 high_value_users = cursor.fetchall()
 
                 if not high_value_users:
@@ -3106,6 +3102,14 @@ class FishingDB:
 
                 for user in high_value_users:
                     user_id, coins = user
+                    if coins <= 100000:
+                        param = 0.05
+                    elif coins <= 1000000:
+                        param = 0.1
+                    elif coins <= 10000000:
+                        param = 0.2
+                    else:
+                        param = 0.35
                     tax_amount = int(coins * param)
                     # 扣除税收
                     cursor.execute("""
