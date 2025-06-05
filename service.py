@@ -23,6 +23,7 @@ class FishingService:
         self.auto_fishing_running = False
         self.achievement_check_thread = None
         self.achievement_check_running = False
+        self.today = get_utc4_today()
         
         # 设置日志记录器
         self.LOG = logger
@@ -880,7 +881,11 @@ class FishingService:
             try:
                 # 获取所有开启自动钓鱼的用户
                 auto_fishing_users = self.db.get_auto_fishing_users()
-                
+                now_today = get_utc4_today()
+                # 新的一天，对资产大于1000000的用户扣除2%的税
+                if now_today != self.today:
+                    self.today = now_today
+                    self.db.apply_daily_tax_to_high_value_users(0.02, 1000000)
                 if auto_fishing_users:
                     self.LOG.info(f"执行自动钓鱼任务，{len(auto_fishing_users)}个用户")
                     

@@ -1,9 +1,5 @@
-import asyncio
 import datetime
 import os
-import logging
-import time
-import pandas as pd
 
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
@@ -38,6 +34,18 @@ class FishingPlugin(Star):
         # 初始化数据库和钓鱼系统
         db_path = os.path.join(self.data_dir, "fish.db")
         self.FishingService = FishingService(db_path)
+
+
+    async def initialize(self):
+        """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
+        logger.info("""
+_____ _     _     _             
+|  ___(_)___| |__ (_)_ __   __ _ 
+| |_  | / __| '_ \| | '_ \ / _` |
+|  _| | \__ \ | | | | | | | (_| |
+|_|   |_|___/_| |_|_|_| |_|\__, |
+                           |___/ 
+                           """)
 
     @filter.command("注册")  # ok
     async def register_user(self, event: AstrMessageEvent):

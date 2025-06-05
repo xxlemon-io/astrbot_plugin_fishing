@@ -3075,3 +3075,53 @@ class FishingDB:
                 'success': False,
                 'message': f"购买物品失败: {str(e)}"
             }
+
+    def apply_daily_tax_to_high_value_users(self, param, param1):
+        """对高价值用户应用每日税收
+
+        Args:
+            param: 税收比例
+            param1: 最低价值门槛
+
+        Returns:
+            dict: 应用结果，包括成功与否和消息
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # 获取所有高价值用户
+                cursor.execute("""
+                    SELECT user_id, coins 
+                    FROM users 
+                    WHERE coins >= ?
+                """, (param1,))
+                high_value_users = cursor.fetchall()
+
+                if not high_value_users:
+                    return {
+                        'success': True,
+                        'message': "没有高价值用户需要缴税"
+                    }
+
+                for user in high_value_users:
+                    user_id, coins = user
+                    tax_amount = int(coins * param)
+                    # 扣除税收
+                    cursor.execute("""
+                        UPDATE users 
+                        SET coins = coins - ? 
+                        WHERE user_id = ?
+                    """, (tax_amount, user_id))
+
+                conn.commit()
+                return {
+                    'success': True,
+                    'message': f"已对 {len(high_value_users)} 名高价值用户应用每日税收"
+                }
+        except sqlite3.Error as e:
+            logger.error(f"应用每日税收失败: {e}")
+            return {
+                'success': False,
+                'message': f"应用每日税收失败: {str(e)}"
+            }
