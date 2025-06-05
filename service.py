@@ -1599,3 +1599,55 @@ class FishingService:
 
         except Exception as e:
             return {"success": False, "message": f"系统错误: {str(e)}"}
+
+    def sell_rod(self, user_id, rod_instance_id):
+        """卖出指定的鱼竿"""
+        error = self._check_registered_or_return(user_id)
+        if error:
+            return error
+        # 检查鱼竿是否存在并属于用户
+        return self.db.sell_rod(user_id, rod_instance_id)
+
+    def sell_accessory(self, user_id, accessory_instance_id):
+        """卖出指定的饰品"""
+        error = self._check_registered_or_return(user_id)
+        if error:
+            return error
+
+        # 检查饰品是否存在并属于用户
+        return self.db.sell_accessory(user_id, accessory_instance_id)
+
+    def put_rod_on_sale(self, user_id, rod_instance_id, price):
+        """将鱼竿放到市场上出售"""
+        error = self._check_registered_or_return(user_id)
+        if error:
+            return error
+
+        return self.db.put_rod_on_sale(user_id, rod_instance_id, price)
+
+    def put_accessory_on_sale(self, user_id, accessory_instance_id, price):
+        """将饰品放到市场上出售"""
+        error = self._check_registered_or_return(user_id)
+        if error:
+            return error
+
+        return self.db.put_accessory_on_sale(user_id, accessory_instance_id, price)
+
+    def get_market_items(self):
+        """获取市场上所有的鱼竿和饰品"""
+        rods = self.db.get_market_rods()
+        accessories = self.db.get_market_accessories()
+
+        return {
+            "success": True,
+            "rods": rods,
+            "accessories": accessories
+        }
+
+    def buy_item(self, user_id, market_id):
+        """购买市场上的鱼竿或饰品"""
+        error = self._check_registered_or_return(user_id)
+        if error:
+            return error
+
+        return self.db.buy_item(user_id, market_id)

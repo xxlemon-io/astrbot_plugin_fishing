@@ -26,7 +26,7 @@ def get_coins_name():
     coins_names = ["星声", "原石", "社会信用点", "精粹", "黑油", "馒头", "马内", "🍓", "米线"]
     return random.choice(coins_names)
 
-@register("fish2.0", "tinker", "升级版的钓鱼插件", "1.1.3",
+@register("fish2.0", "tinker", "升级版的钓鱼插件", "1.1.4",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
 class FishingPlugin(Star):
     def __init__(self, context: Context):
@@ -535,6 +535,31 @@ class FishingPlugin(Star):
 
         yield event.plain_result(message)
 
+    @filter.command("出售鱼竿", alias={"sellrod"})
+    async def sell_rod(self, event: AstrMessageEvent):
+        """出售指定的鱼竿"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+
+        if len(args) < 2:
+            yield event.plain_result("⚠️ 请指定要出售的鱼竿ID")
+            return
+
+        try:
+            rod_instance_id = int(args[1])
+            result = self.FishingService.sell_rod(user_id, rod_instance_id)
+
+            # 增加表情符号
+            original_message = result.get("message", "出售鱼竿失败！")
+            if "成功" in original_message:
+                message = f"🛒 {original_message}"
+            else:
+                message = f"❌ {original_message}"
+
+            yield event.plain_result(message)
+        except ValueError:
+            yield event.plain_result("⚠️ 请输入有效的鱼竿ID")
+
     @filter.command("抽卡", alias={"gacha", "抽奖"})
     async def do_gacha(self, event: AstrMessageEvent):
         """进行单次抽卡"""
@@ -888,7 +913,16 @@ class FishingPlugin(Star):
      - /购买鱼竿 ID: 购买指定ID的鱼竿
      - /使用鱼饵 ID: 使用指定ID的鱼饵
      - /使用鱼竿 ID: 装备指定ID的鱼竿
+     - /出售鱼竿 ID: 出售指定ID的鱼竿
      - /使用饰品 ID: 装备指定ID的饰品
+     - /出售饰品 ID: 出售指定ID的饰品
+    
+    🏪 市场与购买:
+        - /市场: 查看市场中的物品
+        - /上架饰品 ID: 上架指定ID的饰品到市场
+        - /上架鱼竿 ID: 上架指定ID的鱼竿到市场
+        - /购买 ID: 购买市场中的指定物品ID
+        
     
     💰 出售鱼类:
      - /全部卖出: 出售背包中所有鱼
@@ -1456,6 +1490,36 @@ class FishingPlugin(Star):
         except ValueError:
             yield event.plain_result("⚠️ 请输入有效的饰品ID")
 
+    @filter.command("出售饰品", alias={"sellaccessory"})
+    async def sell_accessory(self, event: AstrMessageEvent):
+        """出售指定的饰品"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+
+        # 检查用户是否注册
+        if not self.FishingService.is_registered(user_id):
+            yield event.plain_result("请先注册才能使用此功能")
+            return
+
+        if len(args) < 2:
+            yield event.plain_result("⚠️ 请指定要出售的饰品ID")
+            return
+
+        try:
+            accessory_instance_id = int(args[1])
+            result = self.FishingService.sell_accessory(user_id, accessory_instance_id)
+
+            # 增加表情符号
+            original_message = result.get("message", "出售饰品失败！")
+            if "成功" in original_message:
+                message = f"💰 {original_message}"
+            else:
+                message = f"❌ {original_message}"
+
+            yield event.plain_result(message)
+        except ValueError:
+            yield event.plain_result("⚠️ 请输入有效的饰品ID")
+
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("增加金币", alias={"addcoins"})
     async def add_coins(self, event: AstrMessageEvent):
@@ -1540,6 +1604,145 @@ class FishingPlugin(Star):
                 import_users.append(user)
             result = self.FishingService.insert_users(import_users)
             yield event.plain_result(result.get("message", "导入数据失败"))
+
+    @filter.command("市场", alias={"market"})
+    async def show_market(self, event: AstrMessageEvent):
+        """显示商店中的所有商品"""
+        user_id = event.get_sender_id()
+
+        # 检查用户是否注册
+        if not self.FishingService.is_registered(user_id):
+            yield event.plain_result("请先注册才能使用此功能")
+            return
+
+        # 获取市场商品
+        market_items = self.FishingService.get_market_items()
+
+        # return {
+        #     "success": True,
+        #     "rods": rods,
+        #     "accessories": accessories
+        # }
+        if not market_items["success"]:
+            yield event.plain_result("❌ 获取市场商品失败，请稍后再试")
+            return
+        rods = market_items.get("rods", [])
+        accessories = market_items.get("accessories", [])
+        if not rods and not accessories:
+            yield event.plain_result("🛒 市场中暂无商品，欢迎稍后再来！")
+            return
+        # 构建消息
+        message = "【🛒 市场】\n\n"
+        if rods:
+            message += "【🎣 鱼竿】\n"
+            #返回市场上架的饰品信息，包括市场ID、用户昵称、饰品ID、饰品名称、数量、价格和上架时间
+            for rod in rods:
+                message += f"ID:{rod['market_id']} - {rod['rod_name']} (价格: {rod['price']} {get_coins_name()})\n"
+                message += f"  📝 上架者: {rod['nickname']} | 数量: {rod['quantity']} | 上架时间: {rod['listed_at']}\n"
+                if rod.get('description'):
+                    message += f"  📝 描述: {rod['description']}\n"
+            message += "\n"
+        if accessories:
+            message += "【🎭 饰品】\n"
+            for accessory in accessories:
+                message += f"ID:{accessory['market_id']} - {accessory['accessory_name']} (价格: {accessory['price']} {get_coins_name()})\n"
+                message += f"  📝 上架者: {accessory['nickname']} | 数量: {accessory['quantity']} | 上架时间: {accessory['listed_at']}\n"
+                if accessory.get('description'):
+                    message += f"  📝 描述: {accessory['description']}\n"
+            message += "\n"
+        message += "💡 使用「购买 ID」命令购买商品"
+        yield event.plain_result(message)
+
+    @filter.command("购买", alias={"buy"})
+    async def buy_item(self, event: AstrMessageEvent):
+        """购买市场上的商品"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+
+        # 检查用户是否注册
+        if not self.FishingService.is_registered(user_id):
+            yield event.plain_result("请先注册才能使用此功能")
+            return
+
+        if len(args) < 2:
+            yield event.plain_result("⚠️ 请指定要购买的商品ID，例如：/购买 1")
+            return
+
+        try:
+            market_id = int(args[1])
+            result = self.FishingService.buy_item(user_id, market_id)
+
+            if result["success"]:
+                yield event.plain_result(f"✅ {result['message']}")
+            else:
+                yield event.plain_result(f"❌ {result['message']}")
+        except ValueError:
+            yield event.plain_result("⚠️ 请输入有效的商品ID")
+
+    @filter.command("上架饰品", alias={"put_accessory_on_sale"})
+    async def put_accessory_on_sale(self, event: AstrMessageEvent):
+        """将饰品的ID和价格上架到商店"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+
+        # 检查用户是否注册
+        if not self.FishingService.is_registered(user_id):
+            yield event.plain_result("请先注册才能使用此功能")
+            return
+
+        if len(args) < 3:
+            yield event.plain_result("⚠️ 请指定饰品ID和上架价格，例如：/上架饰品 1 100")
+            return
+
+        try:
+            accessory_instance_id = int(args[1])
+            price = int(args[2])
+
+            if price <= 0:
+                yield event.plain_result("⚠️ 上架价格必须大于0")
+                return
+
+            result = self.FishingService.put_accessory_on_sale(user_id, accessory_instance_id, price)
+
+            if result["success"]:
+                yield event.plain_result(f"✅ 成功将饰品 ID {accessory_instance_id} 上架到市场，价格为 {price} {get_coins_name()}")
+            else:
+                yield event.plain_result(f"❌ {result['message']}")
+        except ValueError:
+            yield event.plain_result("⚠️ 请输入有效的饰品ID和价格")
+    # 将鱼竿上架到商店
+    @filter.command("上架鱼竿")
+    async def put_rod_on_sale(self, event: AstrMessageEvent):
+        """将鱼竿的ID和价格上架到商店"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+
+        # 检查用户是否注册
+        if not self.FishingService.is_registered(user_id):
+            yield event.plain_result("请先注册才能使用此功能")
+            return
+
+        if len(args) < 3:
+            yield event.plain_result("⚠️ 请指定鱼竿ID和上架价格，例如：/上架鱼竿 1 100")
+            return
+
+        try:
+            rod_instance_id = int(args[1])
+            price = int(args[2])
+
+            if price <= 0:
+                yield event.plain_result("⚠️ 上架价格必须大于0")
+                return
+
+            result = self.FishingService.put_rod_on_sale(user_id, rod_instance_id, price)
+
+            if result["success"]:
+                yield event.plain_result(f"✅ 成功将鱼竿 ID {rod_instance_id} 上架到市场，价格为 {price} {get_coins_name()}")
+            else:
+                yield event.plain_result(f"❌ {result['message']}")
+        except ValueError:
+            yield event.plain_result("⚠️ 请输入有效的鱼竿ID和价格")
+
 
     async def terminate(self):
         """插件被卸载/停用时调用"""

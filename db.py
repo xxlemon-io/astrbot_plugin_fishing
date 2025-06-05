@@ -337,6 +337,20 @@ class FishingDB:
                         FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
                     )
                 ''')
+                # 创建市场表
+                cursor.execute(f'''
+                    CREATE TABLE IF NOT EXISTS market (
+                        market_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id TEXT NOT NULL,
+                        item_type TEXT NOT NULL CHECK (item_type IN ('fish', 'bait', 'rod', 'accessory')),
+                        item_id INTEGER NOT NULL,
+                        quantity INTEGER NOT NULL CHECK (quantity > 0),
+                        price INTEGER NOT NULL CHECK (price > 0),
+                        listed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        expires_at DATETIME DEFAULT NULL,
+                        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                    )
+                ''')
 
                 # Indices
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_coins ON users(coins)")
@@ -351,6 +365,9 @@ class FishingDB:
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_fishing_records_user_time ON fishing_records(user_id, timestamp)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_fishing_records_fish_id ON fishing_records(fish_id)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_gacha_pool_items_pool_type ON gacha_pool_items(gacha_pool_id, item_type)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_gacha_records_user_time ON gacha_records(user_id, timestamp)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_market_user ON market(user_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_market_item ON market(item_type, item_id)")
 
                 conn.commit()
                 logger.info("Database schema initialization complete.")
@@ -2608,3 +2625,453 @@ class FishingDB:
             """, (user_id,))
             row = cursor.fetchone()
             return float(row['total']) if row and row['total'] else 0.0
+
+    def sell_rod(self, user_id, rod_instance_id):
+        """出售指定的鱼竿
+
+        Args:
+            user_id: 用户ID
+            rod_instance_id: 鱼竿实例ID
+
+        Returns:
+            bool: 是否成功出售
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # 检查鱼竿是否属于用户
+                cursor.execute("""
+                    SELECT rod_id, is_equipped 
+                    FROM user_rods 
+                    WHERE user_id = ? AND rod_instance_id = ?
+                """, (user_id, rod_instance_id))
+                result = cursor.fetchone()
+
+                if not result:
+                    return {
+                        'success': False,
+                        'message': "鱼竿不存在或不属于用户"
+                    }  # 鱼竿不存在或不属于用户
+
+                rod_id, is_equipped = result
+
+                # 如果鱼竿正在装备中，先取消装备
+                if is_equipped:
+                    cursor.execute("""
+                        UPDATE user_rods 
+                        SET is_equipped = 0 
+                        WHERE user_id = ? AND rod_instance_id = ?
+                    """, (user_id, rod_instance_id))
+                    # 同时更新用户表中的装备鱼竿ID
+                    cursor.execute("""
+                        UPDATE users 
+                        SET equipped_rod_instance_id = NULL 
+                        WHERE user_id = ?
+                    """, (user_id,))
+                # 删除鱼竿记录
+                cursor.execute("""
+                    DELETE FROM user_rods 
+                    WHERE user_id = ? AND rod_instance_id = ?
+                """, (user_id, rod_instance_id))
+                # 获取鱼竿的基础价值
+                cursor.execute("""
+                    SELECT rarity 
+                    FROM rods 
+                    WHERE rod_id = ?
+                """, (rod_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return {
+                        'success': False,
+                        'message': "鱼竿信息不存在"
+                    }
+                rarity = row['rarity']
+                # 根据稀有度计算出售价格
+                if rarity == 5:
+                    sell_price = 5000
+                elif rarity == 4:
+                    sell_price = 3000
+                elif rarity == 3:
+                    sell_price = 500
+                elif rarity == 2:
+                    sell_price = 80
+                else:
+                    sell_price = 30
+                # 更新用户金币
+                cursor.execute("""
+                    UPDATE users 
+                    SET coins = coins + ? 
+                    WHERE user_id = ?
+                """, (sell_price, user_id))
+                logger.info(f"用户 {user_id} 出售鱼竿 {rod_instance_id} 成功，获得金币: {sell_price}")
+                conn.commit()
+                return {
+                    'success': True,
+                    'message': f"出售鱼竿成功，获得金币: {sell_price}"
+                }
+        except sqlite3.Error as e:
+            logger.error(f"出售鱼竿失败: {e}")
+            return {
+                'success': False,
+                'message': f"出售鱼竿失败: {str(e)}"
+            }
+
+    def sell_accessory(self, user_id, accessory_instance_id):
+        """出售指定的饰品
+
+        Args:
+            user_id: 用户ID
+            accessory_instance_id: 饰品实例ID
+
+        Returns:
+            bool: 是否成功出售
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # 检查饰品是否属于用户
+                cursor.execute("""
+                    SELECT accessory_id, is_equipped 
+                    FROM user_accessories 
+                    WHERE user_id = ? AND accessory_instance_id = ?
+                """, (user_id, accessory_instance_id))
+                result = cursor.fetchone()
+
+                if not result:
+                    return {
+                        'success': False,
+                        'message': "饰品不存在或不属于用户"
+                    }  # 饰品不存在或不属于用户
+
+                accessory_id, is_equipped = result
+
+                # 如果饰品正在装备中，先取消装备
+                if is_equipped:
+                    cursor.execute("""
+                        UPDATE user_accessories 
+                        SET is_equipped = 0 
+                        WHERE user_id = ? AND accessory_instance_id = ?
+                    """, (user_id, accessory_instance_id))
+
+                # 删除饰品记录
+                cursor.execute("""
+                    DELETE FROM user_accessories 
+                    WHERE user_id = ? AND accessory_instance_id = ?
+                """, (user_id, accessory_instance_id))
+
+                # 获取饰品的基础价值
+                cursor.execute("""
+                    SELECT rarity 
+                    FROM accessories 
+                    WHERE accessory_id = ?
+                """, (accessory_id,))
+                row = cursor.fetchone()
+                if not row:
+                    return {
+                        'success': False,
+                        'message': "饰品信息不存在"
+                    }
+
+                rarity = row['rarity']
+
+                # 根据稀有度计算出售价格
+                if rarity == 5:
+                    sell_price = 50000
+                elif rarity == 4:
+                    sell_price = 15000
+                elif rarity == 3:
+                    sell_price = 3000
+                elif rarity == 2:
+                    sell_price = 500
+
+                # 更新用户金币
+                cursor.execute("""
+                    UPDATE users 
+                    SET coins = coins + ? 
+                    WHERE user_id = ?
+                """, (sell_price, user_id))
+
+                logger.info(f"用户 {user_id} 出售饰品 {accessory_instance_id} 成功，获得金币: {sell_price}")
+
+                conn.commit()
+                return {
+                    'success': True,
+                    'message': f"出售饰品成功，获得金币: {sell_price}"
+                }
+        except sqlite3.Error as e:
+            logger.error(f"出售饰品失败: {e}")
+            return {
+                'success': False,
+                'message': f"出售饰品失败: {str(e)}"
+            }
+
+    def put_rod_on_sale(self, user_id, rod_instance_id, price):
+        """将鱼竿上架出售
+
+        Args:
+            user_id: 用户ID
+            rod_instance_id: 鱼竿实例ID
+            price: 出售价格
+
+        Returns:
+            bool: 是否成功上架
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # 检查鱼竿是否属于用户
+                cursor.execute("""
+                    SELECT rod_id 
+                    FROM user_rods 
+                    WHERE user_id = ? AND rod_instance_id = ?
+                """, (user_id, rod_instance_id))
+                result = cursor.fetchone()
+
+                if not result:
+                    return {
+                        'success': False,
+                        'message': "鱼竿不存在或不属于用户"
+                    }  # 鱼竿不存在或不属于用户
+
+                rod_id = result['rod_id']
+
+                # 插入market表中
+                #market_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        # user_id TEXT NOT NULL,
+                        # item_type TEXT NOT NULL CHECK (item_type IN ('fish', 'bait', 'rod', 'accessory')),
+                        # item_id INTEGER NOT NULL,
+                        # quantity INTEGER NOT NULL CHECK (quantity > 0),
+                        # price INTEGER NOT NULL CHECK (price > 0),
+                        # listed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        # expires_at DATETIME DEFAULT NULL,
+                cursor.execute("""
+                    INSERT INTO market (user_id, item_type, item_id, quantity, price)
+                    VALUES (?, 'rod', ?, 1, ?)
+                """, (user_id, rod_id, price))
+
+                # 上架后删除鱼竿并且扣除出售鱼竿金币20%的税
+                cursor.execute("""
+                    DELETE FROM user_rods 
+                    WHERE user_id = ? AND rod_instance_id = ?
+                """, (user_id, rod_instance_id))
+                cursor.execute("""
+                    UPDATE users 
+                    SET coins = coins - ? 
+                    WHERE user_id = ?
+                """, (int(price * 0.2), user_id))
+
+                conn.commit()
+                return {
+                    'success': True,
+                    'message': f"鱼竿 {rod_instance_id} 已上架出售，价格: {price}金币"
+                }
+        except sqlite3.Error as e:
+            logger.error(f"上架鱼竿失败: {e}")
+            return {
+                'success': False,
+                'message': f"上架鱼竿失败: {str(e)}"
+            }
+
+    def put_accessory_on_sale(self, user_id, accessory_instance_id, price):
+        """将饰品上架出售
+
+        Args:
+            user_id: 用户ID
+            accessory_instance_id: 饰品实例ID
+            price: 出售价格
+
+        Returns:
+            bool: 是否成功上架
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # 检查饰品是否属于用户
+                cursor.execute("""
+                    SELECT accessory_id 
+                    FROM user_accessories 
+                    WHERE user_id = ? AND accessory_instance_id = ?
+                """, (user_id, accessory_instance_id))
+                result = cursor.fetchone()
+
+                if not result:
+                    return {
+                        'success': False,
+                        'message': "饰品不存在或不属于用户"
+                    }  # 饰品不存在或不属于用户
+
+                accessory_id = result['accessory_id']
+
+                # 插入market表中
+                cursor.execute("""
+                    INSERT INTO market (user_id, item_type, item_id, quantity, price)
+                    VALUES (?, 'accessory', ?, 1, ?)
+                """, (user_id, accessory_id, price))
+
+                # 上架后删除饰品并且扣除出售饰品金币20%的税
+                cursor.execute("""
+                    DELETE FROM user_accessories 
+                    WHERE user_id = ? AND accessory_instance_id = ?
+                """, (user_id, accessory_instance_id))
+                cursor.execute("""
+                    UPDATE users 
+                    SET coins = coins - ? 
+                    WHERE user_id = ?
+                """, (int(price * 0.2), user_id))
+
+                conn.commit()
+                return {
+                    'success': True,
+                    'message': f"饰品 {accessory_instance_id} 已上架出售，价格: {price}金币"
+                }
+        except sqlite3.Error as e:
+            logger.error(f"上架饰品失败: {e}")
+            return {
+                'success': False,
+                'message': f"上架饰品失败: {str(e)}"
+            }
+
+    def get_market_rods(self):
+        """获取市场上架的鱼竿列表
+
+        Returns:
+            List[Dict]: 市场上架的鱼竿信息列表
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                # 返回市场上架的鱼竿信息，包括市场ID、用户昵称、鱼竿ID、鱼竿名称、数量、价格和上架时间
+                cursor.execute("""
+                    SELECT 
+                        m.market_id, m.user_id, u.nickname, m.item_id, r.name AS rod_name, 
+                        m.quantity, m.price, m.listed_at
+                    FROM market m
+                    JOIN users u ON m.user_id = u.user_id
+                    JOIN rods r ON m.item_id = r.rod_id
+                    WHERE m.item_type = 'rod'
+                """)
+                return [dict(row) for row in cursor.fetchall()]
+        except sqlite3.Error as e:
+            logger.error(f"获取市场鱼竿失败: {e}")
+            return []
+
+    def get_market_accessories(self):
+        """获取市场上架的饰品列表
+
+        Returns:
+            List[Dict]: 市场上架的饰品信息列表
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                # 返回市场上架的饰品信息，包括市场ID、用户昵称、饰品ID、饰品名称、数量、价格和上架时间
+                cursor.execute("""
+                    SELECT 
+                        m.market_id, m.user_id, u.nickname, m.item_id, a.name AS accessory_name, 
+                        m.quantity, m.price, m.listed_at
+                    FROM market m
+                    JOIN users u ON m.user_id = u.user_id
+                    JOIN accessories a ON m.item_id = a.accessory_id
+                    WHERE m.item_type = 'accessory'
+                """)
+                return [dict(row) for row in cursor.fetchall()]
+        except sqlite3.Error as e:
+            logger.error(f"获取市场饰品失败: {e}")
+            return []
+
+    def buy_item(self, user_id, market_id):
+        """购买市场上的物品
+
+        Args:
+            user_id: 用户ID
+            market_id: 市场ID
+
+        Returns:
+            dict: 购买结果，包括成功与否和消息
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # 获取市场物品信息
+                cursor.execute("""
+                    SELECT m.item_type, m.item_id, m.price, m.quantity, u.coins 
+                    FROM market m
+                    JOIN users u ON m.user_id = u.user_id
+                    WHERE m.market_id = ?
+                """, (market_id,))
+                result = cursor.fetchone()
+
+                if not result:
+                    return {
+                        'success': False,
+                        'message': "市场物品不存在"
+                    }
+
+                item_type, item_id, price, quantity, user_coins = result
+
+                # 检查用户是否有足够的金币
+                if user_coins < price:
+                    return {
+                        'success': False,
+                        'message': "金币不足，无法购买"
+                    }
+
+                # 检查物品数量是否足够
+                if quantity <= 0:
+                    return {
+                        'success': False,
+                        'message': "物品数量不足，无法购买"
+                    }
+
+                # 扣除用户金币
+                cursor.execute("""
+                    UPDATE users 
+                    SET coins = coins - ? 
+                    WHERE user_id = ?
+                """, (price, user_id))
+
+                # 更新市场物品数量
+                if quantity == 1:
+                    cursor.execute("DELETE FROM market WHERE market_id = ?", (market_id,))
+                else:
+                    cursor.execute("""
+                        UPDATE market 
+                        SET quantity = quantity - 1 
+                        WHERE market_id = ?
+                    """, (market_id,))
+
+                # 根据物品类型进行不同的处理
+                if item_type == 'rod':
+                    # 添加到用户鱼竿库存
+                    cursor.execute("""
+                        INSERT INTO user_rods (user_id, rod_instance_id, rod_id, is_equipped)
+                        VALUES (?, NULL, ?, 0)
+                    """, (user_id, item_id))
+                elif item_type == 'accessory':
+                    # 添加到用户饰品库存
+                    cursor.execute("""
+                        INSERT INTO user_accessories (user_id, accessory_instance_id, accessory_id, is_equipped)
+                        VALUES (?, NULL, ?, 0)
+                    """, (user_id, item_id))
+                else:
+                    return {
+                        'success': False,
+                        'message': "不支持的物品类型"
+                    }
+                # 提交事务
+                conn.commit()
+                return {
+                    'success': True,
+                    'message': f"购买成功，获得 {item_type} ID: {item_id}，花费金币: {price}"
+                }
+        except sqlite3.Error as e:
+            logger.error(f"购买物品失败: {e}")
+            return {
+                'success': False,
+                'message': f"购买物品失败: {str(e)}"
+            }
