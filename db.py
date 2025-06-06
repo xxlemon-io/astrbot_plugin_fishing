@@ -3297,11 +3297,10 @@ class FishingDB:
                 if last_stolen_at:
                     # 将字符串时间转换为datetime对象，并添加UTC4时区信息
                     last_stolen_datetime = datetime.strptime(last_stolen_at, '%Y-%m-%d %H:%M:%S')
-                    last_stolen_datetime = last_stolen_datetime.replace(tzinfo=UTC4)
-
-                    # 使用get_utc4_now()获取当前时间（带有相同时区）
+                    last_stolen_datetime = last_stolen_datetime.replace(tzinfo=timezone.utc) + timedelta(hours=4)
+                    # 使用get_utc4_now()获取当前时间
                     current_time = get_utc4_now()
-
+                    logger.info(f"当前时间: {current_time}, 上次偷鱼时间: {last_stolen_datetime}")
                     # 如果上次偷鱼时间在4小时内，则不能偷
                     if (current_time - last_stolen_datetime).total_seconds() < 14400:
                         return {
