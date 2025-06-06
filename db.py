@@ -3295,8 +3295,15 @@ class FishingDB:
                 """, (user_id,))
                 last_stolen_at = cursor.fetchone()['last_stolen_at']
                 if last_stolen_at:
-                    # 如果上次偷鱼时间在24小时内，则不能偷
-                    if (datetime.now() - datetime.strptime(last_stolen_at, '%Y-%m-%d %H:%M:%S')).total_seconds() < 14400:
+                    # 将字符串时间转换为datetime对象，并添加UTC4时区信息
+                    last_stolen_datetime = datetime.strptime(last_stolen_at, '%Y-%m-%d %H:%M:%S')
+                    last_stolen_datetime = last_stolen_datetime.replace(tzinfo=UTC4)
+
+                    # 使用get_utc4_now()获取当前时间（带有相同时区）
+                    current_time = get_utc4_now()
+
+                    # 如果上次偷鱼时间在4小时内，则不能偷
+                    if (current_time - last_stolen_datetime).total_seconds() < 14400:
                         return {
                             'success': False,
                             'message': "你需要等待4小时才能再次偷鱼"
@@ -3341,9 +3348,9 @@ class FishingDB:
                 # 记录偷鱼时间
                 cursor.execute("""
                     UPDATE users 
-                    SET last_stolen_at = datetime('now') 
+                    SET last_stolen_at = ?
                     WHERE user_id = ?
-                """, (user_id,))
+                """, (user_id, get_utc4_now().strftime('%Y-%m-%d %H:%M:%S'),))
                 # 获取鱼的名称
                 cursor.execute("""
                     SELECT name 
