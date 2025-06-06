@@ -3349,7 +3349,7 @@ class FishingDB:
                     UPDATE users 
                     SET last_stolen_at = ?
                     WHERE user_id = ?
-                """, (user_id, get_utc4_now().strftime('%Y-%m-%d %H:%M:%S'),))
+                """, (get_utc4_now().strftime('%Y-%m-%d %H:%M:%S'),user_id))
                 # 获取鱼的名称
                 cursor.execute("""
                     SELECT name 
