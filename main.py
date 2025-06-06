@@ -22,6 +22,18 @@ def get_coins_name():
     coins_names = ["星声", "原石", "社会信用点", "精粹", "黑油", "馒头", "马内", "🍓", "米线"]
     return random.choice(coins_names)
 
+def get_fish_pond_inventory_grade(fish_pond_inventory):
+    """计算鱼塘背包的等级"""
+    total_value = fish_pond_inventory
+    if total_value == 480:
+        return "初级"
+    elif total_value < 1000:
+        return "中级"
+    elif total_value < 10000:
+        return "高级"
+    else:
+        return "顶级"
+
 @register("fish2.0", "tinker", "升级版的钓鱼插件", "1.1.4",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
 class FishingPlugin(Star):
@@ -77,7 +89,7 @@ _____ _     _     _
             # 如果装备了海洋之心，CD时间减少到1分钟
             last_fishing_time = max(0, last_fishing_time - 120)
             logger.info(f"用户 {user_id} 装备了海洋之心，{last_fishing_time}")
-        logger.info(f"用户 {user_id} 上次钓鱼时间: {last_fishing_time}, 当前时间: {current_time}")
+        # logger.info(f"用户 {user_id} 上次钓鱼时间: {last_fishing_time}, 当前时间: {current_time}")
         # 3分钟CD (180秒)
         if last_fishing_time > 0 and current_time - last_fishing_time < 180:
             remaining_seconds = int(180 - (current_time - last_fishing_time))
@@ -911,6 +923,8 @@ _____ _     _     _
     
     🎒 背包相关:
      - /鱼塘: 查看鱼类背包
+     - /鱼塘容量: 查看当前鱼塘容量
+     - /升级鱼塘: 升级鱼塘容量
      - /鱼饵: 查看鱼饵背包
      - /鱼竿: 查看鱼竿背包
      - /饰品: 查看饰品背包
@@ -953,6 +967,7 @@ _____ _     _     _
      - /使用称号 ID: 使用指定ID称号
      - /查看成就: 查看可达成的成就
      - /钓鱼记录: 查看最近的钓鱼记录
+     - /税收记录: 查看税收记录
     """
         # message = prefix + "\n" + message
 
@@ -1751,6 +1766,76 @@ _____ _     _     _
         except ValueError:
             yield event.plain_result("⚠️ 请输入有效的鱼竿ID和价格")
 
+    @filter.command("税收记录")
+    async def show_tax_records(self, event: AstrMessageEvent):
+        """显示税收记录"""
+        user_id = event.get_sender_id()
+
+        # 检查用户是否注册
+        if not self.FishingService.is_registered(user_id):
+            yield event.plain_result("请先注册才能使用此功能")
+            return
+
+        # 获取税收记录
+        records = self.FishingService.db.get_tax_records(user_id)
+
+        if not records:
+            yield event.plain_result("📝 你还没有任何税收记录")
+            return
+
+        # 构建消息
+        message = "【📊 税收记录】\n\n"
+
+        for idx, record in enumerate(records, 1):
+            time_str = record.get('timestamp', '未知时间')
+            if isinstance(time_str, str) and len(time_str) > 16:
+                time_str = time_str[:16]
+            tax_amount = record.get('tax_amount', 0)
+            reason = record.get('reason', '无')
+            message += f"{idx}. ⏱️ {time_str}\n"
+            message += f"   💰 税收金额: {tax_amount} {get_coins_name()}\n"
+            message += f"   📝 原因: {reason}\n"
+        yield event.plain_result(message)
+
+    @filter.command("鱼塘容量")
+    async def show_fish_inventory_capacity(self, event: AstrMessageEvent):
+        """显示用户鱼塘的容量"""
+        user_id = event.get_sender_id()
+
+        # 检查用户是否注册
+        if not self.FishingService.is_registered(user_id):
+            yield event.plain_result("请先注册才能使用此功能")
+            return
+
+        # 获取用户鱼塘容量
+        capacity = self.FishingService.get_user_fish_inventory_capacity(user_id)
+
+        if not capacity["success"]:
+            yield event.plain_result(capacity["message"])
+            return
+
+        current_capacity = capacity["current_count"]
+        max_capacity = capacity["capacity"]
+
+        message = f"🐟 你的鱼塘当前容量（{get_fish_pond_inventory_grade(max_capacity)}）: {current_capacity}/{max_capacity} 只鱼"
+        yield event.plain_result(message)
+
+    @filter.command("升级鱼塘")
+    async def upgrade_fish_inventory(self, event: AstrMessageEvent):
+        """升级用户的鱼塘容量"""
+        user_id = event.get_sender_id()
+
+        # 检查用户是否注册
+        if not self.FishingService.is_registered(user_id):
+            yield event.plain_result("请先注册才能使用此功能")
+            return
+
+        result = self.FishingService.upgrade_fish_inventory(user_id)
+
+        if result["success"]:
+            yield event.plain_result(f"✅ 成功升级鱼塘！当前容量: {result['new_capacity']} , 💴花费: {result['cost']} {get_coins_name()}")
+        else:
+            yield event.plain_result(f"❌ {result['message']}")
 
     async def terminate(self):
         """插件被卸载/停用时调用"""

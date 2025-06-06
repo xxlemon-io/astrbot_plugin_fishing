@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Tuple
 from datetime import datetime, date, timedelta, timezone
 from .db import FishingDB
 from astrbot.api import logger
-from .po import UserFishing
+from .po import UserFishing, POND_CAPACITY_PRIMARY, POND_CAPACITY_MIDDLE, POND_CAPACITY_ADVANCED, POND_CAPACITY_TOP
 
 UTC4 = timezone(timedelta(hours=4))
 
@@ -30,6 +30,9 @@ class FishingService:
         
         # 确保必要的基础数据存在
         self._ensure_shop_items_exist()
+
+        # 数据库修改操作
+        self.db._migrate_database()
         
         # 启动自动钓鱼
         self.start_auto_fishing_task()
@@ -1656,3 +1659,57 @@ class FishingService:
             return error
 
         return self.db.buy_item(user_id, market_id)
+
+    def get_user_fish_inventory_capacity(self, user_id):
+        """获取用户鱼塘的容量"""
+        error = self._check_registered_or_return(user_id)
+        if error:
+            return error
+
+        # 获取用户当前鱼塘容量
+        result = self.db.get_user_fish_inventory_capacity(user_id)
+        if result is None:
+            return {"success": False, "message": "无法获取用户鱼塘容量"}
+        return {
+            "success": True,
+            "capacity": result['capacity'],
+            "current_count": result['current_count']
+        }
+
+    def upgrade_fish_inventory(self, user_id):
+        """升级用户鱼塘容量"""
+        error = self._check_registered_or_return(user_id)
+        if error:
+            return error
+
+        # 先获取当前用户的鱼塘容量
+        user_capacity = self.db.get_user_fish_inventory_capacity(user_id)['capacity']
+        cost_coins = 0
+        to_capacity = None
+        if user_capacity == POND_CAPACITY_PRIMARY:
+            to_capacity = POND_CAPACITY_MIDDLE
+            cost_coins = 50000
+        elif user_capacity == POND_CAPACITY_MIDDLE:
+            to_capacity = POND_CAPACITY_ADVANCED
+            cost_coins = 500000
+        elif user_capacity == POND_CAPACITY_ADVANCED:
+            to_capacity = POND_CAPACITY_TOP
+            cost_coins = 50000000
+
+        # 检查用户是否有足够的金币
+        user_coins = self.db.get_user_coins(user_id)
+        if user_coins < cost_coins:
+            return {"success": False, "message": f"金币不足，无法升级鱼塘容量，需要 {cost_coins} 金币"}
+        # 扣除金币
+        self.db.update_user_coins(user_id, -cost_coins)
+        # 升级鱼塘容量
+        result = self.db.upgrade_user_fish_inventory(user_id, to_capacity)
+        if result:
+            return {
+                "success": True,
+                "new_capacity": to_capacity,
+                "cost": cost_coins,
+            }
+        else:
+            return {"success": False, "message": "鱼塘升级失败，请稍后再试"}
+

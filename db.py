@@ -351,6 +351,19 @@ class FishingDB:
                         FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
                     )
                 ''')
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS taxes (
+                        tax_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id TEXT NOT NULL,
+                        tax_amount INTEGER NOT NULL,
+                        tax_rate REAL NOT NULL,
+                        original_amount INTEGER NOT NULL,
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        tax_type TEXT NOT NULL DEFAULT 'daily',
+                        balance_after INTEGER NOT NULL,
+                        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                    )
+                ''')
 
                 # Indices
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_coins ON users(coins)")
@@ -802,6 +815,22 @@ class FishingDB:
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
+                # 先检查用户的鱼塘容量是否足够
+                cursor.execute("SELECT fish_pond_capacity FROM users WHERE user_id = ?", (user_id,))
+                result = cursor.fetchone()
+                # 先获取用户鱼塘中所有鱼的数量
+                cursor.execute("SELECT SUM(quantity) FROM user_fish_inventory WHERE user_id = ?", (user_id,))
+                current_quantity = cursor.fetchone()[0] or 0
+
+                # 如果鱼塘容量不足，鱼塘内随机删除一条鱼
+                if result and current_quantity >= result[0]:
+                    cursor.execute("""
+                        DELETE FROM user_fish_inventory 
+                        WHERE user_id = ? 
+                        ORDER BY RANDOM() 
+                        LIMIT 1
+                    """, (user_id,))
+
                 cursor.execute("""
                     INSERT INTO user_fish_inventory (user_id, fish_id, quantity)
                     VALUES (?, ?, 1)
@@ -3117,7 +3146,22 @@ class FishingDB:
                         SET coins = coins - ? 
                         WHERE user_id = ?
                     """, (tax_amount, user_id))
-
+                    # 记录税收日志
+                    # CREATE TABLE IF NOT EXISTS taxes (
+                    #     tax_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    #     user_id TEXT NOT NULL,
+                    #     tax_amount INTEGER NOT NULL,
+                    #     tax_rate REAL NOT NULL,
+                    #     original_amount INTEGER NOT NULL,
+                    #     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    #     tax_type TEXT NOT NULL DEFAULT 'daily',
+                    #     balance_after INTEGER NOT NULL,
+                    #     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+                    # )
+                    cursor.execute("""
+                        INSERT INTO taxes (user_id, tax_amount, tax_rate, original_amount, balance_after)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (user_id, tax_amount, param, coins, coins - tax_amount))
                 conn.commit()
                 return {
                     'success': True,
@@ -3128,4 +3172,83 @@ class FishingDB:
             return {
                 'success': False,
                 'message': f"应用每日税收失败: {str(e)}"
+            }
+    def get_tax_records(self, user_id: str, limit: int = 10) -> List[Dict]:
+        """获取用户的税收记录"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT tax_id, tax_amount, tax_rate, original_amount, balance_after, timestamp, tax_type AS reason
+                    FROM taxes
+                    WHERE user_id = ?
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                """, (user_id, limit))
+
+                return [dict(row) for row in cursor.fetchall()]
+        except sqlite3.Error as e:
+            logger.error(f"获取税收记录失败: {e}")
+            return []
+
+    def _migrate_database(self):
+        """执行数据库修改操作"""
+        # 查看用户表是否有鱼塘容量列
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(users)")
+            columns = [col[1] for col in cursor.fetchall()]
+
+            # 如果没有 fish_pond_capacity 列，则添加
+            if 'fish_pond_capacity' not in columns:
+                cursor.execute("ALTER TABLE users ADD COLUMN fish_pond_capacity INTEGER DEFAULT 480")
+                logger.info("已添加 fish_pond_capacity 列到 users 表")
+
+    def get_user_fish_inventory_capacity(self, user_id):
+        """获取用户鱼塘容量"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT fish_pond_capacity 
+                FROM users 
+                WHERE user_id = ?
+            """, (user_id,))
+            row = cursor.fetchone()
+            # 获取当前鱼塘的容量
+            cursor.execute("SELECT SUM(quantity) FROM user_fish_inventory WHERE user_id = ?", (user_id,))
+            current_capacity = cursor.fetchone()[0] or 0
+            return {
+                "capacity": row['fish_pond_capacity'],
+                "current_count": current_capacity
+            }
+
+    def upgrade_user_fish_inventory(self, user_id, to_capacity):
+        """升级用户鱼塘容量
+
+        Args:
+            user_id: 用户ID
+            to_capacity: 升级后的容量
+
+        Returns:
+            bool: 是否成功升级
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                # 直接将用户鱼塘容量修改为 to_capacity
+                cursor.execute("""
+                    UPDATE users 
+                    SET fish_pond_capacity = ? 
+                    WHERE user_id = ?
+                """, (to_capacity, user_id))
+                conn.commit()
+                return {
+                    'success': True,
+                    'message': f"鱼塘容量已升级到 {to_capacity} 只"
+                }
+        except sqlite3.Error as e:
+            logger.error(f"升级鱼塘容量失败: {e}")
+            return {
+                'success': False,
+                'message': f"升级鱼塘容量失败: {str(e)}"
             }
