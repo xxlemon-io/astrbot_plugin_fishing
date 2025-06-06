@@ -7,10 +7,7 @@
 ## 💡Future 
 
 如果你有什么想法，欢迎到[#4](https://github.com/tinkerbellqwq/astrbot_plugin_fishing/issues/4) 提交！期待您天马行空的想法
-POND_CAPACITY_PRIMARY = 480
-POND_CAPACITY_MIDDLE = 999
-POND_CAPACITY_ADVANCED = 9999
-POND_CAPACITY_TOP = 99999
+
 ## 📦 更新记录
 #### v1.1.5 - v1.1.6
 - 新增鱼塘容量概念，初始为480，可通过 `/鱼塘容量` 查看
