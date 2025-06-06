@@ -1859,7 +1859,8 @@ _____ _     _     _
         if target_id is None:
             yield event.plain_result("请在消息中@要偷鱼的用户")
             return
-        if target_id == user_id:
+        # logger.info(f"用户 {user_id} 尝试偷鱼，目标用户ID: {target_id}")
+        if int(target_id) == int(user_id):
             yield event.plain_result("不能偷自己的鱼哦！")
             return
         # 执行偷鱼逻辑
