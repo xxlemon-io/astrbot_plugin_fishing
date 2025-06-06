@@ -1695,6 +1695,11 @@ class FishingService:
         elif user_capacity == POND_CAPACITY_ADVANCED:
             to_capacity = POND_CAPACITY_TOP
             cost_coins = 50000000
+        else:
+            return {
+                "success": False,
+                "message": "鱼塘容量已达到最大，无法再升级"
+            }
 
         # 检查用户是否有足够的金币
         user_coins = self.db.get_user_coins(user_id)
