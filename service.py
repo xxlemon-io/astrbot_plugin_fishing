@@ -1713,3 +1713,20 @@ class FishingService:
         else:
             return {"success": False, "message": "鱼塘升级失败，请稍后再试"}
 
+    def steal_fish(self, user_id, target_id):
+        """尝试偷取其他用户的鱼"""
+        error = self._check_registered_or_return(user_id)
+        if error:
+            return error
+
+        # 检查目标用户是否存在
+        target_user = self.db.get_user_by_id(target_id)
+        if not target_user:
+            return {"success": False, "message": "目标用户不存在"}
+
+        # # 检查用户是否有足够的金币进行偷窃
+        # user_coins = self.db.get_user_coins(user_id)
+        # steal_cost = 1000
+
+        # 执行偷鱼
+        return self.db.steal_fish(user_id, target_id)

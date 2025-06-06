@@ -3203,6 +3203,11 @@ class FishingDB:
             if 'fish_pond_capacity' not in columns:
                 cursor.execute("ALTER TABLE users ADD COLUMN fish_pond_capacity INTEGER DEFAULT 480")
                 logger.info("已添加 fish_pond_capacity 列到 users 表")
+            # 如果没有被偷鱼时间列，则添加
+            if 'last_stolen_at' not in columns:
+                cursor.execute("ALTER TABLE users ADD COLUMN last_stolen_at DATETIME DEFAULT NULL")
+                logger.info("已添加 last_stolen_at 列到 users 表")
+
 
     def get_user_fish_inventory_capacity(self, user_id):
         """获取用户鱼塘容量"""
@@ -3251,4 +3256,117 @@ class FishingDB:
             return {
                 'success': False,
                 'message': f"升级鱼塘容量失败: {str(e)}"
+            }
+
+    def get_user_by_id(self, target_id):
+        """根据用户ID获取用户信息
+
+        Args:
+            target_id: 用户ID
+
+        Returns:
+            Dict: 用户信息字典
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM users WHERE user_id = ?", (target_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def steal_fish(self, user_id, target_id):
+        """偷取目标用户的鱼
+
+        Args:
+            user_id: 偷鱼者的用户ID
+            target_id: 被偷者的用户ID
+
+        Returns:
+            dict: 偷鱼结果，包括成功与否和消息
+        """
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # 先检查偷鱼者是否有足够的时间间隔
+                cursor.execute("""
+                    SELECT last_stolen_at 
+                    FROM users 
+                    WHERE user_id = ?
+                """, (user_id,))
+                last_stolen_at = cursor.fetchone()['last_stolen_at']
+                if last_stolen_at:
+                    # 如果上次偷鱼时间在24小时内，则不能偷
+                    if (datetime.now() - datetime.strptime(last_stolen_at, '%Y-%m-%d %H:%M:%S')).total_seconds() < 14400:
+                        return {
+                            'success': False,
+                            'message': "你需要等待4小时才能再次偷鱼"
+                        }
+
+                # 检查目标用户是否有鱼可被偷
+                cursor.execute("""
+                    SELECT fish_id, quantity 
+                    FROM user_fish_inventory 
+                    WHERE user_id = ? 
+                    ORDER BY RANDOM() 
+                    LIMIT 1
+                """, (target_id,))
+                stolen_fish = cursor.fetchone()
+                if not stolen_fish:
+                    return {
+                        'success': False,
+                        'message': "目标用户没有鱼可被偷"
+                    }
+
+                fish_id, quantity = stolen_fish['fish_id'], stolen_fish['quantity']
+
+                # 从目标用户库存中删除被偷的鱼
+                if quantity == 1:
+                    cursor.execute("""
+                        DELETE FROM user_fish_inventory 
+                        WHERE user_id = ? AND fish_id = ?
+                    """, (target_id, fish_id))
+                else:
+                    cursor.execute("""
+                        UPDATE user_fish_inventory 
+                        SET quantity = quantity - 1 
+                        WHERE user_id = ? AND fish_id = ?
+                    """, (target_id, fish_id))
+
+                # 将被偷的鱼添加到偷鱼者的库存中
+                cursor.execute("""
+                    INSERT INTO user_fish_inventory (user_id, fish_id, quantity)
+                    VALUES (?, ?, 1)
+                    ON CONFLICT(user_id, fish_id) DO UPDATE SET quantity = quantity + 1
+                """, (user_id, fish_id))
+                # 记录偷鱼时间
+                cursor.execute("""
+                    UPDATE users 
+                    SET last_stolen_at = datetime('now') 
+                    WHERE user_id = ?
+                """, (user_id,))
+                # 获取鱼的名称
+                cursor.execute("""
+                    SELECT name 
+                    FROM fish 
+                    WHERE fish_id = ?
+                """, (fish_id,))
+                fish_name = cursor.fetchone()['name']
+                # 获取被偷人的昵称
+                cursor.execute("""
+                    SELECT nickname 
+                    FROM users 
+                    WHERE user_id = ?
+                """, (target_id,))
+                target_nickname = cursor.fetchone()['nickname']
+                # 提交事务
+                conn.commit()
+                return {
+                    'success': True,
+                    'message': f"成功偷取 {target_nickname} 的 {fish_name}，数量: 1"
+                }
+        except sqlite3.Error as e:
+            logger.error(f"偷鱼失败: {e}")
+            return {
+                'success': False,
+                'message': f"偷鱼失败: {str(e)}"
             }

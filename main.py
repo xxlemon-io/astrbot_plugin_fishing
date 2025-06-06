@@ -3,7 +3,7 @@ import os
 
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
-from astrbot.api.message_components import Node, Plain
+from astrbot.api.message_components import Node, Plain, At
 from astrbot.api import logger
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 from astrbot.core.star.filter.permission import PermissionType
@@ -1836,6 +1836,39 @@ _____ _     _     _
             yield event.plain_result(f"✅ 成功升级鱼塘！当前容量: {result['new_capacity']} , 💴花费: {result['cost']} {get_coins_name()}")
         else:
             yield event.plain_result(f"❌ {result['message']}")
+
+    @filter.command("偷鱼", alias={"steal_fish"})
+    async def steal_fish(self, event: AstrMessageEvent):
+        """尝试偷取其他用户的鱼"""
+        user_id = event.get_sender_id()
+
+        # 检查用户是否注册
+        if not self.FishingService.is_registered(user_id):
+            yield event.plain_result("请先注册才能使用此功能")
+            return
+
+        message_obj = event.message_obj
+        target_id = None
+        if hasattr(message_obj, 'message'):
+            # 检查消息中是否有At对象
+            for comp in message_obj.message:
+                if isinstance(comp, At):
+                    target_id = comp.qq
+                    break
+        if target_id is None:
+            yield event.plain_result("请在消息中@要偷鱼的用户")
+            return
+        if target_id == user_id:
+            yield event.plain_result("不能偷自己的鱼哦！")
+            return
+        # 执行偷鱼逻辑
+        result = self.FishingService.steal_fish(user_id, target_id)
+        if result["success"]:
+            yield event.plain_result(f"✅ {result['message']}")
+        else:
+            yield event.plain_result(f"❌ {result['message']}")
+
+
 
     async def terminate(self):
         """插件被卸载/停用时调用"""
