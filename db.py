@@ -550,9 +550,9 @@ class FishingDB:
                     ('大师拟饵', '由钓鱼大师制作的完美拟饵。', 4, '大幅提高掠食性鱼类上钩率，无消耗', 0, 1000, 3),  # 拟饵
 
                     # --- Rarity 5 (传说) ---
-                    ('龙涎香饵', '沾染了龙王气息的神秘饵料。', 5, '极大提高 Rarity 5 鱼的上钩率', 0, 0, 3),  # 特殊获取
+                    # ('龙涎香饵', '沾染了龙王气息的神秘饵料。', 5, '极大提高 Rarity 5 鱼的上钩率', 0, 0, 3),  # 特殊获取
                     ('巨物诱饵', '蕴含着远古力量，能吸引庞然大物。', 5, '钓上的鱼最大重量潜力+20%', 0, 2500, 4),
-                    ('丰饶号角粉末', '从丰收号角上刮下来的一点粉末。', 5, '下一次钓鱼必定获得双倍数量的鱼', 0, 0, 5),
+                    # ('丰饶号角粉末', '从丰收号角上刮下来的一点粉末。', 5, '下一次钓鱼必定获得双倍数量的鱼', 0, 0, 5),
                     # 特殊获取
                 ]
 
@@ -3207,6 +3207,16 @@ class FishingDB:
             if 'last_stolen_at' not in columns:
                 cursor.execute("ALTER TABLE users ADD COLUMN last_stolen_at DATETIME DEFAULT NULL")
                 logger.info("已添加 last_stolen_at 列到 users 表")
+            # 检查鱼饵表中是否有龙涎香饵和丰饶号角粉末，删除它们
+            cursor.execute("SELECT bait_id FROM baits WHERE name = '龙涎香饵'")
+            if cursor.fetchone():
+                cursor.execute("DELETE FROM baits WHERE name = '龙涎香饵'")
+                logger.debug("已删除龙涎香饵")
+            cursor.execute("SELECT bait_id FROM baits WHERE name = '丰饶号角粉末'")
+            if cursor.fetchone():
+                cursor.execute("DELETE FROM baits WHERE name = '丰饶号角粉末'")
+                logger.debug("已删除丰饶号角粉末")
+
 
 
     def get_user_fish_inventory_capacity(self, user_id):
@@ -3376,3 +3386,428 @@ class FishingDB:
                 'success': False,
                 'message': f"偷鱼失败: {str(e)}"
             }
+
+
+    # webui 数据库操作
+    # 在 db.py 的 FishingDB 类中添加
+
+    def get_all_fish(self) -> List[Dict]:
+        """获取所有鱼类信息，用于后台管理"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM fish ORDER BY rarity DESC, fish_id DESC")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def add_fish(self, data: Dict) -> bool:
+        """后台添加一条新鱼"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO fish (name, description, rarity, base_value, min_weight, max_weight, icon_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (data['name'], data['description'], data['rarity'], data['base_value'], data['min_weight'],
+                      data['max_weight'], data.get('icon_url')))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台添加鱼类失败: {e}")
+            return False
+
+    def update_fish(self, fish_id: int, data: Dict) -> bool:
+        """后台更新一条鱼的信息"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE fish SET
+                    name = ?, description = ?, rarity = ?, base_value = ?,
+                    min_weight = ?, max_weight = ?, icon_url = ?
+                    WHERE fish_id = ?
+                """, (data['name'], data['description'], data['rarity'], data['base_value'], data['min_weight'],
+                      data['max_weight'], data.get('icon_url'), fish_id))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台更新鱼类 {fish_id} 失败: {e}")
+            return False
+
+    def delete_fish(self, fish_id: int) -> bool:
+        """后台删除一条鱼"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM fish WHERE fish_id = ?", (fish_id,))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台删除鱼类 {fish_id} 失败: {e}")
+            return False
+
+    # --- 后台管理方法：鱼竿 ---
+
+    def get_all_rods_admin(self) -> list[dict]:
+        """获取所有鱼竿信息，用于后台管理"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM rods ORDER BY rarity DESC, rod_id DESC")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def add_rod_admin(self, data: dict) -> bool:
+        """后台添加一个新鱼竿"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO rods (name, description, rarity, source, purchase_cost, 
+                                      bonus_fish_quality_modifier, bonus_fish_quantity_modifier, 
+                                      bonus_rare_fish_chance, durability, icon_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (data['name'], data.get('description'), data['rarity'], data['source'],
+                      data.get('purchase_cost') or None,
+                      data.get('bonus_fish_quality_modifier', 1.0), data.get('bonus_fish_quantity_modifier', 1.0),
+                      data.get('bonus_rare_fish_chance', 0.0), data.get('durability') or None, data.get('icon_url')))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台添加鱼竿失败: {e}")
+            return False
+
+    def update_rod_admin(self, rod_id: int, data: dict) -> bool:
+        """后台更新一个鱼竿的信息"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE rods SET
+                    name = ?, description = ?, rarity = ?, source = ?, purchase_cost = ?, 
+                    bonus_fish_quality_modifier = ?, bonus_fish_quantity_modifier = ?, 
+                    bonus_rare_fish_chance = ?, durability = ?, icon_url = ?
+                    WHERE rod_id = ?
+                """, (data['name'], data.get('description'), data['rarity'], data['source'],
+                      data.get('purchase_cost') or None,
+                      data.get('bonus_fish_quality_modifier', 1.0), data.get('bonus_fish_quantity_modifier', 1.0),
+                      data.get('bonus_rare_fish_chance', 0.0), data.get('durability') or None, data.get('icon_url'),
+                      rod_id))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台更新鱼竿 {rod_id} 失败: {e}")
+            return False
+
+    def delete_rod_admin(self, rod_id: int) -> bool:
+        """后台删除一个鱼竿"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM rods WHERE rod_id = ?", (rod_id,))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台删除鱼竿 {rod_id} 失败: {e}")
+            return False
+
+    # --- 后台管理方法：鱼饵 ---
+
+    def get_all_baits_admin(self) -> list[dict]:
+        """获取所有鱼饵信息，用于后台管理"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM baits ORDER BY rarity DESC, bait_id DESC")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def add_bait_admin(self, data: dict) -> bool:
+        """后台添加一个新鱼饵"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO baits (name, description, rarity, effect_description, 
+                                       duration_minutes, cost, required_rod_rarity)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (data['name'], data.get('description'), data['rarity'], data.get('effect_description'),
+                      data.get('duration_minutes', 0), data.get('cost', 0), data.get('required_rod_rarity', 0)))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台添加鱼饵失败: {e}")
+            return False
+
+    def update_bait_admin(self, bait_id: int, data: dict) -> bool:
+        """后台更新一个鱼饵的信息"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE baits SET
+                    name = ?, description = ?, rarity = ?, effect_description = ?, 
+                    duration_minutes = ?, cost = ?, required_rod_rarity = ?
+                    WHERE bait_id = ?
+                """, (data['name'], data.get('description'), data['rarity'], data.get('effect_description'),
+                      data.get('duration_minutes', 0), data.get('cost', 0), data.get('required_rod_rarity', 0),
+                      bait_id))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台更新鱼饵 {bait_id} 失败: {e}")
+            return False
+
+    def delete_bait_admin(self, bait_id: int) -> bool:
+        """后台删除一个鱼饵"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM baits WHERE bait_id = ?", (bait_id,))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台删除鱼饵 {bait_id} 失败: {e}")
+            return False
+
+    # --- 后台管理方法：饰品 ---
+
+    def get_all_accessories_admin(self) -> list[dict]:
+        """获取所有饰品信息，用于后台管理"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM accessories ORDER BY rarity DESC, accessory_id DESC")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def add_accessory_admin(self, data: dict) -> bool:
+        """后台添加一个新饰品"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO accessories (name, description, rarity, slot_type, bonus_fish_quality_modifier,
+                                             bonus_fish_quantity_modifier, bonus_rare_fish_chance,
+                                             bonus_coin_modifier, other_bonus_description, icon_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (data['name'], data.get('description'), data['rarity'], data.get('slot_type', 'general'),
+                      data.get('bonus_fish_quality_modifier', 1.0), data.get('bonus_fish_quantity_modifier', 1.0),
+                      data.get('bonus_rare_fish_chance', 0.0), data.get('bonus_coin_modifier', 1.0),
+                      data.get('other_bonus_description'), data.get('icon_url')))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台添加饰品失败: {e}")
+            return False
+
+    def update_accessory_admin(self, accessory_id: int, data: dict) -> bool:
+        """后台更新一个饰品的信息"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE accessories SET
+                    name = ?, description = ?, rarity = ?, slot_type = ?, bonus_fish_quality_modifier = ?,
+                    bonus_fish_quantity_modifier = ?, bonus_rare_fish_chance = ?,
+                    bonus_coin_modifier = ?, other_bonus_description = ?, icon_url = ?
+                    WHERE accessory_id = ?
+                """, (data['name'], data.get('description'), data['rarity'], data.get('slot_type', 'general'),
+                      data.get('bonus_fish_quality_modifier', 1.0), data.get('bonus_fish_quantity_modifier', 1.0),
+                      data.get('bonus_rare_fish_chance', 0.0), data.get('bonus_coin_modifier', 1.0),
+                      data.get('other_bonus_description'), data.get('icon_url'), accessory_id))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台更新饰品 {accessory_id} 失败: {e}")
+            return False
+
+    def delete_accessory_admin(self, accessory_id: int) -> bool:
+        """后台删除一个饰品"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM accessories WHERE accessory_id = ?", (accessory_id,))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台删除饰品 {accessory_id} 失败: {e}")
+            return False
+
+    # --- 后台管理方法：抽卡池 ---
+
+    def get_gacha_pool_admin(self, pool_id: int) -> dict:
+        """获取单个抽卡池信息"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM gacha_pools WHERE gacha_pool_id = ?", (pool_id,))
+            return dict(cursor.fetchone())
+
+    def add_gacha_pool_admin(self, data: dict) -> bool:
+        """后台添加一个新抽卡池"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO gacha_pools (name, description, cost_coins, cost_premium_currency)
+                    VALUES (?, ?, ?, ?)
+                """, (
+                data['name'], data.get('description'), data.get('cost_coins', 0), data.get('cost_premium_currency', 0)))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台添加抽卡池失败: {e}")
+            return False
+
+    def update_gacha_pool_admin(self, pool_id: int, data: dict) -> bool:
+        """后台更新一个抽卡池的信息"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE gacha_pools SET
+                    name = ?, description = ?, cost_coins = ?, cost_premium_currency = ?
+                    WHERE gacha_pool_id = ?
+                """, (
+                data['name'], data.get('description'), data.get('cost_coins', 0), data.get('cost_premium_currency', 0),
+                pool_id))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台更新抽卡池 {pool_id} 失败: {e}")
+            return False
+
+    def delete_gacha_pool_admin(self, pool_id: int) -> bool:
+        """后台删除一个抽卡池（其下的物品也会被级联删除）"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM gacha_pools WHERE gacha_pool_id = ?", (pool_id,))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台删除抽卡池 {pool_id} 失败: {e}")
+            return False
+
+    # --- 后台管理方法：抽卡池 & 抽卡池物品 ---
+
+    def get_gacha_pool_admin(self, pool_id: int) -> dict:
+        """获取单个抽卡池信息"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM gacha_pools WHERE gacha_pool_id = ?", (pool_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def add_gacha_pool_admin(self, data: dict) -> bool:
+        """后台添加一个新抽卡池"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO gacha_pools (name, description, cost_coins)
+                    VALUES (?, ?, ?)
+                """, (data['name'], data.get('description'), data.get('cost_coins', 0)))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台添加抽卡池失败: {e}")
+            return False
+
+    def update_gacha_pool_admin(self, pool_id: int, data: dict) -> bool:
+        """后台更新一个抽卡池的信息"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE gacha_pools SET
+                    name = ?, description = ?, cost_coins = ?
+                    WHERE gacha_pool_id = ?
+                """, (data['name'], data.get('description'), data.get('cost_coins', 0), pool_id))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台更新抽卡池 {pool_id} 失败: {e}")
+            return False
+
+    def delete_gacha_pool_admin(self, pool_id: int) -> bool:
+        """后台删除一个抽卡池（其下的物品也会被级联删除）"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM gacha_pools WHERE gacha_pool_id = ?", (pool_id,))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台删除抽卡池 {pool_id} 失败: {e}")
+            return False
+
+    def get_items_in_pool_admin(self, pool_id: int) -> list[dict]:
+        """获取指定抽卡池内的所有物品详情"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 
+                    gpi.*,
+                    CASE
+                        WHEN gpi.item_type = 'rod' THEN r.name
+                        WHEN gpi.item_type = 'bait' THEN b.name
+                        WHEN gpi.item_type = 'accessory' THEN a.name
+                        WHEN gpi.item_type = 'fish' THEN f.name
+                        WHEN gpi.item_type = 'titles' THEN t.name
+                        WHEN gpi.item_type = 'coins' THEN '金币'
+                        ELSE '未知'
+                    END as item_name
+                FROM gacha_pool_items gpi
+                LEFT JOIN rods r ON gpi.item_type = 'rod' AND gpi.item_id = r.rod_id
+                LEFT JOIN baits b ON gpi.item_type = 'bait' AND gpi.item_id = b.bait_id
+                LEFT JOIN accessories a ON gpi.item_type = 'accessory' AND gpi.item_id = a.accessory_id
+                LEFT JOIN fish f ON gpi.item_type = 'fish' AND gpi.item_id = f.fish_id
+                LEFT JOIN titles t ON gpi.item_type = 'titles' AND gpi.item_id = t.title_id
+                WHERE gpi.gacha_pool_id = ?
+                ORDER BY gpi.gacha_pool_item_id DESC
+            """, (pool_id,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def add_item_to_pool_admin(self, pool_id: int, data: dict) -> bool:
+        """后台向抽卡池添加一个物品"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                item_full_id = data.get('item_full_id', '').split('-')
+                if len(item_full_id) != 2: return False
+                item_type, item_id = item_full_id
+
+                cursor.execute("""
+                    INSERT INTO gacha_pool_items (gacha_pool_id, item_type, item_id, quantity, weight)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (pool_id, item_type, item_id, data.get('quantity', 1), data.get('weight', 10)))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台添加物品到奖池 {pool_id} 失败: {e}")
+            return False
+
+    def update_pool_item_admin(self, item_pool_id: int, data: dict) -> bool:
+        """后台更新一个抽卡池物品的信息"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                item_full_id = data.get('item_full_id', '').split('-')
+                if len(item_full_id) != 2: return False
+                item_type, item_id = item_full_id
+
+                cursor.execute("""
+                    UPDATE gacha_pool_items SET
+                    item_type = ?, item_id = ?, quantity = ?, weight = ?
+                    WHERE gacha_pool_item_id = ?
+                """, (item_type, item_id, data.get('quantity', 1), data.get('weight', 10), item_pool_id))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台更新奖池物品 {item_pool_id} 失败: {e}")
+            return False
+
+    def delete_pool_item_admin(self, item_pool_id: int) -> bool:
+        """后台删除一个抽卡池物品"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM gacha_pool_items WHERE gacha_pool_item_id = ?", (item_pool_id,))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"后台删除奖池物品 {item_pool_id} 失败: {e}")
+            return False

@@ -1,0 +1,32 @@
+
+body {
+    padding-top: 56px;
+    background-color: #f8f9fa;
+}
+
+.table-hover tbody tr:hover {
+    background-color: #f1f1f1;
+    cursor: pointer;
+}
+
+a.dashboard-card,
+a.dashboard-card:hover,
+a.dashboard-card:focus,
+a.dashboard-card:visited {
+    color: inherit; /* 关键1: 强制文字颜色继承卡片的颜色(如白色或深色)，而不是链接的默认蓝色 */
+    text-decoration: none !important; /* 关键2: 使用 !important 强制移除下划线，拥有最高优先级 */
+    display: block;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    border: none;
+}
+
+/* 单独定义悬浮效果 */
+a.dashboard-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.dashboard-card .card-body i {
+    font-size: 3rem;
+    opacity: 0.6;
+}

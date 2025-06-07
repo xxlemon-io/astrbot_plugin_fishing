@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>后台登录</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/litera/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        /* 为登录页定制的特殊样式 */
+        html, body {
+            height: 100%;
+        }
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f8f9fa; /* 改回柔和的浅灰色背景 */
+        }
+        .login-card {
+            width: 100%;
+            max-width: 420px;
+            padding: 15px;
+            margin: auto;
+        }
+    </style>
+</head>
+<body class="text-center">
+
+<main class="login-card">
+    <div class="card shadow-lg border-0 rounded-4">
+        <div class="card-body p-4 p-md-5">
+            <form method="post">
+                <i class="fas fa-fish fa-3x mb-4 text-primary"></i>
+                <h1 class="h3 mb-3 fw-normal">后台管理登录</h1>
+
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-danger py-2" role="alert">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <div class="form-floating mb-3">
+                    <input type="password" name="secret_key" class="form-control" id="secret_key" placeholder="安全密钥" required>
+                    <label for="secret_key">安全密钥</label>
+                </div>
+
+                <button class="w-100 btn btn-lg btn-primary" type="submit">
+                    <i class="fas fa-sign-in-alt me-2"></i>登录
+                </button>
+                <p class="mt-5 mb-3 text-muted">&copy; 钓鱼插件管理系统</p>
+            </form>
+        </div>
+    </div>
+</main>
+
+</body>
+</html>

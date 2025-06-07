@@ -1,10 +1,16 @@
 import datetime
 import os
+import threading
+import asyncio
+import aiohttp
+from hypercorn.config import Config
+from hypercorn.asyncio import serve
 
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 from astrbot.api.message_components import Node, Plain, At
 from astrbot.api import logger
+from astrbot.core import AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 from astrbot.core.star.filter.permission import PermissionType
 import random
@@ -37,7 +43,7 @@ def get_fish_pond_inventory_grade(fish_pond_inventory):
 @register("fish2.0", "tinker", "升级版的钓鱼插件", "1.1.10",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
 class FishingPlugin(Star):
-    def __init__(self, context: Context):
+    def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
 
         # 初始化数据目录
@@ -47,6 +53,9 @@ class FishingPlugin(Star):
         db_path = os.path.join(self.data_dir, "fish.db")
         self.FishingService = FishingService(db_path)
 
+        self.web_admin_task = None
+        self.secret_key = config.get("secret_key", "default_secret_key")
+        self.port = config.get("port", 7777)
 
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
@@ -58,6 +67,93 @@ _____ _     _     _
 |_|   |_|___/_| |_|_|_| |_|\__, |
                            |___/ 
                            """)
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("开启钓鱼后台管理")
+    async def start_admin(self, event: AstrMessageEvent):
+        """开启钓鱼后台管理"""
+        if hasattr(self, 'web_admin_task') and self.web_admin_task and not self.web_admin_task.done():
+            yield event.plain_result("❌ 钓鱼后台管理已经在运行中")
+            return
+
+        yield event.plain_result("🔄 正在启动钓鱼插件Web管理后台...")
+
+        async def get_public_ip() -> str | None:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get('https://api.ipify.org') as response:
+                        if response.status == 200:
+                            return await response.text()
+                        else:
+                            logger.error(f"获取公网IP失败，HTTP状态码: {response.status}")
+                            return None
+            except Exception as e:
+                logger.error(f"获取公网IP时发生异常: {e}")
+                return None
+
+        try:
+            from .manager.server import create_app
+            app = create_app(self.FishingService.db, self.secret_key)
+
+            hypercorn_config = Config()
+            hypercorn_config.bind = [f"0.0.0.0:{self.port}"]
+            hypercorn_config.accesslog = "-"
+
+            self.web_admin_task = asyncio.create_task(serve(app, hypercorn_config))
+
+            # 等待服务器就绪（轮询检测端口激活）
+            for i in range(10):
+                if await self._check_port_active():
+                    break
+                await asyncio.sleep(1)
+            else:
+                raise RuntimeError("⌛ 启动超时，请检查防火墙设置")
+
+            public_ip = await get_public_ip()
+            address = public_ip if public_ip else "127.0.0.1"
+            # 等待1s
+            await asyncio.sleep(1)
+            logger.info(f"钓鱼插件Web管理后台已启动，正在监听 http://0.0.0.0:{self.port}")
+
+            yield event.plain_result(f"✅ 钓鱼后台已启动！\n🔗 请访问: http://{address}:{self.port}/admin\n🔑 密钥请到配置文件中查看")
+
+        except Exception as e:
+            logger.error(f"启动钓鱼后台管理失败: {e}")
+            yield event.plain_result(f"❌ 启动钓鱼后台管理失败: {e}")
+
+    async def _check_port_active(self):
+        """验证端口是否实际已激活"""
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection('127.0.0.1', self.port),
+                timeout=1
+            )
+            writer.close()
+            return True
+        except:
+            return False
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("关闭钓鱼后台管理")
+    async def stop_admin(self, event: AstrMessageEvent):
+        """关闭钓鱼后台管理"""
+        if not hasattr(self, 'web_admin_task') or not self.web_admin_task or self.web_admin_task.done():
+            yield event.plain_result("❌ 钓鱼后台管理没有在运行中")
+            return
+
+        try:
+            # 1. 请求取消任务
+            self.web_admin_task.cancel()
+            # 2. 等待任务实际被取消
+            await self.web_admin_task
+        except asyncio.CancelledError:
+            # 3. 捕获CancelledError，这是成功关闭的标志
+            logger.info("钓鱼插件Web管理后台已成功关闭。")
+            yield event.plain_result("✅ 钓鱼后台已关闭。")
+        except Exception as e:
+            # 4. 捕获其他可能的意外错误
+            logger.error(f"关闭钓鱼后台管理时发生意外错误: {e}", exc_info=True)
+            yield event.plain_result(f"❌ 关闭钓鱼后台管理失败: {e}")
 
     @filter.command("注册")  # ok
     async def register_user(self, event: AstrMessageEvent):
@@ -1878,6 +1974,18 @@ _____ _     _     _
         # 停止自动钓鱼线程
         self.FishingService.stop_auto_fishing_task()
         self.FishingService.stop_achievement_check_task()
+        if hasattr(self, 'web_admin_task'):
+            try:
+                # 1. 请求取消任务
+                self.web_admin_task.cancel()
+                # 2. 等待任务实际被取消
+                await self.web_admin_task
+            except asyncio.CancelledError:
+                # 3. 捕获CancelledError，这是成功关闭的标志
+                logger.info("钓鱼插件Web管理后台已成功关闭。")
+        logger.info("钓鱼插件已成功终止。")
+
+
         
     @filter.command("保留卖出", alias={"safe_sell"})
     async def safe_sell_all_fish(self, event: AstrMessageEvent):
