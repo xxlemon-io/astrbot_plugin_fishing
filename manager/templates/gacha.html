@@ -1,0 +1,96 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="fas fa-dice"></i> 抽卡池管理</h2>
+    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#itemModal" id="addItemBtn">
+        <i class="fas fa-plus"></i> 添加新奖池
+    </button>
+</div>
+
+<div class="row">
+    {% for pool in pools %}
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ pool.name }} (ID: {{ pool.gacha_pool_id }})</h5>
+                <p class="card-text">{{ pool.description or '无描述' }}</p>
+                <p>
+                    <span class="badge bg-primary">花费金币: {{ pool.cost_coins }}</span>
+                </p>
+            </div>
+            <div class="card-footer text-end">
+                <button class="btn btn-sm btn-info edit-btn"
+                        data-bs-toggle="modal"
+                        data-bs-target="#itemModal"
+                        data-item-json="{{ pool|tojson }}">
+                    <i class="fas fa-edit"></i> 编辑
+                </button>
+                <a href="{{ url_for('admin_bp.manage_gacha_pool_details', pool_id=pool.gacha_pool_id) }}" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-cogs"></i> 管理物品
+                </a>
+                <form action="{{ url_for('admin_bp.delete_gacha_pool', pool_id=pool.gacha_pool_id) }}" method="post" class="d-inline" onsubmit="return confirm('确定要删除【{{ pool.name }}】及其所有物品吗？');">
+                    <button type="submit" class="btn btn-sm btn-danger">
+                        <i class="fas fa-trash"></i> 删除
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <p>还没有创建任何抽卡池。</p>
+    {% endfor %}
+</div>
+
+<div class="modal fade" id="itemModal" tabindex="-1" aria-labelledby="itemModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="item-form" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="itemModalLabel">管理奖池</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3"><label>名称</label><input type="text" name="name" class="form-control" required></div>
+                    <div class="mb-3"><label>描述</label><textarea name="description" class="form-control" rows="2"></textarea></div>
+                    <div class="mb-3"><label>花费金币</label><input type="number" name="cost_coins" class="form-control" value="0"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const itemModal = document.getElementById('itemModal');
+    const modalTitle = itemModal.querySelector('.modal-title');
+    const form = itemModal.querySelector('#item-form');
+
+    document.getElementById('addItemBtn').addEventListener('click', function () {
+        modalTitle.textContent = '添加新奖池';
+        form.action = "{{ url_for('admin_bp.add_gacha_pool') }}";
+        form.reset();
+    });
+
+    document.querySelectorAll('.edit-btn').forEach(button => {
+        button.addEventListener('click', function () {
+            const data = JSON.parse(this.dataset.itemJson);
+            modalTitle.textContent = `编辑奖池: ${data.name}`;
+            form.action = `/admin/gacha/edit/${data.gacha_pool_id}`;
+            for (const key in data) {
+                if (form.elements[key]) {
+                    form.elements[key].value = data[key] || '';
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

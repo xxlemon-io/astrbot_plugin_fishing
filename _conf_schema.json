@@ -1,0 +1,14 @@
+{
+  "secret_key": {
+    "description": "webui的密钥",
+    "type": "string",
+    "hint": "登录管理界面的密钥，建议使用随机字符串",
+    "default": "SecretKey"
+  },
+  "port": {
+    "description": "webui的端口",
+    "type": "int",
+    "hint": "请确保端口未被占用",
+    "default": 7777
+  }
+}

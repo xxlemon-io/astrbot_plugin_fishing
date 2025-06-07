@@ -1,0 +1,126 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="p-5 mb-4 bg-light rounded-3 shadow-sm">
+    <div class="container-fluid py-4">
+        <h1 class="display-5 fw-bold"><i class="fas fa-tachometer-alt"></i> 钓鱼后台仪表盘</h1>
+        <p class="col-md-8 fs-4">欢迎回来！在这里可以直观、便捷地管理你的钓鱼游戏世界。</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-4 col-md-6 mb-4">
+        <a href="{{ url_for('admin_bp.manage_fish') }}" class="dashboard-card">
+            <div class="card text-white bg-primary h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-water d-block mb-3"></i>
+                    <h4 class="card-title">管理鱼类</h4>
+                    <p class="card-text">添加、编辑或删除游戏中的所有鱼种。</p>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-lg-4 col-md-6 mb-4">
+        <a href="{{ url_for('admin_bp.manage_rods') }}" class="dashboard-card">
+            <div class="card text-white bg-info h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-gavel d-block mb-3"></i>
+                    <h4 class="card-title">管理鱼竿</h4>
+                    <p class="card-text">配置鱼竿的属性、来源和价值。</p>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-lg-4 col-md-6 mb-4">
+        <a href="{{ url_for('admin_bp.manage_baits') }}" class="dashboard-card">
+            <div class="card text-dark bg-warning h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-bug d-block mb-3"></i>
+                    <h4 class="card-title">管理鱼饵</h4>
+                    <p class="card-text">定义不同鱼饵的效果和获取成本。</p>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-lg-4 col-md-6 mb-4">
+        <a href="{{ url_for('admin_bp.manage_accessories') }}" class="dashboard-card">
+            <div class="card text-white bg-danger h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-gem d-block mb-3"></i>
+                    <h4 class="card-title">管理饰品</h4>
+                    <p class="card-text">创建强大的饰品来丰富游戏体验。</p>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-lg-4 col-md-6 mb-4">
+        <a href="{{ url_for('admin_bp.manage_gacha') }}" class="dashboard-card">
+            <div class="card text-white bg-success h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-dice d-block mb-3"></i>
+                    <h4 class="card-title">管理抽卡池</h4>
+                    <p class="card-text">设计奖池并配置其中的奖品与权重。</p>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-lg-4 col-md-6 mb-4">
+        <a href="https://github.com/tinkerbellqwq/astrbot_plugin_fishing" target="_blank" class="dashboard-card">
+            <div class="card text-white bg-dark h-100">
+                 <div class="card-body text-center">
+                    <i class="fab fa-github d-block mb-3"></i>
+                    <h4 class="card-title">查看源码</h4>
+                    <p class="card-text">前往GitHub仓库，为这个项目点个Star吧！</p>
+                </div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<div class="container marketing mt-5">
+
+    <hr class="featurette-divider">
+
+    <div class="row featurette align-items-center">
+        <div class="col-md-7">
+            <h2 class="featurette-heading fw-normal lh-1">数据驱动. <span class="text-body-secondary">尽在掌控.</span></h2>
+            <p class="lead">通过这个后台，你可以直观地修改游戏的核心数据，包括各种物品的名称、稀有度、价值和特殊属性。所有的修改都会即时反映在数据库中。</p>
+        </div>
+        <div class="col-md-5">
+            <i class="fas fa-database fa-10x text-center text-secondary d-block mx-auto" style="opacity: 0.5;"></i>
+        </div>
+    </div>
+
+    <hr class="featurette-divider">
+
+    <div class="row featurette align-items-center">
+        <div class="col-md-7 order-md-2">
+            <h2 class="featurette-heading fw-normal lh-1">动态经济系统. <span class="text-body-secondary">平衡游戏生态.</span></h2>
+            <p class="lead">从每日签到奖励，到高风险高回报的“擦弹”博弈，再到玩家间的自由市场。你可以通过后台精细调控每一项经济参数，打造一个健康、可持续的游戏生态。</p>
+        </div>
+        <div class="col-md-5 order-md-1">
+            <i class="fas fa-chart-line fa-10x text-center text-secondary d-block mx-auto" style="opacity: 0.5;"></i>
+        </div>
+    </div>
+
+    <hr class="featurette-divider">
+
+     <div class="row featurette align-items-center">
+        <div class="col-md-7">
+            <h2 class="featurette-heading fw-normal lh-1">丰富的进阶体系. <span class="text-body-secondary">引导玩家成长.</span></h2>
+            <p class="lead">利用强大的成就和称号系统，为玩家规划一条从新手到“虚空渔夫”的完整成长路线。通过设定不同的目标和奖励，持续激发玩家的探索欲望和收藏热情。</p>
+        </div>
+        <div class="col-md-5">
+            <i class="fas fa-trophy fa-10x text-center text-secondary d-block mx-auto" style="opacity: 0.5;"></i>
+        </div>
+    </div>
+
+    <hr class="featurette-divider">
+
+</div>
+{% endblock %}

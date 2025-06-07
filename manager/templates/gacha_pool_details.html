@@ -1,0 +1,140 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <a href="{{ url_for('admin_bp.manage_gacha') }}" class="btn btn-outline-secondary mb-2"><i class="fas fa-arrow-left"></i> 返回奖池列表</a>
+        <h2><i class="fas fa-cogs"></i> 管理奖池物品: <span class="text-primary">{{ pool.name }}</span></h2>
+    </div>
+    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#itemModal" id="addItemBtn">
+        <i class="fas fa-plus"></i> 添加新物品到奖池
+    </button>
+</div>
+
+<div class="card border-primary">
+    <div class="card-header">“{{ pool.name }}”中的物品列表</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>物品ID</th>
+                        <th>物品名称</th>
+                        <th>类型</th>
+                        <th>数量</th>
+                        <th>权重</th>
+                        <th class="text-end">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.gacha_pool_item_id }}</td>
+                        <td>{{ item.item_name }} (ID: {{ item.item_id }})</td>
+                        <td><span class="badge bg-secondary">{{ item.item_type }}</span></td>
+                        <td>{{ item.quantity }}</td>
+                        <td>{{ item.weight }}</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-info edit-btn"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#itemModal"
+                                    data-item-json="{{ item|tojson }}">
+                                <i class="fas fa-edit"></i> 编辑
+                            </button>
+                            <form action="{{ url_for('admin_bp.delete_pool_item', item_id=item.gacha_pool_item_id, pool_id=pool.gacha_pool_id) }}" method="post" class="d-inline" onsubmit="return confirm('确定要从奖池中移除【{{ item.item_name }}】吗？');">
+                                <button type="submit" class="btn btn-sm btn-danger">
+                                    <i class="fas fa-trash"></i> 删除
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="itemModal" tabindex="-1" aria-labelledby="itemModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="item-form" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="itemModalLabel">管理奖池物品</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">选择物品</label>
+                        <select name="item_full_id" class="form-select" required>
+                            <option value="">-- 请选择 --</option>
+                            <optgroup label="通用物品">
+                                <option value="coins-0">金币</option>
+                            </optgroup>
+                            <optgroup label="鱼竿">
+                                {% for rod in all_rods %}<option value="rod-{{ rod.rod_id }}">{{ rod.name }}</option>{% endfor %}
+                            </optgroup>
+                             <optgroup label="鱼饵">
+                                {% for bait in all_baits %}<option value="bait-{{ bait.bait_id }}">{{ bait.name }}</option>{% endfor %}
+                            </optgroup>
+                            <optgroup label="饰品">
+                                {% for acc in all_accessories %}<option value="accessory-{{ acc.accessory_id }}">{{ acc.name }}</option>{% endfor %}
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div class="mb-3"><label class="form-label">数量</label><input type="number" name="quantity" class="form-control" value="1" required></div>
+                    <div class="mb-3"><label class="form-label">权重 (数字越大越容易抽到)</label><input type="number" name="weight" class="form-control" value="10" required></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const itemModal = document.getElementById('itemModal');
+    const modalTitle = itemModal.querySelector('.modal-title');
+    const form = itemModal.querySelector('#item-form');
+    const addItemBtn = document.getElementById('addItemBtn');
+    const editItemBtns = document.querySelectorAll('.edit-btn');
+
+    if(addItemBtn) {
+        addItemBtn.addEventListener('click', function () {
+            modalTitle.textContent = '添加新物品到奖池';
+            form.action = "{{ url_for('admin_bp.add_item_to_pool', pool_id=pool.gacha_pool_id) }}";
+            form.reset();
+        });
+    }
+
+    if(editItemBtns) {
+        editItemBtns.forEach(button => {
+            button.addEventListener('click', function () {
+                const data = JSON.parse(this.dataset.itemJson);
+                modalTitle.textContent = `编辑物品: ${data.item_name}`;
+                form.action = `/admin/gacha/pool/edit_item/${data.gacha_pool_item_id}?pool_id={{ pool.gacha_pool_id }}`;
+
+                const itemFullId = `${data.item_type}-${data.item_id}`;
+                const itemSelect = form.elements['item_full_id'];
+
+                // 检查选项是否存在，不存在则动态添加（处理物品被删除但奖池里还存在的情况）
+                if (![...itemSelect.options].some(opt => opt.value === itemFullId)) {
+                    const missingOpt = new Option(`${data.item_name} (ID: ${data.item_id}) [已删除]`, itemFullId, true, true);
+                    itemSelect.add(missingOpt, 0);
+                }
+
+                itemSelect.value = itemFullId;
+                form.elements['quantity'].value = data.quantity;
+                form.elements['weight'].value = data.weight;
+            });
+        });
+    }
+});
+</script>
+{% endblock %}

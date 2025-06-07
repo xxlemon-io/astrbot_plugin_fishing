@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>钓鱼后台管理</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/litera/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('admin_bp.static', filename='css/style.css') }}">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="{{ url_for('admin_bp.index') }}"><i class="fas fa-fish"></i> 钓鱼后台</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor01" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarColor01">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_fish') }}"><i class="fas fa-water"></i> 鱼类管理</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_rods') }}"><i class="fas fa-gavel"></i> 鱼竿管理</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_baits') }}"><i class="fas fa-bug"></i> 鱼饵管理</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_accessories') }}"><i class="fas fa-gem"></i> 饰品管理</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_gacha') }}"><i class="fas fa-dice"></i> 抽卡池管理</a></li>
+            </ul>
+            <a href="{{ url_for('admin_bp.logout') }}" class="btn btn-outline-light"><i class="fas fa-sign-out-alt"></i> 登出</a>
+        </div>
+    </div>
+</nav>
+
+<main class="container mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+</main>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('admin_bp.static', filename='js/app.js') }}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>
