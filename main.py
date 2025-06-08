@@ -1,5 +1,6 @@
 import datetime
 import os
+import re
 import threading
 import asyncio
 import aiohttp
@@ -40,7 +41,7 @@ def get_fish_pond_inventory_grade(fish_pond_inventory):
     else:
         return "顶级"
 
-@register("fish2.0", "tinker", "升级版的钓鱼插件", "1.2.0",
+@register("fish2.0", "tinker", "升级版的钓鱼插件", "1.2.1",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
 class FishingPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -78,19 +79,6 @@ _____ _     _     _
 
         yield event.plain_result("🔄 正在启动钓鱼插件Web管理后台...")
 
-        async def get_public_ip() -> str | None:
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get('https://api.ipify.org') as response:
-                        if response.status == 200:
-                            return await response.text()
-                        else:
-                            logger.error(f"获取公网IP失败，HTTP状态码: {response.status}")
-                            return None
-            except Exception as e:
-                logger.error(f"获取公网IP时发生异常: {e}")
-                return None
-
         try:
             from .manager.server import create_app
             app = create_app(self.FishingService.db, self.secret_key)
@@ -109,13 +97,12 @@ _____ _     _     _
             else:
                 raise RuntimeError("⌛ 启动超时，请检查防火墙设置")
 
-            public_ip = await get_public_ip()
-            address = public_ip if public_ip else "127.0.0.1"
+            public_ip = await self.get_public_ip()
             # 等待1s
             await asyncio.sleep(1)
             logger.info(f"钓鱼插件Web管理后台已启动，正在监听 http://0.0.0.0:{self.port}")
 
-            yield event.plain_result(f"✅ 钓鱼后台已启动！\n🔗 请访问: http://{address}:{self.port}/admin\n🔑 密钥请到配置文件中查看")
+            yield event.plain_result(f"✅ 钓鱼后台已启动！\n🔗 请访问: http://{public_ip}:{self.port}/admin\n🔑 密钥请到配置文件中查看")
 
         except Exception as e:
             logger.error(f"启动钓鱼后台管理失败: {e}")
@@ -132,6 +119,31 @@ _____ _     _     _
             return True
         except:
             return False
+
+    async def get_public_ip(self):
+        """异步获取公网IPv4地址"""
+        ipv4_apis = [
+            'http://ipv4.ifconfig.me/ip',  # IPv4专用接口
+            'http://api-ipv4.ip.sb/ip',  # 樱花云IPv4接口
+            'http://v4.ident.me',  # IPv4专用
+            'http://ip.qaros.com',  # 备用国内服务
+            'http://ipv4.icanhazip.com',  # IPv4专用
+            'http://4.icanhazip.com'  # 另一个变种地址
+        ]
+
+        async with aiohttp.ClientSession() as session:
+            for api in ipv4_apis:
+                try:
+                    async with session.get(api, timeout=5) as response:
+                        if response.status == 200:
+                            ip = (await response.text()).strip()
+                            # 添加二次验证确保是IPv4格式
+                            if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip):
+                                return ip
+                except:
+                    continue
+
+        return "[服务器公网ip]"
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("关闭钓鱼后台管理")
