@@ -41,7 +41,7 @@
                             <button class="btn btn-sm btn-info edit-btn"
                                     data-bs-toggle="modal"
                                     data-bs-target="#itemModal"
-                                    data-item-json="{{ item|tojson }}">
+                                    data-item-json='{{ item|tojson|safe }}'>
                                 <i class="fas fa-edit"></i> 编辑
                             </button>
                             <form action="{{ url_for('admin_bp.delete_rod', rod_id=item.rod_id) }}" method="post" class="d-inline" onsubmit="return confirm('确定要删除【{{ item.name }}】吗？');">

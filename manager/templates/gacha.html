@@ -23,7 +23,7 @@
                 <button class="btn btn-sm btn-info edit-btn"
                         data-bs-toggle="modal"
                         data-bs-target="#itemModal"
-                        data-item-json="{{ pool|tojson }}">
+                        data-item-json='{{ pool|tojson|safe }}'>
                     <i class="fas fa-edit"></i> 编辑
                 </button>
                 <a href="{{ url_for('admin_bp.manage_gacha_pool_details', pool_id=pool.gacha_pool_id) }}" class="btn btn-sm btn-secondary">
