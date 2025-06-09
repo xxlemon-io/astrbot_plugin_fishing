@@ -41,7 +41,7 @@ def get_fish_pond_inventory_grade(fish_pond_inventory):
     else:
         return "顶级"
 
-@register("fish2.0", "tinker", "升级版的钓鱼插件", "1.2.1",
+@register("fish2.0", "tinker", "升级版的钓鱼插件，附带后台管理界面（个性化钓鱼游戏！）", "1.2.2",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
 class FishingPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
