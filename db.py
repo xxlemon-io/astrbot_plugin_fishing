@@ -3216,6 +3216,81 @@ class FishingDB:
             if cursor.fetchone():
                 cursor.execute("DELETE FROM baits WHERE name = '丰饶号角粉末'")
                 logger.debug("已删除丰饶号角粉末")
+            if self.check_base_value_constraint():
+                if self.remove_base_value_check_constraint():
+                    logger.info("已成功移除fish表中base_value列的CHECK约束")
+                else:
+                    logger.error("移除fish表中base_value列的CHECK约束失败")
+
+    def check_base_value_constraint(self):
+        """检查fish表中base_value列是否有大于0的CHECK约束"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # 获取表的创建SQL
+                cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='fish'")
+                create_sql = cursor.fetchone()[0]
+
+                # 检查是否包含base_value > 0的约束
+                has_constraint = 'base_value INTEGER NOT NULL CHECK (base_value > 0)' in create_sql
+
+                logger.info(f"fish表结构: {create_sql}")
+                if has_constraint:
+                    logger.info("fish表的base_value列存在CHECK约束")
+                else:
+                    logger.info("fish表的base_value列不存在CHECK约束")
+
+                return has_constraint
+        except sqlite3.Error as e:
+            logger.error(f"检查约束失败: {e}")
+            return False
+    def remove_base_value_check_constraint(self):
+        """移除fish表中base_value列的大于0的检查约束"""
+        try:
+            with self._get_connection() as conn:
+                cursor = conn.cursor()
+
+                # 临时禁用外键约束
+                cursor.execute("PRAGMA foreign_keys = OFF;")
+
+                # 开始事务
+                cursor.execute("BEGIN TRANSACTION;")
+
+                # 1. 创建新表（没有base_value的CHECK约束）
+                cursor.execute('''
+                    CREATE TABLE fish_new (
+                        fish_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL UNIQUE,
+                        description TEXT,
+                        rarity INTEGER NOT NULL CHECK (rarity >= 1 AND rarity <= 5),
+                        base_value INTEGER NOT NULL,
+                        min_weight INTEGER NOT NULL CHECK (min_weight >= 0),
+                        max_weight INTEGER NOT NULL CHECK (max_weight > min_weight),
+                        icon_url TEXT
+                    )
+                ''')
+
+                # 2. 复制数据
+                cursor.execute("INSERT INTO fish_new SELECT * FROM fish")
+
+                # 3. 删除旧表
+                cursor.execute("DROP TABLE fish")
+
+                # 4. 重命名新表
+                cursor.execute("ALTER TABLE fish_new RENAME TO fish")
+
+                # 重新启用外键约束
+                cursor.execute("PRAGMA foreign_keys = ON;")
+
+                # 提交事务
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"移除CHECK约束失败: {e}")
+            if conn:
+                conn.rollback()
+            return False
 
 
 
