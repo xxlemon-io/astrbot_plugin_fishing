@@ -3235,7 +3235,7 @@ class FishingDB:
                 # 检查是否包含base_value > 0的约束
                 has_constraint = 'base_value INTEGER NOT NULL CHECK (base_value > 0)' in create_sql
 
-                logger.info(f"fish表结构: {create_sql}")
+                # logger.info(f"fish表结构: {create_sql}")
                 if has_constraint:
                     logger.info("fish表的base_value列存在CHECK约束")
                 else:
