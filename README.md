@@ -9,9 +9,14 @@
 如果你有什么想法，欢迎到[#4](https://github.com/tinkerbellqwq/astrbot_plugin_fishing/issues/4) 提交！期待您天马行空的想法
 
 ## 📦 更新记录
-#### v1.2.0
+#### v1.2.4
 - 新增钓鱼后台管理，输入指令`/开启钓鱼后台管理` 即可进入，可以对一些游戏数据进行增删改查
 - 新增指令`/关闭钓鱼后台管理`，修改完后及时关闭避免资源占用
+- 新增税收的配置
+
+
+![image](https://github.com/user-attachments/assets/ea74ce75-7123-4e3c-a89c-06e646790bc3)
+
 
 ![image](https://github.com/user-attachments/assets/4dd1a179-967f-4cb9-82a5-ca3754b80bb0)
 ![image](https://github.com/user-attachments/assets/c80550e6-86a2-4373-b593-a7e2a8d0ab6b)
