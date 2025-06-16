@@ -10,5 +10,41 @@
     "type": "int",
     "hint": "请确保端口未被占用",
     "default": 7777
+  },
+  "is_tax": {
+    "description": "是否启用税收",
+    "type": "bool",
+    "hint": "税收的开关",
+    "default": true
+  },
+  "threshold": {
+    "description": "税收的起征点",
+    "type": "int",
+    "hint": "税收的起征点，低于此值不收税",
+    "default": 100000
+  },
+  "step_coins": {
+    "description": "税收的步长",
+    "type": "int",
+    "hint": "税收的步长，超过起征点后每增加此值税率增加",
+    "default": 100000
+  },
+  "step_rate": {
+    "description": "税收的步长税率",
+    "type": "float",
+    "hint": "税收的步长税率，超过起征点后每增加step_coins税率增加",
+    "default": 0.01
+  },
+  "min_rate": {
+    "description": "税收的起点税率",
+    "type": "float",
+    "hint": "税收的初始税率，达到起征点后开始收税的初始税率",
+    "default": 0.001
+  },
+  "max_rate": {
+    "description": "税收的最大税率",
+    "type": "float",
+    "hint": "税收的最大税率，超过此值不再增加",
+    "default": 0.2
   }
 }

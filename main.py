@@ -41,7 +41,7 @@ def get_fish_pond_inventory_grade(fish_pond_inventory):
     else:
         return "顶级"
 
-@register("fish2.0", "tinker", "升级版的钓鱼插件，附带后台管理界面（个性化钓鱼游戏！）", "1.2.3",
+@register("fish2.0", "tinker", "升级版的钓鱼插件，附带后台管理界面（个性化钓鱼游戏！）", "1.2.4",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
 class FishingPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -50,13 +50,27 @@ class FishingPlugin(Star):
         # 初始化数据目录
         self.data_dir = "data/"
         os.makedirs(self.data_dir, exist_ok=True)
-        # 初始化数据库和钓鱼系统
-        db_path = os.path.join(self.data_dir, "fish.db")
-        self.FishingService = FishingService(db_path)
 
         self.web_admin_task = None
         self.secret_key = config.get("secret_key", "default_secret_key")
         self.port = config.get("port", 7777)
+        self.is_tax = config.get("is_tax", True)  # 是否开启税收
+        self.threshold = config.get("threshold", 100000)  # 起征点
+        self.step_coins = config.get("step_coins", 100000)
+        self.step_rate = config.get("step_rate", 0.01)
+        self.max_rate = config.get("max_rate", 0.2)  # 最大税率
+        self.min_rate = config.get("min_rate", 0.05) # 最小税率
+
+        # 初始化数据库和钓鱼系统
+        db_path = os.path.join(self.data_dir, "fish.db")
+        self.FishingService = FishingService(db_path, tax_config = {
+            "is_tax": self.is_tax,
+            "threshold": self.threshold,
+            "step_coins": self.step_coins,
+            "step_rate": self.step_rate,
+            "min_rate": self.min_rate,
+            "max_rate": self.max_rate
+        })
 
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""

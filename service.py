@@ -1,7 +1,7 @@
 import random
 import threading
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, date, timedelta, timezone
 from .db import FishingDB
 from astrbot.api import logger
@@ -16,9 +16,9 @@ def get_utc4_today():
     return get_utc4_now().date()
 
 class FishingService:
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str, tax_config: Dict[str, Any]):
         """初始化钓鱼服务"""
-        self.db = FishingDB(db_path)
+        self.db = FishingDB(db_path, tax_config)
         self.auto_fishing_thread = None
         self.auto_fishing_running = False
         self.achievement_check_thread = None

@@ -20,7 +20,7 @@ def get_utc4_today():
     return get_utc4_now().date()
 
 class FishingDB:
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str, tax_config: Dict[str, Any]):
         """
         Initializes the database connection and ensures the schema is up-to-date.
 
@@ -28,6 +28,7 @@ class FishingDB:
             db_path: Path to the SQLite database file.
         """
         self.db_path = db_path
+        self.tax_config = tax_config
         self._local = threading.local() # Thread-local storage for connections
 
         # Ensure database directory exists
@@ -3111,19 +3112,24 @@ class FishingDB:
         Returns:
             dict: 应用结果，包括成功与否和消息
         """
+        if self.tax_config.get("is_tax", True) is False:
+            return {
+                'success': True,
+                'message': "税收功能已禁用"
+            }
         try:
             with self._get_connection() as conn:
                 cursor = conn.cursor()
-
                 # 获取所有高价值用户
                 cursor.execute("""
                     SELECT user_id, coins 
                     FROM users 
                     WHERE coins >= ?
-                """, (10000,))
+                """, (self.tax_config.get("threshold", 100000),))
                 high_value_users = cursor.fetchall()
 
                 if not high_value_users:
+                    logger.info("没有高价值用户需要缴税")
                     return {
                         'success': True,
                         'message': "没有高价值用户需要缴税"
@@ -3131,33 +3137,26 @@ class FishingDB:
 
                 for user in high_value_users:
                     user_id, coins = user
-                    if coins <= 100000:
-                        param = 0.05
-                    elif coins <= 1000000:
-                        param = 0.1
-                    elif coins <= 10000000:
-                        param = 0.2
+                    step_coins = self.tax_config.get("step_coins", 100000)
+                    step_rate = self.tax_config.get("step_rate", 0.01)
+                    min_rate = self.tax_config.get("min_rate", 0.001)
+                    max_rate = self.tax_config.get("max_rate", 0.35)
+                    # 计算税率
+                    param = 0
+                    if coins < step_coins:
+                        param = min_rate
                     else:
-                        param = 0.35
+                        # 计算税率
+                        param = min(max_rate, (coins // step_coins) * step_rate + min_rate)
+                    # 计算税收金额
                     tax_amount = int(coins * param)
                     # 扣除税收
+                    logger.info(f"用户 {user_id} 的税收金额: {tax_amount}, 税率: {param}, 原始金额: {coins}")
                     cursor.execute("""
                         UPDATE users 
                         SET coins = coins - ? 
                         WHERE user_id = ?
                     """, (tax_amount, user_id))
-                    # 记录税收日志
-                    # CREATE TABLE IF NOT EXISTS taxes (
-                    #     tax_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    #     user_id TEXT NOT NULL,
-                    #     tax_amount INTEGER NOT NULL,
-                    #     tax_rate REAL NOT NULL,
-                    #     original_amount INTEGER NOT NULL,
-                    #     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    #     tax_type TEXT NOT NULL DEFAULT 'daily',
-                    #     balance_after INTEGER NOT NULL,
-                    #     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-                    # )
                     cursor.execute("""
                         INSERT INTO taxes (user_id, tax_amount, tax_rate, original_amount, balance_after)
                         VALUES (?, ?, ?, ?, ?)
