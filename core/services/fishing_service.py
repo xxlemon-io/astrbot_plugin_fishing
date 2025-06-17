@@ -13,7 +13,7 @@ from ..repositories.abstract_repository import (
     AbstractLogRepository
 )
 from ..domain.models import FishingRecord, User
-from ..utils import get_utc4_now
+from ..utils import get_now
 
 
 class FishingService:
@@ -107,7 +107,7 @@ class FishingService:
         # 3. 判断是否成功钓到
         if random.random() >= base_success_rate:
             # 失败逻辑
-            user.last_fishing_time = get_utc4_now()
+            user.last_fishing_time = get_now()
             self.user_repo.update(user)
             return {"success": False, "message": "💨 什么都没钓到..."}
 
@@ -129,7 +129,7 @@ class FishingService:
         user.total_fishing_count += 1
         user.total_weight_caught += weight
         user.total_coins_earned += value # 注意：这里的逻辑与原代码不同，原代码是在卖出时才增加 total_coins_earned
-        user.last_fishing_time = get_utc4_now()
+        user.last_fishing_time = get_now()
         self.user_repo.update(user)
 
         # 记录日志
@@ -196,7 +196,7 @@ class FishingService:
                         continue
 
                     # 检查CD
-                    now_ts = get_utc4_now().timestamp()
+                    now_ts = get_now().timestamp()
                     last_ts = user.last_fishing_time.timestamp() if user.last_fishing_time else 0
                     if now_ts - last_ts < cooldown:
                         continue # CD中，跳过

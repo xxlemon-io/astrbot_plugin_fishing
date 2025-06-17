@@ -12,7 +12,7 @@ from ..repositories.abstract_repository import (
     AbstractAchievementRepository
 )
 from ..domain.models import GachaPool, GachaPoolItem, GachaRecord
-from .user_service import get_utc4_now # 导入时区辅助函数
+from ..utils import get_now
 
 
 def _perform_single_weighted_draw(pool: GachaPool) -> GachaPoolItem:
@@ -219,7 +219,7 @@ class GachaService:
             item_name=item_name,
             quantity=item.quantity,
             rarity=item_rarity,
-            timestamp=get_utc4_now()
+            timestamp=get_now()
         )
         self.log_repo.add_gacha_record(log_entry)
 

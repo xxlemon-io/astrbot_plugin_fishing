@@ -10,7 +10,7 @@ from ..repositories.abstract_repository import (
     AbstractItemTemplateRepository
 )
 from ..domain.models import WipeBombLog
-from .user_service import get_utc4_now # 从user_service导入时区辅助函数
+from ..utils import get_now
 
 class GameMechanicsService:
     """封装特殊或独立的游戏机制"""
@@ -77,7 +77,7 @@ class GameMechanicsService:
             contribution_amount=contribution_amount,
             reward_multiplier=reward_multiplier,
             reward_amount=reward_amount,
-            timestamp=get_utc4_now()
+            timestamp=get_now()
         )
         self.log_repo.add_wipe_bomb_log(log_entry)
 
@@ -124,7 +124,7 @@ class GameMechanicsService:
 
         # 1. 检查偷窃CD
         cooldown_seconds = self.config.get('steal', {}).get('cooldown_seconds', 14400) # 默认4小时
-        now = get_utc4_now()
+        now = get_now()
         if thief.last_steal_time and (now - thief.last_steal_time).total_seconds() < cooldown_seconds:
             remaining = int(cooldown_seconds - (now - thief.last_steal_time).total_seconds())
             return {"success": False, "message": f"偷鱼冷却中，请等待 {remaining // 60} 分钟后再试"}

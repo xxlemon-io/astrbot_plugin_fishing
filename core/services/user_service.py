@@ -10,7 +10,7 @@ from ..repositories.abstract_repository import (
     AbstractItemTemplateRepository
 )
 from ..domain.models import User, TaxRecord
-from ..utils import get_utc4_now, get_utc4_today
+from ..utils import get_now, get_today
 
 
 class UserService:
@@ -49,7 +49,7 @@ class UserService:
             user_id=user_id,
             nickname=nickname,
             coins=initial_coins,
-            created_at=get_utc4_now()
+            created_at=get_now()
         )
         self.user_repo.add(new_user)
         return {
@@ -81,7 +81,7 @@ class UserService:
         if not user:
             return {"success": False, "message": "请先注册才能签到"}
 
-        today = get_utc4_today()
+        today = get_today()
         if self.log_repo.has_checked_in(user_id, today):
             return {"success": False, "message": "你今天已经签到过了，明天再来吧！"}
 
@@ -98,7 +98,7 @@ class UserService:
 
         user.coins += coins_reward
         user.consecutive_login_days += 1
-        user.last_login_time = get_utc4_now()
+        user.last_login_time = get_now()
 
         # 检查连续签到奖励
         bonus_coins = 0
@@ -158,7 +158,7 @@ class UserService:
                     tax_rate=tax_rate,
                     original_amount=original_coins,
                     balance_after=user.coins,
-                    timestamp=get_utc4_now(),
+                    timestamp=get_now(),
                     tax_type='每日资产税'
                 )
                 self.log_repo.add_tax_record(tax_log)
