@@ -228,8 +228,37 @@ class FishingService:
 
     def get_user_pokedex(self, user_id: str) -> Dict[str, Any]:
         """获取用户的图鉴信息。"""
-        # TODO: 实现获取用户图鉴的逻辑
-        pass
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        pokedex_ids = self.log_repo.get_unlocked_fish_ids(user_id)
+        # Dict[int, datetime]: 键为鱼类ID，值为首次捕获时间
+        if not pokedex_ids:
+            return {"success": True, "pokedex": []}
+        all_fish_count = len(self.item_template_repo.get_all_fish())
+        unlock_fish_count = len(pokedex_ids)
+        pokedex = []
+        for fish_id, first_caught_time in pokedex_ids.items():
+            fish_template = self.item_template_repo.get_fish_by_id(fish_id)
+            if fish_template:
+                pokedex.append({
+                    "fish_id": fish_id,
+                    "name": fish_template.name,
+                    "rarity": fish_template.rarity,
+                    "description": fish_template.description,
+                    "value": fish_template.base_value,
+                    "first_caught_time": first_caught_time
+                })
+        # 将图鉴按稀有度从大到小排序
+        pokedex.sort(key=lambda x: x['rarity'], reverse=True)
+        return {
+            "success": True,
+            "pokedex": pokedex,
+            "total_fish_count": all_fish_count,
+            "unlocked_fish_count": unlock_fish_count,
+            "unlocked_percentage": (unlock_fish_count / all_fish_count) if all_fish_count > 0 else 0
+    }
 
     def get_user_fish_log(self, user_id: str, limit: int = 10) -> Dict[str, Any]:
         """

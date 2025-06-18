@@ -1,6 +1,6 @@
 import sqlite3
 import threading
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set
 from datetime import date, datetime, timedelta, timezone
 
 # 导入抽象基类和领域模型
@@ -64,6 +64,24 @@ class SqliteLogRepository(AbstractLogRepository):
             conn.commit()
             return cursor.rowcount > 0
 
+
+    def get_unlocked_fish_ids(self, user_id: str) -> Dict[int, datetime]:
+        """
+        获取指定用户所有钓到过的鱼类ID集合，以及对应的首次捕获时间。
+
+        返回:
+            Dict[int, datetime]: 键为鱼类ID，值为首次捕获时间
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT fish_id, MIN(timestamp) as first_caught_time 
+                FROM fishing_records 
+                WHERE user_id = ? 
+                GROUP BY fish_id
+            """, (user_id,))
+            rows = cursor.fetchall()
+            return {row['fish_id']: row['first_caught_time'] for row in rows}
     def get_fishing_records(self, user_id: str, limit: int) -> List[FishingRecord]:
         with self._get_connection() as conn:
             # 为了简化返回，这里不连接获取名称，表现层可以按需从ItemTemplateRepository获取

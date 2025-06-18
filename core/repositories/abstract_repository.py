@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Set
 from datetime import date, datetime
 
 # 从领域模型导入所有需要的实体
@@ -234,6 +234,9 @@ class AbstractLogRepository(ABC):
     # 记录一条钓鱼日志
     @abstractmethod
     def add_fishing_record(self, record: FishingRecord) -> bool: pass
+    # 获取用户已经解锁的鱼类
+    @abstractmethod
+    def get_unlocked_fish_ids(self, user_id: str) -> Dict[int, datetime]: pass
     # 获取用户钓鱼日志
     @abstractmethod
     def get_fishing_records(self, user_id: str, limit: int) -> List[FishingRecord]: pass

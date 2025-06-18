@@ -1059,9 +1059,35 @@ class FishingPlugin(Star):
         """查看鱼类图鉴"""
         user_id = event.get_sender_id()
         result = self.fishing_service.get_user_pokedex(user_id)
-        # TODO : 实现鱼类图鉴功能
-        yield event.plain_result("# TODO: 实现鱼类图鉴功能")
 
+        if result:
+            if result["success"]:
+                pokedex = result.get("pokedex", [])
+                if not pokedex:
+                    yield event.plain_result("❌ 您还没有捕捉到任何鱼类，快去钓鱼吧！")
+                    return
+
+                message = "【🐟 🌊 鱼类图鉴 📖 🎣】\n"
+                message += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                message += f"🏆 解锁进度：{to_percentage(1.0 + result['unlocked_percentage'])}\n"
+                message += f"📊 收集情况：{result['unlocked_fish_count']} / {result['total_fish_count']} 种\n"
+                message += f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
+                for fish in pokedex:
+                    rarity = fish['rarity']
+                    fish_emoji = "🐳" if rarity == 5 else "🐠" if rarity >= 4 else "🐡" if rarity >= 3 else "🐟" if rarity >= 2 else "🦐"
+
+                    message += f"{fish_emoji} {fish['name']} ({'✨' * rarity})\n"
+                    message += f"💎 价值：{fish['value']} 金币\n"
+                    message += f"🕰️ 首次捕获：{safe_datetime_handler(fish['first_caught_time'])}\n"
+                    message += f"📜 描述：{fish['description']}\n"
+                    message += f"- - - - - - - - - - - - - - -\n"
+
+                yield event.plain_result(message)
+            else:
+                yield event.plain_result(f"❌ 查看鱼类图鉴失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
     # ===========管理后台==========
 
     @filter.permission_type(PermissionType.ADMIN)
