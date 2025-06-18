@@ -1,163 +1,1131 @@
-import datetime
 import os
-import re
-import threading
 import asyncio
-import aiohttp
 from hypercorn.config import Config
 from hypercorn.asyncio import serve
 
+from astrbot.api import logger, AstrBotConfig
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
-from astrbot.api.message_components import Node, Plain, At
-from astrbot.api import logger
-from astrbot.core import AstrBotConfig
-from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+from astrbot.core.message.components import At
 from astrbot.core.star.filter.permission import PermissionType
-import random
 
-from .po import UserFishing
-from .service import FishingService
-from .draw import draw_fishing_ranking
+# ==========================================================
+# 导入重构后的所有模块
+# ==========================================================
+# 仓储实现
+from .core.repositories.sqlite_user_repo import SqliteUserRepository
+from .core.repositories.sqlite_item_template_repo import SqliteItemTemplateRepository
+from .core.repositories.sqlite_inventory_repo import SqliteInventoryRepository
+from .core.repositories.sqlite_gacha_repo import SqliteGachaRepository
+from .core.repositories.sqlite_market_repo import SqliteMarketRepository
+from .core.repositories.sqlite_log_repo import SqliteLogRepository
+from .core.repositories.sqlite_achievement_repo import SqliteAchievementRepository
+from .core.services.data_setup_service import DataSetupService
+from .core.services.item_template_service import ItemTemplateService
+# 服务
+from .core.services.user_service import UserService
+from .core.services.fishing_service import FishingService
+from .core.services.inventory_service import InventoryService
+from .core.services.shop_service import ShopService
+from .core.services.market_service import MarketService
+from .core.services.gacha_service import GachaService
+from .core.services.achievement_service import AchievementService
+from .core.services.game_mechanics_service import GameMechanicsService
+# 其他
 
-def get_Node(user_id: str, name: str, message: str) -> Node:
-    """将消息转换为Node对象"""
-    return Node(uin=user_id, name=name, content=[Plain(message)])
+from .core.database.migration import run_migrations
+from .core.utils import get_now
+from .draw.rank import draw_fishing_ranking
+from .manager.server import create_app
+from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_datetime_handler
 
-def get_coins_name():
-    """获取金币名称"""
-    coins_names = ["星声", "原石", "社会信用点", "精粹", "黑油", "馒头", "马内", "🍓", "米线"]
-    return random.choice(coins_names)
 
-def get_fish_pond_inventory_grade(fish_pond_inventory):
-    """计算鱼塘背包的等级"""
-    total_value = fish_pond_inventory
-    if total_value == 480:
-        return "初级"
-    elif total_value < 1000:
-        return "中级"
-    elif total_value < 10000:
-        return "高级"
-    else:
-        return "顶级"
-
-@register("fish2.0", "tinker", "升级版的钓鱼插件，附带后台管理界面（个性化钓鱼游戏！）", "1.2.4",
+@register("fish2.0",
+          "tinker",
+          "升级版的钓鱼插件，附带后台管理界面（个性化钓鱼游戏！）",
+          "1.3.0",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
 class FishingPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
 
-        # 初始化数据目录
-        self.data_dir = "data/"
-        os.makedirs(self.data_dir, exist_ok=True)
-
-        self.web_admin_task = None
-        self.secret_key = config.get("secret_key", "default_secret_key")
-        self.port = config.get("port", 7777)
+        # --- 1. 加载配置 ---
         self.is_tax = config.get("is_tax", True)  # 是否开启税收
         self.threshold = config.get("threshold", 100000)  # 起征点
         self.step_coins = config.get("step_coins", 100000)
         self.step_rate = config.get("step_rate", 0.01)
         self.max_rate = config.get("max_rate", 0.2)  # 最大税率
-        self.min_rate = config.get("min_rate", 0.05) # 最小税率
+        self.min_rate = config.get("min_rate", 0.05)  # 最小税率
+        self.game_config = {
+            "fishing": {"cost": 10, "cooldown_seconds": 180},
+            "user": {"initial_coins": 200},
+            "market": {"listing_tax_rate": 0.05},
+            "consecutive_bonuses": {
+                "7": 1000,  # 连续签到7天奖励1000金币
+                "14": 50000,  # 连续签到14天奖励5000金币
+                "30": 2000000,  # 连续签到30天奖励2000000金币
+                "45": 5000000,  # 连续签到45天奖励5000000金币
+                "60": 10000000,  # 连续签到60天奖励10000000金币
+                "90": 50000000,  # 连续签到90天奖励50000000金币
+                "120": 100000000,  # 连续签到120天奖励100000000金币
+            },
+            "tax_config":{
+                "is_tax": self.is_tax,
+                "threshold": self.threshold,  # 起征点
+                "step_coins": self.step_coins,  # 每次增加的金币数
+                "step_rate": self.step_rate,  # 每次增加的税率
+                "max_rate": self.max_rate,  # 最大税率
+                "min_rate": self.min_rate,  # 最小税率
+            },
+            "sell_prices": {
+              "by_rarity": {
+                  "1": 100,
+                  "2": 500,
+                  "3": 2000,
+                  "4": 5000,
+                  "5": 10000
+              }
+            },
+            "wipe_bomb": {
+                "max_attempts_per_day": 3,
+                "reward_ranges": [
+                    (0.0, 0.5, 35),  # 0.0-0.5倍，权重35
+                    (0.5, 1.0, 25),  # 0.5-1.0倍，权重25
+                    (1.0, 2.0, 20),  # 1.0-2.0倍，权重20
+                    (2.0, 3.0, 10),  # 2.0-3.0倍，权重10
+                    (3.0, 5.0, 7),  # 3.0-5.0倍，权重7
+                    (5.0, 8.0, 2),  # 5.0-8.0倍，权重2
+                    (8.0, 10.0, 1),  # 8.0-10.0倍，权重1
+                ]
+            },
+            "pond_upgrades": [
+                { "from": 480, "to": 999, "cost": 50000 },
+                { "from": 999, "to": 9999, "cost": 500000 },
+                { "from": 9999, "to": 99999, "cost": 50000000 },
+                { "from": 99999, "to": 999999, "cost": 5000000000 },
+            ]
+        }
+        db_path = "data/fish.db"
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        # 初始化数据库模式
+        plugin_root_dir = os.path.dirname(__file__)
+        migrations_path = os.path.join(plugin_root_dir, 'core', 'database', 'migrations')
+        run_migrations(db_path, migrations_path)
 
-        # 初始化数据库和钓鱼系统
-        db_path = os.path.join(self.data_dir, "fish.db")
-        self.FishingService = FishingService(db_path, tax_config = {
-            "is_tax": self.is_tax,
-            "threshold": self.threshold,
-            "step_coins": self.step_coins,
-            "step_rate": self.step_rate,
-            "min_rate": self.min_rate,
-            "max_rate": self.max_rate
-        })
+        # --- 2. 组合根：实例化所有仓储层 ---
+        self.user_repo = SqliteUserRepository(db_path)
+        self.item_template_repo = SqliteItemTemplateRepository(db_path)
+        self.inventory_repo = SqliteInventoryRepository(db_path)
+        self.gacha_repo = SqliteGachaRepository(db_path)
+        self.market_repo = SqliteMarketRepository(db_path)
+        self.log_repo = SqliteLogRepository(db_path)
+        self.achievement_repo = SqliteAchievementRepository(db_path)
+
+        # --- 3. 组合根：实例化所有服务层，并注入依赖 ---
+        self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.game_config)
+        self.inventory_service = InventoryService(self.inventory_repo, self.user_repo, self.item_template_repo,
+                                                  self.game_config)
+        self.shop_service = ShopService(self.item_template_repo, self.inventory_repo, self.user_repo)
+        self.market_service = MarketService(self.market_repo, self.inventory_repo, self.user_repo, self.log_repo,
+                                            self.item_template_repo, self.game_config)
+        self.gacha_service = GachaService(self.gacha_repo, self.user_repo, self.inventory_repo, self.item_template_repo,
+                                          self.log_repo, self.achievement_repo)
+        self.game_mechanics_service = GameMechanicsService(self.user_repo, self.log_repo, self.inventory_repo,
+                                                           self.item_template_repo, self.game_config)
+        self.achievement_service = AchievementService(self.achievement_repo, self.user_repo, self.inventory_repo,
+                                                      self.item_template_repo, self.log_repo)
+        self.fishing_service = FishingService(self.user_repo, self.inventory_repo, self.item_template_repo,
+                                              self.log_repo, self.game_config)
+
+        self.item_template_service = ItemTemplateService(self.item_template_repo, self.gacha_repo)
+
+        # --- 4. 启动后台任务 ---
+        self.fishing_service.start_auto_fishing_task()
+        self.achievement_service.start_achievement_check_task()
+
+        # --- 5. 初始化核心游戏数据 ---
+        data_setup_service = DataSetupService(self.item_template_repo, self.gacha_repo)
+        data_setup_service.setup_initial_data()
+
+        # --- Web后台配置 ---
+        self.web_admin_task = None
+        self.secret_key = config.get("secret_key", "default_secret_key")
+        self.port = config.get("port", 7777)
 
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
         logger.info("""
-_____ _     _     _             
-|  ___(_)___| |__ (_)_ __   __ _ 
-| |_  | / __| '_ \| | '_ \ / _` |
-|  _| | \__ \ | | | | | | | (_| |
-|_|   |_|___/_| |_|_|_| |_|\__, |
-                           |___/ 
-                           """)
+    _____ _     _     _             
+    |  ___(_)___| |__ (_)_ __   __ _ 
+    | |_  | / __| '_ \\| | '_ \\ / _` |
+    |  _| | \\__ \\ | | | | | | | (_| |
+    |_|   |_|___/_| |_|_|_| |_|\\__, |
+                               |___/ 
+                               """)
+
+    # ===========基础与核心玩法==========
+
+    @filter.command("注册")
+    async def register_user(self, event: AstrMessageEvent):
+        """注册用户命令"""
+        user_id = event.get_sender_id()
+        nickname = event.get_sender_name() if event.get_sender_name() is not None else event.get_sender_id()
+        result = self.user_service.register(user_id, nickname)
+        if result:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("钓鱼")
+    async def fish(self, event: AstrMessageEvent):
+        """钓鱼"""
+        user_id = event.get_sender_id()
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
+            return
+        # 检查用户钓鱼CD
+        lst_time = user.last_fishing_time
+        # 检查是否装备了海洋之心饰品
+        info = self.user_service.get_user_current_accessory(user_id)
+        if info['success'] is False:
+            yield event.plain_result(f"❌ 获取用户饰品信息失败：{info['message']}")
+            return
+        equipped_accessory = info.get("accessory")
+        cooldown_seconds = self.game_config["fishing"]["cooldown_seconds"]
+        if equipped_accessory and equipped_accessory.get("name") == "海洋之心":
+            # 如果装备了海洋之心，CD时间减半
+            cooldown_seconds = self.game_config["fishing"]["cooldown_seconds"] / 2
+            # logger.info(f"用户 {user_id} 装备了海洋之心，钓鱼CD时间减半。")
+        if lst_time and (get_now() - lst_time).total_seconds() < cooldown_seconds:
+            wait_time = cooldown_seconds - (get_now() - lst_time).total_seconds()
+            yield event.plain_result(f"⏳ 您还需要等待 {int(wait_time)} 秒才能再次钓鱼。")
+            return
+        result = self.fishing_service.go_fish(user_id)
+        if result:
+            if result["success"]:
+                yield event.plain_result(
+                    f"🎣 恭喜你钓到了：{result['fish']['name']}\n✨品质：{'★' * result['fish']['rarity']} \n⚖️重量：{result['fish']['weight']} 克\n💰价值：{result['fish']['value']} 金币")
+            else:
+                yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("签到")
+    async def sign_in(self, event: AstrMessageEvent):
+        """签到"""
+        user_id = event.get_sender_id()
+        result = self.user_service.daily_sign_in(user_id)
+        if result["success"]:
+            message = f"✅ 签到成功！获得 {result['coins_reward']} 金币。"
+            if result['bonus_coins'] > 0:
+                message += f"\n🎉 连续签到 {result['consecutive_days']} 天，额外奖励 {result['bonus_coins']} 金币！"
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result(f"❌ 签到失败：{result['message']}")
+
+    @filter.command("自动钓鱼")
+    async def auto_fish(self, event: AstrMessageEvent):
+        """自动钓鱼"""
+        user_id = event.get_sender_id()
+        result = self.fishing_service.toggle_auto_fishing(user_id)
+        yield event.plain_result(result["message"])
+
+    @filter.command("钓鱼记录", alias={'钓鱼日志', '钓鱼历史'})
+    async def fishing_log(self, event: AstrMessageEvent):
+        """查看钓鱼记录"""
+        user_id = event.get_sender_id()
+        result = self.fishing_service.get_user_fish_log(user_id)
+        if result:
+            if result["success"]:
+                records = result["records"]
+                if not records:
+                    yield event.plain_result("❌ 您还没有钓鱼记录。")
+                    return
+                message = "【📜 钓鱼记录】：\n"
+                for record in records:
+                    message += (f" - {record['fish_name']} ({'★' * record['fish_rarity']})\n"
+                                f" - ⚖️重量: {record['fish_weight']} 克 - 💰价值: {record['fish_value']} 金币\n"
+                                f" - 🔧装备： {record['accessory']} & {record['rod']} | 🎣鱼饵: {record['bait']}\n"
+                                f" - 钓鱼时间: {safe_datetime_handler(record['timestamp'])}\n")
+                yield event.plain_result(message)
+            else:
+                yield event.plain_result(f"❌ 获取钓鱼记录失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    # ===========背包与资产管理==========
+
+    @filter.command("鱼塘")
+    async def pond(self, event: AstrMessageEvent):
+        """查看用户鱼塘内的鱼"""
+        user_id = event.get_sender_id()
+        pond_fish = self.inventory_service.get_user_fish_pond(user_id)
+        if pond_fish:
+            fishes = pond_fish["fishes"]
+            # 把fishes按稀有度分组
+            fished_by_rarity = {}
+            for fish in fishes:
+                rarity = fish.get("rarity", "未知")
+                if rarity not in fished_by_rarity:
+                    fished_by_rarity[rarity] = []
+                fished_by_rarity[rarity].append(fish)
+            # 构造输出信息
+            message = "【🐠 鱼塘】：\n"
+            for rarity in sorted(fished_by_rarity.keys(), reverse=True):
+                fish_list = fished_by_rarity[rarity]
+                if fish_list:
+                    message += f"\n {'⭐' * rarity } 稀有度 {rarity}：\n"
+                    for fish in fish_list:
+                        message += f"  - {fish['name']} x  {fish['quantity']} （{fish['base_value']}金币 / 个） \n"
+            message += f"\n🐟 总鱼数：{pond_fish['stats']['total_count']} 条\n"
+            message += f"💰 总价值：{pond_fish['stats']['total_value']} 金币\n"
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result("🐟 您的鱼塘是空的，快去钓鱼吧！")
+
+    @filter.command("鱼塘容量")
+    async def pond_capacity(self, event: AstrMessageEvent):
+        """查看用户鱼塘容量"""
+        user_id = event.get_sender_id()
+        pond_capacity = self.inventory_service.get_user_fish_pond_capacity(user_id)
+        if pond_capacity["success"]:
+            message = f"🐠 您的鱼塘容量为 {pond_capacity['current_fish_count']} / {pond_capacity['fish_pond_capacity']} 条鱼。"
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("升级鱼塘", alias={'鱼塘升级'})
+    async def upgrade_pond(self, event: AstrMessageEvent):
+        """升级鱼塘容量"""
+        user_id = event.get_sender_id()
+        result = self.inventory_service.upgrade_fish_pond(user_id)
+        if result["success"]:
+            yield event.plain_result(f"🐠 鱼塘升级成功！新容量为 {result['new_capacity']} 条鱼。")
+        else:
+            yield event.plain_result(f"❌ 升级失败：{result['message']}")
+
+    @filter.command("鱼竿")
+    async def rod(self, event: AstrMessageEvent):
+        """查看用户鱼竿信息"""
+        user_id = event.get_sender_id()
+        rod_info = self.inventory_service.get_user_rod_inventory(user_id)
+        if rod_info:
+            # 构造输出信息,附带emoji
+            message = "【🎣 鱼竿】：\n"
+            for rod in rod_info["rods"]:
+                message += format_accessory_or_rod(rod)
+                if rod.get('bonus_rare_fish_chance', 1) != 1 and rod.get('bonus_fish_weight', 1.0) != 1.0:
+                    message += f"   - 钓上鱼鱼类几率加成: {to_percentage(rod['bonus_rare_fish_chance'])}\n"
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result("🎣 您还没有鱼竿，快去商店购买或抽奖获得吧！")
+
+    @filter.command("鱼饵")
+    async def bait(self, event: AstrMessageEvent):
+        """查看用户鱼饵信息"""
+        user_id = event.get_sender_id()
+        bait_info = self.inventory_service.get_user_bait_inventory(user_id)
+        if bait_info:
+            # 构造输出信息,附带emoji
+            message = "【🐟 鱼饵】：\n"
+            for bait in bait_info["baits"]:
+                message += f" - {bait['name']} x {bait['quantity']} (稀有度: {'⭐' * bait['rarity']})\n"
+                message += f"   - ID: {bait['bait_id']}\n"
+                if bait['duration_minutes'] > 0:
+                    message += f"   - 持续时间: {bait['duration_minutes']} 分钟\n"
+                if bait['effect_description']:
+                    message += f"   - 效果: {bait['effect_description']}\n"
+                message += '\n'
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result("🐟 您还没有鱼饵，快去商店购买或抽奖获得吧！")
+
+    @filter.command("饰品")
+    async def accessories(self, event: AstrMessageEvent):
+        """查看用户饰品信息"""
+        user_id = event.get_sender_id()
+        accessories_info = self.inventory_service.get_user_accessory_inventory(user_id)
+        if accessories_info:
+            # 构造输出信息,附带emoji
+            message = "【💍 饰品】：\n"
+            for accessory in accessories_info["accessories"]:
+                message += format_accessory_or_rod(accessory)
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result("💍 您还没有饰品，快去商店购买或抽奖获得吧！")
+
+    @filter.command("使用鱼竿")
+    async def use_rod(self, event: AstrMessageEvent):
+        """使用鱼竿"""
+        user_id = event.get_sender_id()
+        rod_info = self.inventory_service.get_user_rod_inventory(user_id)
+        if not rod_info or not rod_info["rods"]:
+            yield event.plain_result("❌ 您还没有鱼竿，请先购买或抽奖获得。")
+            return
+        args = event.message_str.split(' ')
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要使用的鱼竿 ID，例如：/使用鱼竿 12")
+            return
+
+        rod_instance_id = args[1]
+        if not rod_instance_id.isdigit():
+            yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
+            return
+        result = self.inventory_service.equip_item(user_id, int(rod_instance_id), "rod")
+        if result:
+            if result["success"]:
+                yield event.plain_result(result['message'])
+            else:
+                yield event.plain_result(f"❌ 使用鱼竿失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("使用鱼饵")
+    async def use_bait(self, event: AstrMessageEvent):
+        """使用鱼饵"""
+        user_id = event.get_sender_id()
+        bait_info = self.inventory_service.get_user_bait_inventory(user_id)
+        if not bait_info or not bait_info["baits"]:
+            yield event.plain_result("❌ 您还没有鱼饵，请先购买或抽奖获得。")
+            return
+        args = event.message_str.split(' ')
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要使用的鱼饵 ID，例如：/使用鱼饵 13")
+            return
+        bait_instance_id = args[1]
+        if not bait_instance_id.isdigit():
+            yield event.plain_result("❌ 鱼饵 ID 必须是数字，请检查后重试。")
+            return
+        result = self.inventory_service.use_bait(user_id, int(bait_instance_id))
+        if result:
+            if result["success"]:
+                yield event.plain_result(result['message'])
+            else:
+                yield event.plain_result(f"❌ 使用鱼饵失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("使用饰品")
+    async def use_accessories(self, event: AstrMessageEvent):
+        """使用饰品"""
+        user_id = event.get_sender_id()
+        accessories_info = self.inventory_service.get_user_accessory_inventory(user_id)
+        if not accessories_info or not accessories_info["accessories"]:
+            yield event.plain_result("❌ 您还没有饰品，请先购买或抽奖获得。")
+            return
+        args = event.message_str.split(' ')
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要使用的饰品 ID，例如：/使用饰品 15")
+            return
+        accessory_instance_id = args[1]
+        if not accessory_instance_id.isdigit():
+            yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
+            return
+        result = self.inventory_service.equip_item(user_id, int(accessory_instance_id), "accessory")
+        if result:
+            if result["success"]:
+                yield event.plain_result(result['message'])
+            else:
+                yield event.plain_result(f"❌ 使用饰品失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("金币")
+    async def coins(self, event: AstrMessageEvent):
+        """查看用户金币信息"""
+        user_id = event.get_sender_id()
+        user = self.user_repo.get_by_id(user_id)
+        if user:
+            yield event.plain_result(f"💰 您的金币余额：{user.coins} 金币")
+        else:
+            yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
+
+    # ===========商店与市场==========
+
+    @filter.command("全部卖出")
+    async def sell_all(self, event: AstrMessageEvent):
+        """卖出用户所有鱼"""
+        user_id = event.get_sender_id()
+        result = self.inventory_service.sell_all_fish(user_id)
+        if result:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("保留卖出")
+    async def sell_keep(self, event: AstrMessageEvent):
+        """卖出用户鱼，但保留每种鱼一条"""
+        user_id = event.get_sender_id()
+        result = self.inventory_service.sell_all_fish(user_id, keep_one=True)
+        if result:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("出售稀有度")
+    async def sell_by_rarity(self, event: AstrMessageEvent):
+        """按稀有度出售鱼"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要出售的稀有度，例如：/出售稀有度 3")
+            return
+        rarity = args[1]
+        if not rarity.isdigit() or int(rarity) < 1 or int(rarity) > 5:
+            yield event.plain_result("❌ 稀有度必须是1到5之间的数字，请检查后重试。")
+            return
+        result = self.inventory_service.sell_fish_by_rarity(user_id, int(rarity))
+        if result:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("出售鱼竿")
+    async def sell_rod(self, event: AstrMessageEvent):
+        """出售鱼竿"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要出售的鱼竿 ID，例如：/出售鱼竿 12")
+            return
+        rod_instance_id = args[1]
+        if not rod_instance_id.isdigit():
+            yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
+            return
+        result = self.inventory_service.sell_rod(user_id, int(rod_instance_id))
+        if result:
+            if result["success"]:
+                yield event.plain_result(result['message'])
+            else:
+                yield event.plain_result(f"❌ 出售鱼竿失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("出售饰品")
+    async def sell_accessories(self, event: AstrMessageEvent):
+        """出售饰品"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要出售的饰品 ID，例如：/出售饰品 15")
+            return
+        accessory_instance_id = args[1]
+        if not accessory_instance_id.isdigit():
+            yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
+            return
+        result = self.inventory_service.sell_accessory(user_id, int(accessory_instance_id))
+        if result:
+            if result["success"]:
+                yield event.plain_result(result['message'])
+            else:
+                yield event.plain_result(f"❌ 出售饰品失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("商店")
+    async def shop(self, event: AstrMessageEvent):
+        """查看商店"""
+        result = self.shop_service.get_shop_listings()
+        if result:
+            message = "【🛒 商店】\n\n"
+            if result["baits"]:
+                message += "【🐟 鱼饵】:\n"
+                for bait in result["baits"]:
+                    message += f" - {bait.name} (ID: {bait.bait_id}) - 价格: {bait.cost} 金币\n - 描述：{bait.description}\n\n"
+            else:
+                message += "🐟 商店中没有鱼饵可供购买。\n\n"
+            if result["rods"]:
+                message += "\n【🎣 鱼竿】:\n"
+                for rod in result["rods"]:
+                    message += f" - {rod.name} (ID: {rod.rod_id}) - 价格: {rod.purchase_cost} 金币\n"
+                    if rod.bonus_fish_quality_modifier != 1.0:
+                        message += f"   - 质量加成⬆️: {to_percentage(rod.bonus_fish_quality_modifier)}\n"
+                    if rod.bonus_fish_quantity_modifier != 1.0:
+                        message += f"   - 数量加成⬆️: {to_percentage(rod.bonus_fish_quantity_modifier)}\n"
+                    if rod.bonus_rare_fish_chance != 0.0:
+                        message += f"   - 钓鱼加成⬆️: {to_percentage(rod.bonus_rare_fish_chance)}\n"
+                    message += '\n'
+            else:
+                message += "🎣 商店中没有鱼竿可供购买。\n"
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("购买鱼竿")
+    async def buy_rod(self, event: AstrMessageEvent):
+        """购买鱼竿"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要购买的鱼竿 ID，例如：/购买鱼竿 12")
+            return
+        rod_instance_id = args[1]
+        if not rod_instance_id.isdigit():
+            yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
+            return
+        result = self.shop_service.buy_item(user_id, "rod", int(rod_instance_id))
+        if result:
+            if result["success"]:
+                yield event.plain_result(result['message'])
+            else:
+                yield event.plain_result(f"❌ 购买鱼竿失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("购买鱼饵")
+    async def buy_bait(self, event: AstrMessageEvent):
+        """购买鱼饵"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要购买的鱼饵 ID，例如：/购买鱼饵 13")
+            return
+        bait_instance_id = args[1]
+        if not bait_instance_id.isdigit():
+            yield event.plain_result("❌ 鱼饵 ID 必须是数字，请检查后重试。")
+            return
+        quantity = 1  # 默认购买数量为1
+        if len(args) == 3:
+            quantity = args[2]
+            if not quantity.isdigit() or int(quantity) <= 0:
+                yield event.plain_result("❌ 购买数量必须是正整数，请检查后重试。")
+                return
+        result = self.shop_service.buy_item(user_id, "bait", int(bait_instance_id), int(quantity))
+        if result:
+            if result["success"]:
+                yield event.plain_result(result['message'])
+            else:
+                yield event.plain_result(f"❌ 购买鱼饵失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("市场")
+    async def market(self, event: AstrMessageEvent):
+        """查看市场"""
+        result = self.market_service.get_market_listings()
+        if result["success"]:
+            message = "【🛒 市场】\n\n"
+            if result["rods"]:
+                message += "【🎣 鱼竿】:\n"
+                for rod in result["rods"]:
+                    message += f" - {rod['item_name']} (ID: {rod["market_id"]}) - 价格: {rod['price']} 金币\n"
+                    message += f" - 售卖人： {rod['seller_nickname']}\n\n"
+            else:
+                message += "🎣 市场中没有鱼竿可供购买。\n\n"
+            if result["accessories"]:
+                message += "【💍 饰品】:\n"
+                for accessory in result["accessories"]:
+                    message += f" - {accessory['item_name']} (ID: {accessory['market_id']}) - 价格: {accessory['price']} 金币\n"
+                    message += f" - 售卖人： {accessory['seller_nickname']}\n\n"
+            else:
+                message += "💍 市场中没有饰品可供购买。\n"
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result(f"❌ 出错啦！{result["message"]}")
+
+
+    @filter.command("上架鱼竿")
+    async def list_rod(self, event: AstrMessageEvent):
+        """上架鱼竿到市场"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+        if len(args) < 3:
+            yield event.plain_result("❌ 请指定要上架的鱼竿 ID和价格，例如：/上架鱼竿 12 1000")
+            return
+        rod_instance_id = args[1]
+        if not rod_instance_id.isdigit():
+            yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
+            return
+        price = args[2]
+        if not price.isdigit() or int(price) <= 0:
+            yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
+            return
+        result = self.market_service.put_item_on_sale(user_id, "rod", int(rod_instance_id), int(price))
+        if result:
+            if result["success"]:
+                yield event.plain_result(result['message'])
+            else:
+                yield event.plain_result(f"❌ 上架鱼竿失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("上架饰品")
+    async def list_accessories(self, event: AstrMessageEvent):
+        """上架饰品到市场"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+        if len(args) < 3:
+            yield event.plain_result("❌ 请指定要上架的饰品 ID和价格，例如：/上架饰品 15 1000")
+            return
+        accessory_instance_id = args[1]
+        if not accessory_instance_id.isdigit():
+            yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
+            return
+        price = args[2]
+        if not price.isdigit() or int(price) <= 0:
+            yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
+            return
+        result = self.market_service.put_item_on_sale(user_id, "accessory", int(accessory_instance_id), int(price))
+        if result:
+            if result["success"]:
+                yield event.plain_result(result['message'])
+            else:
+                yield event.plain_result(f"❌ 上架饰品失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("购买")
+    async def buy_item(self, event: AstrMessageEvent):
+        """购买市场上的物品"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要购买的物品 ID，例如：/购买 12")
+            return
+        item_instance_id = args[1]
+        if not item_instance_id.isdigit():
+            yield event.plain_result("❌ 物品 ID 必须是数字，请检查后重试。")
+            return
+        result = self.market_service.buy_market_item(user_id, int(item_instance_id))
+        if result:
+            if result["success"]:
+                yield event.plain_result(result['message'])
+            else:
+                yield event.plain_result(f"❌ 购买失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    # ===========抽卡与概率玩法==========
+    @filter.command("抽卡", alias={'抽奖'})
+    async def gacha(self, event: AstrMessageEvent):
+        """抽卡"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+        if len(args) < 2:
+            # 展示所有的抽奖池信息并显示帮助
+            pools = self.gacha_service.get_all_pools()
+            if not pools:
+                yield event.plain_result("❌ 当前没有可用的抽奖池。")
+                return
+            message = "【🎰 抽奖池列表】\n\n"
+            for pool in pools.get("pools", []):
+                message += f"ID: {pool['gacha_pool_id']} - {pool['name']} - {pool['description']}\n 💰 花费：{pool['cost_coins']} 金币 / 次\n\n"
+            # 添加卡池详细信息
+            message += "【📋 卡池详情】使用「查看卡池 ID」命令查看详细物品概率\n"
+            message += "【🎲 抽卡命令】使用「抽卡 ID」命令选择抽卡池进行单次抽卡\n"
+            message += "【🎯 十连命令】使用「十连 ID」命令进行十连抽卡"
+            yield event.plain_result(message)
+            return
+        pool_id = args[1]
+        if not pool_id.isdigit():
+            yield event.plain_result("❌ 抽奖池 ID 必须是数字，请检查后重试。")
+            return
+        pool_id = int(pool_id)
+        result = self.gacha_service.perform_draw(user_id, pool_id, num_draws=1)
+        if result:
+            if result["success"]:
+                items = result.get("results", [])
+                message = f"🎉 抽卡成功！您抽到了 {len(items)} 件物品：\n"
+                for item in items:
+                    # 构造输出信息
+                    if item.get("type") == "coins":
+                        # 金币类型的物品
+                        message += f"⭐ {item['quantity']} 金币！\n"
+                    else:
+                        message += f"{'⭐' * item.get('rarity', 1)} {item['name']}\n"
+                yield event.plain_result(message)
+            else:
+                yield event.plain_result(f"❌ 抽卡失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("十连")
+    async def ten_gacha(self, event: AstrMessageEvent):
+        """十连抽卡"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要进行十连抽卡的抽奖池 ID，例如：/十连 1")
+            return
+        pool_id = args[1]
+        if not pool_id.isdigit():
+            yield event.plain_result("❌ 抽奖池 ID 必须是数字，请检查后重试。")
+            return
+        pool_id = int(pool_id)
+        result = self.gacha_service.perform_draw(user_id, pool_id, num_draws=10)
+        if result:
+            if result["success"]:
+                items = result.get("results", [])
+                message = f"🎉 十连抽卡成功！您抽到了 {len(items)} 件物品：\n"
+                for item in items:
+                    # 构造输出信息
+                    if item.get("type") == "coins":
+                        # 金币类型的物品
+                        message += f"⭐ {item['quantity']} 金币！\n"
+                    else:
+                        message += f"{'⭐' * item.get('rarity', 1)} {item['name']}\n"
+                yield event.plain_result(message)
+            else:
+                yield event.plain_result(f"❌ 抽卡失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("查看卡池")
+    async def view_gacha_pool(self, event: AstrMessageEvent):
+        """查看当前卡池"""
+        args = event.message_str.split(' ')
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要查看的卡池 ID，例如：/查看卡池 1")
+            return
+        pool_id = args[1]
+        if not pool_id.isdigit():
+            yield event.plain_result("❌ 卡池 ID 必须是数字，请检查后重试。")
+            return
+        pool_id = int(pool_id)
+        result = self.gacha_service.get_pool_details(pool_id)
+        if result:
+            if result["success"]:
+                pool = result.get("pool", {})
+                message = f"【🎰 卡池详情】\n\n"
+                message += f"ID: {pool['gacha_pool_id']} - {pool['name']}\n"
+                message += f"描述: {pool['description']}\n"
+                message += f"花费: {pool['cost_coins']} 金币 / 次\n\n"
+                message += "【📋 物品概率】\n"
+
+                if result['probabilities']:
+                    for item in result['probabilities']:
+                        message += f" - {'⭐' * item.get('item_rarity', 0)} {item['item_name']} (概率: {to_percentage(item['probability'])})\n"
+                yield event.plain_result(message)
+            else:
+                yield event.plain_result(f"❌ 查看卡池失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("抽卡记录")
+    async def gacha_history(self, event: AstrMessageEvent):
+        """查看抽卡记录"""
+        user_id = event.get_sender_id()
+        result = self.gacha_service.get_user_gacha_history(user_id)
+        if result:
+            if result["success"]:
+                history = result.get("records", [])
+                if not history:
+                    yield event.plain_result("📜 您还没有抽卡记录。")
+                    return
+                message = "【📜 抽卡记录】\n\n"
+                for record in history:
+                    message += f"物品名称: {record['item_name']} (稀有度: {'⭐' * record['rarity']})\n"
+                    message += f"时间: {safe_datetime_handler(record['timestamp'])}\n\n"
+                yield event.plain_result(message)
+            else:
+                yield event.plain_result(f"❌ 查看抽卡记录失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("擦弹")
+    async def wipe_bomb(self, event: AstrMessageEvent):
+        """擦弹功能"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+        if len(args) < 2:
+            yield event.plain_result("💸 请指定要擦弹的数量 ID，例如：/擦弹 123456789")
+            return
+        contribution_amount = args[1]
+        if not contribution_amount.isdigit():
+            yield event.plain_result("❌ 擦弹数量必须是数字，请检查后重试。")
+            return
+        result = self.game_mechanics_service.perform_wipe_bomb(user_id, int(contribution_amount))
+        if result:
+            if result["success"]:
+                message = ""
+                contribution = result['contribution']
+                multiplier = result['multiplier']
+                reward = result['reward']
+                profit = result['profit']
+                remaining_today = result['remaining_today']
+                if multiplier >= 3:
+                    message += f"🎰 大成功！你投入 {contribution} 金币，获得了 {multiplier} 倍奖励！\n 💰 奖励金额：{reward} 金币（盈利：+ {profit}）\n"
+                elif multiplier >= 1:
+                    message += f"🎲 你投入 {contribution} 金币，获得了 {multiplier} 倍奖励！\n 💰 奖励金额：{reward} 金币（盈利：+ {profit}）\n"
+                else:
+                    message += f"💥 你投入 {contribution} 金币，获得了 {multiplier} 倍奖励！\n 💰 奖励金额：{reward} 金币（亏损：- {abs(profit)})\n"
+                message += f"剩余擦弹次数：{remaining_today} 次\n"
+                yield event.plain_result(message)
+            else:
+                yield event.plain_result(f"⚠️ 擦弹失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("擦弹记录", alias={'擦弹历史'})
+    async def wipe_bomb_history(self, event: AstrMessageEvent):
+        """查看擦弹记录"""
+        user_id = event.get_sender_id()
+        result = self.game_mechanics_service.get_wipe_bomb_history(user_id)
+        if result:
+            if result["success"]:
+                history = result.get("logs", [])
+                if not history:
+                    yield event.plain_result("📜 您还没有擦弹记录。")
+                    return
+                message = "【📜 擦弹记录】\n\n"
+                for record in history:
+                    # 添加一点emoji
+                    message += f"⏱️ 时间: {safe_datetime_handler(record['timestamp'])}\n"
+                    message += f"💸 投入: {record['contribution']} 金币, 🎁 奖励: {record['reward']} 金币\n"
+                    # 计算盈亏
+                    profit = record['reward'] - record['contribution']
+                    profit_text = f"盈利: +{profit}" if profit >= 0 else f"亏损: {profit}"
+                    profit_emoji = "📈" if profit >= 0 else "📉"
+
+                    if record['multiplier'] >= 3:
+                        message += f"🔥 倍率: {record['multiplier']} ({profit_emoji} {profit_text})\n\n"
+                    elif record['multiplier'] >= 1:
+                        message += f"✨ 倍率: {record['multiplier']} ({profit_emoji} {profit_text})\n\n"
+                    else:
+                        message += f"💔 倍率: {record['multiplier']} ({profit_emoji} {profit_text})\n\n"
+                yield event.plain_result(message)
+            else:
+                yield event.plain_result(f"❌ 查看擦弹记录失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    # ===========社交==========
+    @filter.command("排行榜", alias={'phb'})
+    async def ranking(self, event: AstrMessageEvent):
+        """查看排行榜"""
+        user_data = self.user_service.get_leaderboard_data().get("leaderboard", [])
+        if not user_data:
+            yield event.plain_result("❌ 当前没有排行榜数据。")
+            return
+        for user in user_data:
+            if user['title'] is None:
+                user['title'] = "无称号"
+            if user['accessory'] is None:
+                user['accessory'] = "无饰品"
+            if user['fishing_rod'] is None:
+                user['fishing_rod'] = "无鱼竿"
+        logger.info(f"用户数据: {user_data}")
+        draw_fishing_ranking(user_data, output_path="fishing_ranking.png")
+        yield event.image_result("fishing_ranking.png")
+
+    @filter.command("偷鱼")
+    async def steal_fish(self, event: AstrMessageEvent):
+        """偷鱼功能"""
+        user_id = event.get_sender_id()
+        message_obj = event.message_obj
+        target_id = None
+        if hasattr(message_obj, 'message'):
+            # 检查消息中是否有At对象
+            for comp in message_obj.message:
+                if isinstance(comp, At):
+                    target_id = comp.qq
+                    break
+        if target_id is None:
+            yield event.plain_result("请在消息中@要偷鱼的用户")
+            return
+        if int(target_id) == int(user_id):
+            yield event.plain_result("不能偷自己的鱼哦！")
+            return
+        result = self.game_mechanics_service.steal_fish(user_id, target_id)
+        if result:
+            if result["success"]:
+                yield event.plain_result(result["message"])
+            else:
+                yield event.plain_result(f"❌ 偷鱼失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("查看称号")
+    async def view_titles(self, event: AstrMessageEvent):
+        """查看用户称号"""
+        user_id = event.get_sender_id()
+        titles = self.user_service.get_user_titles(user_id).get("titles", [])
+        if titles:
+            message = "【🏅 您的称号】\n"
+            for title in titles:
+                message += f"- {title['name']} (ID: {title['title_id']})\n- 描述: {title['description']}\n\n"
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result("❌ 您还没有任何称号，快去完成成就或参与活动获取吧！")
+
+
+    @filter.command("使用称号")
+    async def use_title(self, event: AstrMessageEvent):
+        """使用称号"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(' ')
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要使用的称号 ID，例如：/使用称号 1")
+            return
+        title_id = args[1]
+        if not title_id.isdigit():
+            yield event.plain_result("❌ 称号 ID 必须是数字，请检查后重试。")
+            return
+        result = self.user_service.use_title(user_id, int(title_id))
+        if result:
+            if result["success"]:
+                yield event.plain_result(result['message'])
+            else:
+                yield event.plain_result(f"❌ 使用称号失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("查看成就")
+    async def view_achievements(self, event: AstrMessageEvent):
+        """查看用户成就"""
+        user_id = event.get_sender_id()
+        achievements = self.achievement_service.get_user_achievements(user_id).get("achievements", [])
+        if achievements:
+            message = "【🏆 您的成就】\n"
+            for achievement in achievements:
+                message += f"- {achievement['name']} (ID: {achievement['id']})\n"
+                message += f"  描述: {achievement['description']}\n"
+                if achievement.get('completed_at'):
+                    message += f"  完成时间: {achievement['completed_at'].strftime('%Y-%m-%d %H:%M:%S')}\n"
+                else:
+                    message += "  进度: {}/{}\n".format(achievement['progress'], achievement['target'])
+            message += "请继续努力完成更多成就！"
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result("❌ 您还没有任何成就，快去完成任务或参与活动获取吧！")
+
+
+    @filter.command("钓鱼帮助")
+    async def fishing_help(self, event: AstrMessageEvent):
+        """显示钓鱼插件帮助信息"""
+        message = f"""【🎣 钓鱼系统帮助】
+            📋 基础命令:
+             - /注册: 注册钓鱼用户
+             - /钓鱼: 进行一次钓鱼(消耗10金币)，3分钟CD)
+             - /签到: 每日签到领取奖励
+             - /金币: 查看当前金币余额
+
+            🎒 背包相关:
+             - /鱼塘: 查看鱼类背包
+             - /偷鱼 @用户: 偷取指定用户的鱼
+             - /鱼塘容量: 查看当前鱼塘容量
+             - /升级鱼塘: 升级鱼塘容量
+             - /鱼饵: 查看鱼饵背包
+             - /鱼竿: 查看鱼竿背包
+             - /饰品: 查看饰品背包
+
+            🏪 商店与购买:
+             - /商店: 查看可购买的物品
+             - /购买鱼饵 ID [数量]: 购买指定ID的鱼饵，可选择数量
+             - /购买鱼竿 ID: 购买指定ID的鱼竿
+             - /使用鱼饵 ID: 使用指定ID的鱼饵
+             - /使用鱼竿 ID: 装备指定ID的鱼竿
+             - /出售鱼竿 ID: 出售指定ID的鱼竿
+             - /使用饰品 ID: 装备指定ID的饰品
+             - /出售饰品 ID: 出售指定ID的饰品
+
+            🏪 市场与购买:
+            - /市场: 查看市场中的物品
+            - /上架饰品 ID: 上架指定ID的饰品到市场
+            - /上架鱼竿 ID: 上架指定ID的鱼竿到市场
+            - /购买 ID: 购买市场中的指定物品ID
+
+
+            💰 出售鱼类:
+             - /全部卖出: 出售背包中所有鱼
+             - /保留卖出: 出售背包中所有鱼（但会保留1条）
+             - /出售稀有度 <1-5>: 出售特定稀有度的鱼
+
+            🎮 抽卡系统:
+             - /抽卡 ID: 进行单次抽卡
+             - /十连 ID: 进行十连抽卡
+             - /查看卡池 ID: 查看卡池详细信息和概率
+             - /抽卡记录: 查看抽卡历史记录
+
+            🔧 其他功能:
+             - /自动钓鱼: 开启/关闭自动钓鱼功能
+             - /排行榜: 查看钓鱼排行榜
+             - /鱼类图鉴: 查看所有鱼的详细信息
+             - /擦弹 [金币数]: 向公共奖池投入金币，获得随机倍数回报（0-10倍）
+             - /擦弹历史： 查看擦弹历史记录
+             - /查看称号: 查看已获得的称号
+             - /使用称号 ID: 使用指定ID称号
+             - /查看成就: 查看可达成的成就
+             - /钓鱼记录: 查看最近的钓鱼记录
+             - /税收记录: 查看税收记录
+             - /开启钓鱼后台管理: 开启钓鱼后台管理功能（仅管理员可用）
+             - /关闭钓鱼后台管理: 关闭钓鱼后台管理功能（仅管理员可用）
+            """
+        yield event.plain_result(message)
+
+    @filter.command("鱼类图鉴")
+    async def fish_pokedex(self, event: AstrMessageEvent):
+        """查看鱼类图鉴"""
+        user_id = event.get_sender_id()
+        result = self.fishing_service.get_user_pokedex(user_id)
+
+        if result:
+            if result["success"]:
+                pokedex = result.get("pokedex", [])
+                if not pokedex:
+                    yield event.plain_result("❌ 您还没有捕捉到任何鱼类，快去钓鱼吧！")
+                    return
+
+                message = "【🐟 🌊 鱼类图鉴 📖 🎣】\n"
+                message += f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                message += f"🏆 解锁进度：{to_percentage(1.0 + result['unlocked_percentage'])}\n"
+                message += f"📊 收集情况：{result['unlocked_fish_count']} / {result['total_fish_count']} 种\n"
+                message += f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
+                for fish in pokedex:
+                    rarity = fish['rarity']
+                    fish_emoji = "🐳" if rarity == 5 else "🐠" if rarity >= 4 else "🐡" if rarity >= 3 else "🐟" if rarity >= 2 else "🦐"
+
+                    message += f"{fish_emoji} {fish['name']} ({'✨' * rarity})\n"
+                    message += f"💎 价值：{fish['value']} 金币\n"
+                    message += f"🕰️ 首次捕获：{safe_datetime_handler(fish['first_caught_time'])}\n"
+                    message += f"📜 描述：{fish['description']}\n"
+                    message += f"- - - - - - - - - - - - - - -\n"
+
+                yield event.plain_result(message)
+            else:
+                yield event.plain_result(f"❌ 查看鱼类图鉴失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+    # ===========管理后台==========
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("开启钓鱼后台管理")
     async def start_admin(self, event: AstrMessageEvent):
-        """开启钓鱼后台管理"""
-        if hasattr(self, 'web_admin_task') and self.web_admin_task and not self.web_admin_task.done():
+        if self.web_admin_task and not self.web_admin_task.done():
             yield event.plain_result("❌ 钓鱼后台管理已经在运行中")
             return
-
         yield event.plain_result("🔄 正在启动钓鱼插件Web管理后台...")
-
         try:
-            from .manager.server import create_app
-            app = create_app(self.FishingService.db, self.secret_key)
+            services_to_inject = {
+                "item_template_service": self.item_template_service,
+            }
+            app = create_app(
+                secret_key=self.secret_key,
+                services=services_to_inject
+            )
+            config = Config()
+            config.bind = [f"0.0.0.0:{self.port}"]
+            self.web_admin_task = asyncio.create_task(serve(app, config))
 
-            hypercorn_config = Config()
-            hypercorn_config.bind = [f"0.0.0.0:{self.port}"]
-            hypercorn_config.accesslog = "-"
-
-            self.web_admin_task = asyncio.create_task(serve(app, hypercorn_config))
-
-            # 等待服务器就绪（轮询检测端口激活）
+            # 等待服务启动并获取公网IP
             for i in range(10):
                 if await self._check_port_active():
                     break
                 await asyncio.sleep(1)
             else:
-                raise RuntimeError("⌛ 启动超时，请检查防火墙设置")
+                raise Exception("⌛ 启动超时，请检查防火墙设置")
 
-            public_ip = await self.get_public_ip()
-            # 等待1s
-            await asyncio.sleep(1)
-            logger.info(f"钓鱼插件Web管理后台已启动，正在监听 http://0.0.0.0:{self.port}")
+            public_ip = await get_public_ip()
+            await asyncio.sleep(1)  # 等待服务启动
+            if public_ip is None:
+                public_ip = "localhost"
 
-            yield event.plain_result(f"✅ 钓鱼后台已启动！\n🔗 请访问: http://{public_ip}:{self.port}/admin\n🔑 密钥请到配置文件中查看")
-
+            yield event.plain_result(f"✅ 钓鱼后台已启动！\n🔗请访问 http://{public_ip}:{self.port}/admin\n🔑 密钥请到配置文件中查看")
         except Exception as e:
-            logger.error(f"启动钓鱼后台管理失败: {e}")
-            yield event.plain_result(f"❌ 启动钓鱼后台管理失败: {e}")
-
-    async def _check_port_active(self):
-        """验证端口是否实际已激活"""
-        try:
-            reader, writer = await asyncio.wait_for(
-                asyncio.open_connection('127.0.0.1', self.port),
-                timeout=1
-            )
-            writer.close()
-            return True
-        except:
-            return False
-
-    async def get_public_ip(self):
-        """异步获取公网IPv4地址"""
-        ipv4_apis = [
-            'http://ipv4.ifconfig.me/ip',  # IPv4专用接口
-            'http://api-ipv4.ip.sb/ip',  # 樱花云IPv4接口
-            'http://v4.ident.me',  # IPv4专用
-            'http://ip.qaros.com',  # 备用国内服务
-            'http://ipv4.icanhazip.com',  # IPv4专用
-            'http://4.icanhazip.com'  # 另一个变种地址
-        ]
-
-        async with aiohttp.ClientSession() as session:
-            for api in ipv4_apis:
-                try:
-                    async with session.get(api, timeout=5) as response:
-                        if response.status == 200:
-                            ip = (await response.text()).strip()
-                            # 添加二次验证确保是IPv4格式
-                            if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip):
-                                return ip
-                except:
-                    continue
-
-        return "[服务器公网ip]"
+            logger.error(f"启动后台失败: {e}", exc_info=True)
+            yield event.plain_result(f"❌ 启动后台失败: {e}")
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("关闭钓鱼后台管理")
@@ -181,1872 +1149,23 @@ _____ _     _     _
             logger.error(f"关闭钓鱼后台管理时发生意外错误: {e}", exc_info=True)
             yield event.plain_result(f"❌ 关闭钓鱼后台管理失败: {e}")
 
-    @filter.command("注册")  # ok
-    async def register_user(self, event: AstrMessageEvent):
-        """注册钓鱼用户"""
-        user_id = event.get_sender_id()
-        # 如果用户昵称为空，则使用用户ID
-        result = self.FishingService.register(user_id,
-                                              event.get_sender_name() if event.get_sender_name() else str(user_id))
-        yield event.plain_result(result["message"])
-
-    @filter.command("钓鱼", alias={"fish"})  # ok
-    async def go_fishing(self, event: AstrMessageEvent):
-        """进行一次钓鱼"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 检查CD时间
-        last_fishing_time = self.FishingService.db.get_last_fishing_time(user_id)
-        utc_time = datetime.datetime.utcnow()
-        utc_plus_4 = utc_time + datetime.timedelta(hours=4)
-        current_time = utc_plus_4.timestamp()
-        # 查看用户是否装备了海洋之心
-        equipped_rod = self.FishingService.db.get_user_equipped_accessories(user_id)
-        if equipped_rod and equipped_rod.get("name") == "海洋之心":
-            # 如果装备了海洋之心，CD时间减少到1分钟
-            last_fishing_time = max(0, last_fishing_time - 120)
-            logger.info(f"用户 {user_id} 装备了海洋之心，{last_fishing_time}")
-        # logger.info(f"用户 {user_id} 上次钓鱼时间: {last_fishing_time}, 当前时间: {current_time}")
-        # 3分钟CD (180秒)
-        if last_fishing_time > 0 and current_time - last_fishing_time < 180:
-            remaining_seconds = int(180 - (current_time - last_fishing_time))
-            remaining_minutes = remaining_seconds // 60
-            remaining_secs = remaining_seconds % 60
-            yield event.plain_result(f"⏳ 钓鱼冷却中，请等待 {remaining_minutes}分{remaining_secs}秒后再试")
-            return
-
-        # 钓鱼需要消耗金币
-        fishing_cost = 10  # 每次钓鱼消耗10金币
-        user_coins = self.FishingService.db.get_user_coins(user_id)
-
-        if user_coins < fishing_cost:
-            yield event.plain_result(f"💰 {get_coins_name()}不足，钓鱼需要 {fishing_cost} {get_coins_name()}")
-            return
-
-        # 扣除金币
-        self.FishingService.db.update_user_coins(user_id, -fishing_cost)
-
-        # 进行钓鱼
-        result = self.FishingService.fish(user_id)
-
-        # 如果钓鱼成功，显示钓到的鱼的信息
-        if result.get("success"):
-            fish_info = result.get("fish", {})
-            message = f"🎣 恭喜你钓到了 {fish_info.get('name', '未知鱼类')}！\n"
-            message += f"✨ 品质：{'★' * fish_info.get('rarity', 1)}\n"
-            message += f"⚖️ 重量：{fish_info.get('weight', 0)}g\n"
-            message += f"💰 价值：{fish_info.get('value', 0)}{get_coins_name()}"
-            yield event.plain_result(message)
-        else:
-            yield event.plain_result(result.get("message", "💨 什么都没钓到..."))
-
-    @filter.command("全部卖出")  # ok
-    async def sell_fish(self, event: AstrMessageEvent):
-        """出售背包中所有鱼"""
-        user_id = event.get_sender_id()
-        result = self.FishingService.sell_all_fish(user_id)
-
-        # 替换普通文本消息为带表情的消息
-        original_message = result.get("message", "出售失败！")
-        if "成功" in original_message:
-            # 如果是成功消息，添加成功相关表情
-            coins_earned = 0
-            if "获得" in original_message:
-                # 尝试从消息中提取获得的金币数量
-                try:
-                    coins_part = original_message.split("获得")[1]
-                    coins_str = ''.join(filter(str.isdigit, coins_part))
-                    if coins_str:
-                        coins_earned = int(coins_str)
-                except:
-                    pass
-
-            if coins_earned > 0:
-                message = f"💰 成功出售所有鱼！获得 {coins_earned} {get_coins_name()}"
-            else:
-                message = f"💰 {original_message}"
-        else:
-            # 如果是失败消息，添加失败相关表情
-            message = f"❌ {original_message}"
-
-        yield event.plain_result(message)
-
-    @filter.command("出售稀有度", alias={"sellr"})
-    async def sell_fish_by_rarity(self, event: AstrMessageEvent):
-        """出售特定稀有度的鱼"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        if len(args) < 2:
-            yield event.plain_result("⚠️ 请指定要出售的鱼的稀有度（1-5）")
-            return
-
+    async def _check_port_active(self):
+        """验证端口是否实际已激活"""
         try:
-            rarity = int(args[1])
-            if rarity < 1 or rarity > 5:
-                yield event.plain_result("⚠️ 稀有度必须在1-5之间")
-                return
-
-            result = self.FishingService.sell_fish_by_rarity(user_id, rarity)
-
-            # 替换普通文本消息为带表情的消息
-            original_message = result.get("message", "出售失败！")
-            if "成功" in original_message:
-                # 如果是成功消息，添加成功相关表情
-                coins_earned = 0
-                if "获得" in original_message:
-                    # 尝试从消息中提取获得的金币数量
-                    try:
-                        coins_part = original_message.split("获得")[1]
-                        coins_str = ''.join(filter(str.isdigit, coins_part))
-                        if coins_str:
-                            coins_earned = int(coins_str)
-                    except:
-                        pass
-
-                if coins_earned > 0:
-                    message = f"💰 成功出售稀有度 {rarity} 的鱼！获得 {coins_earned} {get_coins_name()}"
-                else:
-                    message = f"💰 {original_message}"
-            else:
-                # 如果是失败消息，添加失败相关表情
-                message = f"❌ {original_message}"
-
-            yield event.plain_result(message)
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的稀有度数值（1-5）")
-
-    @filter.command("鱼塘")  # ok
-    async def show_inventory(self, event: AstrMessageEvent):
-        """显示用户的鱼背包"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 获取用户鱼背包
-        fish_inventory = self.FishingService.get_fish_pond(user_id)
-
-        if not fish_inventory.get("success"):
-            yield event.plain_result(fish_inventory.get("message", "获取背包失败！"))
-            return
-
-        fishes = fish_inventory.get("fishes", [])
-        total_value = fish_inventory.get("stats", {}).get("total_value", 0)
-
-        if not fishes:
-            yield event.plain_result("你的鱼塘是空的，快去钓鱼吧！")
-            return
-
-        # 按稀有度分组
-        fishes_by_rarity = {}
-        for fish in fishes:
-            rarity = fish.get("rarity", 1)
-            if rarity not in fishes_by_rarity:
-                fishes_by_rarity[rarity] = []
-            fishes_by_rarity[rarity].append(fish)
-
-        # 构建消息
-        message = "【🐟 鱼塘】\n"
-
-        for rarity in sorted(fishes_by_rarity.keys(), reverse=True):
-            message += f"\n{'★' * rarity} 稀有度 {rarity}:\n"
-            for fish in fishes_by_rarity[rarity]:
-                message += f"- {fish.get('name')} x{fish.get('quantity')} ({fish.get('base_value', 0)}金币/个)\n"
-
-        message += f"\n💰 总价值: {total_value}{get_coins_name()}"
-
-        yield event.plain_result(message)
-
-    @filter.command("签到", alias={"signin"})  # ok
-    async def daily_sign_in(self, event: AstrMessageEvent):
-        """每日签到领取奖励"""
-        user_id = event.get_sender_id()
-        result = self.FishingService.daily_sign_in(user_id)
-
-        # 替换普通文本消息为带表情的消息
-        original_message = result.get("message", "签到失败！")
-        if "成功" in original_message:
-            # 如果是成功消息，添加成功相关表情
-            coins_earned = 0
-            if "获得" in original_message:
-                # 尝试从消息中提取获得的金币数量
-                try:
-                    coins_part = original_message.split("获得")[1]
-                    coins_str = ''.join(filter(str.isdigit, coins_part))
-                    if coins_str:
-                        coins_earned = int(coins_str)
-                except:
-                    pass
-
-            if coins_earned > 0:
-                message = f"📅 签到成功！获得 {coins_earned} {get_coins_name()} 💰"
-            else:
-                message = f"📅 {original_message}"
-        elif "已经" in original_message and "签到" in original_message:
-            # 如果是已经签到的消息
-            message = f"📅 你今天已经签到过了，明天再来吧！"
-        else:
-            # 如果是其他失败消息
-            message = f"❌ {original_message}"
-
-        yield event.plain_result(message)
-
-    @filter.command("鱼饵", alias={"baits"})
-    async def show_baits(self, event: AstrMessageEvent):
-        """显示用户拥有的鱼饵"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 获取用户鱼饵
-        baits = self.FishingService.get_user_baits(user_id)
-
-        if not baits.get("success"):
-            yield event.plain_result(baits.get("message", "获取鱼饵失败！"))
-            return
-
-        user_baits = baits.get("baits", [])
-
-        if not user_baits:
-            yield event.plain_result("🎣 你没有任何鱼饵，可以通过商店购买！")
-            return
-
-        # 构建消息
-        message = "【🎣 鱼饵背包】\n"
-
-        has_baits = False
-        for bait in user_baits:
-            # 只显示数量大于0的鱼饵
-            if bait.get("quantity", 0) > 0:
-                has_baits = True
-                bait_id = bait.get("bait_id")
-                message += f"ID: {bait_id} - {bait.get('name')} x{bait.get('quantity')}"
-                if bait.get("effect_description"):
-                    message += f" ({bait.get('effect_description')})"
-                message += "\n"
-
-        if not has_baits:
-            yield event.plain_result("🎣 你没有任何鱼饵，可以通过商店购买！")
-            return
-
-        # 获取当前使用的鱼饵
-        current_bait = self.FishingService.get_current_bait(user_id)
-        if current_bait.get("success") and current_bait.get("bait"):
-            bait = current_bait.get("bait")
-            message += f"\n⭐ 当前使用的鱼饵: {bait.get('name')}"
-            if bait.get("remaining_time"):
-                message += f" (⏱️ 剩余时间: {bait.get('remaining_time')}分钟)"
-
-        yield event.plain_result(message)
-
-    @filter.command("使用鱼饵", alias={"usebait"})
-    async def use_bait(self, event: AstrMessageEvent):
-        """使用特定的鱼饵"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        if len(args) < 2:
-            yield event.plain_result("⚠️ 请指定要使用的鱼饵ID")
-            return
-
-        try:
-            bait_id = int(args[1])
-            result = self.FishingService.use_bait(user_id, bait_id)
-
-            # 增加表情符号
-            original_message = result.get("message", "使用鱼饵失败！")
-            if "成功" in original_message:
-                message = f"🎣 {original_message}"
-            else:
-                message = f"❌ {original_message}"
-
-            yield event.plain_result(message)
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的鱼饵ID")
-
-    @filter.command("购买鱼饵", alias={"buybait"})
-    async def buy_bait(self, event: AstrMessageEvent):
-        """购买鱼饵"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        if len(args) < 2:
-            yield event.plain_result("⚠️ 请指定要购买的鱼饵ID和数量，格式：购买鱼饵 <ID> [数量]")
-            return
-
-        try:
-            bait_id = int(args[1])
-
-            # 增加数量参数支持
-            quantity = 1  # 默认数量为1
-            if len(args) >= 3:
-                quantity = int(args[2])
-                if quantity <= 0:
-                    yield event.plain_result("⚠️ 购买数量必须大于0")
-                    return
-
-            result = self.FishingService.buy_bait(user_id, bait_id, quantity)
-
-            # 增加表情符号
-            original_message = result.get("message", "购买鱼饵失败！")
-            if "成功" in original_message:
-                message = f"🛒 {original_message}"
-            elif "不足" in original_message:
-                message = f"💸 {original_message}"
-            else:
-                message = f"❌ {original_message}"
-
-            yield event.plain_result(message)
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的鱼饵ID和数量")
-
-    @filter.command("商店", alias={"shop"})
-    async def show_shop(self, event: AstrMessageEvent):
-        """显示商店中可购买的物品"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 获取所有鱼饵
-        all_baits = self.FishingService.get_all_baits()
-
-        # 获取所有鱼竿
-        all_rods = self.FishingService.get_all_rods()
-
-        # 构建消息
-        message = "【🏪 钓鱼商店】\n"
-
-        # 显示鱼饵
-        message += "\n【🎣 鱼饵】\n"
-        for bait in all_baits.get("baits", []):
-            if bait.get("cost", 0) > 0:  # 只显示可购买的
-                message += f"ID:{bait.get('bait_id')} - {bait.get('name')} (💰 {bait.get('cost')}{get_coins_name()})"
-                if bait.get("description"):
-                    message += f" - {bait.get('description')}"
-                message += "\n"
-
-        # 显示鱼竿
-        message += "\n【🎣 鱼竿】\n"
-        for rod in all_rods.get("rods", []):
-            if rod.get("source") == "shop" and rod.get("purchase_cost", 0) > 0:
-                message += f"ID:{rod.get('rod_id')} - {rod.get('name')} (💰 {rod.get('purchase_cost')}{get_coins_name()})"
-                message += f" - 稀有度:{'★' * rod.get('rarity', 1)}"
-                if rod.get("bonus_fish_quality_modifier", 1.0) > 1.0:
-                    message += f" - 品质加成:⬆️ {int((rod.get('bonus_fish_quality_modifier', 1.0) - 1) * 100)}%"
-                if rod.get("bonus_fish_quantity_modifier", 1.0) > 1.0:
-                    message += f" - 数量加成:⬆️ {int((rod.get('bonus_fish_quantity_modifier', 1.0) - 1) * 100)}%"
-                if rod.get("bonus_rare_fish_chance", 0.0) > 0:
-                    message += f" - 稀有度加成:⬆️ {int(rod.get('bonus_rare_fish_chance', 0.0) * 100)}%"
-                message += "\n"
-
-        message += "\n💡 使用「购买鱼饵 ID nums」或「购买鱼竿 ID」命令购买物品"
-        yield event.plain_result(message)
-
-    @filter.command("购买鱼竿", alias={"buyrod"})
-    async def buy_rod(self, event: AstrMessageEvent):
-        """购买鱼竿"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        if len(args) < 2:
-            yield event.plain_result("⚠️ 请指定要购买的鱼竿ID")
-            return
-
-        try:
-            rod_id = int(args[1])
-            result = self.FishingService.buy_rod(user_id, rod_id)
-
-            # 增加表情符号
-            original_message = result.get("message", "购买鱼竿失败！")
-            if "成功" in original_message:
-                message = f"🛒 {original_message}"
-            elif "不足" in original_message:
-                message = f"💸 {original_message}"
-            else:
-                message = f"❌ {original_message}"
-
-            yield event.plain_result(message)
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的鱼竿ID")
-
-    @filter.command("使用鱼竿", alias={"userod"})
-    async def use_rod(self, event: AstrMessageEvent):
-        """装备指定的鱼竿"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        if len(args) < 2:
-            yield event.plain_result("⚠️ 请指定要装备的鱼竿ID")
-            return
-
-        try:
-            rod_instance_id = int(args[1])
-            result = self.FishingService.equip_rod(user_id, rod_instance_id)
-
-            # 增加表情符号
-            original_message = result.get("message", "装备鱼竿失败！")
-            if "成功" in original_message:
-                message = f"🎣 {original_message}"
-            else:
-                message = f"❌ {original_message}"
-
-            yield event.plain_result(message)
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的鱼竿ID")
-
-    @filter.command("鱼竿", alias={"rods"})
-    async def show_rods(self, event: AstrMessageEvent):
-        """显示用户拥有的鱼竿"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 获取用户鱼竿
-        rods = self.FishingService.get_user_rods(user_id)
-
-        if not rods.get("success"):
-            yield event.plain_result(rods.get("message", "获取鱼竿失败！"))
-            return
-
-        user_rods = rods.get("rods", [])
-
-        if not user_rods:
-            yield event.plain_result("你没有任何鱼竿，可以通过商店购买！")
-            return
-
-        # 构建消息
-        message = "【🎣 鱼竿背包】\n"
-
-        # 获取当前装备信息
-        equipment_info = self.FishingService.get_user_equipment(user_id)
-        if not equipment_info.get("success"):
-            # 如果获取装备信息失败，直接显示鱼竿信息，但不标记已装备状态
-            for rod in user_rods:
-                message += f"ID:{rod.get('rod_instance_id')}- {rod.get('name')} (稀有度:{'★' * rod.get('rarity', 1)})\n"
-                if rod.get("description"):
-                    message += f"  描述: {rod.get('description')}\n"
-                if rod.get("bonus_fish_quality_modifier", 1.0) != 1.0:
-                    message += f"  品质加成: {(rod.get('bonus_fish_quality_modifier', 1.0) - 1) * 100:.0f}%\n"
-                if rod.get("bonus_fish_quantity_modifier", 1.0) != 1.0:
-                    message += f"  数量加成: {(rod.get('bonus_fish_quantity_modifier', 1.0) - 1) * 100:.0f}%\n"
-                if rod.get("bonus_rare_fish_chance", 0.0) > 0:
-                    message += f"  稀有度加成: +{rod.get('bonus_rare_fish_chance', 0.0) * 100:.0f}%\n"
-        else:
-            # 正常显示包括已装备状态
-            equipped_rod = equipment_info.get("rod")
-            equipped_rod_id = equipped_rod.get("rod_instance_id") if equipped_rod else None
-
-            for rod in user_rods:
-                rod_instance_id = rod.get("rod_instance_id")
-                is_equipped = rod_instance_id == equipped_rod_id or rod.get("is_equipped", False)
-
-                message += f"ID:{rod_instance_id} - {rod.get('name')} (稀有度:{'★' * rod.get('rarity', 1)})"
-                if is_equipped:
-                    message += " [已装备]"
-                message += "\n"
-                if rod.get("description"):
-                    message += f"  描述: {rod.get('description')}\n"
-                if rod.get("bonus_fish_quality_modifier", 1.0) != 1.0:
-                    message += f"  品质加成: {(rod.get('bonus_fish_quality_modifier', 1.0) - 1) * 100:.0f}%\n"
-                if rod.get("bonus_fish_quantity_modifier", 1.0) != 1.0:
-                    message += f"  数量加成: {(rod.get('bonus_fish_quantity_modifier', 1.0) - 1) * 100:.0f}%\n"
-                if rod.get("bonus_rare_fish_chance", 0.0) > 0:
-                    message += f"  稀有度加成: +{rod.get('bonus_rare_fish_chance', 0.0) * 100:.0f}%\n"
-
-        yield event.plain_result(message)
-
-    @filter.command("出售鱼竿", alias={"sellrod"})
-    async def sell_rod(self, event: AstrMessageEvent):
-        """出售指定的鱼竿"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        if len(args) < 2:
-            yield event.plain_result("⚠️ 请指定要出售的鱼竿ID")
-            return
-
-        try:
-            rod_instance_id = int(args[1])
-            result = self.FishingService.sell_rod(user_id, rod_instance_id)
-
-            # 增加表情符号
-            original_message = result.get("message", "出售鱼竿失败！")
-            if "成功" in original_message:
-                message = f"🛒 {original_message}"
-            else:
-                message = f"❌ {original_message}"
-
-            yield event.plain_result(message)
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的鱼竿ID")
-
-    @filter.command("抽卡", alias={"gacha", "抽奖"})
-    async def do_gacha(self, event: AstrMessageEvent):
-        """进行单次抽卡"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        if len(args) < 2:
-            # 获取所有抽卡池
-            pools = self.FishingService.get_all_gacha_pools()
-            if pools.get("success"):
-                message = "【🎮 可用的抽卡池】\n\n"
-                for pool in pools.get("pools", []):
-                    message += f"ID:{pool.get('gacha_pool_id')} - {pool.get('name')}"
-                    if pool.get("description"):
-                        message += f" - {pool.get('description')}"
-                    message += f"    💰 花费: {pool.get('cost_coins')}{get_coins_name()}/次\n\n"
-
-                # 添加卡池详细信息
-                message += "【📋 卡池详情】使用「查看卡池 ID」命令查看详细物品概率\n"
-                message += "【🎲 抽卡命令】使用「抽卡 ID」命令选择抽卡池进行单次抽卡\n"
-                message += "【🎯 十连命令】使用「十连 ID」命令进行十连抽卡"
-                yield event.plain_result(message)
-                return
-            else:
-                yield event.plain_result("❌ 获取抽卡池失败！")
-                return
-        try:
-            pool_id = int(args[1])
-            result = self.FishingService.gacha(user_id, pool_id)
-            logger.info(f"用户 {user_id} 抽卡结果: {result}")
-            if result.get("success"):
-                item = result.get("item", {})
-
-                # 根据稀有度添加不同的表情
-                rarity = item.get('rarity', 1)
-                rarity_emoji = "✨" if rarity >= 4 else "🌟" if rarity >= 3 else "⭐" if rarity >= 2 else "🔹"
-
-                message = f"{rarity_emoji} 抽卡结果: {item.get('name', '未知物品')}"
-                if item.get("rarity"):
-                    message += f" (稀有度:{'★' * item.get('rarity', 1)})"
-                if item.get("quantity", 1) > 1:
-                    message += f" x{item.get('quantity', 1)}"
-                message += "\n"
-
-                # 获取物品的详细信息
-                item_type = item.get('type')
-                item_id = item.get('id')
-
-                # 根据物品类型获取详细信息
-                details = None
-                if item_type == 'rod':
-                    details = self.FishingService.db.get_rod_info(item_id)
-                elif item_type == 'accessory':
-                    details = self.FishingService.db.get_accessory_info(item_id)
-                elif item_type == 'bait':
-                    details = self.FishingService.db.get_bait_info(item_id)
-
-                # 显示物品描述
-                if details and details.get('description'):
-                    message += f"📝 描述: {details.get('description')}\n"
-
-                # 显示物品属性
-                if details:
-                    # 显示品质加成
-                    quality_modifier = details.get('bonus_fish_quality_modifier', 1.0)
-                    if quality_modifier > 1.0:
-                        message += f"✨ 品质加成: +{(quality_modifier - 1) * 100:.0f}%\n"
-
-                    # 显示数量加成
-                    quantity_modifier = details.get('bonus_fish_quantity_modifier', 1.0)
-                    if quantity_modifier > 1.0:
-                        message += f"📊 数量加成: +{(quantity_modifier - 1) * 100:.0f}%\n"
-
-                    # 显示稀有度加成
-                    rare_chance = details.get('bonus_rare_fish_chance', 0.0)
-                    if rare_chance > 0:
-                        message += f"🌟 稀有度加成: +{rare_chance * 100:.0f}%\n"
-
-                    # 显示效果说明(鱼饵)
-                    if item_type == 'bait' and details.get('effect_description'):
-                        message += f"🎣 效果: {details.get('effect_description')}\n"
-
-                    # 显示饰品特殊效果
-                    if item_type == 'accessory' and details.get('other_bonus_description'):
-                        message += f"🔮 特殊效果: {details.get('other_bonus_description')}\n"
-                yield event.plain_result(message)
-            else:
-                original_message = result.get("message", "抽卡失败！")
-                if "不足" in original_message:
-                    yield event.plain_result(f"💸 {original_message}")
-                else:
-                    yield event.plain_result(f"❌ {original_message}")
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的抽卡池ID")
-
-    @filter.command("查看卡池", alias={"pool", "查看奖池"})
-    async def view_gacha_pool(self, event: AstrMessageEvent):
-        """查看卡池详细信息"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        if len(args) < 2:
-            yield event.plain_result("请指定要查看的卡池ID，如：查看卡池 1")
-            return
-
-        try:
-            pool_id = int(args[1])
-            pool_details = self.FishingService.db.get_gacha_pool_details(pool_id)
-
-            if not pool_details:
-                yield event.plain_result(f"卡池ID:{pool_id} 不存在")
-                return
-
-            message = f"【{pool_details.get('name')}】{pool_details.get('description', '')}\n\n"
-            message += f"抽取花费: {pool_details.get('cost_coins', 0)}{get_coins_name()}金币\n\n"
-
-            message += "可抽取物品:\n"
-            # 按稀有度分组
-            items_by_rarity = {}
-            for item in pool_details.get('items', []):
-                rarity = item.get('item_rarity', 1)
-                if rarity not in items_by_rarity:
-                    items_by_rarity[rarity] = []
-                items_by_rarity[rarity].append(item)
-
-            # 按稀有度从高到低显示
-            for rarity in sorted(items_by_rarity.keys(), reverse=True):
-                message += f"\n稀有度 {rarity} ({'★' * rarity}):\n"
-                for item in items_by_rarity[rarity]:
-                    item_name = item.get('item_name', f"{item.get('item_type')}_{item.get('item_id')}")
-                    probability = item.get('probability', 0)
-                    quantity = item.get('quantity', 1)
-
-                    if item.get('item_type') == 'coins':
-                        item_name = f"{quantity}{get_coins_name()}"
-                    elif quantity > 1:
-                        item_name = f"{item_name} x{quantity}"
-
-                    message += f"- {item_name} ({probability:.2f}%)\n"
-
-                    # 添加物品描述
-                    item_description = item.get('item_description')
-                    if item_description:
-                        message += f"  描述: {item_description}\n"
-
-                    # 添加属性加成信息
-                    item_type = item.get('item_type')
-                    if item_type in ['rod', 'accessory']:
-                        # 品质加成
-                        quality_modifier = item.get('quality_modifier', 1.0)
-                        if quality_modifier > 1.0:
-                            message += f"  品质加成: +{(quality_modifier - 1) * 100:.0f}%\n"
-
-                        # 数量加成
-                        quantity_modifier = item.get('quantity_modifier', 1.0)
-                        if quantity_modifier > 1.0:
-                            message += f"  数量加成: +{(quantity_modifier - 1) * 100:.0f}%\n"
-
-                        # 稀有度加成
-                        rare_chance = item.get('rare_chance', 0.0)
-                        if rare_chance > 0:
-                            message += f"  稀有度加成: +{rare_chance * 100:.0f}%\n"
-
-                    # 添加效果说明
-                    effect_description = item.get('effect_description')
-                    if effect_description:
-                        message += f"  效果: {effect_description}\n"
-            yield event.plain_result(message)
-
-        except ValueError:
-            yield event.plain_result("请输入有效的卡池ID")
-
-    @filter.command("十连", alias={"multi"})
-    async def do_multi_gacha(self, event: AstrMessageEvent):
-        """进行十连抽卡"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        if len(args) < 2:
-            yield event.plain_result("⚠️ 请指定要抽卡的池子ID")
-            return
-
-        try:
-            pool_id = int(args[1])
-            result = self.FishingService.multi_gacha(user_id, pool_id)
-
-            if result.get("success"):
-                results = result.get("results", [])
-                rewards_by_rarity = result.get("rewards_by_rarity", {})
-                message = "【🎮 十连抽卡结果】\n\n"
-
-                # 先显示高稀有度的物品
-                for rarity in sorted(rewards_by_rarity.keys(), reverse=True):
-                    items = rewards_by_rarity[rarity]
-
-                    # 根据稀有度显示不同的表情
-                    rarity_emoji = "✨" if rarity >= 4 else "🌟" if rarity >= 3 else "⭐" if rarity >= 2 else "🔹"
-                    message += f"{rarity_emoji} 稀有度 {rarity} ({'★' * rarity}):\n"
-
-                    for item in items:
-                        item_name = item.get('name', '未知物品')
-                        quantity = item.get('quantity', 1)
-
-                        if quantity > 1:
-                            message += f"- {item_name} x{quantity}\n"
-                        else:
-                            message += f"- {item_name}\n"
-
-                        # 获取物品的详细信息
-                        item_type = item.get('type')
-                        item_id = item.get('id')
-
-                        # 只为稀有度3及以上的物品显示详细信息
-                        if rarity >= 3:
-                            details = None
-                            if item_type == 'rod':
-                                details = self.FishingService.db.get_rod_info(item_id)
-                            elif item_type == 'accessory':
-                                details = self.FishingService.db.get_accessory_info(item_id)
-                            elif item_type == 'bait':
-                                details = self.FishingService.db.get_bait_info(item_id)
-
-                            # 显示物品描述
-                            if details and details.get('description'):
-                                message += f"  📝 描述: {details.get('description')}\n"
-
-                            # 显示物品属性
-                            if details:
-                                # 显示品质加成
-                                quality_modifier = details.get('bonus_fish_quality_modifier', 1.0)
-                                if quality_modifier > 1.0:
-                                    message += f"  ✨ 品质加成: +{(quality_modifier - 1) * 100:.0f}%\n"
-
-                                # 显示数量加成
-                                quantity_modifier = details.get('bonus_fish_quantity_modifier', 1.0)
-                                if quantity_modifier > 1.0:
-                                    message += f"  📊 数量加成: +{(quantity_modifier - 1) * 100:.0f}%\n"
-
-                                # 显示稀有度加成
-                                rare_chance = details.get('bonus_rare_fish_chance', 0.0)
-                                if rare_chance > 0:
-                                    message += f"  🌟 稀有度加成: +{rare_chance * 100:.0f}%\n"
-
-                                # 显示效果说明(鱼饵)
-                                if item_type == 'bait' and details.get('effect_description'):
-                                    message += f"  🎣 效果: {details.get('effect_description')}\n"
-
-                                # 显示饰品特殊效果
-                                if item_type == 'accessory' and details.get('other_bonus_description'):
-                                    message += f"  🔮 特殊效果: {details.get('other_bonus_description')}\n"
-
-                    message += "\n"
-                yield event.plain_result(message)
-            else:
-                original_message = result.get("message", "十连抽卡失败！")
-                if "不足" in original_message:
-                    yield event.plain_result(f"💸 {original_message}")
-                else:
-                    yield event.plain_result(f"❌ {original_message}")
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的抽卡池ID")
-
-    @filter.command("金币")
-    async def check_coins(self, event: AstrMessageEvent):
-        """查看用户金币数量"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 获取用户货币信息
-        result = self.FishingService.get_user_currency(user_id)
-
-        if not result.get("success"):
-            yield event.plain_result("获取货币信息失败！")
-            return
-
-        coins = result.get("coins", 0)
-
-        message = f"💰 你的{get_coins_name()}: {coins}"
-        yield event.plain_result(message)
-
-    @filter.command("排行榜", alias={"rank", "排行"})
-    async def show_ranking(self, event: AstrMessageEvent):
-        """显示钓鱼排行榜"""
-        try:
-
-            info = self.FishingService.db.get_leaderboard_with_details(limit=1000)
-
-            ouput_path = os.path.join(os.path.dirname(__file__), "fishing_ranking.png")
-
-            if not info:
-                yield event.plain_result("📊 暂无排行榜数据，快去争当第一名吧！")
-                return
-            draw_fishing_ranking(info, ouput_path)
-            # 发送图片
-            yield event.image_result(ouput_path)
-        except Exception as e:
-            logger.error(f"获取排行榜失败: {e}")
-            yield event.plain_result(f"❌ 获取排行榜时出错，请稍后再试！")
-
-    @filter.command("自动钓鱼", alias={"auto"})
-    async def toggle_auto_fishing(self, event: AstrMessageEvent):
-        """开启或关闭自动钓鱼"""
-        user_id = event.get_sender_id()
-        result = self.FishingService.toggle_auto_fishing(user_id)
-
-        # 增加表情符号
-        original_message = result.get("message", "操作失败！")
-        if "开启" in original_message:
-            message = f"🤖 {original_message}"
-        elif "关闭" in original_message:
-            message = f"⏹️ {original_message}"
-        else:
-            message = f"❌ {original_message}"
-
-        yield event.plain_result(message)
-
-    @filter.command("钓鱼帮助", alias={"钓鱼指南"})
-    async def show_help(self, event: AstrMessageEvent):
-        """显示钓鱼游戏帮助信息"""
-        prefix = """前言：使用/注册指令即可开始，鱼饵是一次性的（每次钓鱼随机使用），可以一次买多个鱼饵例如：/购买鱼饵 3 200。鱼竿购买后可以通过/鱼竿查看，如果你嫌钓鱼慢，可以玩玩/擦弹 金币数量，随机获得0-10倍收益"""
-        message = f"""【🎣 钓鱼系统帮助】
-    📋 基础命令:
-     - /注册: 注册钓鱼用户
-     - /钓鱼: 进行一次钓鱼(消耗10{get_coins_name()}，3分钟CD)
-     - /签到: 每日签到领取奖励
-     - /金币: 查看当前{get_coins_name()}
-    
-    🎒 背包相关:
-     - /鱼塘: 查看鱼类背包
-     - /偷鱼 @用户: 偷取指定用户的鱼
-     - /鱼塘容量: 查看当前鱼塘容量
-     - /升级鱼塘: 升级鱼塘容量
-     - /鱼饵: 查看鱼饵背包
-     - /鱼竿: 查看鱼竿背包
-     - /饰品: 查看饰品背包
-    
-    🏪 商店与购买:
-     - /商店: 查看可购买的物品
-     - /购买鱼饵 ID [数量]: 购买指定ID的鱼饵，可选择数量
-     - /购买鱼竿 ID: 购买指定ID的鱼竿
-     - /使用鱼饵 ID: 使用指定ID的鱼饵
-     - /使用鱼竿 ID: 装备指定ID的鱼竿
-     - /出售鱼竿 ID: 出售指定ID的鱼竿
-     - /使用饰品 ID: 装备指定ID的饰品
-     - /出售饰品 ID: 出售指定ID的饰品
-    
-    🏪 市场与购买:
-        - /市场: 查看市场中的物品
-        - /上架饰品 ID: 上架指定ID的饰品到市场
-        - /上架鱼竿 ID: 上架指定ID的鱼竿到市场
-        - /购买 ID: 购买市场中的指定物品ID
-        
-    
-    💰 出售鱼类:
-     - /全部卖出: 出售背包中所有鱼
-     - /保留卖出: 出售背包中所有鱼（但会保留1条）
-     - /出售稀有度 <1-5>: 出售特定稀有度的鱼
-    
-    🎮 抽卡系统:
-     - /抽卡 ID: 进行单次抽卡
-     - /十连 ID: 进行十连抽卡
-     - /查看卡池 ID: 查看卡池详细信息和概率
-     - /抽卡记录: 查看抽卡历史记录
-    
-    🔧 其他功能:
-     - /自动钓鱼: 开启/关闭自动钓鱼功能
-     - /排行榜: 查看钓鱼排行榜
-     - /鱼类图鉴: 查看所有鱼的详细信息
-     - /擦弹 [金币数]: 向公共奖池投入{get_coins_name()}，获得随机倍数回报（0-10倍）
-     - /擦弹历史： 查看擦弹历史记录
-     - /查看称号: 查看已获得的称号
-     - /使用称号 ID: 使用指定ID称号
-     - /查看成就: 查看可达成的成就
-     - /钓鱼记录: 查看最近的钓鱼记录
-     - /税收记录: 查看税收记录
-     - /开启钓鱼后台管理: 开启钓鱼后台管理功能（仅管理员可用）
-     - /关闭钓鱼后台管理: 关闭钓鱼后台管理功能（仅管理员可用）
-    """
-        # message = prefix + "\n" + message
-
-        yield event.plain_result(message)
-
-    @filter.command("鱼类图鉴", alias={"鱼图鉴", "图鉴"})
-    async def show_fish_catalog(self, event: AstrMessageEvent):
-        """显示所有鱼的图鉴"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 调用服务获取所有鱼类信息
-        cursor = self.FishingService.db._get_connection().cursor()
-        cursor.execute("""
-            SELECT fish_id, name, description, rarity, base_value, min_weight, max_weight
-            FROM fish
-            ORDER BY rarity DESC, base_value DESC
-        """)
-        fishes = cursor.fetchall()
-
-        if not fishes:
-            yield event.plain_result("鱼类图鉴中暂无数据")
-            return
-
-        # 按稀有度分组
-        fishes_by_rarity = {}
-        for fish in fishes:
-            rarity = fish['rarity']
-            if rarity not in fishes_by_rarity:
-                fishes_by_rarity[rarity] = []
-            fishes_by_rarity[rarity].append(dict(fish))
-
-        # 构建消息
-        message = "【📖 鱼类图鉴】\n\n"
-
-        for rarity in sorted(fishes_by_rarity.keys(), reverse=True):
-            message += f"★ 稀有度 {rarity} ({'★' * rarity}):\n"
-
-            # 只显示每个稀有度的前5条，太多会导致消息过长
-            fish_list = fishes_by_rarity[rarity][:5]
-            for fish in fish_list:
-                message += f"- {fish['name']} (💰 价值: {fish['base_value']}金币)\n"
-                if fish['description']:
-                    message += f"  📝 {fish['description']}\n"
-                message += f"  ⚖️ 重量范围: {fish['min_weight']}~{fish['max_weight']}g\n"
-
-            # 如果该稀有度鱼类超过5种，显示省略信息
-            if len(fishes_by_rarity[rarity]) > 5:
-                message += f"  ... 等共{len(fishes_by_rarity[rarity])}种\n"
-
-            message += "\n"
-
-        # 添加总数统计和提示
-        total_fish = sum(len(group) for group in fishes_by_rarity.values())
-        message += f"📊 图鉴收录了共计 {total_fish} 种鱼类。\n"
-        message += "💡 提示：钓鱼可能会钓到鱼以外的物品，比如各种特殊物品和神器！"
-
-        yield event.plain_result(message)
-
-    @filter.command("擦弹", alias={"wipe"})
-    async def do_wipe_bomb(self, event: AstrMessageEvent):
-        """进行擦弹，投入金币并获得随机倍数的奖励"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 解析参数
-        args = event.message_str.split(' ')
-
-        if len(args) < 2:
-            yield event.plain_result("💸 请指定要投入的金币数量，例如：擦弹 100")
-            return
-
-        try:
-            amount = int(args[1])
-            if amount <= 0:
-                yield event.plain_result("⚠️ 投入金币必须大于0")
-                return
-
-            # 调用服务执行擦弹操作
-            result = self.FishingService.perform_wipe_bomb(user_id, amount)
-
-            # 替换普通文本消息为带表情的消息
-            original_message = result.get("message", "擦弹失败，请稍后再试")
-
-            if result.get("success"):
-                # 尝试从结果中提取倍数和奖励
-                multiplier = result.get("multiplier", 0)
-                reward = result.get("reward", 0)
-                profit = reward - amount
-
-                if multiplier > 0:
-                    # 根据倍数和盈利情况选择不同的表情
-                    if multiplier >= 2:
-                        if profit > 0:
-                            message = f"🎰 大成功！你投入 {amount} {get_coins_name()}，获得了 {multiplier}倍 回报！\n💰 奖励: {reward} {get_coins_name()} (盈利: +{profit})"
-                        else:
-                            message = f"🎰 你投入 {amount} {get_coins_name()}，获得了 {multiplier}倍 回报！\n💰 奖励: {reward} {get_coins_name()} (亏损: {profit})"
-                    else:
-                        if profit > 0:
-                            message = f"🎲 你投入 {amount} {get_coins_name()}，获得了 {multiplier}倍 回报！\n💰 奖励: {reward} {get_coins_name()} (盈利: +{profit})"
-                        else:
-                            message = f"💸 你投入 {amount} {get_coins_name()}，获得了 {multiplier}倍 回报！\n💰 奖励: {reward} {get_coins_name()} (亏损: {profit})"
-                else:
-                    message = f"🎲 {original_message}"
-            else:
-                # 如果是失败消息
-                if "不足" in original_message:
-                    message = f"💸 金币不足，无法进行擦弹"
-                else:
-                    message = f"❌ {original_message}"
-
-            yield event.plain_result(message)
-
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的金币数量")
-
-    @filter.command("擦弹历史", alias={"wipe_history", "擦弹记录"})
-    async def show_wipe_history(self, event: AstrMessageEvent):
-        """显示用户的擦弹历史记录"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 获取擦弹历史
-        result = self.FishingService.get_wipe_bomb_history(user_id)
-
-        if not result.get("success"):
-            yield event.plain_result("❌ 获取擦弹历史失败")
-            return
-
-        records = result.get("records", [])
-
-        if not records:
-            yield event.plain_result("📝 你还没有进行过擦弹操作")
-            return
-
-        # 构建消息
-        message = "【📊 擦弹历史记录】\n\n"
-
-        for idx, record in enumerate(records, 1):
-            timestamp = record.get('timestamp', '未知时间')
-            contribution = record.get('contribution_amount', 0)
-            multiplier = record.get('reward_multiplier', 0)
-            reward = record.get('reward_amount', 0)
-            profit = record.get('profit', 0)
-
-            # 根据盈亏状况显示不同表情
-            if profit > 0:
-                profit_text = f"📈 盈利 {profit}"
-                if multiplier >= 2:
-                    emoji = "🎉"  # 高倍率盈利用庆祝表情
-                else:
-                    emoji = "✅"  # 普通盈利用勾选表情
-            else:
-                profit_text = f"📉 亏损 {-profit}"
-                emoji = "💸"  # 亏损用钱飞走表情
-
-            message += f"{idx}. ⏱️ {timestamp}\n"
-            message += f"   {emoji} 投入: {contribution} {get_coins_name()}，获得 {multiplier}倍 ({reward} {get_coins_name()})\n"
-            message += f"   {profit_text}\n"
-
-        # 添加是否可以再次擦弹的提示
-        can_wipe_today = result.get("available_today", False)
-        if can_wipe_today:
-            message += "\n🎮 今天你还可以进行擦弹"
-        else:
-            message += "\n⏳ 今天你已经进行过擦弹了，明天再来吧"
-
-        yield event.plain_result(message)
-
-    @filter.command("查看称号", alias={"称号", "titles"})
-    async def show_titles(self, event: AstrMessageEvent):
-        """显示用户已获得的称号"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 获取用户称号
-        result = self.FishingService.get_user_titles(user_id)
-
-        if not isinstance(result, dict) or not result.get("success", False):
-            yield event.plain_result("获取称号信息失败")
-            return
-
-        titles = result.get("titles", [])
-
-        if not titles:
-            yield event.plain_result("🏆 你还没有获得任何称号，努力完成成就以获取称号吧！")
-            return
-
-        # 构建消息
-        message = "【🏆 已获得称号】\n\n"
-
-        for title in titles:
-            message += f"ID:{title.get('title_id')} - {title.get('name')}\n"
-            if title.get('description'):
-                message += f"  📝 {title.get('description')}\n"
-
-        message += "\n💡 提示：完成特定成就可以获得更多称号！"
-
-        yield event.plain_result(message)
-
-    @filter.command("使用称号")
-    async def use_title(self, event: AstrMessageEvent):
-        """使用指定称号"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        if len(args) < 2:
-            yield event.plain_result("请指定要使用的称号ID，例如：/使用称号 1")
-            return
-
-        try:
-            title_id = int(args[1])
-            result = self.FishingService.use_title(user_id, title_id)
-
-            if result.get("success"):
-                yield event.plain_result(result.get("message", "使用称号成功！"))
-            else:
-                yield event.plain_result(result.get("message", "使用称号失败"))
-        except ValueError:
-            yield event.plain_result("请输入有效的称号ID")
-
-    @filter.command("查看成就", alias={"成就", "achievements"})
-    async def show_achievements(self, event: AstrMessageEvent):
-        """显示用户的成就进度"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 获取成就进度（这里需要修改FishingService添加获取成就进度的方法）
-        # 临时解决方案：直接从数据库查询
-        try:
-            user_progress = self.FishingService.db.get_user_achievement_progress(user_id)
-
-            if not user_progress:
-                # 如果没有进度记录，至少显示一些可用的成就
-                cursor = self.FishingService.db._get_connection().cursor()
-                cursor.execute("""
-                    SELECT achievement_id, name, description, target_type, target_value, reward_type, reward_value
-                    FROM achievements
-                    LIMIT 10
-                """)
-                achievements = [dict(row) for row in cursor.fetchall()]
-
-                message = "【🏅 成就列表】\n\n"
-                message += "你还没有开始任何成就的进度，这里是一些可以完成的成就：\n\n"
-
-                for ach in achievements:
-                    message += f"- {ach['name']}: {ach['description']}\n"
-                    message += f"  🎯 目标: {ach['target_value']} ({ach['target_type']})\n"
-                    reward_text = f"{ach['reward_type']} (ID: {ach['reward_value']})"
-                    message += f"  🎁 奖励: {reward_text}\n"
-
-                yield event.plain_result(message)
-                return
-
-            # 筛选出有进度的成就和完成但未领取奖励的成就
-            in_progress = []
-            completed = []
-
-            for progress in user_progress:
-                is_completed = progress.get('completed_at') is not None
-                is_claimed = progress.get('claimed_at') is not None
-
-                if is_completed and not is_claimed:
-                    completed.append(progress)
-                elif progress.get('current_progress', 0) > 0:
-                    in_progress.append(progress)
-
-            # 构建消息
-            message = "【🏅 成就进度】\n\n"
-
-            if completed:
-                message += "✅ 已完成的成就:\n"
-                for ach in completed:
-                    message += f"- {ach['name']}: {ach['description']}\n"
-                    reward_text = f"{ach['reward_type']} (ID: {ach['reward_value']})"
-                    message += f"  🎁 奖励: {reward_text}\n"
-                message += "\n"
-
-            if in_progress:
-                message += "⏳ 进行中的成就:\n"
-                for ach in in_progress:
-                    progress_percent = min(100, int(ach['current_progress'] / ach['target_value'] * 100))
-                    message += f"- {ach['name']} ({progress_percent}%)\n"
-                    message += f"  📝 {ach['description']}\n"
-                    message += f"  📊 进度: {ach['current_progress']}/{ach['target_value']}\n"
-                message += "\n"
-
-            if not completed and not in_progress:
-                message += "你还没有进行中的成就，继续钓鱼和使用其他功能来完成成就吧！\n"
-
-            message += "💡 提示：完成成就可以获得各种奖励，包括金币、称号、特殊物品等！"
-
-            yield event.plain_result(message)
-        except Exception as e:
-            logger.error(f"获取成就进度失败: {e}")
-            yield event.plain_result("获取成就进度时出错，请稍后再试")
-
-    @filter.command("钓鱼记录", "查看记录")
-    async def fishing_records(self, event: AstrMessageEvent):
-        """查看钓鱼记录"""
-        user_id = event.get_sender_id()
-
-        result = self.FishingService.get_user_fishing_records(user_id)
-        if not result["success"]:
-            yield event.plain_result(result["message"])
-            return
-
-        records = result["records"]
-        if not records:
-            yield event.plain_result("📝 你还没有任何钓鱼记录，快去钓鱼吧！")
-            return
-
-        # 格式化记录显示
-        message = "【📝 最近钓鱼记录】\n"
-        for idx, record in enumerate(records, 1):
-            time_str = record.get('timestamp', '未知时间')
-            if isinstance(time_str, str) and len(time_str) > 16:
-                time_str = time_str[:16]  # 简化时间显示
-
-            fish_name = record.get('fish_name', '未知鱼类')
-            rarity = record.get('rarity', 0)
-            weight = record.get('weight', 0)
-            value = record.get('value', 0)
-
-            rod_name = record.get('rod_name', '无鱼竿')
-            bait_name = record.get('bait_name', '无鱼饵')
-
-            # 稀有度星星显示
-            rarity_stars = '★' * rarity
-
-            # 判断是否为大型鱼
-            king_size = "👑 " if record.get('is_king_size', 0) else ""
-
-            message += f"{idx}. ⏱️ {time_str} {king_size}{fish_name} {rarity_stars}\n"
-            message += f"   ⚖️ 重量: {weight}g | 💰 价值: {value}{get_coins_name()}\n"
-            message += f"   🔧 装备: {rod_name} | 🎣 鱼饵: {bait_name}\n"
-        yield event.plain_result(message)
-    @filter.permission_type(PermissionType.ADMIN)
-    @filter.command("用户列表", alias={"users"})
-    async def show_all_users(self, event: AstrMessageEvent):
-        """显示所有注册用户的信息"""
-        try:
-            # 获取所有用户ID
-            all_users = self.FishingService.db.get_all_users()
-            
-            if not all_users:
-                yield event.plain_result("📊 暂无注册用户")
-                return
-
-            # 构建消息
-            message = "【👥 用户列表】\n\n"
-            
-            # 获取每个用户的详细信息
-            for idx, user_id in enumerate(all_users, 1):
-                # 获取用户基本信息
-                user_stats = self.FishingService.db.get_user_fishing_stats(user_id)
-                user_currency = self.FishingService.db.get_user_currency(user_id)
-                
-                if not user_stats or not user_currency:
-                    continue
-                
-                # 获取用户昵称
-                cursor = self.FishingService.db._get_connection().cursor()
-                cursor.execute("SELECT nickname FROM users WHERE user_id = ?", (user_id,))
-                result = cursor.fetchone()
-                nickname = result[0] if result else "未知用户"
-                
-                # 获取用户装备信息
-                equipment = self.FishingService.db.get_user_equipment(user_id)
-                rod_name = equipment.get("rod", {}).get("name", "无鱼竿") if equipment.get("success") else "无鱼竿"
-                
-                # 获取用户鱼塘信息
-                fish_inventory = self.FishingService.db.get_user_fish_inventory(user_id)
-                total_fish = sum(fish.get("quantity", 0) for fish in fish_inventory)
-                
-                # 格式化用户信息
-                message += f"{idx}. 👤 {nickname} (ID: {user_id})\n"
-                message += f"   💰 {get_coins_name()}: {user_currency.get('coins', 0)}\n"
-                message += f"   🎣 钓鱼次数: {user_stats.get('total_fishing_count', 0)}\n"
-                message += f"   🐟 鱼塘数量: {total_fish}\n"
-                message += f"   ⚖️ 总重量: {user_stats.get('total_weight_caught', 0)}g\n"
-                message += f"   🎯 当前装备: {rod_name}\n"
-                message += "\n"
-
-            # 添加统计信息
-            total_users = len(all_users)
-            message += f"📊 总用户数: {total_users}"
-
-            yield event.plain_result(message)
-        except Exception as e:
-            logger.error(f"获取用户列表失败: {e}")
-            yield event.plain_result(f"❌ 获取用户列表时出错，请稍后再试！错误信息：{str(e)}")
-
-    @filter.command("抽卡记录", alias={"gacha_history"})
-    async def show_gacha_history(self, event: AstrMessageEvent):
-        """查看用户的抽卡记录"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 获取抽卡记录
-        records = self.FishingService.db.get_user_gacha_records(user_id)
-
-        if not records:
-            yield event.plain_result("📝 你还没有任何抽卡记录，快去抽卡吧！")
-            return
-
-        # 构建消息
-        message = "【🎮 抽卡记录】\n\n"
-
-        for idx, record in enumerate(records, 1):
-            time_str = record.get('timestamp', '未知时间')
-            if isinstance(time_str, str) and len(time_str) > 16:
-                time_str = time_str[:16]  # 简化时间显示
-
-            item_name = record.get('item_name', '未知物品')
-            rarity = record.get('rarity', 1)
-            quantity = record.get('quantity', 1)
-
-            # 稀有度星星显示
-            rarity_stars = '★' * rarity
-
-            # 根据稀有度选择表情
-            rarity_emoji = "✨" if rarity >= 4 else "🌟" if rarity >= 3 else "⭐" if rarity >= 2 else "🔹"
-
-            message += f"{idx}. ⏱️ {time_str}\n"
-            message += f"   {rarity_emoji} {item_name} {rarity_stars}\n"
-            if quantity > 1:
-                message += f"   📦 数量: x{quantity}\n"
-
-        yield event.plain_result(message)
-
-    @filter.command("饰品", alias={"accessories"})
-    async def show_accessories(self, event: AstrMessageEvent):
-        """显示用户拥有的饰品"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 获取用户饰品
-        accessories = self.FishingService.get_user_accessories(user_id)
-
-        if not accessories["success"]:
-            yield event.plain_result(accessories["message"])
-            return
-
-        user_accessories = accessories["accessories"]
-
-        if not user_accessories:
-            yield event.plain_result("🎭 你没有任何饰品，可以通过抽卡获得！")
-            return
-
-        # 获取当前装备的饰品
-        equipped = self.FishingService.get_user_equipped_accessory(user_id)
-        equipped_id = equipped["accessory"]["accessory_instance_id"] if equipped["accessory"] else None
-
-        # 构建消息
-        message = "【🎭 饰品背包】\n\n"
-
-        for accessory in user_accessories:
-            accessory_instance_id = accessory["accessory_instance_id"]
-            is_equipped = accessory_instance_id == equipped_id
-
-            message += f"ID:{accessory_instance_id} - {accessory['name']} (稀有度:{'★' * accessory['rarity']})"
-            if is_equipped:
-                message += " [已装备]"
-            message += "\n"
-
-            if accessory["description"]:
-                message += f"  📝 描述: {accessory['description']}\n"
-
-            # 显示属性加成
-            if accessory["bonus_fish_quality_modifier"] != 1.0:
-                message += f"  ✨ 品质加成: +{(accessory['bonus_fish_quality_modifier'] - 1) * 100:.0f}%\n"
-            if accessory["bonus_fish_quantity_modifier"] != 1.0:
-                message += f"  📊 数量加成: +{(accessory['bonus_fish_quantity_modifier'] - 1) * 100:.0f}%\n"
-            if accessory["bonus_rare_fish_chance"] > 0:
-                message += f"  🌟 稀有度加成: +{accessory['bonus_rare_fish_chance'] * 100:.0f}%\n"
-            if accessory["other_bonus_description"]:
-                message += f"  🔮 特殊效果: {accessory['other_bonus_description']}\n"
-
-        message += "\n💡 使用「使用饰品 ID」命令装备饰品"
-        yield event.plain_result(message)
-
-    @filter.command("使用饰品", alias={"useaccessory"})
-    async def use_accessory(self, event: AstrMessageEvent):
-        """装备指定的饰品"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        if len(args) < 2:
-            yield event.plain_result("⚠️ 请指定要装备的饰品ID")
-            return
-
-        try:
-            accessory_instance_id = int(args[1])
-            result = self.FishingService.equip_accessory(user_id, accessory_instance_id)
-
-            # 增加表情符号
-            original_message = result.get("message", "装备饰品失败！")
-            if "成功" in original_message:
-                message = f"🎭 {original_message}"
-            else:
-                message = f"❌ {original_message}"
-
-            yield event.plain_result(message)
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的饰品ID")
-
-    @filter.command("出售饰品", alias={"sellaccessory"})
-    async def sell_accessory(self, event: AstrMessageEvent):
-        """出售指定的饰品"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        if len(args) < 2:
-            yield event.plain_result("⚠️ 请指定要出售的饰品ID")
-            return
-
-        try:
-            accessory_instance_id = int(args[1])
-            result = self.FishingService.sell_accessory(user_id, accessory_instance_id)
-
-            # 增加表情符号
-            original_message = result.get("message", "出售饰品失败！")
-            if "成功" in original_message:
-                message = f"💰 {original_message}"
-            else:
-                message = f"❌ {original_message}"
-
-            yield event.plain_result(message)
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的饰品ID")
-
-    @filter.permission_type(PermissionType.ADMIN)
-    @filter.command("增加金币", alias={"addcoins"})
-    async def add_coins(self, event: AstrMessageEvent):
-        """给指定用户增加金币（管理员命令）"""
-        args = event.message_str.split(' ')
-        
-        if len(args) < 3:
-            yield event.plain_result("⚠️ 请使用正确的格式：增加金币 <用户ID> <金币数量>")
-            return
-            
-        try:
-            user_id = args[1]
-            amount = int(args[2])
-            
-            if amount <= 0:
-                yield event.plain_result("⚠️ 金币数量必须大于0")
-                return
-                
-            # 检查用户是否存在
-            if not self.FishingService.is_registered(user_id):
-                yield event.plain_result("❌ 该用户未注册")
-                return
-                
-            # 增加金币
-            result = self.FishingService.db.update_user_coins(user_id, amount)
-            
-            if result:
-                # 获取用户当前金币数
-                user_currency = self.FishingService.db.get_user_currency(user_id)
-                current_coins = user_currency.get('coins', 0)
-                
-                message = f"✅ 成功为用户 {user_id} 增加 {amount} {get_coins_name()}\n"
-                message += f"💰 当前{get_coins_name()}数：{current_coins}"
-            else:
-                message = "❌ 增加金币失败，请稍后重试"
-                
-            yield event.plain_result(message)
-            
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的金币数量")
-        except Exception as e:
-            logger.error(f"增加金币时出错: {e}")
-            yield event.plain_result(f"❌ 操作失败：{str(e)}")
-
-    @filter.permission_type(PermissionType.ADMIN)
-    @filter.command("导入数据")
-    async def import_data(self, event: AstrMessageEvent):
-        """导入数据（管理员命令）"""
-        # 这里可以实现数据导入的逻辑
-        OLD_DATABASE = "data/fishing.db"
-        if not os.path.exists(OLD_DATABASE):
-            yield event.plain_result("⚠️ 旧数据库文件不存在")
-            return
-        old_data = self.FishingService.get_old_database_data(OLD_DATABASE)
-        # 批量插入用户数据
-        yield event.plain_result(f"获取到旧数据{len(old_data)}条, 开始导入数据...")
-        if old_data:
-            import_users = []
-            for data in old_data:
-                user_id = data.get("user_id")
-                coins = data.get("coins", 0)
-                nickname = None
-                if isinstance(event, AiocqhttpMessageEvent):
-                    bot = event.bot
-                    try:
-                        # 如果user_id里面有QQ号，获取用户信息
-                        if isinstance(user_id, str) and user_id.isdigit():
-                            info = await bot.get_stranger_info(user_id=int(user_id))
-                            nickname = info.get("nickname")
-                            logger.info(f"获取到用户昵称: {nickname}")
-                        else:
-                            nickname = None
-                            logger.info(f"获取用户信息失败: {user_id} 不是有效的QQ号")
-                    except Exception as e:
-                        logger.error(f"获取用户信息失败: {e}")
-                        nickname = None
-                    # 休眠1秒，避免频繁请求
-                    # await asyncio.sleep(1)
-                if nickname is None:
-                    nickname = data.get("user_id")
-                user = UserFishing(user_id, nickname, coins)
-                import_users.append(user)
-            result = self.FishingService.insert_users(import_users)
-            yield event.plain_result(result.get("message", "导入数据失败"))
-
-    @filter.command("市场", alias={"market"})
-    async def show_market(self, event: AstrMessageEvent):
-        """显示商店中的所有商品"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 获取市场商品
-        market_items = self.FishingService.get_market_items()
-
-        # return {
-        #     "success": True,
-        #     "rods": rods,
-        #     "accessories": accessories
-        # }
-        if not market_items["success"]:
-            yield event.plain_result("❌ 获取市场商品失败，请稍后再试")
-            return
-        rods = market_items.get("rods", [])
-        accessories = market_items.get("accessories", [])
-        if not rods and not accessories:
-            yield event.plain_result("🛒 市场中暂无商品，欢迎稍后再来！")
-            return
-        # 构建消息
-        message = "【🛒 市场】\n\n"
-        if rods:
-            message += "【🎣 鱼竿】\n"
-            #返回市场上架的饰品信息，包括市场ID、用户昵称、饰品ID、饰品名称、数量、价格和上架时间
-            for rod in rods:
-                message += f"ID:{rod['market_id']} - {rod['rod_name']} (价格: {rod['price']} {get_coins_name()})\n"
-                message += f"  📝 上架者: {rod['nickname']} | 数量: {rod['quantity']} | 上架时间: {rod['listed_at']}\n"
-                if rod.get('description'):
-                    message += f"  📝 描述: {rod['description']}\n"
-            message += "\n"
-        if accessories:
-            message += "【🎭 饰品】\n"
-            for accessory in accessories:
-                message += f"ID:{accessory['market_id']} - {accessory['accessory_name']} (价格: {accessory['price']} {get_coins_name()})\n"
-                message += f"  📝 上架者: {accessory['nickname']} | 数量: {accessory['quantity']} | 上架时间: {accessory['listed_at']}\n"
-                if accessory.get('description'):
-                    message += f"  📝 描述: {accessory['description']}\n"
-            message += "\n"
-        message += "💡 使用「购买 ID」命令购买商品"
-        yield event.plain_result(message)
-
-    @filter.command("购买", alias={"buy"})
-    async def buy_item(self, event: AstrMessageEvent):
-        """购买市场上的商品"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        if len(args) < 2:
-            yield event.plain_result("⚠️ 请指定要购买的商品ID，例如：/购买 1")
-            return
-
-        try:
-            market_id = int(args[1])
-            result = self.FishingService.buy_item(user_id, market_id)
-
-            if result["success"]:
-                yield event.plain_result(f"✅ {result['message']}")
-            else:
-                yield event.plain_result(f"❌ {result['message']}")
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的商品ID")
-
-    @filter.command("上架饰品", alias={"put_accessory_on_sale"})
-    async def put_accessory_on_sale(self, event: AstrMessageEvent):
-        """将饰品的ID和价格上架到商店"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        if len(args) < 3:
-            yield event.plain_result("⚠️ 请指定饰品ID和上架价格，例如：/上架饰品 1 100")
-            return
-
-        try:
-            accessory_instance_id = int(args[1])
-            price = int(args[2])
-
-            if price <= 0:
-                yield event.plain_result("⚠️ 上架价格必须大于0")
-                return
-
-            result = self.FishingService.put_accessory_on_sale(user_id, accessory_instance_id, price)
-
-            if result["success"]:
-                yield event.plain_result(f"✅ 成功将饰品 ID {accessory_instance_id} 上架到市场，价格为 {price} {get_coins_name()}")
-            else:
-                yield event.plain_result(f"❌ {result['message']}")
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的饰品ID和价格")
-    # 将鱼竿上架到商店
-    @filter.command("上架鱼竿")
-    async def put_rod_on_sale(self, event: AstrMessageEvent):
-        """将鱼竿的ID和价格上架到商店"""
-        user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        if len(args) < 3:
-            yield event.plain_result("⚠️ 请指定鱼竿ID和上架价格，例如：/上架鱼竿 1 100")
-            return
-
-        try:
-            rod_instance_id = int(args[1])
-            price = int(args[2])
-
-            if price <= 0:
-                yield event.plain_result("⚠️ 上架价格必须大于0")
-                return
-
-            result = self.FishingService.put_rod_on_sale(user_id, rod_instance_id, price)
-
-            if result["success"]:
-                yield event.plain_result(f"✅ 成功将鱼竿 ID {rod_instance_id} 上架到市场，价格为 {price} {get_coins_name()}")
-            else:
-                yield event.plain_result(f"❌ {result['message']}")
-        except ValueError:
-            yield event.plain_result("⚠️ 请输入有效的鱼竿ID和价格")
-
-    @filter.command("税收记录")
-    async def show_tax_records(self, event: AstrMessageEvent):
-        """显示税收记录"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 获取税收记录
-        records = self.FishingService.db.get_tax_records(user_id)
-
-        if not records:
-            yield event.plain_result("📝 你还没有任何税收记录")
-            return
-
-        # 构建消息
-        message = "【📊 税收记录】\n\n"
-
-        for idx, record in enumerate(records, 1):
-            time_str = record.get('timestamp', '未知时间')
-            if isinstance(time_str, str) and len(time_str) > 16:
-                time_str = time_str[:16]
-            tax_amount = record.get('tax_amount', 0)
-            reason = record.get('reason', '无')
-            message += f"{idx}. ⏱️ {time_str}\n"
-            message += f"   💰 税收金额: {tax_amount} {get_coins_name()}\n"
-            message += f"   📝 原因: {reason}\n"
-        yield event.plain_result(message)
-
-    @filter.command("鱼塘容量")
-    async def show_fish_inventory_capacity(self, event: AstrMessageEvent):
-        """显示用户鱼塘的容量"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        # 获取用户鱼塘容量
-        capacity = self.FishingService.get_user_fish_inventory_capacity(user_id)
-
-        if not capacity["success"]:
-            yield event.plain_result(capacity["message"])
-            return
-
-        current_capacity = capacity["current_count"]
-        max_capacity = capacity["capacity"]
-
-        message = f"🐟 你的鱼塘当前容量（{get_fish_pond_inventory_grade(max_capacity)}）: {current_capacity}/{max_capacity} 只鱼"
-        yield event.plain_result(message)
-
-    @filter.command("升级鱼塘")
-    async def upgrade_fish_inventory(self, event: AstrMessageEvent):
-        """升级用户的鱼塘容量"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        result = self.FishingService.upgrade_fish_inventory(user_id)
-
-        if result["success"]:
-            yield event.plain_result(f"✅ 成功升级鱼塘！当前容量: {result['new_capacity']} , 💴花费: {result['cost']} {get_coins_name()}")
-        else:
-            yield event.plain_result(f"❌ {result['message']}")
-
-    @filter.command("偷鱼", alias={"steal_fish"})
-    async def steal_fish(self, event: AstrMessageEvent):
-        """尝试偷取其他用户的鱼"""
-        user_id = event.get_sender_id()
-
-        # 检查用户是否注册
-        if not self.FishingService.is_registered(user_id):
-            yield event.plain_result("请先注册才能使用此功能")
-            return
-
-        message_obj = event.message_obj
-        target_id = None
-        if hasattr(message_obj, 'message'):
-            # 检查消息中是否有At对象
-            for comp in message_obj.message:
-                if isinstance(comp, At):
-                    target_id = comp.qq
-                    break
-        if target_id is None:
-            yield event.plain_result("请在消息中@要偷鱼的用户")
-            return
-        # logger.info(f"用户 {user_id} 尝试偷鱼，目标用户ID: {target_id}")
-        if int(target_id) == int(user_id):
-            yield event.plain_result("不能偷自己的鱼哦！")
-            return
-        # 执行偷鱼逻辑
-        result = self.FishingService.steal_fish(user_id, target_id)
-        if result["success"]:
-            yield event.plain_result(f"✅ {result['message']}")
-        else:
-            yield event.plain_result(f"❌ {result['message']}")
-
-
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection('127.0.0.1', self.port),
+                timeout=1
+            )
+            writer.close()
+            return True
+        except:
+            return False
 
     async def terminate(self):
         """插件被卸载/停用时调用"""
         logger.info("钓鱼插件正在终止...")
-        # 停止自动钓鱼线程
-        self.FishingService.stop_auto_fishing_task()
-        self.FishingService.stop_achievement_check_task()
-        if hasattr(self, 'web_admin_task'):
-            try:
-                # 1. 请求取消任务
-                self.web_admin_task.cancel()
-                # 2. 等待任务实际被取消
-                await self.web_admin_task
-            except asyncio.CancelledError:
-                # 3. 捕获CancelledError，这是成功关闭的标志
-                logger.info("钓鱼插件Web管理后台已成功关闭。")
+        self.fishing_service.stop_auto_fishing_task()
+        self.achievement_service.stop_achievement_check_task()
+        if self.web_admin_task:
+            self.web_admin_task.cancel()
         logger.info("钓鱼插件已成功终止。")
-
-
-        
-    @filter.command("保留卖出", alias={"safe_sell"})
-    async def safe_sell_all_fish(self, event: AstrMessageEvent):
-        user_id = event.get_sender_id()
-        
-        # 记录卖出前总价值（用于验证）
-        before_value = self.FishingService.db.get_user_fish_total_value(user_id)
-        
-        result = self.FishingService.sell_all_fish_keep_one_batch(user_id)
-        
-        if result["success"]:
-            # 验证卖出金额
-            after_value = self.FishingService.db.get_user_fish_total_value(user_id)
-            actual_diff = before_value - after_value
-            
-            # 添加警告日志（如果差异过大）
-            if abs(actual_diff - result["total_value"]) > 1.0:
-                logger.warning(
-                    f"价值计算异常！用户:{user_id}\n"
-                    f"计算值:{result['total_value']} 实际差值:{actual_diff}"
-                )
-            
-            # 如果消息太长，分段发送
-            if len(result["message"]) > 500000:
-                yield event.plain_result(f"✅ 成功卖出！获得 {result['total_value']} 水晶")
-                yield event.plain_result("🐟 卖出明细：")
-                for op in result["details"][:5]:  # 只显示前5条
-                    yield event.plain_result(
-                        f"- {op['name']}×{op['sell_count']} ({op['value_per']}水晶/个)"
-                    )
-                if len(result["details"]) > 5:
-                    yield event.plain_result(f"...等共{len(result['details'])}种鱼")
-            else:
-                yield event.plain_result(result["message"])
-        else:
-            yield event.plain_result(f"❌ {result['message']}")

@@ -29,8 +29,8 @@ USER_CARD_HEIGHT = 90  # 减小卡片高度
 USER_CARD_MARGIN = 12  # 减小卡片间距
 
 # 字体路径 - 请确保这些字体文件存在或使用你系统中的字体
-FONT_PATH_REGULAR = os.path.join(os.path.dirname(__file__),"resource", "DouyinSansBold.otf")  # 替换为你有的字体文件
-FONT_PATH_BOLD = os.path.join(os.path.dirname(__file__),"resource", "DouyinSansBold.otf")     # 替换为你有的字体文件
+FONT_PATH_REGULAR = os.path.join(os.path.dirname(__file__),"resource", "DouyinSansBold.otf")
+FONT_PATH_BOLD = os.path.join(os.path.dirname(__file__),"resource", "DouyinSansBold.otf")
 
 def draw_rounded_rectangle(draw, xy, radius=10, fill=None, outline=None, width=1):
     """绘制圆角矩形"""
