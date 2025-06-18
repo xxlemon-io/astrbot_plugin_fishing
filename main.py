@@ -43,7 +43,7 @@ from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_d
 @register("fish2.0",
           "tinker",
           "升级版的钓鱼插件，附带后台管理界面（个性化钓鱼游戏！）",
-          "1.3.1",
+          "1.3.2",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
 class FishingPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -905,7 +905,7 @@ class FishingPlugin(Star):
                 user['accessory'] = "无饰品"
             if user['fishing_rod'] is None:
                 user['fishing_rod'] = "无鱼竿"
-        logger.info(f"用户数据: {user_data}")
+        # logger.info(f"用户数据: {user_data}")
         draw_fishing_ranking(user_data, output_path="fishing_ranking.png")
         yield event.image_result("fishing_ranking.png")
 
@@ -1068,20 +1068,16 @@ class FishingPlugin(Star):
                     return
 
                 message = "【🐟 🌊 鱼类图鉴 📖 🎣】\n"
-                message += f"━━━━━━━━━━━━━━━━━━━━━━\n"
                 message += f"🏆 解锁进度：{to_percentage(1.0 + result['unlocked_percentage'])}\n"
                 message += f"📊 收集情况：{result['unlocked_fish_count']} / {result['total_fish_count']} 种\n"
-                message += f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
                 for fish in pokedex:
                     rarity = fish['rarity']
-                    fish_emoji = "🐳" if rarity == 5 else "🐠" if rarity >= 4 else "🐡" if rarity >= 3 else "🐟" if rarity >= 2 else "🦐"
 
-                    message += f"{fish_emoji} {fish['name']} ({'✨' * rarity})\n"
+                    message += f" - {fish['name']} ({'✨' * rarity})\n"
                     message += f"💎 价值：{fish['value']} 金币\n"
                     message += f"🕰️ 首次捕获：{safe_datetime_handler(fish['first_caught_time'])}\n"
                     message += f"📜 描述：{fish['description']}\n"
-                    message += f"- - - - - - - - - - - - - - -\n"
 
                 yield event.plain_result(message)
             else:
