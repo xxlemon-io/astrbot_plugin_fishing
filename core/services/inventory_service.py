@@ -317,6 +317,20 @@ class InventoryService:
 
         return {"success": True, "message": f"💫 成功使用鱼饵【{bait_template.name}】"}
 
+    def get_user_fish_pond_capacity(self, user_id: str) -> Dict[str, Any]:
+        """
+        获取用户鱼塘容量以及当前容量。
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+        fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
+        return {
+            "success": True,
+            "fish_pond_capacity": user.fish_pond_capacity,
+            "current_fish_count": sum(item.quantity for item in fish_inventory),
+        }
+
     def upgrade_fish_pond(self, user_id: str) -> Dict[str, Any]:
         """
         升级鱼塘容量。

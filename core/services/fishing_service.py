@@ -211,11 +211,11 @@ class FishingService:
 
                     # 执行钓鱼
                     result = self.go_fish(user_id)
-                    if result['success']:
-                        fish = result["fish"]
-                        logger.info(f"用户 {user_id} 自动钓鱼成功: {fish['name']}")
-                    else:
-                         logger.info(f"用户 {user_id} 自动钓鱼失败: {result['message']}")
+                    # if result['success']:
+                    #     fish = result["fish"]
+                    #     logger.info(f"用户 {user_id} 自动钓鱼成功: {fish['name']}")
+                    # else:
+                    #      logger.info(f"用户 {user_id} 自动钓鱼失败: {result['message']}")
 
                 # 每轮检查间隔
                 time.sleep(40)

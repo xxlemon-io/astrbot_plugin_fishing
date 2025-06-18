@@ -34,7 +34,7 @@ from .core.services.game_mechanics_service import GameMechanicsService
 # 其他
 
 from .core.database.migration import run_migrations
-from .core.utils import get_utc4_now
+from .core.utils import get_now
 from .draw.rank import draw_fishing_ranking
 from .manager.server import create_app
 from .utils import get_public_ip, to_percentage, format_accessory_or_rod
@@ -186,8 +186,8 @@ class FishingPlugin(Star):
             return
         # 检查用户钓鱼CD
         lst_time = user.last_fishing_time
-        if lst_time and (get_utc4_now() - lst_time).total_seconds() < self.game_config["fishing"]["cooldown_seconds"]:
-            wait_time = self.game_config["fishing"]["cooldown_seconds"] - (get_utc4_now() - lst_time).total_seconds()
+        if lst_time and (get_now() - lst_time).total_seconds() < self.game_config["fishing"]["cooldown_seconds"]:
+            wait_time = self.game_config["fishing"]["cooldown_seconds"] - (get_now() - lst_time).total_seconds()
             yield event.plain_result(f"⏳ 您还需要等待 {int(wait_time)} 秒才能再次钓鱼。")
             return
         result = self.fishing_service.go_fish(user_id)
@@ -248,6 +248,27 @@ class FishingPlugin(Star):
             yield event.plain_result(message)
         else:
             yield event.plain_result("🐟 您的鱼塘是空的，快去钓鱼吧！")
+
+    @filter.command("鱼塘容量")
+    async def pond_capacity(self, event: AstrMessageEvent):
+        """查看用户鱼塘容量"""
+        user_id = event.get_sender_id()
+        pond_capacity = self.inventory_service.get_user_fish_pond_capacity(user_id)
+        if pond_capacity["success"]:
+            message = f"🐠 您的鱼塘容量为 {pond_capacity['current_fish_count']} / {pond_capacity['fish_pond_capacity']} 条鱼。"
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("升级鱼塘", alias={'鱼塘升级'})
+    async def upgrade_pond(self, event: AstrMessageEvent):
+        """升级鱼塘容量"""
+        user_id = event.get_sender_id()
+        result = self.inventory_service.upgrade_fish_pond(user_id)
+        if result["success"]:
+            yield event.plain_result(f"🐠 鱼塘升级成功！新容量为 {result['new_capacity']} 条鱼。")
+        else:
+            yield event.plain_result(f"❌ 升级失败：{result['message']}")
 
     @filter.command("鱼竿")
     async def rod(self, event: AstrMessageEvent):
@@ -868,7 +889,6 @@ class FishingPlugin(Star):
         if target_id is None:
             yield event.plain_result("请在消息中@要偷鱼的用户")
             return
-        # logger.info(f"用户 {user_id} 尝试偷鱼，目标用户ID: {target_id}")
         if int(target_id) == int(user_id):
             yield event.plain_result("不能偷自己的鱼哦！")
             return
