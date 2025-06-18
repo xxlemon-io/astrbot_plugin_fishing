@@ -139,6 +139,27 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             row = cursor.fetchone()
             return self._row_to_rod_instance(row) if row else None
 
+    def get_user_rod_instance_by_id(self, user_id: str, rod_instance_id: int) -> Optional[UserRodInstance]:
+        """根据用户ID和钓竿实例ID获取特定的钓竿实例"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM user_rods 
+                WHERE user_id = ? AND rod_instance_id = ?
+            """, (user_id, rod_instance_id))
+            row = cursor.fetchone()
+            return self._row_to_rod_instance(row) if row else None
+    def get_user_accessory_instance_by_id(self, user_id: str, accessory_instance_id: int) -> Optional[UserAccessoryInstance]:
+        """根据用户ID和配件实例ID获取特定的配件实例"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM user_accessories 
+                WHERE user_id = ? AND accessory_instance_id = ?
+            """, (user_id, accessory_instance_id))
+            row = cursor.fetchone()
+            return self._row_to_accessory_instance(row) if row else None
+
     def get_user_equipped_accessory(self, user_id: str) -> Optional[UserAccessoryInstance]:
         """获取用户当前装备的配件实例"""
         with self._get_connection() as conn:

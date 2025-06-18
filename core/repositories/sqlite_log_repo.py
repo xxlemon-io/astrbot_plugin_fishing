@@ -13,8 +13,8 @@ class SqliteLogRepository(AbstractLogRepository):
     def __init__(self, db_path: str):
         self.db_path = db_path
         self._local = threading.local()
-        # 定义UTC+4时区
-        self.UTC4 = timezone(timedelta(hours=4))
+        # 定义UTC+8时区
+        self.UTC8 = timezone(timedelta(hours=8))
 
     def _get_connection(self) -> sqlite3.Connection:
         """获取一个线程安全的数据库连接。"""
@@ -47,7 +47,7 @@ class SqliteLogRepository(AbstractLogRepository):
         return TaxRecord(**row)
 
     # --- Fishing Log Methods ---
-    def add_fishing_record(self, record: FishingRecord) -> None:
+    def add_fishing_record(self, record: FishingRecord) -> bool:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -58,10 +58,11 @@ class SqliteLogRepository(AbstractLogRepository):
             """, (
                 record.user_id, record.fish_id, record.weight, record.value,
                 record.rod_instance_id, record.accessory_instance_id,
-                record.bait_id, record.timestamp or datetime.now(self.UTC4),
+                record.bait_id, record.timestamp or datetime.now(self.UTC8),
                 1 if record.is_king_size else 0
             ))
             conn.commit()
+            return cursor.rowcount > 0
 
     def get_fishing_records(self, user_id: str, limit: int) -> List[FishingRecord]:
         with self._get_connection() as conn:
@@ -85,7 +86,7 @@ class SqliteLogRepository(AbstractLogRepository):
             """, (
                 record.user_id, record.gacha_pool_id, record.item_type,
                 record.item_id, record.item_name, record.quantity,
-                record.rarity, record.timestamp or datetime.now(self.UTC4)
+                record.rarity, record.timestamp or datetime.now(self.UTC8)
             ))
             conn.commit()
 
@@ -108,12 +109,12 @@ class SqliteLogRepository(AbstractLogRepository):
                 VALUES (?, ?, ?, ?, ?)
             """, (
                 log.user_id, log.contribution_amount, log.reward_multiplier,
-                log.reward_amount, log.timestamp or datetime.now(self.UTC4)
+                log.reward_amount, log.timestamp or datetime.now(self.UTC8)
             ))
             conn.commit()
 
     def get_wipe_bomb_log_count_today(self, user_id: str) -> int:
-        today_str = datetime.now(self.UTC4).date().isoformat()
+        today_str = datetime.now(self.UTC8).date().isoformat()
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -153,7 +154,7 @@ class SqliteLogRepository(AbstractLogRepository):
             """, (
                 record.user_id, record.tax_amount, record.tax_rate,
                 record.original_amount, record.balance_after,
-                record.tax_type, record.timestamp or datetime.now(self.UTC4)
+                record.tax_type, record.timestamp or datetime.now(self.UTC8)
             ))
             conn.commit()
 

@@ -199,6 +199,7 @@ class FishingRecord:
     rod_instance_id: Optional[int] = None
     accessory_instance_id: Optional[int] = None
     bait_id: Optional[int] = None
+    location_id: Optional[int] = None
     is_king_size: bool = False
 
 @dataclass

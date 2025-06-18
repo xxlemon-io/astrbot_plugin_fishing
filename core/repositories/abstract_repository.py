@@ -153,6 +153,12 @@ class AbstractInventoryRepository(ABC):
     # 获取用户当前装备的鱼竿
     @abstractmethod
     def get_user_equipped_rod(self, user_id: str) -> Optional[UserRodInstance]: pass
+    # 根据user_id 和 rod_instance_id 获取用户的鱼竿实例
+    @abstractmethod
+    def get_user_rod_instance_by_id(self, user_id: str, rod_instance_id: int) -> Optional[UserRodInstance]: pass
+    # 根据 user_id 和 accessory_instance_id 获取用户的饰品实例
+    @abstractmethod
+    def get_user_accessory_instance_by_id(self, user_id: str, accessory_instance_id: int) -> Optional[UserAccessoryInstance]: pass
     # 获取用户当前装备的饰品
     @abstractmethod
     def get_user_equipped_accessory(self, user_id: str) -> Optional[UserAccessoryInstance]: pass
@@ -227,7 +233,7 @@ class AbstractLogRepository(ABC):
     """日志类数据仓储接口"""
     # 记录一条钓鱼日志
     @abstractmethod
-    def add_fishing_record(self, record: FishingRecord) -> None: pass
+    def add_fishing_record(self, record: FishingRecord) -> bool: pass
     # 获取用户钓鱼日志
     @abstractmethod
     def get_fishing_records(self, user_id: str, limit: int) -> List[FishingRecord]: pass

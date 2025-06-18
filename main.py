@@ -37,7 +37,7 @@ from .core.database.migration import run_migrations
 from .core.utils import get_now
 from .draw.rank import draw_fishing_ranking
 from .manager.server import create_app
-from .utils import get_public_ip, to_percentage, format_accessory_or_rod
+from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_datetime_handler
 
 
 @register("fish2.0",
@@ -230,6 +230,29 @@ class FishingPlugin(Star):
         user_id = event.get_sender_id()
         result = self.fishing_service.toggle_auto_fishing(user_id)
         yield event.plain_result(result["message"])
+
+    @filter.command("钓鱼记录", alias={'钓鱼日志', '钓鱼历史'})
+    async def fishing_log(self, event: AstrMessageEvent):
+        """查看钓鱼记录"""
+        user_id = event.get_sender_id()
+        result = self.fishing_service.get_user_fish_log(user_id)
+        if result:
+            if result["success"]:
+                records = result["records"]
+                if not records:
+                    yield event.plain_result("❌ 您还没有钓鱼记录。")
+                    return
+                message = "【📜 钓鱼记录】：\n"
+                for record in records:
+                    message += (f" - {record['fish_name']} ({'★' * record['fish_rarity']})\n"
+                                f" - ⚖️重量: {record['fish_weight']} 克 - 💰价值: {record['fish_value']} 金币\n"
+                                f" - 🔧装备： {record['accessory']} & {record['rod']} | 🎣鱼饵: {record['bait']}\n"
+                                f" - 钓鱼时间: {safe_datetime_handler(record['timestamp'])}\n")
+                yield event.plain_result(message)
+            else:
+                yield event.plain_result(f"❌ 获取钓鱼记录失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     # ===========背包与资产管理==========
 
@@ -793,7 +816,7 @@ class FishingPlugin(Star):
                 message = "【📜 抽卡记录】\n\n"
                 for record in history:
                     message += f"物品名称: {record['item_name']} (稀有度: {'⭐' * record['rarity']})\n"
-                    message += f"时间: {record['timestamp'][:19]}\n\n"
+                    message += f"时间: {safe_datetime_handler(record['timestamp'])}\n\n"
                 yield event.plain_result(message)
             else:
                 yield event.plain_result(f"❌ 查看抽卡记录失败：{result['message']}")
@@ -834,7 +857,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("擦弹记录")
+    @filter.command("擦弹记录", alias={'擦弹历史'})
     async def wipe_bomb_history(self, event: AstrMessageEvent):
         """查看擦弹记录"""
         user_id = event.get_sender_id()
@@ -848,7 +871,7 @@ class FishingPlugin(Star):
                 message = "【📜 擦弹记录】\n\n"
                 for record in history:
                     # 添加一点emoji
-                    message += f"⏱️ 时间: {record['timestamp'][:19]}\n"
+                    message += f"⏱️ 时间: {safe_datetime_handler(record['timestamp'])}\n"
                     message += f"💸 投入: {record['contribution']} 金币, 🎁 奖励: {record['reward']} 金币\n"
                     # 计算盈亏
                     profit = record['reward'] - record['contribution']
@@ -959,7 +982,7 @@ class FishingPlugin(Star):
                 message += f"- {achievement['name']} (ID: {achievement['id']})\n"
                 message += f"  描述: {achievement['description']}\n"
                 if achievement.get('completed_at'):
-                    message += f"  完成时间: {achievement['completed_at'][:19]}\n"
+                    message += f"  完成时间: {achievement['completed_at'].strftime('%Y-%m-%d %H:%M:%S')}\n"
                 else:
                     message += "  进度: {}/{}\n".format(achievement['progress'], achievement['target'])
             message += "请继续努力完成更多成就！"
@@ -1111,6 +1134,7 @@ class FishingPlugin(Star):
             return True
         except:
             return False
+
     async def terminate(self):
         """插件被卸载/停用时调用"""
         logger.info("钓鱼插件正在终止...")

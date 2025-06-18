@@ -231,6 +231,44 @@ class FishingService:
         # TODO: 实现获取用户图鉴的逻辑
         pass
 
+    def get_user_fish_log(self, user_id: str, limit: int = 10) -> Dict[str, Any]:
+        """
+        获取用户的钓鱼记录。
+
+        Args:
+            user_id: 用户ID。
+            limit: 返回记录的数量限制。
+
+        Returns:
+            包含钓鱼记录的字典。
+        """
+        records = self.log_repo.get_fishing_records(user_id, limit)
+        # 根据records中的 fish_id 获取鱼类名称 rod_instance_id 和 accessory_instance_id 以及 bait_id 获取鱼竿、饰品、鱼饵信息
+        fish_details = []
+        for record in records:
+            fish_template = self.item_template_repo.get_fish_by_id(record.fish_id)
+            bait_template = self.item_template_repo.get_bait_by_id(record.bait_id) if record.bait_id else None
+
+            user_rod = self.inventory_repo.get_user_rod_instance_by_id(user_id, record.rod_instance_id) if record.rod_instance_id else None
+            rod_instance = self.item_template_repo.get_rod_by_id(user_rod.rod_id) if user_rod else None
+            user_accessory = self.inventory_repo.get_user_accessory_instance_by_id(user_id, record.accessory_instance_id) if record.accessory_instance_id else None
+            accessory_instance = self.item_template_repo.get_accessory_by_id(user_accessory.accessory_id) if user_accessory else None
+
+            fish_details.append({
+                "fish_name": fish_template.name if fish_template else "未知鱼类",
+                "fish_rarity": fish_template.rarity if fish_template else "未知稀有度",
+                "fish_weight": record.weight,
+                "fish_value": record.value,
+                "timestamp": record.timestamp,
+                "rod": rod_instance.name if rod_instance else "未装备鱼竿",
+                "accessory": accessory_instance.name if accessory_instance else "未装备饰品",
+                "bait": bait_template.name if bait_template else "未使用鱼饵",
+            })
+        return {
+            "success": True,
+            "records": fish_details
+        }
+
     def start_auto_fishing_task(self):
         """启动自动钓鱼的后台线程。"""
         if self.auto_fishing_thread and self.auto_fishing_thread.is_alive():
