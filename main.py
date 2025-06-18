@@ -609,7 +609,7 @@ class FishingPlugin(Star):
             if result["rods"]:
                 message += "【🎣 鱼竿】:\n"
                 for rod in result["rods"]:
-                    message += f" - {rod['item_name']} (ID: {rod["market_id"]}) - 价格: {rod['price']} 金币\n"
+                    message += f" - {rod['item_name']} (ID: {rod['market_id']}) - 价格: {rod['price']} 金币\n"
                     message += f" - 售卖人： {rod['seller_nickname']}\n\n"
             else:
                 message += "🎣 市场中没有鱼竿可供购买。\n\n"
@@ -622,7 +622,7 @@ class FishingPlugin(Star):
                 message += "💍 市场中没有饰品可供购买。\n"
             yield event.plain_result(message)
         else:
-            yield event.plain_result(f"❌ 出错啦！{result["message"]}")
+            yield event.plain_result(f"❌ 出错啦！{result['message']}")
 
 
     @filter.command("上架鱼竿")
