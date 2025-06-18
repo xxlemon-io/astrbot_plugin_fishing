@@ -186,14 +186,26 @@ class FishingPlugin(Star):
             return
         # 检查用户钓鱼CD
         lst_time = user.last_fishing_time
-        if lst_time and (get_now() - lst_time).total_seconds() < self.game_config["fishing"]["cooldown_seconds"]:
-            wait_time = self.game_config["fishing"]["cooldown_seconds"] - (get_now() - lst_time).total_seconds()
+        # 检查是否装备了海洋之心饰品
+        info = self.user_service.get_user_current_accessory(user_id)
+        if info['success'] is False:
+            yield event.plain_result(f"❌ 获取用户饰品信息失败：{info['message']}")
+            return
+        equipped_accessory = info.get("accessory")
+        cooldown_seconds = self.game_config["fishing"]["cooldown_seconds"]
+        if equipped_accessory and equipped_accessory.get("name") == "海洋之心":
+            # 如果装备了海洋之心，CD时间减半
+            cooldown_seconds = self.game_config["fishing"]["cooldown_seconds"] / 2
+            # logger.info(f"用户 {user_id} 装备了海洋之心，钓鱼CD时间减半。")
+        if lst_time and (get_now() - lst_time).total_seconds() < cooldown_seconds:
+            wait_time = cooldown_seconds - (get_now() - lst_time).total_seconds()
             yield event.plain_result(f"⏳ 您还需要等待 {int(wait_time)} 秒才能再次钓鱼。")
             return
         result = self.fishing_service.go_fish(user_id)
         if result:
             if result["success"]:
-                yield event.plain_result(f"🎣 钓鱼成功！您钓到了：{result['fish']['name']}，重量：{result['fish']['weight']} 克，价值：{result['fish']['value']} 金币。")
+                yield event.plain_result(
+                    f"🎣 恭喜你钓到了：{result['fish']['name']}\n✨品质：{'★' * result['fish']['rarity']} \n⚖️重量：{result['fish']['weight']} 克\n💰价值：{result['fish']['value']} 金币")
             else:
                 yield event.plain_result(result["message"])
         else:

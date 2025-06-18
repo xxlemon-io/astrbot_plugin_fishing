@@ -264,20 +264,29 @@ class InventoryService:
         if not user:
             return {"success": False, "message": "用户不存在"}
         equip_item_name = ""
+        equip_item_id = None
         # 验证物品归属
         if item_type == 'rod':
             instances = self.inventory_repo.get_user_rod_instances(user_id)
+            for instance in instances:
+                if instance.rod_instance_id == instance_id:
+                    equip_item_id = instance.rod_id
+                    break
             if instance_id not in [i.rod_instance_id for i in instances]:
                 return {"success": False, "message": "❌ 鱼竿不存在或不属于你"}
             user.equipped_rod_instance_id = instance_id
-            equip_item_name = self.item_template_repo.get_rod_by_id(instance_id).name
+            equip_item_name = self.item_template_repo.get_rod_by_id(equip_item_id).name
 
         elif item_type == 'accessory':
             instances = self.inventory_repo.get_user_accessory_instances(user_id)
+            for instance in instances:
+                if instance.accessory_instance_id == instance_id:
+                    equip_item_id = instance.accessory_id
+                    break
             if instance_id not in [i.accessory_instance_id for i in instances]:
                 return {"success": False, "message": "❌ 饰品不存在或不属于你"}
             user.equipped_accessory_instance_id = instance_id
-            equip_item_name = self.item_template_repo.get_accessory_by_id(instance_id).name
+            equip_item_name = self.item_template_repo.get_accessory_by_id(equip_item_id).name
         else:
             return {"success": False, "message": "❌ 不支持的装备类型"}
 
@@ -290,7 +299,7 @@ class InventoryService:
         # 更新用户表
         self.user_repo.update(user)
 
-        return {"success": True, "message": f"💫 装备 {equip_item_name} 成功！"}
+        return {"success": True, "message": f"💫 装备 【{equip_item_name}】 成功！"}
 
     def use_bait(self, user_id: str, bait_id: int) -> Dict[str, Any]:
         """

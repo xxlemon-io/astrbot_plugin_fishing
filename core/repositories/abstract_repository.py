@@ -135,6 +135,9 @@ class AbstractInventoryRepository(ABC):
     # 获取用户的鱼饵库存
     @abstractmethod
     def get_user_bait_inventory(self, user_id: str) -> Dict[int, int]: pass
+    # 随机获取一个用户的鱼饵
+    @abstractmethod
+    def get_random_bait(self, user_id: str) -> Optional[int]: pass
     # 更新用户的鱼饵数量
     @abstractmethod
     def update_bait_quantity(self, user_id: str, bait_id: int, delta: int) -> None: pass

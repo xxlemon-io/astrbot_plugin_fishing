@@ -20,6 +20,7 @@
                         <th>稀有度</th>
                         <th>成本</th>
                         <th>效果描述</th>
+                        <th class="text-center">结构化效果</th>
                         <th class="text-end">操作</th>
                     </tr>
                 </thead>
@@ -31,6 +32,18 @@
                         <td>{{ '★' * item.rarity }}</td>
                         <td>{{ item.cost }}</td>
                         <td>{{ item.effect_description or '无' }}</td>
+                        <td>
+                            <span class="badge bg-success" title="成功率加成">+{{ item.success_rate_modifier * 100 }}%</span>
+                            <span class="badge bg-info" title="稀有度加成">+{{ item.rare_chance_modifier * 100 }}%</span>
+                            <span class="badge bg-secondary" title="垃圾减少率">{{ item.garbage_reduction_modifier * 100 }}%</span>
+                            <span class="badge bg-warning text-dark" title="价值乘数">x{{ item.value_modifier }}</span>
+                            <span class="badge bg-primary" title="数量乘数">x{{ item.quantity_modifier }}</span>
+                            {% if item.is_consumable %}
+                                <span class="badge bg-danger">消耗品</span>
+                            {% else %}
+                                <span class="badge bg-dark">可重复</span>
+                            {% endif %}
+                        </td>
                         <td class="text-end">
                             <button class="btn btn-sm btn-info edit-btn"
                                     data-bs-toggle="modal"
@@ -63,12 +76,29 @@
                 <div class="modal-body">
                     <div class="row g-3">
                         <div class="col-md-8"><label>名称</label><input type="text" name="name" class="form-control" required></div>
-                        <div class="col-md-4"><label>稀有度</label><input type="number" name="rarity" class="form-control" min="1" required></div>
-                        <div class="col-12"><label>描述</label><textarea name="description" class="form-control" rows="2"></textarea></div>
-                        <div class="col-12"><label>效果描述</label><textarea name="effect_description" class="form-control" rows="2"></textarea></div>
+                        <div class="col-md-4"><label>稀有度 (1-5)</label><input type="number" name="rarity" class="form-control" min="1" max="5" required></div>
+                        <div class="col-12"><label>描述 (给玩家看)</label><textarea name="description" class="form-control" rows="2"></textarea></div>
+                        <div class="col-12"><label>效果描述 (给玩家看)</label><textarea name="effect_description" class="form-control" rows="2"></textarea></div>
+
+                        <hr class="my-4">
+                        <h6 class="mb-3">核心数值配置</h6>
+
                         <div class="col-md-4"><label>持续分钟(0为一次性)</label><input type="number" name="duration_minutes" class="form-control" value="0"></div>
-                        <div class="col-md-4"><label>成本</label><input type="number" name="cost" class="form-control" value="0"></div>
+                        <div class="col-md-4"><label>购买成本</label><input type="number" name="cost" class="form-control" value="0"></div>
                         <div class="col-md-4"><label>要求鱼竿稀有度</label><input type="number" name="required_rod_rarity" class="form-control" value="0"></div>
+
+                        <div class="col-md-4"><label>成功率加成 (+0.1 = +10%)</label><input type="number" step="0.01" name="success_rate_modifier" class="form-control" value="0.0"></div>
+                        <div class="col-md-4"><label>稀有率加成 (+0.05 = +5%)</label><input type="number" step="0.01" name="rare_chance_modifier" class="form-control" value="0.0"></div>
+                        <div class="col-md-4"><label>垃圾减少率 (0.5 = 50%)</label><input type="number" step="0.01" name="garbage_reduction_modifier" class="form-control" value="0.0"></div>
+                        <div class="col-md-4"><label>价值乘数 (1.1 = +10%)</label><input type="number" step="0.01" name="value_modifier" class="form-control" value="1.0"></div>
+                        <div class="col-md-4"><label>数量乘数 (2.0 = 双倍)</label><input type="number" step="0.01" name="quantity_modifier" class="form-control" value="1.0"></div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_consumable" id="isConsumable" checked>
+                                <label class="form-check-label" for="isConsumable">是一次性消耗品</label>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -82,6 +112,7 @@
 {% endblock %}
 
 {% block extra_js %}
+{{ super() }}
 <script>
     const addUrl = "{{ url_for('admin_bp.add_bait') }}";
     const editUrlBase = "{{ url_for('admin_bp.edit_bait', bait_id=0) }}".slice(0, -1);

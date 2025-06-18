@@ -163,6 +163,32 @@ class UserService:
                 )
                 self.log_repo.add_tax_record(tax_log)
 
+    def get_user_current_accessory(self, user_id: str) -> Dict[str, Any]:
+        """
+        获取用户当前装备的配件信息。
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        current_accessory = self.inventory_repo.get_user_equipped_accessory(user_id)
+
+        if not current_accessory:
+            return {"success": True, "accessory": None}
+
+        accessory_template = self.item_template_repo.get_accessory_by_id(current_accessory.accessory_id)
+        if not accessory_template:
+            return {"success": False, "message": "配件不存在"}
+
+        return {
+            "success": True,
+            "accessory": {
+                "id": current_accessory,
+                "name": accessory_template.name,
+                "description": accessory_template.description
+            }
+        }
+
     def get_user_titles(self, user_id: str) -> Dict[str, Any]:
         """
         获取用户拥有的称号列表。

@@ -13,7 +13,7 @@ from ..repositories.abstract_repository import (
     AbstractLogRepository
 )
 from ..domain.models import FishingRecord, User
-from ..utils import get_now
+from ..utils import get_now, get_fish_template
 
 
 class FishingService:
@@ -82,27 +82,62 @@ class FishingService:
         user.coins -= fishing_cost
 
         # 2. 计算各种加成和修正值
-        base_success_rate = 0.7
-        quality_modifier = 1.0
-        rare_chance = 0.0
+        base_success_rate = 0.7 # 基础成功率70%
+        quality_modifier = 1.0 # 质量加成
+        quantity_modifier = 1.0 # 数量加成
+        rare_chance = 0.0 # 稀有鱼出现几率
+        coins_chance = 0.0 # 增加同稀有度高金币出现几率
 
-        # 获取装备并应用加成
+        # 获取装备鱼竿并应用加成
         equipped_rod_instance = self.inventory_repo.get_user_equipped_rod(user.user_id)
         if equipped_rod_instance:
             rod_template = self.item_template_repo.get_rod_by_id(equipped_rod_instance.rod_id)
             if rod_template:
                 quality_modifier *= rod_template.bonus_fish_quality_modifier
+                quantity_modifier *= rod_template.bonus_fish_quantity_modifier
                 rare_chance += rod_template.bonus_rare_fish_chance
 
+        # 获取装备饰品并应用加成
         equipped_accessory_instance = self.inventory_repo.get_user_equipped_accessory(user.user_id)
         if equipped_accessory_instance:
             acc_template = self.item_template_repo.get_accessory_by_id(equipped_accessory_instance.accessory_id)
             if acc_template:
                 quality_modifier *= acc_template.bonus_fish_quality_modifier
+                quantity_modifier *= acc_template.bonus_fish_quantity_modifier
                 rare_chance += acc_template.bonus_rare_fish_chance
-                # 海洋之心特殊效果：减少CD（在main.py中检查，此处不处理）
+                coins_chance += acc_template.bonus_coin_modifier
 
-        # TODO: 此处应添加更复杂的鱼饵效果逻辑
+        # 获取鱼饵并应用加成
+        cur_bait_id = user.current_bait_id
+        garbage_reduction_modifier = None
+        if cur_bait_id is None:
+            # 随机获取一个库存鱼饵
+            random_bait_id = self.inventory_repo.get_random_bait(user.user_id)
+            if random_bait_id:
+                bait_template = self.item_template_repo.get_bait_by_id(random_bait_id)
+                if bait_template:
+                    quantity_modifier *= bait_template.quantity_modifier
+                    rare_chance += bait_template.rare_chance_modifier
+                    base_success_rate += bait_template.success_rate_modifier
+                    garbage_reduction_modifier = bait_template.garbage_reduction_modifier
+                    coins_chance += bait_template.value_modifier
+
+        # 判断鱼饵是否过期
+        if cur_bait_id is not None:
+            bait_template = self.item_template_repo.get_bait_by_id(cur_bait_id)
+            if bait_template and bait_template.duration_minutes > 0:
+                # 检查鱼饵是否过期
+                bait_expiry_time = user.bait_start_time
+                if bait_expiry_time:
+                    now = get_now()
+                    expiry_time = bait_expiry_time + timedelta(minutes=bait_template.duration_minutes)
+                    if now > expiry_time:
+                        # 鱼饵已过期，清除当前鱼饵
+                        user.current_bait_id = None
+                        user.bait_start_time = None
+                        self.user_repo.update(user)
+                        return {"success": False, "message": "❌ 鱼饵已过期，请重新使用鱼饵。"}
+
 
         # 3. 判断是否成功钓到
         if random.random() >= base_success_rate:
@@ -112,11 +147,46 @@ class FishingService:
             return {"success": False, "message": "💨 什么都没钓到..."}
 
         # 4. 成功，生成渔获
-        # TODO: 此处应添加原service.py中复杂的稀有度计算、鱼种选择逻辑
-        # 为简化示例，我们随机选择一条鱼
-        fish_template = self.item_template_repo.get_random_fish()
+        # 设置稀有度分布
+        rarity_distribution = [0.5, 0.3, 0.15, 0.04, 0.01] # 各稀有度的概率分布
+        # 应用稀有度加成
+        if rare_chance > 0.0:
+            # 增加稀有鱼出现的几率
+            rarity_distribution = [x + rare_chance for x in rarity_distribution]
+            # 归一化概率分布
+            total = sum(rarity_distribution)
+            rarity_distribution = [x / total for x in rarity_distribution]
+        rarity = random.choices(
+            [1, 2, 3, 4, 5],
+            weights=rarity_distribution,
+            k=1
+        )[0]
+        fish_list = self.item_template_repo.get_fishes_by_rarity(rarity)
+        # 从指定稀有度的鱼类中随机选择一条，并同时应用金币加成 -> 优先选取金币值高的
+        fish_template = None
+        if fish_list:
+            fish_template = get_fish_template(fish_list, coins_chance)
+        else:
+            # 鱼列表为空的备选方案
+            fish_template = self.item_template_repo.get_random_fish()
+
         if not fish_template:
              return {"success": False, "message": "错误：鱼类模板库为空！"}
+
+        # 如果有垃圾鱼减少修正，则应用，价值 < 5则被视为垃圾鱼
+        if garbage_reduction_modifier is not None and fish_template.base_value < 5:
+            # 根据垃圾鱼减少修正值决定是否重新选择一次
+            if random.random() < garbage_reduction_modifier:
+                # 重新选择一条鱼
+                new_rarity = random.choices(
+                    [1, 2, 3, 4, 5],
+                    weights=rarity_distribution,
+                    k=1
+                )[0]
+                new_fish_list = self.item_template_repo.get_fishes_by_rarity(new_rarity)
+
+                if new_fish_list:
+                    fish_template = get_fish_template(new_fish_list, coins_chance)
 
         # 计算最终属性
         weight = random.randint(fish_template.min_weight, fish_template.max_weight)
@@ -128,7 +198,7 @@ class FishingService:
         # 更新用户统计数据
         user.total_fishing_count += 1
         user.total_weight_caught += weight
-        user.total_coins_earned += value # 注意：这里的逻辑与原代码不同，原代码是在卖出时才增加 total_coins_earned
+        user.total_coins_earned += value
         user.last_fishing_time = get_now()
         self.user_repo.update(user)
 
@@ -198,7 +268,15 @@ class FishingService:
                     # 检查CD
                     now_ts = get_now().timestamp()
                     last_ts = user.last_fishing_time.timestamp() if user.last_fishing_time else 0
-                    if now_ts - last_ts < cooldown:
+                    # 检查用户是否装备了海洋之心
+                    _cooldown = cooldown
+                    equipped_accessory = self.inventory_repo.get_user_equipped_accessory(user_id)
+                    if equipped_accessory:
+                        accessory_template = self.item_template_repo.get_accessory_by_id(equipped_accessory.accessory_id)
+                        if accessory_template and accessory_template.name == "海洋之心":
+                            # 海洋之心装备时，CD时间减半
+                            _cooldown /= 2
+                    if now_ts - last_ts < _cooldown:
                         continue # CD中，跳过
 
                     # 检查成本

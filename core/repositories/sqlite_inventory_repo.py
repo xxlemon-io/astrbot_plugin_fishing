@@ -203,6 +203,21 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             """, (user_id,))
             return [row['title_id'] for row in cursor.fetchall()]
 
+    def get_random_bait(self, user_id: str) -> Optional[int]:
+        """
+        从用户的诱饵库存中随机获取一个可用的诱饵ID。
+        如果没有可用诱饵，则返回None。
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT bait_id FROM user_bait_inventory 
+                WHERE user_id = ? AND quantity > 0
+                ORDER BY RANDOM() LIMIT 1
+            """, (user_id,))
+            row = cursor.fetchone()
+            return row['bait_id'] if row else None
+
     # --- Bait Inventory Methods ---
     def get_user_bait_inventory(self, user_id: str) -> Dict[int, int]:
         with self._get_connection() as conn:
@@ -211,14 +226,18 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             return {row['bait_id']: row['quantity'] for row in cursor.fetchall()}
 
     def update_bait_quantity(self, user_id: str, bait_id: int, delta: int) -> None:
+        """更新用户诱饵库存中特定诱饵的数量（可增可减），并确保数量不小于0。"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO user_bait_inventory (user_id, bait_id, quantity)
                 VALUES (?, ?, MAX(0, ?))
-                ON CONFLICT(user_id, bait_id) DO UPDATE SET quantity = MAX(0, quantity + excluded.quantity)
-            """, (user_id, bait_id, delta))
+                ON CONFLICT(user_id, bait_id) DO UPDATE SET quantity = MAX(0, quantity + ?)
+            """, (user_id, bait_id, delta, delta))
+            # 删除数量为0的行，保持数据整洁
+            cursor.execute("DELETE FROM user_bait_inventory WHERE user_id = ? AND quantity <= 0", (user_id,))
             conn.commit()
+
 
     # --- Rod Inventory Methods ---
     def get_user_rod_instances(self, user_id: str) -> List[UserRodInstance]:

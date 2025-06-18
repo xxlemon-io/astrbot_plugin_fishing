@@ -191,27 +191,68 @@ class SqliteItemTemplateRepository(AbstractItemTemplateRepository):
 
     # --- Bait Admin CRUD ---
     def add_bait_template(self, data: Dict[str, Any]) -> None:
+        """后台添加一个新鱼饵，包含所有结构化效果字段"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            # 从表单字典中准备数据，为数字字段提供默认值
+            params = {
+                'name': data.get('name'),
+                'description': data.get('description'),
+                'rarity': data.get('rarity', 1),
+                'effect_description': data.get('effect_description'),
+                'duration_minutes': data.get('duration_minutes', 0),
+                'cost': data.get('cost', 0),
+                'required_rod_rarity': data.get('required_rod_rarity', 0),
+                'success_rate_modifier': data.get('success_rate_modifier', 0.0),
+                'rare_chance_modifier': data.get('rare_chance_modifier', 0.0),
+                'garbage_reduction_modifier': data.get('garbage_reduction_modifier', 0.0),
+                'value_modifier': data.get('value_modifier', 1.0),
+                'quantity_modifier': data.get('quantity_modifier', 1.0),
+                'is_consumable': 1 if 'is_consumable' in data else 0
+            }
             cursor.execute("""
-                INSERT INTO baits (name, description, rarity, effect_description, 
-                                   duration_minutes, cost, required_rod_rarity)
-                VALUES (:name, :description, :rarity, :effect_description, 
-                        :duration_minutes, :cost, :required_rod_rarity)
-            """, data)
+                INSERT INTO baits (
+                    name, description, rarity, effect_description, duration_minutes, cost, required_rod_rarity,
+                    success_rate_modifier, rare_chance_modifier, garbage_reduction_modifier,
+                    value_modifier, quantity_modifier, is_consumable
+                ) VALUES (
+                    :name, :description, :rarity, :effect_description, :duration_minutes, :cost, :required_rod_rarity,
+                    :success_rate_modifier, :rare_chance_modifier, :garbage_reduction_modifier,
+                    :value_modifier, :quantity_modifier, :is_consumable
+                )
+            """, params)
             conn.commit()
 
     def update_bait_template(self, bait_id: int, data: Dict[str, Any]) -> None:
-        data['bait_id'] = bait_id
+        """后台更新一个鱼饵的信息，包含所有结构化效果字段"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            params = {
+                'bait_id': bait_id,
+                'name': data.get('name'),
+                'description': data.get('description'),
+                'rarity': data.get('rarity', 1),
+                'effect_description': data.get('effect_description'),
+                'duration_minutes': data.get('duration_minutes', 0),
+                'cost': data.get('cost', 0),
+                'required_rod_rarity': data.get('required_rod_rarity', 0),
+                'success_rate_modifier': data.get('success_rate_modifier', 0.0),
+                'rare_chance_modifier': data.get('rare_chance_modifier', 0.0),
+                'garbage_reduction_modifier': data.get('garbage_reduction_modifier', 0.0),
+                'value_modifier': data.get('value_modifier', 1.0),
+                'quantity_modifier': data.get('quantity_modifier', 1.0),
+                'is_consumable': 1 if 'is_consumable' in data else 0
+            }
             cursor.execute("""
                 UPDATE baits SET
                     name = :name, description = :description, rarity = :rarity, 
                     effect_description = :effect_description, duration_minutes = :duration_minutes, 
-                    cost = :cost, required_rod_rarity = :required_rod_rarity
+                    cost = :cost, required_rod_rarity = :required_rod_rarity,
+                    success_rate_modifier = :success_rate_modifier, rare_chance_modifier = :rare_chance_modifier,
+                    garbage_reduction_modifier = :garbage_reduction_modifier, value_modifier = :value_modifier,
+                    quantity_modifier = :quantity_modifier, is_consumable = :is_consumable
                 WHERE bait_id = :bait_id
-            """, data)
+            """, params)
             conn.commit()
 
     def delete_bait_template(self, bait_id: int) -> None:
