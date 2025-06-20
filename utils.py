@@ -34,7 +34,10 @@ def to_percentage(value: float) -> str:
     """将小数转换为百分比字符串"""
     if value is None:
         return "0%"
-    return f"{(value - 1) * 100:.2f}%"
+    if value < 1:
+        return f"{value * 100:.2f}%"
+    else:
+        return f"{(value - 1) * 100:.2f}%"
 
 def format_accessory_or_rod(accessory_or_rod: dict) -> str:
     """格式化配件信息"""
@@ -42,11 +45,11 @@ def format_accessory_or_rod(accessory_or_rod: dict) -> str:
     message += f" - {accessory_or_rod['name']} (稀有度: {'⭐' * accessory_or_rod['rarity']})\n"
     if accessory_or_rod.get("is_equipped", False):
         message += f"   - {'✅ 已装备'}\n"
-    if accessory_or_rod.get("bonus_fish_quality_modifier", 1.0) != 1.0:
+    if accessory_or_rod.get("bonus_fish_quality_modifier", 1.0) != 1.0 and accessory_or_rod.get("bonus_fish_quality_modifier", 1) != 1 and accessory_or_rod.get("bonus_fish_quality_modifier", 1) > 0:
         message += f"   - ✨鱼类质量加成: {to_percentage(accessory_or_rod['bonus_fish_quality_modifier'])}\n"
-    if accessory_or_rod.get("bonus_fish_quantity_modifier", 1.0) != 1.0:
+    if accessory_or_rod.get("bonus_fish_quantity_modifier", 1.0) != 1.0 and accessory_or_rod.get("bonus_fish_quantity_modifier", 1) != 1 and accessory_or_rod.get("bonus_fish_quantity_modifier", 1) > 0:
         message += f"   - 📊鱼类数量加成: {to_percentage(accessory_or_rod['bonus_fish_quantity_modifier'])}\n"
-    if accessory_or_rod.get("bonus_rare_fish_chance", 1.0) != 1.0:
+    if accessory_or_rod.get("bonus_rare_fish_chance", 1.0) != 1.0 and accessory_or_rod.get("bonus_rare_fish_chance", 1) != 1 and accessory_or_rod.get("bonus_rare_fish_chance", 1) > 0:
         message += f"   - 🎣钓鱼几率加成: {to_percentage(accessory_or_rod['bonus_rare_fish_chance'])}\n"
     message += "\n"
     return message
