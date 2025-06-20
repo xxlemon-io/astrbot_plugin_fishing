@@ -2,7 +2,7 @@ import random
 import threading
 import time
 from typing import Dict, Any, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import  timedelta
 from astrbot.api import logger
 
 # 导入仓储接口和领域模型
@@ -12,7 +12,7 @@ from ..repositories.abstract_repository import (
     AbstractItemTemplateRepository,
     AbstractLogRepository
 )
-from ..domain.models import FishingRecord, User
+from ..domain.models import FishingRecord
 from ..utils import get_now, get_fish_template
 
 
@@ -74,7 +74,7 @@ class FishingService:
             return {"success": False, "message": "用户不存在，无法钓鱼。"}
 
         # 1. 检查成本
-        fishing_cost = self.config.get('fishing', {}).get('cost', 10)
+        fishing_cost = self.config.get("fishing", {}).get("cost", 10)
         if not user.can_afford(fishing_cost):
             return {"success": False, "message": f"金币不足，需要 {fishing_cost} 金币。"}
 
@@ -261,7 +261,7 @@ class FishingService:
                     "first_caught_time": first_caught_time
                 })
         # 将图鉴按稀有度从大到小排序
-        pokedex.sort(key=lambda x: x['rarity'], reverse=True)
+        pokedex.sort(key=lambda x: x["rarity"], reverse=True)
         return {
             "success": True,
             "pokedex": pokedex,
@@ -328,9 +328,9 @@ class FishingService:
 
     def _auto_fishing_loop(self):
         """自动钓鱼循环任务，由后台线程执行。"""
-        fishing_config = self.config.get('fishing', {})
-        cooldown = fishing_config.get('cooldown_seconds', 180)
-        cost = fishing_config.get('cost', 10)
+        fishing_config = self.config.get("fishing", {})
+        cooldown = fishing_config.get("cooldown_seconds", 180)
+        cost = fishing_config.get("cost", 10)
 
         while self.auto_fishing_running:
             try:
@@ -365,7 +365,7 @@ class FishingService:
                         continue
 
                     # 执行钓鱼
-                    result = self.go_fish(user_id)
+                    self.go_fish(user_id)
                     # if result['success']:
                     #     fish = result["fish"]
                     #     logger.info(f"用户 {user_id} 自动钓鱼成功: {fish['name']}")

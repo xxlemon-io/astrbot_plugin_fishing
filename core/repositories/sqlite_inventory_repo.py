@@ -16,7 +16,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def _get_connection(self) -> sqlite3.Connection:
         """获取一个线程安全的数据库连接。"""
-        conn = getattr(self._local, 'connection', None)
+        conn = getattr(self._local, "connection", None)
         if conn is None:
             conn = sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES)
             conn.row_factory = sqlite3.Row
@@ -26,15 +26,18 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     # --- 私有映射辅助方法 ---
     def _row_to_fish_item(self, row: sqlite3.Row) -> Optional[UserFishInventoryItem]:
-        if not row: return None
+        if not row:
+            return None
         return UserFishInventoryItem(**row)
 
     def _row_to_rod_instance(self, row: sqlite3.Row) -> Optional[UserRodInstance]:
-        if not row: return None
+        if not row:
+            return None
         return UserRodInstance(**row)
 
     def _row_to_accessory_instance(self, row: sqlite3.Row) -> Optional[UserAccessoryInstance]:
-        if not row: return None
+        if not row:
+            return None
         return UserAccessoryInstance(**row)
 
     # --- Fish Inventory Methods ---
@@ -79,7 +82,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                 cursor.execute("DELETE FROM user_fish_inventory WHERE user_id = ?", (user_id,))
             else:
                 cursor.execute("""
-                    DELETE FROM user_fish_inventory 
+                    DELETE FROM user_fish_inventory
                     WHERE user_id = ? AND fish_id IN (
                         SELECT fish_id FROM fish WHERE rarity = ?
                     )
@@ -112,8 +115,8 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                     return 0
 
                 for item in items_to_sell:
-                    sell_qty = item['quantity'] - 1
-                    sold_value += sell_qty * item['base_value']
+                    sell_qty = item["quantity"] - 1
+                    sold_value += sell_qty * item["base_value"]
 
                 # 将所有数量大于1的鱼更新为1
                 cursor.execute("""
@@ -133,7 +136,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT * FROM user_rods 
+                SELECT * FROM user_rods
                 WHERE user_id = ? AND is_equipped = 1
             """, (user_id,))
             row = cursor.fetchone()
@@ -144,7 +147,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT * FROM user_rods 
+                SELECT * FROM user_rods
                 WHERE user_id = ? AND rod_instance_id = ?
             """, (user_id, rod_instance_id))
             row = cursor.fetchone()
@@ -154,7 +157,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT * FROM user_accessories 
+                SELECT * FROM user_accessories
                 WHERE user_id = ? AND accessory_instance_id = ?
             """, (user_id, accessory_instance_id))
             row = cursor.fetchone()
@@ -165,7 +168,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT * FROM user_accessories 
+                SELECT * FROM user_accessories
                 WHERE user_id = ? AND is_equipped = 1
             """, (user_id,))
             row = cursor.fetchone()
@@ -206,10 +209,10 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT bait_id FROM user_bait_inventory 
+                SELECT bait_id FROM user_bait_inventory
                 WHERE user_id = ? AND quantity > 0
             """, (user_id,))
-            return [row['bait_id'] for row in cursor.fetchall()]
+            return [row["bait_id"] for row in cursor.fetchall()]
 
     def get_user_titles(self, user_id: str) -> List[int]:
         """
@@ -219,10 +222,10 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT title_id FROM user_titles 
+                SELECT title_id FROM user_titles
                 WHERE user_id = ?
             """, (user_id,))
-            return [row['title_id'] for row in cursor.fetchall()]
+            return [row["title_id"] for row in cursor.fetchall()]
 
     def get_random_bait(self, user_id: str) -> Optional[int]:
         """
@@ -232,19 +235,19 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT bait_id FROM user_bait_inventory 
+                SELECT bait_id FROM user_bait_inventory
                 WHERE user_id = ? AND quantity > 0
                 ORDER BY RANDOM() LIMIT 1
             """, (user_id,))
             row = cursor.fetchone()
-            return row['bait_id'] if row else None
+            return row["bait_id"] if row else None
 
     # --- Bait Inventory Methods ---
     def get_user_bait_inventory(self, user_id: str) -> Dict[int, int]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT bait_id, quantity FROM user_bait_inventory WHERE user_id = ?", (user_id,))
-            return {row['bait_id']: row['quantity'] for row in cursor.fetchall()}
+            return {row["bait_id"]: row["quantity"] for row in cursor.fetchall()}
 
     def update_bait_quantity(self, user_id: str, bait_id: int, delta: int) -> None:
         """更新用户诱饵库存中特定诱饵的数量（可增可减），并确保数量不小于0。"""

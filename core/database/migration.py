@@ -42,15 +42,15 @@ def run_migrations(db_path: str, migrations_dir: str):
 
     try:
         migration_files = sorted(
-            [f for f in os.listdir(migrations_dir) if f.endswith('.py') and re.match(r'^\d{3}_', f)],
-            key=lambda f: int(f.split('_')[0])
+            [f for f in os.listdir(migrations_dir) if f.endswith(".py") and re.match(r"^\d{3}_", f)],
+            key=lambda f: int(f.split("_")[0])
         )
     except FileNotFoundError:
         print(f"迁移目录 '{migrations_dir}' 不存在，跳过迁移。")
         return
 
     for filename in migration_files:
-        version = int(filename.split('_')[0])
+        version = int(filename.split("_")[0])
         if version > current_version:
             logger.info(f"正在应用迁移脚本: {filename}...")
             try:

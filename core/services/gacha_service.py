@@ -1,5 +1,5 @@
 import random
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 from astrbot.core.utils.pip_installer import logger
 # 导入仓储接口和领域模型
@@ -71,28 +71,28 @@ class GachaService:
             probability = float(item.weight / total_weight)
             item_name = "未知物品"
             item_rarity = 1
-            if item.item_type == 'rod':
+            if item.item_type == "rod":
                 rod = self.item_template_repo.get_rod_by_id(item.item_id)
                 item_name = rod.name if rod else "未知鱼竿"
                 item_rarity = rod.rarity if rod else 1
-            elif item.item_type == 'accessory':
+            elif item.item_type == "accessory":
                 accessory = self.item_template_repo.get_accessory_by_id(item.item_id)
                 item_name = accessory.name if accessory else "未知饰品"
                 item_rarity = accessory.rarity if accessory else 1
-            elif item.item_type == 'bait':
+            elif item.item_type == "bait":
                 bait = self.item_template_repo.get_bait_by_id(item.item_id)
                 item_name = bait.name if bait else "未知鱼饵"
                 item_rarity = bait.rarity if bait else 1
-            elif item.item_type == 'coins':
+            elif item.item_type == "coins":
                 item_name = f"{item.quantity} 金币"
-            elif item.item_type == 'titles':
+            elif item.item_type == "titles":
                 item_name = self.item_template_repo.get_title_by_id(item.item_id).name
 
             probabilities.append({
                 "item_type": item.item_type,
                 "item_id": item.item_id,
                 "item_name": item_name,
-                "item_rarity": item_rarity if item.item_type != 'titles' else 0,
+                "item_rarity": item_rarity if item.item_type != "titles" else 0,
                 "weight": item.weight,
                 "probability": 1.0 + round(probability, 4)
             })
@@ -141,7 +141,7 @@ class GachaService:
         for item in draw_results:
             self._grant_reward(user_id, item)
             # 将抽奖结果 => 转换为用户可见的奖励格式
-            if item.item_type == 'rod':
+            if item.item_type == "rod":
                 get_rod = self.item_template_repo.get_rod_by_id(item.item_id)
                 granted_rewards.append({
                     "type": "rod",
@@ -149,7 +149,7 @@ class GachaService:
                     "name": get_rod.name,
                     "rarity": get_rod.rarity
                 })
-            elif item.item_type == 'accessory':
+            elif item.item_type == "accessory":
                 get_accessory = self.item_template_repo.get_accessory_by_id(item.item_id)
                 granted_rewards.append({
                     "type": "accessory",
@@ -157,7 +157,7 @@ class GachaService:
                     "name": get_accessory.name,
                     "rarity": get_accessory.rarity
                 })
-            elif item.item_type == 'bait':
+            elif item.item_type == "bait":
                 get_bait = self.item_template_repo.get_bait_by_id(item.item_id)
                 granted_rewards.append({
                     "type": "bait",
@@ -166,12 +166,12 @@ class GachaService:
                     "rarity": get_bait.rarity,
                     "quantity": item.quantity
                 })
-            elif item.item_type == 'coins':
+            elif item.item_type == "coins":
                 granted_rewards.append({
                     "type": "coins",
                     "quantity": item.quantity
                 })
-            elif item.item_type == 'titles':
+            elif item.item_type == "titles":
                 granted_rewards.append({
                     "type": "title",
                     "id": item.item_id,
@@ -186,28 +186,28 @@ class GachaService:
         item_rarity = 1
         template = None
 
-        if item.item_type == 'rod':
+        if item.item_type == "rod":
             self.inventory_repo.add_rod_instance(user_id, item.item_id, None) # 假设新获得的鱼竿耐久度是满的
             template = self.item_template_repo.get_rod_by_id(item.item_id)
-        elif item.item_type == 'accessory':
+        elif item.item_type == "accessory":
             self.inventory_repo.add_accessory_instance(user_id, item.item_id)
             template = self.item_template_repo.get_accessory_by_id(item.item_id)
-        elif item.item_type == 'bait':
+        elif item.item_type == "bait":
             self.inventory_repo.update_bait_quantity(user_id, item.item_id, item.quantity)
             template = self.item_template_repo.get_bait_by_id(item.item_id)
-        elif item.item_type == 'coins':
+        elif item.item_type == "coins":
             user = self.user_repo.get_by_id(user_id)
             user.coins += item.quantity
             self.user_repo.update(user)
             item_name = f"{item.quantity} 金币"
-        elif item.item_type == 'titles':
+        elif item.item_type == "titles":
             # 注意：成就仓储负责授予称号
             self.achievement_repo.grant_title_to_user(user_id, item.item_id)
             template = self.item_template_repo.get_title_by_id(item.item_id)
 
         if template:
             item_name = template.name
-            item_rarity = template.rarity if hasattr(template, 'rarity') else 1
+            item_rarity = template.rarity if hasattr(template, "rarity") else 1
 
         # 记录日志
         log_entry = GachaRecord(

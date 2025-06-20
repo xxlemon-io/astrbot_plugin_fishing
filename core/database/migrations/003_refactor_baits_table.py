@@ -31,7 +31,7 @@ def up(cursor: sqlite3.Cursor):
 
     # 3. 遍历并根据描述更新新列
     for bait_row in all_baits:
-        bait_id, effect_desc = bait_row['bait_id'], bait_row['effect_description']
+        bait_id, effect_desc = bait_row["bait_id"], bait_row["effect_description"]
 
         if not effect_desc:
             continue
@@ -40,35 +40,35 @@ def up(cursor: sqlite3.Cursor):
         desc_lower = effect_desc.lower()
 
         # 根据原仓库的逻辑和新设计的目标值进行映射
-        if '提高所有鱼种上钩率' in desc_lower:
-            updates['success_rate_modifier'] = 0.15
-        elif '大幅提高钓鱼成功率' in desc_lower:
-            updates['success_rate_modifier'] = 0.20
-        elif '提高多种鱼上钩率' in desc_lower:
-            updates['success_rate_modifier'] = 0.08
-        elif '提高中小型鱼上钩率' in desc_lower:
-            updates['success_rate_modifier'] = 0.05
-        elif '略微提高钓鱼成功率' in desc_lower:
-            updates['success_rate_modifier'] = 0.02
+        if "提高所有鱼种上钩率" in desc_lower:
+            updates["success_rate_modifier"] = 0.15
+        elif "大幅提高钓鱼成功率" in desc_lower:
+            updates["success_rate_modifier"] = 0.20
+        elif "提高多种鱼上钩率" in desc_lower:
+            updates["success_rate_modifier"] = 0.08
+        elif "提高中小型鱼上钩率" in desc_lower:
+            updates["success_rate_modifier"] = 0.05
+        elif "略微提高钓鱼成功率" in desc_lower:
+            updates["success_rate_modifier"] = 0.02
 
-        if '显著提高稀有鱼几率' in desc_lower:
-            updates['rare_chance_modifier'] = 0.03
-        elif '大幅提高稀有鱼上钩率' in desc_lower:
-            updates['rare_chance_modifier'] = 0.05
-        elif '略微提高稀有鱼几率' in desc_lower:
-            updates['rare_chance_modifier'] = 0.01
+        if "显著提高稀有鱼几率" in desc_lower:
+            updates["rare_chance_modifier"] = 0.03
+        elif "大幅提高稀有鱼上钩率" in desc_lower:
+            updates["rare_chance_modifier"] = 0.05
+        elif "略微提高稀有鱼几率" in desc_lower:
+            updates["rare_chance_modifier"] = 0.01
 
-        if '降低钓上' in desc_lower and '垃圾' in desc_lower:
-            updates['garbage_reduction_modifier'] = 0.5  # 降低50%的概率
+        if "降低钓上" in desc_lower and "垃圾" in desc_lower:
+            updates["garbage_reduction_modifier"] = 0.5  # 降低50%的概率
 
-        if '基础价值+10%' in effect_desc:
-            updates['value_modifier'] = 1.1
+        if "基础价值+10%" in effect_desc:
+            updates["value_modifier"] = 1.1
 
-        if '双倍数量' in effect_desc:
-            updates['quantity_modifier'] = 2.0
+        if "双倍数量" in effect_desc:
+            updates["quantity_modifier"] = 2.0
 
-        if '无消耗' in desc_lower:
-            updates['is_consumable'] = 0
+        if "无消耗" in desc_lower:
+            updates["is_consumable"] = 0
 
         # 如果有需要更新的字段，则执行UPDATE
         if updates:

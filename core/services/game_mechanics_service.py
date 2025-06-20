@@ -1,6 +1,5 @@
 import random
 from typing import Dict, Any
-from datetime import datetime, timedelta
 
 # 导入仓储接口和领域模型
 from ..repositories.abstract_repository import (
@@ -44,14 +43,14 @@ class GameMechanicsService:
             return {"success": False, "message": f"金币不足，当前拥有 {user.coins} 金币"}
 
         # 2. 检查每日次数限制
-        wipe_bomb_config = self.config.get('wipe_bomb', {})
-        max_attempts = wipe_bomb_config.get('max_attempts_per_day', 3)
+        wipe_bomb_config = self.config.get("wipe_bomb", {})
+        max_attempts = wipe_bomb_config.get("max_attempts_per_day", 3)
         attempts_today = self.log_repo.get_wipe_bomb_log_count_today(user_id)
         if attempts_today >= max_attempts:
             return {"success": False, "message": f"你今天已经使用了{max_attempts}次擦弹，明天再来吧！"}
 
         # 3. 计算随机奖励倍数 (使用加权随机)
-        ranges = wipe_bomb_config.get('reward_ranges', [])
+        ranges = wipe_bomb_config.get("reward_ranges", [])
         total_weight = sum(w for _, _, w in ranges)
         rand_val = random.uniform(0, total_weight)
 
@@ -123,7 +122,7 @@ class GameMechanicsService:
             return {"success": False, "message": "目标用户不存在"}
 
         # 1. 检查偷窃CD
-        cooldown_seconds = self.config.get('steal', {}).get('cooldown_seconds', 14400) # 默认4小时
+        cooldown_seconds = self.config.get("steal", {}).get("cooldown_seconds", 14400) # 默认4小时
         now = get_now()
         if thief.last_steal_time and (now - thief.last_steal_time).total_seconds() < cooldown_seconds:
             remaining = int(cooldown_seconds - (now - thief.last_steal_time).total_seconds())

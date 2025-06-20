@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Optional, List
-from datetime import datetime, date
+from datetime import datetime
 
 # ---------------------------------
 # 游戏配置实体 (Configuration Entities)
@@ -60,7 +60,7 @@ class Accessory:
     accessory_id: int
     name: str
     rarity: int
-    slot_type: str = 'general'
+    slot_type: str = "general"
     description: Optional[str] = None
     bonus_fish_quality_modifier: float = 1.0
     bonus_fish_quantity_modifier: float = 1.0
@@ -75,7 +75,7 @@ class Title:
     title_id: int
     name: str
     description: str
-    display_format: str = '{name}'
+    display_format: str = "{name}"
 
 @dataclass
 class Achievement:
@@ -258,4 +258,4 @@ class TaxRecord:
     original_amount: int
     balance_after: int
     timestamp: datetime
-    tax_type: str = 'daily'
+    tax_type: str = "daily"

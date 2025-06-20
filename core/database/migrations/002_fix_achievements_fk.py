@@ -11,7 +11,7 @@ def up(cursor: sqlite3.Cursor):
     cursor.execute("ALTER TABLE user_achievement_progress RENAME TO _user_achievement_progress_old")
 
     # 2. 创建一个具有正确结构的新表（没有外键约束）
-    cursor.execute('''
+    cursor.execute("""
         CREATE TABLE user_achievement_progress (
             user_id TEXT NOT NULL,
             achievement_id INTEGER NOT NULL,
@@ -21,17 +21,17 @@ def up(cursor: sqlite3.Cursor):
             PRIMARY KEY (user_id, achievement_id),
             FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
         )
-    ''')
+    """)
 
     # 3. 将旧表中的数据复制到新表中
-    cursor.execute('''
+    cursor.execute("""
         INSERT INTO user_achievement_progress (
             user_id, achievement_id, current_progress, completed_at, claimed_at
         )
-        SELECT 
+        SELECT
             user_id, achievement_id, current_progress, completed_at, claimed_at
         FROM _user_achievement_progress_old
-    ''')
+    """)
 
     # 4. 删除旧的备份表
     cursor.execute("DROP TABLE _user_achievement_progress_old")

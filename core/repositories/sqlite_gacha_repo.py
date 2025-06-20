@@ -15,7 +15,7 @@ class SqliteGachaRepository(AbstractGachaRepository):
 
     def _get_connection(self) -> sqlite3.Connection:
         """获取一个线程安全的数据库连接。"""
-        conn = getattr(self._local, 'connection', None)
+        conn = getattr(self._local, "connection", None)
         if conn is None:
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
@@ -26,11 +26,13 @@ class SqliteGachaRepository(AbstractGachaRepository):
 
     # --- 私有映射辅助方法 ---
     def _row_to_gacha_pool(self, row: sqlite3.Row) -> Optional[GachaPool]:
-        if not row: return None
+        if not row:
+            return None
         return GachaPool(**row)
 
     def _row_to_gacha_pool_item(self, row: sqlite3.Row) -> Optional[GachaPoolItem]:
-        if not row: return None
+        if not row:
+            return None
         return GachaPoolItem(**row)
 
     # --- Gacha Read Methods ---
@@ -107,16 +109,16 @@ class SqliteGachaRepository(AbstractGachaRepository):
                 INSERT INTO gacha_pools (name, description, cost_coins, cost_premium_currency)
                 VALUES (:name, :description, :cost_coins, :cost_premium_currency)
             """, {
-                'name': data.get('name'),
-                'description': data.get('description'),
-                'cost_coins': data.get('cost_coins', 0),
-                'cost_premium_currency': data.get('cost_premium_currency', 0)
+                "name": data.get("name"),
+                "description": data.get("description"),
+                "cost_coins": data.get("cost_coins", 0),
+                "cost_premium_currency": data.get("cost_premium_currency", 0)
             })
             conn.commit()
 
     def update_pool_template(self, pool_id: int, data: Dict[str, Any]) -> None:
         """后台更新一个抽卡池的信息"""
-        data['gacha_pool_id'] = pool_id
+        data["gacha_pool_id"] = pool_id
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -127,11 +129,11 @@ class SqliteGachaRepository(AbstractGachaRepository):
                     cost_premium_currency = :cost_premium_currency
                 WHERE gacha_pool_id = :gacha_pool_id
             """, {
-                'gacha_pool_id': pool_id,
-                'name': data.get('name'),
-                'description': data.get('description'),
-                'cost_coins': data.get('cost_coins', 0),
-                'cost_premium_currency': data.get('cost_premium_currency', 0)
+                "gacha_pool_id": pool_id,
+                "name": data.get("name"),
+                "description": data.get("description"),
+                "cost_coins": data.get("cost_coins", 0),
+                "cost_premium_currency": data.get("cost_premium_currency", 0)
             })
             conn.commit()
 
@@ -145,8 +147,9 @@ class SqliteGachaRepository(AbstractGachaRepository):
     # Pool Item CRUD
     def add_item_to_pool(self, pool_id: int, data: Dict[str, Any]) -> None:
         """后台向抽卡池添加一个物品"""
-        item_full_id = data.get('item_full_id', '').split('-')
-        if len(item_full_id) != 2: return
+        item_full_id = data.get("item_full_id", "").split("-")
+        if len(item_full_id) != 2:
+            return
         item_type, item_id = item_full_id
 
         with self._get_connection() as conn:
@@ -158,15 +161,16 @@ class SqliteGachaRepository(AbstractGachaRepository):
                 pool_id,
                 item_type,
                 item_id,
-                data.get('quantity', 1),
-                data.get('weight', 10)
+                data.get("quantity", 1),
+                data.get("weight", 10)
             ))
             conn.commit()
 
     def update_pool_item(self, item_pool_id: int, data: Dict[str, Any]) -> None:
         """后台更新一个抽卡池物品的信息"""
-        item_full_id = data.get('item_full_id', '').split('-')
-        if len(item_full_id) != 2: return
+        item_full_id = data.get("item_full_id", "").split("-")
+        if len(item_full_id) != 2:
+            return
         item_type, item_id = item_full_id
 
         with self._get_connection() as conn:
@@ -178,8 +182,8 @@ class SqliteGachaRepository(AbstractGachaRepository):
             """, (
                 item_type,
                 item_id,
-                data.get('quantity', 1),
-                data.get('weight', 10),
+                data.get("quantity", 1),
+                data.get("weight", 10),
                 item_pool_id
             ))
             conn.commit()

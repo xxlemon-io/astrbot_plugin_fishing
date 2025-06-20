@@ -109,7 +109,7 @@ class FishingPlugin(Star):
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         # 初始化数据库模式
         plugin_root_dir = os.path.dirname(__file__)
-        migrations_path = os.path.join(plugin_root_dir, 'core', 'database', 'migrations')
+        migrations_path = os.path.join(plugin_root_dir, "core", "database", "migrations")
         run_migrations(db_path, migrations_path)
 
         # --- 2. 组合根：实例化所有仓储层 ---
@@ -155,12 +155,12 @@ class FishingPlugin(Star):
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
         logger.info("""
-    _____ _     _     _             
-    |  ___(_)___| |__ (_)_ __   __ _ 
+    _____ _     _     _
+    |  ___(_)___| |__ (_)_ __   __ _
     | |_  | / __| '_ \\| | '_ \\ / _` |
     |  _| | \\__ \\ | | | | | | | (_| |
     |_|   |_|___/_| |_|_|_| |_|\\__, |
-                               |___/ 
+                               |___/
                                """)
 
     # ===========基础与核心玩法==========
@@ -188,7 +188,7 @@ class FishingPlugin(Star):
         lst_time = user.last_fishing_time
         # 检查是否装备了海洋之心饰品
         info = self.user_service.get_user_current_accessory(user_id)
-        if info['success'] is False:
+        if info["success"] is False:
             yield event.plain_result(f"❌ 获取用户饰品信息失败：{info['message']}")
             return
         equipped_accessory = info.get("accessory")
@@ -218,7 +218,7 @@ class FishingPlugin(Star):
         result = self.user_service.daily_sign_in(user_id)
         if result["success"]:
             message = f"✅ 签到成功！获得 {result['coins_reward']} 金币。"
-            if result['bonus_coins'] > 0:
+            if result["bonus_coins"] > 0:
                 message += f"\n🎉 连续签到 {result['consecutive_days']} 天，额外奖励 {result['bonus_coins']} 金币！"
             yield event.plain_result(message)
         else:
@@ -231,7 +231,7 @@ class FishingPlugin(Star):
         result = self.fishing_service.toggle_auto_fishing(user_id)
         yield event.plain_result(result["message"])
 
-    @filter.command("钓鱼记录", alias={'钓鱼日志', '钓鱼历史'})
+    @filter.command("钓鱼记录", alias={"钓鱼日志", "钓鱼历史"})
     async def fishing_log(self, event: AstrMessageEvent):
         """查看钓鱼记录"""
         user_id = event.get_sender_id()
@@ -295,7 +295,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("升级鱼塘", alias={'鱼塘升级'})
+    @filter.command("升级鱼塘", alias={"鱼塘升级"})
     async def upgrade_pond(self, event: AstrMessageEvent):
         """升级鱼塘容量"""
         user_id = event.get_sender_id()
@@ -315,7 +315,7 @@ class FishingPlugin(Star):
             message = "【🎣 鱼竿】：\n"
             for rod in rod_info["rods"]:
                 message += format_accessory_or_rod(rod)
-                if rod.get('bonus_rare_fish_chance', 1) != 1 and rod.get('bonus_fish_weight', 1.0) != 1.0:
+                if rod.get("bonus_rare_fish_chance", 1) != 1 and rod.get("bonus_fish_weight", 1.0) != 1.0:
                     message += f"   - 钓上鱼鱼类几率加成: {to_percentage(rod['bonus_rare_fish_chance'])}\n"
             yield event.plain_result(message)
         else:
@@ -332,11 +332,11 @@ class FishingPlugin(Star):
             for bait in bait_info["baits"]:
                 message += f" - {bait['name']} x {bait['quantity']} (稀有度: {'⭐' * bait['rarity']})\n"
                 message += f"   - ID: {bait['bait_id']}\n"
-                if bait['duration_minutes'] > 0:
+                if bait["duration_minutes"] > 0:
                     message += f"   - 持续时间: {bait['duration_minutes']} 分钟\n"
-                if bait['effect_description']:
+                if bait["effect_description"]:
                     message += f"   - 效果: {bait['effect_description']}\n"
-                message += '\n'
+                message += "\n"
             yield event.plain_result(message)
         else:
             yield event.plain_result("🐟 您还没有鱼饵，快去商店购买或抽奖获得吧！")
@@ -363,7 +363,7 @@ class FishingPlugin(Star):
         if not rod_info or not rod_info["rods"]:
             yield event.plain_result("❌ 您还没有鱼竿，请先购买或抽奖获得。")
             return
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要使用的鱼竿 ID，例如：/使用鱼竿 12")
             return
@@ -375,7 +375,7 @@ class FishingPlugin(Star):
         result = self.inventory_service.equip_item(user_id, int(rod_instance_id), "rod")
         if result:
             if result["success"]:
-                yield event.plain_result(result['message'])
+                yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 使用鱼竿失败：{result['message']}")
         else:
@@ -389,7 +389,7 @@ class FishingPlugin(Star):
         if not bait_info or not bait_info["baits"]:
             yield event.plain_result("❌ 您还没有鱼饵，请先购买或抽奖获得。")
             return
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要使用的鱼饵 ID，例如：/使用鱼饵 13")
             return
@@ -400,7 +400,7 @@ class FishingPlugin(Star):
         result = self.inventory_service.use_bait(user_id, int(bait_instance_id))
         if result:
             if result["success"]:
-                yield event.plain_result(result['message'])
+                yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 使用鱼饵失败：{result['message']}")
         else:
@@ -414,7 +414,7 @@ class FishingPlugin(Star):
         if not accessories_info or not accessories_info["accessories"]:
             yield event.plain_result("❌ 您还没有饰品，请先购买或抽奖获得。")
             return
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要使用的饰品 ID，例如：/使用饰品 15")
             return
@@ -425,7 +425,7 @@ class FishingPlugin(Star):
         result = self.inventory_service.equip_item(user_id, int(accessory_instance_id), "accessory")
         if result:
             if result["success"]:
-                yield event.plain_result(result['message'])
+                yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 使用饰品失败：{result['message']}")
         else:
@@ -467,7 +467,7 @@ class FishingPlugin(Star):
     async def sell_by_rarity(self, event: AstrMessageEvent):
         """按稀有度出售鱼"""
         user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要出售的稀有度，例如：/出售稀有度 3")
             return
@@ -485,7 +485,7 @@ class FishingPlugin(Star):
     async def sell_rod(self, event: AstrMessageEvent):
         """出售鱼竿"""
         user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要出售的鱼竿 ID，例如：/出售鱼竿 12")
             return
@@ -496,7 +496,7 @@ class FishingPlugin(Star):
         result = self.inventory_service.sell_rod(user_id, int(rod_instance_id))
         if result:
             if result["success"]:
-                yield event.plain_result(result['message'])
+                yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 出售鱼竿失败：{result['message']}")
         else:
@@ -506,7 +506,7 @@ class FishingPlugin(Star):
     async def sell_accessories(self, event: AstrMessageEvent):
         """出售饰品"""
         user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要出售的饰品 ID，例如：/出售饰品 15")
             return
@@ -517,7 +517,7 @@ class FishingPlugin(Star):
         result = self.inventory_service.sell_accessory(user_id, int(accessory_instance_id))
         if result:
             if result["success"]:
-                yield event.plain_result(result['message'])
+                yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 出售饰品失败：{result['message']}")
         else:
@@ -545,7 +545,7 @@ class FishingPlugin(Star):
                         message += f"   - 数量加成⬆️: {to_percentage(rod.bonus_fish_quantity_modifier)}\n"
                     if rod.bonus_rare_fish_chance != 0.0:
                         message += f"   - 钓鱼加成⬆️: {to_percentage(rod.bonus_rare_fish_chance)}\n"
-                    message += '\n'
+                    message += "\n"
             else:
                 message += "🎣 商店中没有鱼竿可供购买。\n"
             yield event.plain_result(message)
@@ -556,7 +556,7 @@ class FishingPlugin(Star):
     async def buy_rod(self, event: AstrMessageEvent):
         """购买鱼竿"""
         user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要购买的鱼竿 ID，例如：/购买鱼竿 12")
             return
@@ -567,7 +567,7 @@ class FishingPlugin(Star):
         result = self.shop_service.buy_item(user_id, "rod", int(rod_instance_id))
         if result:
             if result["success"]:
-                yield event.plain_result(result['message'])
+                yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 购买鱼竿失败：{result['message']}")
         else:
@@ -577,7 +577,7 @@ class FishingPlugin(Star):
     async def buy_bait(self, event: AstrMessageEvent):
         """购买鱼饵"""
         user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要购买的鱼饵 ID，例如：/购买鱼饵 13")
             return
@@ -594,7 +594,7 @@ class FishingPlugin(Star):
         result = self.shop_service.buy_item(user_id, "bait", int(bait_instance_id), int(quantity))
         if result:
             if result["success"]:
-                yield event.plain_result(result['message'])
+                yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 购买鱼饵失败：{result['message']}")
         else:
@@ -629,7 +629,7 @@ class FishingPlugin(Star):
     async def list_rod(self, event: AstrMessageEvent):
         """上架鱼竿到市场"""
         user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 3:
             yield event.plain_result("❌ 请指定要上架的鱼竿 ID和价格，例如：/上架鱼竿 12 1000")
             return
@@ -644,7 +644,7 @@ class FishingPlugin(Star):
         result = self.market_service.put_item_on_sale(user_id, "rod", int(rod_instance_id), int(price))
         if result:
             if result["success"]:
-                yield event.plain_result(result['message'])
+                yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 上架鱼竿失败：{result['message']}")
         else:
@@ -654,7 +654,7 @@ class FishingPlugin(Star):
     async def list_accessories(self, event: AstrMessageEvent):
         """上架饰品到市场"""
         user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 3:
             yield event.plain_result("❌ 请指定要上架的饰品 ID和价格，例如：/上架饰品 15 1000")
             return
@@ -669,7 +669,7 @@ class FishingPlugin(Star):
         result = self.market_service.put_item_on_sale(user_id, "accessory", int(accessory_instance_id), int(price))
         if result:
             if result["success"]:
-                yield event.plain_result(result['message'])
+                yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 上架饰品失败：{result['message']}")
         else:
@@ -679,7 +679,7 @@ class FishingPlugin(Star):
     async def buy_item(self, event: AstrMessageEvent):
         """购买市场上的物品"""
         user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要购买的物品 ID，例如：/购买 12")
             return
@@ -690,18 +690,18 @@ class FishingPlugin(Star):
         result = self.market_service.buy_market_item(user_id, int(item_instance_id))
         if result:
             if result["success"]:
-                yield event.plain_result(result['message'])
+                yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 购买失败：{result['message']}")
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     # ===========抽卡与概率玩法==========
-    @filter.command("抽卡", alias={'抽奖'})
+    @filter.command("抽卡", alias={"抽奖"})
     async def gacha(self, event: AstrMessageEvent):
         """抽卡"""
         user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 2:
             # 展示所有的抽奖池信息并显示帮助
             pools = self.gacha_service.get_all_pools()
@@ -744,7 +744,7 @@ class FishingPlugin(Star):
     async def ten_gacha(self, event: AstrMessageEvent):
         """十连抽卡"""
         user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要进行十连抽卡的抽奖池 ID，例如：/十连 1")
             return
@@ -774,7 +774,7 @@ class FishingPlugin(Star):
     @filter.command("查看卡池")
     async def view_gacha_pool(self, event: AstrMessageEvent):
         """查看当前卡池"""
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要查看的卡池 ID，例如：/查看卡池 1")
             return
@@ -787,14 +787,14 @@ class FishingPlugin(Star):
         if result:
             if result["success"]:
                 pool = result.get("pool", {})
-                message = f"【🎰 卡池详情】\n\n"
+                message = "【🎰 卡池详情】\n\n"
                 message += f"ID: {pool['gacha_pool_id']} - {pool['name']}\n"
                 message += f"描述: {pool['description']}\n"
                 message += f"花费: {pool['cost_coins']} 金币 / 次\n\n"
                 message += "【📋 物品概率】\n"
 
-                if result['probabilities']:
-                    for item in result['probabilities']:
+                if result["probabilities"]:
+                    for item in result["probabilities"]:
                         message += f" - {'⭐' * item.get('item_rarity', 0)} {item['item_name']} (概率: {to_percentage(item['probability'])})\n"
                 yield event.plain_result(message)
             else:
@@ -827,7 +827,7 @@ class FishingPlugin(Star):
     async def wipe_bomb(self, event: AstrMessageEvent):
         """擦弹功能"""
         user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("💸 请指定要擦弹的数量 ID，例如：/擦弹 123456789")
             return
@@ -839,11 +839,11 @@ class FishingPlugin(Star):
         if result:
             if result["success"]:
                 message = ""
-                contribution = result['contribution']
-                multiplier = result['multiplier']
-                reward = result['reward']
-                profit = result['profit']
-                remaining_today = result['remaining_today']
+                contribution = result["contribution"]
+                multiplier = result["multiplier"]
+                reward = result["reward"]
+                profit = result["profit"]
+                remaining_today = result["remaining_today"]
                 if multiplier >= 3:
                     message += f"🎰 大成功！你投入 {contribution} 金币，获得了 {multiplier} 倍奖励！\n 💰 奖励金额：{reward} 金币（盈利：+ {profit}）\n"
                 elif multiplier >= 1:
@@ -857,7 +857,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("擦弹记录", alias={'擦弹历史'})
+    @filter.command("擦弹记录", alias={"擦弹历史"})
     async def wipe_bomb_history(self, event: AstrMessageEvent):
         """查看擦弹记录"""
         user_id = event.get_sender_id()
@@ -874,13 +874,13 @@ class FishingPlugin(Star):
                     message += f"⏱️ 时间: {safe_datetime_handler(record['timestamp'])}\n"
                     message += f"💸 投入: {record['contribution']} 金币, 🎁 奖励: {record['reward']} 金币\n"
                     # 计算盈亏
-                    profit = record['reward'] - record['contribution']
+                    profit = record["reward"] - record["contribution"]
                     profit_text = f"盈利: +{profit}" if profit >= 0 else f"亏损: {profit}"
                     profit_emoji = "📈" if profit >= 0 else "📉"
 
-                    if record['multiplier'] >= 3:
+                    if record["multiplier"] >= 3:
                         message += f"🔥 倍率: {record['multiplier']} ({profit_emoji} {profit_text})\n\n"
-                    elif record['multiplier'] >= 1:
+                    elif record["multiplier"] >= 1:
                         message += f"✨ 倍率: {record['multiplier']} ({profit_emoji} {profit_text})\n\n"
                     else:
                         message += f"💔 倍率: {record['multiplier']} ({profit_emoji} {profit_text})\n\n"
@@ -891,7 +891,7 @@ class FishingPlugin(Star):
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     # ===========社交==========
-    @filter.command("排行榜", alias={'phb'})
+    @filter.command("排行榜", alias={"phb"})
     async def ranking(self, event: AstrMessageEvent):
         """查看排行榜"""
         user_data = self.user_service.get_leaderboard_data().get("leaderboard", [])
@@ -899,12 +899,12 @@ class FishingPlugin(Star):
             yield event.plain_result("❌ 当前没有排行榜数据。")
             return
         for user in user_data:
-            if user['title'] is None:
-                user['title'] = "无称号"
-            if user['accessory'] is None:
-                user['accessory'] = "无饰品"
-            if user['fishing_rod'] is None:
-                user['fishing_rod'] = "无鱼竿"
+            if user["title"] is None:
+                user["title"] = "无称号"
+            if user["accessory"] is None:
+                user["accessory"] = "无饰品"
+            if user["fishing_rod"] is None:
+                user["fishing_rod"] = "无鱼竿"
         # logger.info(f"用户数据: {user_data}")
         draw_fishing_ranking(user_data, output_path="fishing_ranking.png")
         yield event.image_result("fishing_ranking.png")
@@ -915,7 +915,7 @@ class FishingPlugin(Star):
         user_id = event.get_sender_id()
         message_obj = event.message_obj
         target_id = None
-        if hasattr(message_obj, 'message'):
+        if hasattr(message_obj, "message"):
             # 检查消息中是否有At对象
             for comp in message_obj.message:
                 if isinstance(comp, At):
@@ -954,7 +954,7 @@ class FishingPlugin(Star):
     async def use_title(self, event: AstrMessageEvent):
         """使用称号"""
         user_id = event.get_sender_id()
-        args = event.message_str.split(' ')
+        args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要使用的称号 ID，例如：/使用称号 1")
             return
@@ -965,7 +965,7 @@ class FishingPlugin(Star):
         result = self.user_service.use_title(user_id, int(title_id))
         if result:
             if result["success"]:
-                yield event.plain_result(result['message'])
+                yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 使用称号失败：{result['message']}")
         else:
@@ -981,10 +981,10 @@ class FishingPlugin(Star):
             for achievement in achievements:
                 message += f"- {achievement['name']} (ID: {achievement['id']})\n"
                 message += f"  描述: {achievement['description']}\n"
-                if achievement.get('completed_at'):
+                if achievement.get("completed_at"):
                     message += f"  完成时间: {achievement['completed_at'].strftime('%Y-%m-%d %H:%M:%S')}\n"
                 else:
-                    message += "  进度: {}/{}\n".format(achievement['progress'], achievement['target'])
+                    message += "  进度: {}/{}\n".format(achievement["progress"], achievement["target"])
             message += "请继续努力完成更多成就！"
             yield event.plain_result(message)
         else:
@@ -994,7 +994,7 @@ class FishingPlugin(Star):
     @filter.command("钓鱼帮助")
     async def fishing_help(self, event: AstrMessageEvent):
         """显示钓鱼插件帮助信息"""
-        message = f"""【🎣 钓鱼系统帮助】
+        message = """【🎣 钓鱼系统帮助】
             📋 基础命令:
              - /注册: 注册钓鱼用户
              - /钓鱼: 进行一次钓鱼(消耗10金币)，3分钟CD)
@@ -1072,7 +1072,7 @@ class FishingPlugin(Star):
                 message += f"📊 收集情况：{result['unlocked_fish_count']} / {result['total_fish_count']} 种\n"
 
                 for fish in pokedex:
-                    rarity = fish['rarity']
+                    rarity = fish["rarity"]
 
                     message += f" - {fish['name']} ({'✨' * rarity})\n"
                     message += f"💎 价值：{fish['value']} 金币\n"
@@ -1127,7 +1127,7 @@ class FishingPlugin(Star):
     @filter.command("关闭钓鱼后台管理")
     async def stop_admin(self, event: AstrMessageEvent):
         """关闭钓鱼后台管理"""
-        if not hasattr(self, 'web_admin_task') or not self.web_admin_task or self.web_admin_task.done():
+        if not hasattr(self, "web_admin_task") or not self.web_admin_task or self.web_admin_task.done():
             yield event.plain_result("❌ 钓鱼后台管理没有在运行中")
             return
 
@@ -1149,12 +1149,12 @@ class FishingPlugin(Star):
         """验证端口是否实际已激活"""
         try:
             reader, writer = await asyncio.wait_for(
-                asyncio.open_connection('127.0.0.1', self.port),
+                asyncio.open_connection("127.0.0.1", self.port),
                 timeout=1
             )
             writer.close()
             return True
-        except:
+        except:  # noqa: E722
             return False
 
     async def terminate(self):

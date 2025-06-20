@@ -34,74 +34,74 @@ class DataSetupService:
         # 填充鱼类数据
         for fish in FISH_DATA:
             self.item_template_repo.add_fish_template({
-                'name': fish[0],
-                'description': fish[1],
-                'rarity': fish[2],
-                'base_value': fish[3],
-                'min_weight': fish[4],
-                'max_weight': fish[5],
-                'icon_url': fish[6]
+                "name": fish[0],
+                "description": fish[1],
+                "rarity": fish[2],
+                "base_value": fish[3],
+                "min_weight": fish[4],
+                "max_weight": fish[5],
+                "icon_url": fish[6]
             })
 
         # 填充鱼饵数据
         for bait in BAIT_DATA:
             self.item_template_repo.add_bait_template({
-                'name': bait[0],
-                'description': bait[1],
-                'rarity': bait[2],
-                'effect_description': bait[3],
-                'duration_minutes': bait[4],
-                'cost': bait[5],
-                'required_rod_rarity': bait[6]
+                "name": bait[0],
+                "description": bait[1],
+                "rarity": bait[2],
+                "effect_description": bait[3],
+                "duration_minutes": bait[4],
+                "cost": bait[5],
+                "required_rod_rarity": bait[6]
             })
 
         # 填充鱼竿数据
         for rod in ROD_DATA:
             self.item_template_repo.add_rod_template({
-                'name': rod[0],
-                'description': rod[1],
-                'rarity': rod[2],
-                'source': rod[3],
-                'purchase_cost': rod[4],
-                'bonus_fish_quality_modifier': rod[5],
-                'bonus_fish_quantity_modifier': rod[6],
-                'bonus_rare_fish_chance': rod[7],
-                'durability': rod[8],
-                'icon_url': rod[9]
+                "name": rod[0],
+                "description": rod[1],
+                "rarity": rod[2],
+                "source": rod[3],
+                "purchase_cost": rod[4],
+                "bonus_fish_quality_modifier": rod[5],
+                "bonus_fish_quantity_modifier": rod[6],
+                "bonus_rare_fish_chance": rod[7],
+                "durability": rod[8],
+                "icon_url": rod[9]
             })
 
         # 填充饰品数据
         for acc in ACCESSORY_DATA:
             self.item_template_repo.add_accessory_template({
-                'name': acc[0],
-                'description': acc[1],
-                'rarity': acc[2],
-                'slot_type': acc[3],
-                'bonus_fish_quality_modifier': acc[4],
-                'bonus_fish_quantity_modifier': acc[5],
-                'bonus_rare_fish_chance': acc[6],
-                'bonus_coin_modifier': acc[7],
-                'other_bonus_description': acc[8],
-                'icon_url': acc[9]
+                "name": acc[0],
+                "description": acc[1],
+                "rarity": acc[2],
+                "slot_type": acc[3],
+                "bonus_fish_quality_modifier": acc[4],
+                "bonus_fish_quantity_modifier": acc[5],
+                "bonus_rare_fish_chance": acc[6],
+                "bonus_coin_modifier": acc[7],
+                "other_bonus_description": acc[8],
+                "icon_url": acc[9]
             })
 
 
         for title in TITLE_DATA:
-            if hasattr(self.item_template_repo, 'add_title_template'):
+            if hasattr(self.item_template_repo, "add_title_template"):
                 self.item_template_repo.add_title_template({
-                    'title_id': title[0],
-                    'name': title[1],
-                    'description': title[2],
-                    'display_format': title[3]
+                    "title_id": title[0],
+                    "name": title[1],
+                    "description": title[2],
+                    "display_format": title[3]
                 })
 
         for pool in GACHA_POOL:
             self.gacha_repo.add_pool_template({
-                'pool_id': pool[0],
-                'name': pool[1],
-                'description': pool[2],
-                'cost_coins': pool[3],
-                'cost_premium_currency': pool[4]
+                "pool_id": pool[0],
+                "name": pool[1],
+                "description": pool[2],
+                "cost_coins": pool[3],
+                "cost_premium_currency": pool[4]
             })
 
         logger.info("核心游戏数据初始化完成。")

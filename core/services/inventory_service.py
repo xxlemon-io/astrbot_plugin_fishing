@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 # 导入仓储接口和领域模型
 from ..repositories.abstract_repository import (
@@ -7,7 +7,6 @@ from ..repositories.abstract_repository import (
     AbstractUserRepository,
     AbstractItemTemplateRepository
 )
-from ..domain.models import User, Rod
 
 class InventoryService:
     """封装与用户库存相关的业务逻辑"""
@@ -47,7 +46,7 @@ class InventoryService:
             "success": True,
             "fishes": enriched_items,
             "stats": {
-                "total_count": sum(item['quantity'] for item in enriched_items),
+                "total_count": sum(item["quantity"] for item in enriched_items),
                 "total_value": total_value
             }
         }
@@ -209,7 +208,7 @@ class InventoryService:
              return {"success": False, "message": "找不到鱼竿的基础信息"}
 
         # 3. 计算售价
-        sell_prices = self.config.get('sell_prices', {}).get('by_rarity', {})
+        sell_prices = self.config.get("sell_prices", {}).get("by_rarity", {})
         sell_price = sell_prices.get(str(rod_template.rarity), 30) # 默认价格30
 
         # 4. 执行操作
@@ -244,7 +243,7 @@ class InventoryService:
             return {"success": False, "message": "找不到饰品的基础信息"}
 
         # 3. 计算售价
-        sell_prices = self.config.get('sell_prices', {}).get('by_rarity', {})
+        sell_prices = self.config.get("sell_prices", {}).get("by_rarity", {})
         sell_price = sell_prices.get(str(accessory_template.rarity), 30)
 
         # 4. 执行操作
@@ -266,7 +265,7 @@ class InventoryService:
         equip_item_name = ""
         equip_item_id = None
         # 验证物品归属
-        if item_type == 'rod':
+        if item_type == "rod":
             instances = self.inventory_repo.get_user_rod_instances(user_id)
             for instance in instances:
                 if instance.rod_instance_id == instance_id:
@@ -277,7 +276,7 @@ class InventoryService:
             user.equipped_rod_instance_id = instance_id
             equip_item_name = self.item_template_repo.get_rod_by_id(equip_item_id).name
 
-        elif item_type == 'accessory':
+        elif item_type == "accessory":
             instances = self.inventory_repo.get_user_accessory_instances(user_id)
             for instance in instances:
                 if instance.accessory_instance_id == instance_id:
@@ -348,25 +347,25 @@ class InventoryService:
         if not user:
             return {"success": False, "message": "用户不存在"}
 
-        upgrade_path = self.config.get('pond_upgrades', [])
+        upgrade_path = self.config.get("pond_upgrades", [])
         current_capacity = user.fish_pond_capacity
 
         next_upgrade = None
         for upgrade in upgrade_path:
-            if upgrade['from'] == current_capacity:
+            if upgrade["from"] == current_capacity:
                 next_upgrade = upgrade
                 break
 
         if not next_upgrade:
             return {"success": False, "message": "鱼塘容量已达到最大，无法再升级"}
 
-        cost = next_upgrade['cost']
+        cost = next_upgrade["cost"]
         if not user.can_afford(cost):
             return {"success": False, "message": f"金币不足，升级需要 {cost} 金币"}
 
         # 执行升级
         user.coins -= cost
-        user.fish_pond_capacity = next_upgrade['to']
+        user.fish_pond_capacity = next_upgrade["to"]
         self.user_repo.update(user)
 
         return {

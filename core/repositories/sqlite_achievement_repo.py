@@ -1,6 +1,6 @@
 import sqlite3
 import threading
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 from datetime import datetime
 
 # 导入抽象基类和领域模型
@@ -15,7 +15,7 @@ class SqliteAchievementRepository(AbstractAchievementRepository):
         self._local = threading.local()
 
     def _get_connection(self) -> sqlite3.Connection:
-        conn = getattr(self._local, 'connection', None)
+        conn = getattr(self._local, "connection", None)
         if conn is None:
             conn = sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES)
             conn.row_factory = sqlite3.Row
@@ -24,9 +24,10 @@ class SqliteAchievementRepository(AbstractAchievementRepository):
         return conn
 
     def _row_to_achievement(self, row: sqlite3.Row) -> Optional[Achievement]:
-        if not row: return None
+        if not row:
+            return None
         data = dict(row)
-        data['is_repeatable'] = bool(data.get('is_repeatable', 0))
+        data["is_repeatable"] = bool(data.get("is_repeatable", 0))
         return Achievement(**data)
 
     def get_all_achievements(self) -> List[Achievement]:
@@ -47,10 +48,10 @@ class SqliteAchievementRepository(AbstractAchievementRepository):
             rows = cursor.fetchall()
             progress = {}
             for row in rows:
-                achievement_id = row['achievement_id']
+                achievement_id = row["achievement_id"]
                 progress[achievement_id] = {
-                    'progress': row['current_progress'],
-                    'completed_at': row['completed_at']
+                    "progress": row["current_progress"],
+                    "completed_at": row["completed_at"]
                 }
             return progress
 
@@ -68,7 +69,7 @@ class SqliteAchievementRepository(AbstractAchievementRepository):
             if record:
                 # 2. 如果记录存在，则执行 UPDATE
                 # 仅当记录中原来的 completed_at 为空时，才更新它，确保完成时间只记录一次
-                db_completed_at = record['completed_at']
+                db_completed_at = record["completed_at"]
                 final_completed_at = db_completed_at if db_completed_at else completed_at
 
                 cursor.execute("""
@@ -126,12 +127,12 @@ class SqliteAchievementRepository(AbstractAchievementRepository):
 
     def has_item_of_rarity(self, user_id: str, item_type: str, rarity: int) -> bool:
         query = ""
-        if item_type == 'rod':
+        if item_type == "rod":
             query = """
                 SELECT 1 FROM user_rods ur JOIN rods r ON ur.rod_id = r.rod_id
                 WHERE ur.user_id = ? AND r.rarity = ? LIMIT 1
             """
-        elif item_type == 'accessory':
+        elif item_type == "accessory":
             query = """
                 SELECT 1 FROM user_accessories ua JOIN accessories a ON ua.accessory_id = a.accessory_id
                 WHERE ua.user_id = ? AND a.rarity = ? LIMIT 1

@@ -45,8 +45,8 @@ class AchievementService:
         # 成就模块都在 core.achievements 包下
         from .. import achievements as achievements_package
 
-        for _, name, _ in pkgutil.walk_packages(achievements_package.__path__, achievements_package.__name__ + '.'):
-            module = __import__(name, fromlist='dummy')
+        for _, name, _ in pkgutil.walk_packages(achievements_package.__path__, achievements_package.__name__ + "."):
+            module = __import__(name, fromlist="dummy")
             for _, obj in inspect.getmembers(module, inspect.isclass):
                 if issubclass(obj, BaseAchievement) and obj is not BaseAchievement:
                     loaded_achievements.append(obj())
@@ -84,27 +84,29 @@ class AchievementService:
     def _grant_reward(self, user: User, achievement: BaseAchievement):
         """根据成就定义，为用户发放奖励。"""
         reward_type, reward_value, reward_quantity = achievement.reward
-        if not reward_value: return
+        if not reward_value:
+            return
 
-        if reward_type == 'coins':
+        if reward_type == "coins":
             user.coins += (reward_value * reward_quantity)
             self.user_repo.update(user)
-        elif reward_type == 'title':
+        elif reward_type == "title":
             self.achievement_repo.grant_title_to_user(user.user_id, reward_value)
-        elif reward_type == 'bait':
+        elif reward_type == "bait":
             self.inventory_repo.update_bait_quantity(user.user_id, reward_value, delta=reward_quantity)
-        elif reward_type == 'rod':
+        elif reward_type == "rod":
             rod_template = self.item_template_repo.get_rod_by_id(reward_value)
             if rod_template:
                 self.inventory_repo.add_rod_instance(user.user_id, reward_value, rod_template.durability)
-        elif reward_type == 'accessory':
+        elif reward_type == "accessory":
             self.inventory_repo.add_accessory_instance(user.user_id, reward_value)
 
     # --- 后台任务与核心逻辑 ---
 
     def start_achievement_check_task(self):
         """启动成就检查的后台线程。"""
-        if self.achievement_check_thread and self.achievement_check_thread.is_alive(): return
+        if self.achievement_check_thread and self.achievement_check_thread.is_alive():
+            return
         self.achievement_check_running = True
         self.achievement_check_thread = threading.Thread(target=self._achievement_check_loop, daemon=True)
         self.achievement_check_thread.start()
@@ -131,13 +133,14 @@ class AchievementService:
     def _process_user_achievements(self, user_id: str):
         """处理单个用户的成就检查和发放流程。"""
         user_context = self._build_user_context(user_id)
-        if not user_context: return
+        if not user_context:
+            return
 
         user_progress = self.achievement_repo.get_user_progress(user_id)
 
         for ach in self.achievements:
             # 如果成就已完成，则跳过
-            if user_progress.get(ach.id, {}).get('completed_at'):
+            if user_progress.get(ach.id, {}).get("completed_at"):
                 continue
 
             # 调用每个成就自己的检查方法
@@ -161,14 +164,14 @@ class AchievementService:
         for ach in self.achievements:
             progress = user_progress.get(ach.id, {})
             if not progress:
-                progress = {'progress': 0, 'completed_at': None}
+                progress = {"progress": 0, "completed_at": None}
             achievements_data.append({
                 "id": ach.id,
                 "name": ach.name,
                 "description": ach.description,
                 "reward": ach.reward,
-                "progress": progress.get('progress', 0),
-                "completed_at": progress.get('completed_at')
+                "progress": progress.get("progress", 0),
+                "completed_at": progress.get("completed_at")
             })
 
         return {

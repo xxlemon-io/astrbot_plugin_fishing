@@ -21,7 +21,7 @@ class SqliteUserRepository(AbstractUserRepository):
 
     def _get_connection(self) -> sqlite3.Connection:
         """获取一个线程安全的数据库连接。"""
-        conn = getattr(self._local, 'connection', None)
+        conn = getattr(self._local, "connection", None)
         if conn is None:
             conn = sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
             conn.row_factory = sqlite3.Row  # 返回字典形式的行
@@ -43,30 +43,30 @@ class SqliteUserRepository(AbstractUserRepository):
                     # 尝试多种格式以提高兼容性
                     return datetime.fromisoformat(dt_val)
                 except ValueError:
-                    return datetime.strptime(dt_val, '%Y-%m-%d %H:%M:%S')
+                    return datetime.strptime(dt_val, "%Y-%m-%d %H:%M:%S")
             return None
 
         return User(
-            user_id=row['user_id'],
-            nickname=row['nickname'],
-            coins=row['coins'],
-            premium_currency=row['premium_currency'],
-            total_fishing_count=row['total_fishing_count'],
-            total_weight_caught=row['total_weight_caught'],
-            total_coins_earned=row['total_coins_earned'],
-            consecutive_login_days=row['consecutive_login_days'],
-            fish_pond_capacity=row['fish_pond_capacity'],
-            created_at=parse_datetime(row['created_at']),
-            equipped_rod_instance_id=row['equipped_rod_instance_id'],
-            equipped_accessory_instance_id=row['equipped_accessory_instance_id'],
-            current_title_id=row['current_title_id'],
-            current_bait_id=row['current_bait_id'],
-            bait_start_time=parse_datetime(row['bait_start_time']),
-            auto_fishing_enabled=bool(row['auto_fishing_enabled']),
-            last_fishing_time=parse_datetime(row['last_fishing_time']),
-            last_wipe_bomb_time=parse_datetime(row['last_wipe_bomb_time']),
-            last_steal_time=parse_datetime(row['last_steal_time']),
-            last_login_time=parse_datetime(row['last_login_time']),
+            user_id=row["user_id"],
+            nickname=row["nickname"],
+            coins=row["coins"],
+            premium_currency=row["premium_currency"],
+            total_fishing_count=row["total_fishing_count"],
+            total_weight_caught=row["total_weight_caught"],
+            total_coins_earned=row["total_coins_earned"],
+            consecutive_login_days=row["consecutive_login_days"],
+            fish_pond_capacity=row["fish_pond_capacity"],
+            created_at=parse_datetime(row["created_at"]),
+            equipped_rod_instance_id=row["equipped_rod_instance_id"],
+            equipped_accessory_instance_id=row["equipped_accessory_instance_id"],
+            current_title_id=row["current_title_id"],
+            current_bait_id=row["current_bait_id"],
+            bait_start_time=parse_datetime(row["bait_start_time"]),
+            auto_fishing_enabled=bool(row["auto_fishing_enabled"]),
+            last_fishing_time=parse_datetime(row["last_fishing_time"]),
+            last_wipe_bomb_time=parse_datetime(row["last_wipe_bomb_time"]),
+            last_steal_time=parse_datetime(row["last_steal_time"]),
+            last_login_time=parse_datetime(row["last_login_time"]),
         )
 
     def get_by_id(self, user_id: str) -> Optional[User]:
@@ -127,14 +127,14 @@ class SqliteUserRepository(AbstractUserRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(query, params)
-            return [row['user_id'] for row in cursor.fetchall()]
+            return [row["user_id"] for row in cursor.fetchall()]
 
     def get_leaderboard_data(self, limit: int) -> List[Dict[str, Any]]:
         # 此方法返回一个DTO（数据传输对象），而不是领域模型，因为它需要多表连接
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT 
+                SELECT
                     u.user_id, u.nickname, u.coins, u.total_fishing_count as fish_count,
                     t.name as title, r.name as fishing_rod, a.name as accessory
                 FROM users u

@@ -1,6 +1,6 @@
 import sqlite3
 import threading
-from typing import Optional, List, Dict, Any, Set
+from typing import Optional, List, Dict
 from datetime import date, datetime, timedelta, timezone
 
 # 导入抽象基类和领域模型
@@ -18,7 +18,7 @@ class SqliteLogRepository(AbstractLogRepository):
 
     def _get_connection(self) -> sqlite3.Connection:
         """获取一个线程安全的数据库连接。"""
-        conn = getattr(self._local, 'connection', None)
+        conn = getattr(self._local, "connection", None)
         if conn is None:
             conn = sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES)
             conn.row_factory = sqlite3.Row
@@ -28,22 +28,26 @@ class SqliteLogRepository(AbstractLogRepository):
 
     # --- 私有映射辅助方法 ---
     def _row_to_fishing_record(self, row: sqlite3.Row) -> Optional[FishingRecord]:
-        if not row: return None
+        if not row:
+            return None
         # 数据库中的 is_king_size 是 INTEGER，需要转为 bool
         data = dict(row)
-        data['is_king_size'] = bool(data.get('is_king_size', 0))
+        data["is_king_size"] = bool(data.get("is_king_size", 0))
         return FishingRecord(**data)
 
     def _row_to_gacha_record(self, row: sqlite3.Row) -> Optional[GachaRecord]:
-        if not row: return None
+        if not row:
+            return None
         return GachaRecord(**row)
 
     def _row_to_wipe_bomb_log(self, row: sqlite3.Row) -> Optional[WipeBombLog]:
-        if not row: return None
+        if not row:
+            return None
         return WipeBombLog(**row)
 
     def _row_to_tax_record(self, row: sqlite3.Row) -> Optional[TaxRecord]:
-        if not row: return None
+        if not row:
+            return None
         return TaxRecord(**row)
 
     # --- Fishing Log Methods ---
@@ -75,19 +79,19 @@ class SqliteLogRepository(AbstractLogRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT fish_id, MIN(timestamp) as first_caught_time 
-                FROM fishing_records 
-                WHERE user_id = ? 
+                SELECT fish_id, MIN(timestamp) as first_caught_time
+                FROM fishing_records
+                WHERE user_id = ?
                 GROUP BY fish_id
             """, (user_id,))
             rows = cursor.fetchall()
-            return {row['fish_id']: row['first_caught_time'] for row in rows}
+            return {row["fish_id"]: row["first_caught_time"] for row in rows}
     def get_fishing_records(self, user_id: str, limit: int) -> List[FishingRecord]:
         with self._get_connection() as conn:
             # 为了简化返回，这里不连接获取名称，表现层可以按需从ItemTemplateRepository获取
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT * FROM fishing_records 
+                SELECT * FROM fishing_records
                 WHERE user_id = ? ORDER BY timestamp DESC LIMIT ?
             """, (user_id, limit))
             return [self._row_to_fishing_record(row) for row in cursor.fetchall()]
@@ -98,7 +102,7 @@ class SqliteLogRepository(AbstractLogRepository):
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO gacha_records (
-                    user_id, gacha_pool_id, item_type, item_id, 
+                    user_id, gacha_pool_id, item_type, item_id,
                     item_name, quantity, rarity, timestamp
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (
@@ -112,7 +116,7 @@ class SqliteLogRepository(AbstractLogRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT * FROM gacha_records 
+                SELECT * FROM gacha_records
                 WHERE user_id = ? ORDER BY timestamp DESC LIMIT ?
             """, (user_id, limit))
             return [self._row_to_gacha_record(row) for row in cursor.fetchall()]
@@ -122,7 +126,7 @@ class SqliteLogRepository(AbstractLogRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO wipe_bomb_log 
+                INSERT INTO wipe_bomb_log
                     (user_id, contribution_amount, reward_multiplier, reward_amount, timestamp)
                 VALUES (?, ?, ?, ?, ?)
             """, (
@@ -166,7 +170,7 @@ class SqliteLogRepository(AbstractLogRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO taxes 
+                INSERT INTO taxes
                     (user_id, tax_amount, tax_rate, original_amount, balance_after, tax_type, timestamp)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
@@ -180,7 +184,7 @@ class SqliteLogRepository(AbstractLogRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT * FROM wipe_bomb_log 
+                SELECT * FROM wipe_bomb_log
                 WHERE user_id = ? ORDER BY timestamp DESC LIMIT ?
             """, (user_id, limit))
             return [self._row_to_wipe_bomb_log(row) for row in cursor.fetchall()]
@@ -189,7 +193,7 @@ class SqliteLogRepository(AbstractLogRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT * FROM taxes 
+                SELECT * FROM taxes
                 WHERE user_id = ? ORDER BY timestamp DESC LIMIT ?
             """, (user_id, limit))
             return [self._row_to_tax_record(row) for row in cursor.fetchall()]
@@ -198,7 +202,7 @@ class SqliteLogRepository(AbstractLogRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT MAX(reward_multiplier) FROM wipe_bomb_log 
+                SELECT MAX(reward_multiplier) FROM wipe_bomb_log
                 WHERE user_id = ?
             """, (user_id,))
             result = cursor.fetchone()

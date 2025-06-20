@@ -1,7 +1,7 @@
 import os
 
 from PIL import Image, ImageDraw, ImageFont
-from typing import List, Dict, Tuple, Any, Optional
+from typing import List, Dict
 from astrbot.api import logger
 # 图片基本设置
 IMG_WIDTH = 800
@@ -64,11 +64,11 @@ def format_large_number(number):
     if number < 1000:
         return str(number)
     elif number < 1000000:
-        return f"{number/1000:.1f}K".replace('.0K', 'K')
+        return f"{number/1000:.1f}K".replace(".0K", "K")
     elif number < 1000000000:
-        return f"{number/1000000:.1f}M".replace('.0M', 'M')
+        return f"{number/1000000:.1f}M".replace(".0M", "M")
     else:
-        return f"{number/1000000000:.1f}B".replace('.0B', 'B')
+        return f"{number/1000000000:.1f}B".replace(".0B", "B")
 
 def draw_fishing_ranking(user_data: List[Dict], output_path: str = "fishing_ranking.png"):
     """
@@ -81,9 +81,9 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str = "fishing_rank
     # 准备字体
     try:
         font_title = ImageFont.truetype(FONT_PATH_BOLD, 42)  # 减小字体尺寸
-        font_subtitle = ImageFont.truetype(FONT_PATH_REGULAR, 28)
+        ImageFont.truetype(FONT_PATH_REGULAR, 28)
         font_rank = ImageFont.truetype(FONT_PATH_BOLD, 32)
-        font_trophy = ImageFont.truetype(FONT_PATH_BOLD, 36)
+        ImageFont.truetype(FONT_PATH_BOLD, 36)
         font_name = ImageFont.truetype(FONT_PATH_BOLD, 22)
         font_regular = ImageFont.truetype(FONT_PATH_REGULAR, 18)
         font_small = ImageFont.truetype(FONT_PATH_REGULAR, 16)
@@ -91,9 +91,9 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str = "fishing_rank
         # 如果找不到指定字体，
         logger.warning("指定的字体文件未找到，使用默认字体。")
         font_title = ImageFont.load_default()
-        font_subtitle = ImageFont.load_default()
+        ImageFont.load_default()
         font_rank = ImageFont.load_default()
-        font_trophy = ImageFont.load_default()
+        ImageFont.load_default()
         font_name = ImageFont.load_default()
         font_regular = ImageFont.load_default()
         font_small = ImageFont.load_default()
@@ -104,7 +104,7 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str = "fishing_rank
     total_height = HEADER_HEIGHT + (USER_CARD_HEIGHT + USER_CARD_MARGIN) * len(top_users) + PADDING * 2
 
     # 创建图片和绘图对象
-    img = Image.new('RGB', (IMG_WIDTH, total_height), COLOR_BACKGROUND)
+    img = Image.new("RGB", (IMG_WIDTH, total_height), COLOR_BACKGROUND)
     draw = ImageDraw.Draw(img)
 
     # 绘制标题区域
@@ -163,11 +163,11 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str = "fishing_rank
         if idx < 3 and isinstance(trophy_symbols[0], Image.Image):
             # 使用图片奖杯
             trophy_img = trophy_symbols[idx]
-            img_y = int(rank_y - trophy_img.height/2)
+            int(rank_y - trophy_img.height/2)
             trophy_x = PADDING + 15
             trophy_y = card_y1 + (USER_CARD_HEIGHT - trophy_img.height) // 2
             # 使用paste方法放置图片
-            img.paste(trophy_img, (trophy_x, trophy_y), trophy_img if trophy_img.mode == 'RGBA' else None)
+            img.paste(trophy_img, (trophy_x, trophy_y), trophy_img if trophy_img.mode == "RGBA" else None)
         else:
             # 使用数字排名
             rank_text = f"#{idx+1}"

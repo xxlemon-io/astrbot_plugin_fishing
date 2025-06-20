@@ -1,6 +1,6 @@
 import random
 from typing import Dict, Any
-from datetime import datetime, date, timedelta, timezone
+from datetime import timedelta
 
 # 导入仓储接口和领域模型
 from ..repositories.abstract_repository import (
@@ -44,7 +44,7 @@ class UserService:
         if self.user_repo.check_exists(user_id):
             return {"success": False, "message": "用户已注册"}
 
-        initial_coins = self.config.get('user', {}).get('initial_coins', 200)
+        initial_coins = self.config.get("user", {}).get("initial_coins", 200)
         new_user = User(
             user_id=user_id,
             nickname=nickname,
@@ -91,9 +91,9 @@ class UserService:
             user.consecutive_login_days = 0 # 不是连续签到，重置
 
         # 计算签到奖励
-        signin_config = self.config.get('signin', {})
-        min_reward = signin_config.get('min_reward', 100)
-        max_reward = signin_config.get('max_reward', 300)
+        signin_config = self.config.get("signin", {})
+        min_reward = signin_config.get("min_reward", 100)
+        max_reward = signin_config.get("max_reward", 300)
         coins_reward = random.randint(min_reward, max_reward)
 
         user.coins += coins_reward
@@ -102,7 +102,7 @@ class UserService:
 
         # 检查连续签到奖励
         bonus_coins = 0
-        consecutive_bonuses = signin_config.get('consecutive_bonuses', {})
+        consecutive_bonuses = signin_config.get("consecutive_bonuses", {})
         if str(user.consecutive_login_days) in consecutive_bonuses:
             bonus_coins = consecutive_bonuses[str(user.consecutive_login_days)]
             user.coins += bonus_coins
@@ -125,14 +125,14 @@ class UserService:
 
     def apply_daily_taxes(self) -> None:
         """对所有高价值用户征收每日税收。"""
-        tax_config = self.config.get('tax', {})
+        tax_config = self.config.get("tax", {})
         if tax_config.get("is_tax", False) is False:
             return
-        threshold = tax_config.get('threshold', 1000000)
-        step_coins = tax_config.get('step_coins', 1000000)
-        step_rate = tax_config.get('step_rate', 0.01)
-        min_rate = tax_config.get('min_rate', 0.001)
-        max_rate = tax_config.get('max_rate', 0.35)
+        threshold = tax_config.get("threshold", 1000000)
+        step_coins = tax_config.get("step_coins", 1000000)
+        step_rate = tax_config.get("step_rate", 0.01)
+        min_rate = tax_config.get("min_rate", 0.001)
+        max_rate = tax_config.get("max_rate", 0.35)
 
         high_value_users = self.user_repo.get_high_value_users(threshold)
 
@@ -159,7 +159,7 @@ class UserService:
                     original_amount=original_coins,
                     balance_after=user.coins,
                     timestamp=get_now(),
-                    tax_type='每日资产税'
+                    tax_type="每日资产税"
                 )
                 self.log_repo.add_tax_record(tax_log)
 
@@ -226,7 +226,7 @@ class UserService:
             return {"success": False, "message": "用户不存在"}
 
         owned_titles = self.inventory_repo.get_user_titles(user_id)
-        if title_id not in [t for t in owned_titles]:
+        if title_id not in list(owned_titles):
             return {"success": False, "message": "你没有这个称号，无法使用"}
 
         user.current_title_id = title_id

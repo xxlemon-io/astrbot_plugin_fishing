@@ -31,7 +31,7 @@ class ShopService:
 
         shop_rods = [
             rod for rod in all_rods
-            if rod.source == 'shop' and rod.purchase_cost is not None and rod.purchase_cost > 0
+            if rod.source == "shop" and rod.purchase_cost is not None and rod.purchase_cost > 0
         ]
         shop_baits = [
             bait for bait in all_baits
@@ -69,17 +69,17 @@ class ShopService:
         item_template = None
 
         # 1. 获取物品信息并计算总价
-        if item_type == 'rod':
+        if item_type == "rod":
             if quantity > 1:
                 return {"success": False, "message": "鱼竿一次只能购买一个"}
             item_template = self.item_template_repo.get_rod_by_id(item_template_id)
-            if item_template and item_template.source == 'shop' and item_template.purchase_cost:
+            if item_template and item_template.source == "shop" and item_template.purchase_cost:
                 total_cost = item_template.purchase_cost
                 item_name = item_template.name
             else:
                 return {"success": False, "message": "此鱼竿无法购买"}
 
-        elif item_type == 'bait':
+        elif item_type == "bait":
             item_template = self.item_template_repo.get_bait_by_id(item_template_id)
             if item_template and item_template.cost:
                 total_cost = item_template.cost * quantity
@@ -98,13 +98,13 @@ class ShopService:
         user.coins -= total_cost
         self.user_repo.update(user)
 
-        if item_type == 'rod' and item_template:
+        if item_type == "rod" and item_template:
             self.inventory_repo.add_rod_instance(
                 user_id=user_id,
                 rod_id=item_template.rod_id,
                 durability=item_template.durability
             )
-        elif item_type == 'bait':
+        elif item_type == "bait":
             self.inventory_repo.update_bait_quantity(
                 user_id=user_id,
                 bait_id=item_template_id,

@@ -38,8 +38,8 @@ class MarketService:
             # 仓储层已经做好了连接查询，直接返回即可
             listings = self.market_repo.get_all_listings()
             # 按物品类型分组，便于前端展示
-            rods = [item for item in listings if item.item_type == 'rod']
-            accessories = [item for item in listings if item.item_type == 'accessory']
+            rods = [item for item in listings if item.item_type == "rod"]
+            accessories = [item for item in listings if item.item_type == "accessory"]
             return {
                 "success": True,
                 "rods": rods,
@@ -60,7 +60,7 @@ class MarketService:
             return {"success": False, "message": "用户不存在"}
 
         # 计算并检查上架税
-        tax_rate = self.config.get('market', {}).get('listing_tax_rate', 0.02) # 默认2%
+        tax_rate = self.config.get("market", {}).get("listing_tax_rate", 0.02) # 默认2%
         tax_cost = int(price * tax_rate)
         if not seller.can_afford(tax_cost):
             return {"success": False, "message": f"金币不足以支付上架手续费: {tax_cost} 金币"}
@@ -69,7 +69,7 @@ class MarketService:
         item_template_id = None
         item_name = None
         item_description = None
-        if item_type == 'rod':
+        if item_type == "rod":
             user_items = self.inventory_repo.get_user_rod_instances(user_id)
             item_to_list = next((i for i in user_items if i.rod_instance_id == item_instance_id), None)
             if not item_to_list:
@@ -80,7 +80,7 @@ class MarketService:
             rod_template = self.item_template_repo.get_rod_by_id(item_template_id)
             item_name = rod_template.name if rod_template else None
             item_description = rod_template.description if rod_template else None
-        elif item_type == 'accessory':
+        elif item_type == "accessory":
             user_items = self.inventory_repo.get_user_accessory_instances(user_id)
             item_to_list = next((i for i in user_items if i.accessory_instance_id == item_instance_id), None)
             if not item_to_list:
@@ -96,9 +96,9 @@ class MarketService:
 
         # 执行上架事务
         # 1. 从玩家背包移除物品
-        if item_type == 'rod':
+        if item_type == "rod":
             self.inventory_repo.delete_rod_instance(item_instance_id)
-        elif item_type == 'accessory':
+        elif item_type == "accessory":
             self.inventory_repo.delete_accessory_instance(item_instance_id)
 
         # 2. 扣除税费
@@ -107,7 +107,7 @@ class MarketService:
 
         # 3. 记录税收日志
         tax_log = TaxRecord(tax_id=0, user_id=user_id, tax_amount=tax_cost, tax_rate=tax_rate,
-                            original_amount=price, balance_after=seller.coins, tax_type='市场交易税',
+                            original_amount=price, balance_after=seller.coins, tax_type="市场交易税",
                             timestamp=datetime.now())
         self.log_repo.add_tax_record(tax_log)
 
@@ -161,14 +161,14 @@ class MarketService:
         self.user_repo.update(seller)
 
         # 3. 将物品发给买家
-        if listing.item_type == 'rod':
+        if listing.item_type == "rod":
             rod_template = self.item_template_repo.get_rod_by_id(listing.item_id)
             self.inventory_repo.add_rod_instance(
                 user_id=buyer_id,
                 rod_id=listing.item_id,
                 durability=rod_template.durability if rod_template else None
             )
-        elif listing.item_type == 'accessory':
+        elif listing.item_type == "accessory":
             self.inventory_repo.add_accessory_instance(
                 user_id=buyer_id,
                 accessory_id=listing.item_id

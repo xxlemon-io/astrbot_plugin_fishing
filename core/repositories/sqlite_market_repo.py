@@ -1,6 +1,6 @@
 import sqlite3
 import threading
-from typing import Optional, List, Dict, Any
+from typing import Optional, List
 from datetime import datetime
 
 # 导入抽象基类和领域模型
@@ -16,7 +16,7 @@ class SqliteMarketRepository(AbstractMarketRepository):
 
     def _get_connection(self) -> sqlite3.Connection:
         """获取一个线程安全的数据库连接。"""
-        conn = getattr(self._local, 'connection', None)
+        conn = getattr(self._local, "connection", None)
         if conn is None:
             conn = sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES)
             conn.row_factory = sqlite3.Row
