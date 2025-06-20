@@ -192,6 +192,16 @@ class FishingService:
         weight = random.randint(fish_template.min_weight, fish_template.max_weight)
         value = int(fish_template.base_value * quality_modifier)
 
+        # 计算一下是否超过用户鱼塘容量
+        user_fish_inventory = self.inventory_repo.get_fish_inventory(user.user_id)
+        if user.fish_pond_capacity == sum(item.quantity for item in user_fish_inventory):
+            # 随机删除用户的一条鱼
+            random_fish = random.choice(user_fish_inventory)
+            self.inventory_repo.update_fish_quantity(
+                user.user_id,
+                random_fish.fish_id,
+                -1
+            )
         # 5. 更新数据库
         self.inventory_repo.add_fish_to_inventory(user.user_id, fish_template.fish_id)
 
