@@ -43,7 +43,7 @@ from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_d
 @register("fish2.0",
           "tinker",
           "升级版的钓鱼插件，附带后台管理界面（个性化钓鱼游戏！）",
-          "1.3.3",
+          "1.3.4",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
 class FishingPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -197,8 +197,16 @@ class FishingPlugin(Star):
             # 如果装备了海洋之心，CD时间减半
             cooldown_seconds = self.game_config["fishing"]["cooldown_seconds"] / 2
             # logger.info(f"用户 {user_id} 装备了海洋之心，钓鱼CD时间减半。")
-        if lst_time and (get_now() - lst_time).total_seconds() < cooldown_seconds:
-            wait_time = cooldown_seconds - (get_now() - lst_time).total_seconds()
+        # 修复时区问题
+        now = get_now()
+        if lst_time and lst_time.tzinfo is None and now.tzinfo is not None:
+            # 如果 lst_time 没有时区而 now 有时区，移除 now 的时区信息
+            now = now.replace(tzinfo=None)
+        elif lst_time and lst_time.tzinfo is not None and now.tzinfo is None:
+            # 如果 lst_time 有时区而 now 没有时区，将 now 转换为有时区
+            now = now.replace(tzinfo=lst_time.tzinfo)
+        if lst_time and (now - lst_time).total_seconds() < cooldown_seconds:
+            wait_time = cooldown_seconds - (now - lst_time).total_seconds()
             yield event.plain_result(f"⏳ 您还需要等待 {int(wait_time)} 秒才能再次钓鱼。")
             return
         result = self.fishing_service.go_fish(user_id)
