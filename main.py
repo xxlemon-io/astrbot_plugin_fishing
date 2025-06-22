@@ -43,7 +43,7 @@ from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_d
 @register("fish2.0",
           "tinker",
           "升级版的钓鱼插件，附带后台管理界面（个性化钓鱼游戏！）",
-          "1.3.5",
+          "1.3.6",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
 class FishingPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -510,6 +510,17 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
+    # 批量删除用户鱼竿
+    @filter.command("出售所有鱼竿", alias={ "出售全部鱼竿" })
+    async def sell_all_rods(self, event: AstrMessageEvent):
+        """出售用户所有鱼竿"""
+        user_id = event.get_sender_id()
+        result = self.inventory_service.sell_all_rods(user_id)
+        if result:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
     @filter.command("出售饰品")
     async def sell_accessories(self, event: AstrMessageEvent):
         """出售饰品"""
@@ -528,6 +539,16 @@ class FishingPlugin(Star):
                 yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 出售饰品失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("出售所有饰品", alias={ "出售全部饰品" })
+    async def sell_all_accessories(self, event: AstrMessageEvent):
+        """出售用户所有饰品"""
+        user_id = event.get_sender_id()
+        result = self.inventory_service.sell_all_accessories(user_id)
+        if result:
+            yield event.plain_result(result["message"])
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 

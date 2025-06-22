@@ -156,6 +156,12 @@ class AbstractInventoryRepository(ABC):
     # 根据user_id 和 rod_instance_id 获取用户的鱼竿实例
     @abstractmethod
     def get_user_rod_instance_by_id(self, user_id: str, rod_instance_id: int) -> Optional[UserRodInstance]: pass
+    # 清除用户的所有鱼竿实例（未装备）
+    @abstractmethod
+    def clear_user_rod_instances(self, user_id: str) -> None: pass
+    # 清楚用户的所有饰品实例（未装备）
+    @abstractmethod
+    def clear_user_accessory_instances(self, user_id: str) -> None: pass
     # 根据 user_id 和 accessory_instance_id 获取用户的饰品实例
     @abstractmethod
     def get_user_accessory_instance_by_id(self, user_id: str, accessory_instance_id: int) -> Optional[UserAccessoryInstance]: pass

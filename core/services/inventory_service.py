@@ -222,6 +222,37 @@ class InventoryService:
 
         return {"success": True, "message": f"成功出售鱼竿【{rod_template.name}】，获得 {sell_price} 金币"}
 
+    def sell_all_rods(self, user_id: str) -> Dict[str, Any]:
+        """
+        向系统出售所有鱼竿。
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        # 获取用户的鱼竿库存
+        user_rods = self.inventory_repo.get_user_rod_instances(user_id)
+        if not user_rods:
+            return {"success": False, "message": "❌ 你没有可以卖出的鱼竿"}
+
+        total_value = 0
+        for rod_instance in user_rods:
+            if rod_instance.is_equipped:
+                continue
+            rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
+            if rod_template:
+                sell_prices = self.config.get("sell_prices", {}).get("by_rarity", {})
+                sell_price = sell_prices.get(str(rod_template.rarity), 30)
+                total_value += sell_price
+        if total_value == 0:
+            return {"success": False, "message": "❌ 没有可以卖出的鱼竿"}
+        # 清空鱼竿库存
+        self.inventory_repo.clear_user_rod_instances(user_id)
+        # 更新用户金币
+        user.coins += total_value
+        self.user_repo.update(user)
+        return {"success": True, "message": f"💰 成功卖出所有鱼竿，获得 {total_value} 金币"}
+
     def sell_accessory(self, user_id: str, accessory_instance_id: int) -> Dict[str, Any]:
         """
         向系统出售指定的饰品。
@@ -254,6 +285,40 @@ class InventoryService:
         user.coins += sell_price
         self.user_repo.update(user)
         return {"success": True, "message": f"成功出售饰品【{accessory_template.name}】，获得 {sell_price} 金币"}
+
+    def sell_all_accessories(self, user_id: str) -> Dict[str, Any]:
+        """
+        向系统出售所有饰品。
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        # 获取用户的饰品库存
+        user_accessories = self.inventory_repo.get_user_accessory_instances(user_id)
+        if not user_accessories:
+            return {"success": False, "message": "❌ 你没有可以卖出的饰品"}
+
+        total_value = 0
+        for accessory_instance in user_accessories:
+            if accessory_instance.is_equipped:
+                continue
+            accessory_template = self.item_template_repo.get_accessory_by_id(accessory_instance.accessory_id)
+            if accessory_template:
+                sell_prices = self.config.get("sell_prices", {}).get("by_rarity", {})
+                sell_price = sell_prices.get(str(accessory_template.rarity), 30)
+                total_value += sell_price
+
+        if total_value == 0:
+            return {"success": False, "message": "❌ 没有可以卖出的饰品"}
+
+        # 清空饰品库存
+        self.inventory_repo.clear_user_accessory_instances(user_id)
+        # 更新用户金币
+        user.coins += total_value
+        self.user_repo.update(user)
+
+        return {"success": True, "message": f"💰 成功卖出所有饰品，获得 {total_value} 金币"}
 
     def equip_item(self, user_id: str, instance_id: int, item_type: str) -> Dict[str, Any]:
         """

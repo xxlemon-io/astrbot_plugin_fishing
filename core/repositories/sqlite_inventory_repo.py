@@ -152,6 +152,27 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             """, (user_id, rod_instance_id))
             row = cursor.fetchone()
             return self._row_to_rod_instance(row) if row else None
+
+    def clear_user_rod_instances(self, user_id: str) -> None:
+        """清空用户的所有未装备的钓竿实例"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                DELETE FROM user_rods
+                WHERE user_id = ? AND is_equipped = 0
+            """, (user_id,))
+            conn.commit()
+
+    def clear_user_accessory_instances(self, user_id: str) -> None:
+        """清空用户的所有未装备的配件实例"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                DELETE FROM user_accessories
+                WHERE user_id = ? AND is_equipped = 0
+            """, (user_id,))
+            conn.commit()
+
     def get_user_accessory_instance_by_id(self, user_id: str, accessory_instance_id: int) -> Optional[UserAccessoryInstance]:
         """根据用户ID和配件实例ID获取特定的配件实例"""
         with self._get_connection() as conn:
