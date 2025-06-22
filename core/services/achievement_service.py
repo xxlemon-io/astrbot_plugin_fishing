@@ -142,7 +142,6 @@ class AchievementService:
             # 如果成就已完成，则跳过
             if user_progress.get(ach.id, {}).get("completed_at"):
                 continue
-
             # 调用每个成就自己的检查方法
             if ach.check(user_context):
                 # 如果成就完成，发放奖励并更新进度
@@ -155,6 +154,7 @@ class AchievementService:
         获取用户的成就列表和进度。
         """
         user = self.user_repo.get_by_id(user_id)
+        user_context = self._build_user_context(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
 
@@ -170,7 +170,8 @@ class AchievementService:
                 "name": ach.name,
                 "description": ach.description,
                 "reward": ach.reward,
-                "progress": progress.get("progress", 0),
+                "progress": ach.get_progress(user_context),
+                "target": ach.target_value,
                 "completed_at": progress.get("completed_at")
             })
 

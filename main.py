@@ -43,7 +43,7 @@ from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_d
 @register("fish2.0",
           "tinker",
           "升级版的钓鱼插件，附带后台管理界面（个性化钓鱼游戏！）",
-          "1.3.7",
+          "1.3.8",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
 class FishingPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -965,7 +965,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("查看称号")
+    @filter.command("查看称号", alias={"称号"})
     async def view_titles(self, event: AstrMessageEvent):
         """查看用户称号"""
         user_id = event.get_sender_id()

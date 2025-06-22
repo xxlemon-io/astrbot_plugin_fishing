@@ -20,6 +20,7 @@ class FirstFishCaught(BaseAchievement):
     id = 1
     name = "新手钓手"
     description = "第一次钓鱼"
+    target_value = 1
     reward = ("coins", 50, 1) # 奖励50个金币
 
     def get_progress(self, context: UserContext) -> int:
@@ -34,6 +35,7 @@ class TenThousandFishCaught(BaseAchievement):
     id = 4
     name = "钓鱼大师"
     description = "累计钓上10000条鱼"
+    target_value = 10000
     reward = ("coins", 10000, 1) # 奖励10000金币
 
     def get_progress(self, context: UserContext) -> int:
