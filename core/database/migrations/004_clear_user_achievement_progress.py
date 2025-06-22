@@ -2,7 +2,7 @@ from astrbot.api import logger
 
 import sqlite3
 
-def upgrade(db: sqlite3.Connection):
+def up(db: sqlite3.Connection):
     """
     升级数据库: 清除所有用户的成就进度。
     这是一个破坏性操作，会删除 `user_achievement_progress` 表中的所有行。
