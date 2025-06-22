@@ -1,10 +1,9 @@
 from .base import BaseAchievement, UserContext
-
 class UniqueFishSpecies10(BaseAchievement):
     id = 5
     name = "图鉴收集者I"
     description = "收集10种不同的鱼"
-    reward = ("bait", 3, 5) # 奖励5个万能饵
+    reward = ("bait", 3, 5)
 
     def get_progress(self, context: UserContext) -> int:
         """返回用户收集到的不同鱼种数量作为当前进度。"""
@@ -12,6 +11,32 @@ class UniqueFishSpecies10(BaseAchievement):
 
     def check(self, context: UserContext) -> bool:
         return context.unique_fish_count >= 10
+
+class UniqueFishSpecies25(BaseAchievement):
+    id = 6
+    name = "图鉴收集者II"
+    description = "收集25种不同的鱼"
+    reward = ("title", 10, 1)
+
+    def get_progress(self, context: UserContext) -> int:
+        """返回用户收集到的不同鱼种数量作为当前进度。"""
+        return context.unique_fish_count
+
+    def check(self, context: UserContext) -> bool:
+        return context.unique_fish_count >= 25
+
+class UniqueFishSpecies50(BaseAchievement):
+    id = 7
+    name = "图鉴收集者III"
+    description = "收集50种不同的鱼"
+    reward = ("title", 11, 1)
+
+    def get_progress(self, context: UserContext) -> int:
+        """返回用户收集到的不同鱼种数量作为当前进度。"""
+        return context.unique_fish_count
+
+    def check(self, context: UserContext) -> bool:
+        return context.unique_fish_count >= 50
 
 class GarbageCollector50(BaseAchievement):
     id = 29

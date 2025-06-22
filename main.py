@@ -979,7 +979,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("查看成就")
+    @filter.command("查看成就", alias={ "成就" })
     async def view_achievements(self, event: AstrMessageEvent):
         """查看用户成就"""
         user_id = event.get_sender_id()
@@ -990,7 +990,7 @@ class FishingPlugin(Star):
                 message += f"- {achievement['name']} (ID: {achievement['id']})\n"
                 message += f"  描述: {achievement['description']}\n"
                 if achievement.get("completed_at"):
-                    message += f"  完成时间: {achievement['completed_at'].strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    message += f"  完成时间: {safe_datetime_handler(achievement['completed_at'])}\n"
                 else:
                     message += "  进度: {}/{}\n".format(achievement["progress"], achievement["target"])
             message += "请继续努力完成更多成就！"
