@@ -115,6 +115,7 @@ class FishingService:
             random_bait_id = self.inventory_repo.get_random_bait(user.user_id)
             if random_bait_id:
                 bait_template = self.item_template_repo.get_bait_by_id(random_bait_id)
+                user.current_bait_id = random_bait_id
                 if bait_template:
                     quantity_modifier *= bait_template.quantity_modifier
                     rare_chance += bait_template.rare_chance_modifier
@@ -123,7 +124,7 @@ class FishingService:
                     coins_chance += bait_template.value_modifier
 
         # 判断鱼饵是否过期
-        if cur_bait_id is not None:
+        if user.current_bait_id is not None:
             bait_template = self.item_template_repo.get_bait_by_id(cur_bait_id)
             if bait_template and bait_template.duration_minutes > 0:
                 # 检查鱼饵是否过期
@@ -137,6 +138,9 @@ class FishingService:
                         user.bait_start_time = None
                         self.user_repo.update(user)
                         return {"success": False, "message": "❌ 鱼饵已过期，请重新使用鱼饵。"}
+            else:
+                # 如果鱼饵没有设置持续时间, 是一次性鱼饵，消耗一个鱼饵
+                self.inventory_repo.update_bait_quantity(user_id, user.current_bait_id, -1)
 
 
         # 3. 判断是否成功钓到
@@ -221,7 +225,8 @@ class FishingService:
             value=value,
             timestamp=user.last_fishing_time,
             rod_instance_id=user.equipped_rod_instance_id,
-            accessory_instance_id=user.equipped_accessory_instance_id
+            accessory_instance_id=user.equipped_accessory_instance_id,
+            bait_id=user.current_bait_id
         )
         self.log_repo.add_fishing_record(record)
 
