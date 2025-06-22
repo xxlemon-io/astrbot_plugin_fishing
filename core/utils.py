@@ -13,8 +13,9 @@ def get_fish_template(new_fish_list, coins_chance):
     random_index = random.randint(0, len(sorted_fish_list) - 1)
     if coins_chance > 0:
         max_move = random_index
-        move_steps = int(max_move * min(coins_chance, 1.0))
-        final_index = max(0, random_index - move_steps)
-        return sorted_fish_list[final_index]
+        move_rate = random.random() <= coins_chance
+        if move_rate:
+            return sorted_fish_list[min(max_move + 1, len(sorted_fish_list) - 1)]
+        return sorted_fish_list[max_move]
     else:
         return sorted_fish_list[random_index]

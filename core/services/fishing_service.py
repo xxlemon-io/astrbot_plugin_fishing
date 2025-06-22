@@ -148,7 +148,7 @@ class FishingService:
 
         # 4. 成功，生成渔获
         # 设置稀有度分布
-        rarity_distribution = [0.5, 0.3, 0.15, 0.04, 0.01] # 各稀有度的概率分布
+        rarity_distribution = [0.5, 0.3, 0.15, 0.045, 0.005] # 各稀有度的概率分布
         # 应用稀有度加成
         if rare_chance > 0.0:
             # 增加稀有鱼出现的几率
