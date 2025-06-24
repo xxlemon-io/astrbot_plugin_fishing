@@ -6,7 +6,7 @@
 
 ## 💡Future 
 
-如果你有什么想法，欢迎到[#4](https://github.com/tinkerbellqwq/astrbot_plugin_fishing/issues/4) 提交！期待您天马行空的想法
+如果你有什么想法，欢迎提交issue！期待您天马行空的想法
 
 ## 🤝TODO
 - [x] 重构所有代码，现有代码过于臃肿
