@@ -51,6 +51,8 @@ def format_accessory_or_rod(accessory_or_rod: dict) -> str:
         message += f"   - 📊鱼类数量加成: {to_percentage(accessory_or_rod['bonus_fish_quantity_modifier'])}\n"
     if accessory_or_rod.get("bonus_rare_fish_chance", 1.0) != 1.0 and accessory_or_rod.get("bonus_rare_fish_chance", 1) != 1 and accessory_or_rod.get("bonus_rare_fish_chance", 1) > 0:
         message += f"   - 🎣钓鱼几率加成: {to_percentage(accessory_or_rod['bonus_rare_fish_chance'])}\n"
+    if accessory_or_rod.get("description"):
+        message += f"   - 📋描述: {accessory_or_rod['description']}\n"
     message += "\n"
     return message
 
