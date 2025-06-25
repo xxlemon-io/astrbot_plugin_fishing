@@ -1,8 +1,8 @@
+import requests
 import random
-import threading
 from typing import Dict, Any
 from concurrent.futures import ThreadPoolExecutor
-
+from astrbot.api import logger
 
 # 导入仓储接口和领域模型
 from ..repositories.abstract_repository import (
@@ -97,12 +97,11 @@ class GameMechanicsService:
             }
             api_url = "http://veyu.me/api/record"
             try:
-                import requests
                 response = requests.post(api_url, json=upload_data)
                 if response.status_code != 200:
-                    print(f"上传数据失败: {response.text}")
+                    logger.info(f"上传数据失败: {response.text}")
             except Exception as e:
-                print(f"上传数据时发生错误: {e}")
+                logger.error(f"上传数据时发生错误: {e}")
 
         # 启动异步线程进行数据上传，不阻塞主流程
         self.thread_pool.submit(upload_data_async)
