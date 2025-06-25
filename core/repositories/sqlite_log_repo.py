@@ -2,7 +2,6 @@ import sqlite3
 import threading
 from typing import Optional, List, Dict
 from datetime import date, datetime, timedelta, timezone
-
 # 导入抽象基类和领域模型
 from .abstract_repository import AbstractLogRepository
 from ..domain.models import FishingRecord, GachaRecord, WipeBombLog, TaxRecord
@@ -122,27 +121,40 @@ class SqliteLogRepository(AbstractLogRepository):
             return [self._row_to_gacha_record(row) for row in cursor.fetchall()]
 
     # --- Wipe Bomb Log Methods ---
+    # 存储时转为 UTC
     def add_wipe_bomb_log(self, log: WipeBombLog) -> None:
+        timestamp = log.timestamp or datetime.now(self.UTC8)
+        # 如果 timestamp 是 naive datetime，附加 UTC+8 时区
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=self.UTC8)
+        # 确保存储为 UTC 时间字符串
+        utc_timestamp = timestamp.astimezone(timezone.utc).replace(tzinfo=None)
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO wipe_bomb_log
-                    (user_id, contribution_amount, reward_multiplier, reward_amount, timestamp)
+            cursor.execute("""INSERT INTO wipe_bomb_log
+                (user_id, contribution_amount, reward_multiplier, reward_amount, timestamp)
                 VALUES (?, ?, ?, ?, ?)
-            """, (
-                log.user_id, log.contribution_amount, log.reward_multiplier,
-                log.reward_amount, log.timestamp or datetime.now(self.UTC8)
-            ))
+            """, (log.user_id, log.contribution_amount, log.reward_multiplier,
+                  log.reward_amount, utc_timestamp))
             conn.commit()
 
+    # 查询时考虑时区
     def get_wipe_bomb_log_count_today(self, user_id: str) -> int:
-        today_str = datetime.now(self.UTC8).date().isoformat()
+        # 获取 UTC+8 的今天的开始和结束时间点（转为 UTC）
+        today_start = datetime.now(self.UTC8).replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today_start + timedelta(days=1)
+
+        # 转为 UTC 时间，移除时区信息
+        utc_start = today_start.astimezone(timezone.utc).replace(tzinfo=None)
+        utc_end = today_end.astimezone(timezone.utc).replace(tzinfo=None)
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT COUNT(*) FROM wipe_bomb_log
-                WHERE user_id = ? AND DATE(timestamp) = ?
-            """, (user_id, today_str))
+                WHERE user_id = ? AND timestamp >= ? AND timestamp < ?
+            """, (user_id, utc_start, utc_end))
             result = cursor.fetchone()
             return result[0] if result else 0
 
