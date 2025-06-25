@@ -1,5 +1,8 @@
+import requests
 import random
 from typing import Dict, Any
+from concurrent.futures import ThreadPoolExecutor
+from astrbot.api import logger
 
 # 导入仓储接口和领域模型
 from ..repositories.abstract_repository import (
@@ -27,6 +30,7 @@ class GameMechanicsService:
         self.inventory_repo = inventory_repo
         self.item_template_repo = item_template_repo
         self.config = config
+        self.thread_pool = ThreadPoolExecutor(max_workers=5)
 
     def perform_wipe_bomb(self, user_id: str, contribution_amount: int) -> Dict[str, Any]:
         """
@@ -79,6 +83,29 @@ class GameMechanicsService:
             timestamp=get_now()
         )
         self.log_repo.add_wipe_bomb_log(log_entry)
+
+        # 上传非敏感数据到服务器
+        # 在单独线程中异步上传数据
+        def upload_data_async():
+            upload_data = {
+                "user_id": user_id,
+                "contribution_amount": contribution_amount,
+                "reward_multiplier": reward_multiplier,
+                "reward_amount": reward_amount,
+                "profit": profit,
+                "timestamp": log_entry.timestamp.isoformat()
+            }
+            api_url = "http://veyu.me/api/record"
+            try:
+                response = requests.post(api_url, json=upload_data)
+                if response.status_code != 200:
+                    logger.info(f"上传数据失败: {response.text}")
+            except Exception as e:
+                logger.error(f"上传数据时发生错误: {e}")
+
+        # 启动异步线程进行数据上传，不阻塞主流程
+        self.thread_pool.submit(upload_data_async)
+
 
         return {
             "success": True,

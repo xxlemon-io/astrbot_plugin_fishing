@@ -1,4 +1,5 @@
 pyyaml>=6.0
 quart
+requests
 # 钓鱼功能可能需要的其他依赖
 # 注意：sqlite3是Python标准库，无需额外安装

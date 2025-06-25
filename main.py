@@ -43,7 +43,7 @@ from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_d
 @register("fish2.0",
           "tinker",
           "升级版的钓鱼插件，附带后台管理界面（个性化钓鱼游戏！）",
-          "1.3.10",
+          "1.3.11",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
 class FishingPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -1114,6 +1114,29 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
     # ===========管理后台==========
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("修改金币")
+    async def modify_coins(self, event: AstrMessageEvent):
+        """修改用户金币"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(" ")
+        if len(args) < 3:
+            yield event.plain_result("❌ 请指定要修改的用户 ID 和金币数量，例如：/修改金币 123456789 1000")
+            return
+        target_user_id = args[1]
+        if not target_user_id.isdigit():
+            yield event.plain_result("❌ 用户 ID 必须是数字，请检查后重试。")
+            return
+        coins = args[2]
+        if not coins.isdigit():
+            yield event.plain_result("❌ 金币数量必须是数字，请检查后重试。")
+            return
+        result = self.user_service.modify_user_coins(target_user_id, int(coins))
+        if result:
+            yield event.plain_result(f"✅ 成功修改用户 {target_user_id} 的金币数量为 {coins} 金币")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("开启钓鱼后台管理")
