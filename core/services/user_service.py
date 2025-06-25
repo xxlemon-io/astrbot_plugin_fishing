@@ -249,3 +249,26 @@ class UserService:
             "coins": user.coins,
             "premium_currency": user.premium_currency
         }
+
+    def modify_user_coins(self, user_id: str, amount: int) -> Dict[str, Any]:
+        """
+        修改用户的金币数量。
+
+        Args:
+            user_id: 用户ID
+            amount: 修改的金币数量
+
+        Returns:
+            包含成功状态和消息的字典。
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        user.coins = amount
+        self.user_repo.update(user)
+
+        return {
+            "success": True,
+            "message": f"金币数量已更新，当前金币：{user.coins}"
+        }
