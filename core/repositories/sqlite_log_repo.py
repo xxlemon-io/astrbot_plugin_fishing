@@ -126,6 +126,9 @@ class SqliteLogRepository(AbstractLogRepository):
     # 存储时转为 UTC
     def add_wipe_bomb_log(self, log: WipeBombLog) -> None:
         timestamp = log.timestamp or datetime.now(self.UTC8)
+        # 如果 timestamp 是 naive datetime，附加 UTC+8 时区
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=self.UTC8)
         # 确保存储为 UTC 时间字符串
         utc_timestamp = timestamp.astimezone(timezone.utc).replace(tzinfo=None)
 
