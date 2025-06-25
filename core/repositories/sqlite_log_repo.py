@@ -2,8 +2,6 @@ import sqlite3
 import threading
 from typing import Optional, List, Dict
 from datetime import date, datetime, timedelta, timezone
-from astrbot.api import logger
-
 # 导入抽象基类和领域模型
 from .abstract_repository import AbstractLogRepository
 from ..domain.models import FishingRecord, GachaRecord, WipeBombLog, TaxRecord
