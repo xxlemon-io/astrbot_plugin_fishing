@@ -123,46 +123,6 @@ class UserService:
             "consecutive_days": user.consecutive_login_days
         }
 
-    def apply_daily_taxes(self) -> None:
-        """对所有高价值用户征收每日税收。"""
-        tax_config = self.config.get("tax", {})
-        if tax_config.get("is_tax", False) is False:
-            return
-        threshold = tax_config.get("threshold", 1000000)
-        step_coins = tax_config.get("step_coins", 1000000)
-        step_rate = tax_config.get("step_rate", 0.01)
-        min_rate = tax_config.get("min_rate", 0.001)
-        max_rate = tax_config.get("max_rate", 0.35)
-
-        high_value_users = self.user_repo.get_high_value_users(threshold)
-
-        for user in high_value_users:
-            tax_rate = 0.0
-            # 根据资产确定税率
-            if user.coins >= threshold:
-                steps = (user.coins - threshold) // step_coins
-                tax_rate = min_rate + steps * step_rate
-                if tax_rate > max_rate:
-                    tax_rate = max_rate
-            if tax_rate > 0:
-                tax_amount = int(user.coins * tax_rate)
-                original_coins = user.coins
-                user.coins -= tax_amount
-
-                self.user_repo.update(user)
-
-                tax_log = TaxRecord(
-                    tax_id=0, # DB会自增
-                    user_id=user.user_id,
-                    tax_amount=tax_amount,
-                    tax_rate=tax_rate,
-                    original_amount=original_coins,
-                    balance_after=user.coins,
-                    timestamp=get_now(),
-                    tax_type="每日资产税"
-                )
-                self.log_repo.add_tax_record(tax_log)
-
     def get_user_current_accessory(self, user_id: str) -> Dict[str, Any]:
         """
         获取用户当前装备的配件信息。
@@ -271,4 +231,25 @@ class UserService:
         return {
             "success": True,
             "message": f"金币数量已更新，当前金币：{user.coins}"
+        }
+
+    def get_tax_record(self, user_id: str) -> Dict[str, Any]:
+        """获取用户的税务记录。"""
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        tax_records = self.log_repo.get_tax_records(user_id)
+        if not tax_records:
+            return {"success": True, "records": []}
+        records_data = []
+        for record in tax_records:
+            records_data.append({
+                "amount": record.tax_amount,
+                "timestamp": record.timestamp,
+                "tax_type": record.tax_type,
+            })
+        return {
+            "success": True,
+            "records": records_data
         }

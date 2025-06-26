@@ -12,8 +12,8 @@ from ..repositories.abstract_repository import (
     AbstractItemTemplateRepository,
     AbstractLogRepository
 )
-from ..domain.models import FishingRecord
-from ..utils import get_now, get_fish_template
+from ..domain.models import FishingRecord, TaxRecord
+from ..utils import get_now, get_fish_template, get_today
 
 
 class FishingService:
@@ -33,6 +33,7 @@ class FishingService:
         self.log_repo = log_repo
         self.config = config
 
+        self.today = get_today()
         # 自动钓鱼线程相关属性
         self.auto_fishing_thread: Optional[threading.Thread] = None
         self.auto_fishing_running = False
@@ -74,7 +75,7 @@ class FishingService:
             return {"success": False, "message": "用户不存在，无法钓鱼。"}
 
         # 1. 检查成本
-        fishing_cost = self.config.get("fishing", {}).get("cost", 10)
+        fishing_cost = self.config.get("fishing", {}).get("cost", 10) + (user.fishing_zone_id - 1) * 50
         if not user.can_afford(fishing_cost):
             return {"success": False, "message": f"金币不足，需要 {fishing_cost} 金币。"}
 
@@ -152,7 +153,14 @@ class FishingService:
 
         # 4. 成功，生成渔获
         # 设置稀有度分布
-        rarity_distribution = [0.5, 0.3, 0.15, 0.045, 0.005] # 各稀有度的概率分布
+        rarity_weights = {
+            1: [0.5, 0.25, 0.10, 0.01, 0],  # 区域一：4星概率极低，5星为0
+            2: [0.5, 0.3, 0.16, 0.039, 0.001],  # 区域二：提升4星，引入极低概率5星
+            3: [0.5, 0.3, 0.15, 0.045, 0.005]  # 区域三：大幅提升4星和5星
+        }
+        current_weights = rarity_weights.get(user.fishing_zone_id, rarity_weights[1])
+        # 根据权重生成稀有度
+        rarity_distribution = current_weights.copy()
         # 应用稀有度加成
         if rare_chance > 0.0:
             # 增加稀有鱼出现的几率
@@ -160,6 +168,11 @@ class FishingService:
             # 归一化概率分布
             total = sum(rarity_distribution)
             rarity_distribution = [x / total for x in rarity_distribution]
+        zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+        is_rare_fish_available = zone.rare_fish_caught_today < zone.daily_rare_fish_quota
+        if not is_rare_fish_available:
+            # 如果稀有鱼已达上限，则将5星鱼的权重设为0
+            rarity_distribution[4] = 0.0
         rarity = random.choices(
             [1, 2, 3, 4, 5],
             weights=rarity_distribution,
@@ -206,6 +219,13 @@ class FishingService:
                 random_fish.fish_id,
                 -1
             )
+
+        if fish_template.rarity >= 5:
+            # 如果是5星鱼，增加用户的稀有鱼捕获计数
+            zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+            if zone:
+                zone.rare_fish_caught_today += 1
+                self.inventory_repo.update_fishing_zone(zone)
         # 5. 更新数据库
         self.inventory_repo.add_fish_to_inventory(user.user_id, fish_template.fish_id)
 
@@ -313,6 +333,110 @@ class FishingService:
             "records": fish_details
         }
 
+    def get_user_fishing_zones(self, user_id: str) -> Dict[str, Any]:
+        """
+        获取用户的钓鱼区域信息。
+
+        Args:
+            user_id: 用户ID。
+
+        Returns:
+            包含钓鱼区域信息的字典。
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        fishing_zones = self.inventory_repo.get_all_fishing_zones()
+        zones_info = []
+        for zone in fishing_zones:
+            zones_info.append({
+                "zone_id": zone.id,
+                "name": zone.name,
+                "description": zone.description,
+                "daily_rare_fish_quota": zone.daily_rare_fish_quota,
+                "rare_fish_caught_today": zone.rare_fish_caught_today,
+                "whether_in_use": zone.id == user.fishing_zone_id,
+            })
+
+        return {
+            "success": True,
+            "zones": zones_info
+        }
+
+    def set_user_fishing_zone(self, user_id: str, zone_id: int) -> Dict[str, Any]:
+        """
+        设置用户的钓鱼区域。
+
+        Args:
+            user_id: 用户ID。
+            zone_id: 要设置的钓鱼区域ID。
+
+        Returns:
+            包含操作结果的字典。
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        zone = self.inventory_repo.get_zone_by_id(zone_id)
+        if not zone:
+            return {"success": False, "message": "钓鱼区域不存在"}
+
+        user.fishing_zone_id = zone.id
+        self.user_repo.update(user)
+
+        return {"success": True, "message": f"✅已将钓鱼区域设置为 {zone.name}"}
+
+    def on_load(self, area2num: int, area3num: int):
+        zone2 = self.inventory_repo.get_zone_by_id(2)
+        zone3 = self.inventory_repo.get_zone_by_id(3)
+        zone2.rare_fish_caught_today = area2num
+        zone3.rare_fish_caught_today = area3num
+        self.inventory_repo.update_fishing_zone(zone2)
+        self.inventory_repo.update_fishing_zone(zone3)
+        logger.info(f"钓鱼区域2和3的今日稀有鱼捕获数量已加载: {area2num}, {area3num}")
+
+    def apply_daily_taxes(self) -> None:
+        """对所有高价值用户征收每日税收。"""
+        tax_config = self.config.get("tax", {})
+        if tax_config.get("is_tax", False) is False:
+            return
+        threshold = tax_config.get("threshold", 1000000)
+        step_coins = tax_config.get("step_coins", 1000000)
+        step_rate = tax_config.get("step_rate", 0.01)
+        min_rate = tax_config.get("min_rate", 0.001)
+        max_rate = tax_config.get("max_rate", 0.35)
+
+        high_value_users = self.user_repo.get_high_value_users(threshold)
+
+        for user in high_value_users:
+            tax_rate = 0.0
+            # 根据资产确定税率
+            if user.coins >= threshold:
+                steps = (user.coins - threshold) // step_coins
+                tax_rate = min_rate + steps * step_rate
+                if tax_rate > max_rate:
+                    tax_rate = max_rate
+            if tax_rate > 0:
+                tax_amount = int(user.coins * tax_rate)
+                original_coins = user.coins
+                user.coins -= tax_amount
+
+                self.user_repo.update(user)
+
+                tax_log = TaxRecord(
+                    tax_id=0, # DB会自增
+                    user_id=user.user_id,
+                    tax_amount=tax_amount,
+                    tax_rate=tax_rate,
+                    original_amount=original_coins,
+                    balance_after=user.coins,
+                    timestamp=get_now(),
+                    tax_type="每日资产税"
+                )
+                self.log_repo.add_tax_record(tax_log)
+
     def start_auto_fishing_task(self):
         """启动自动钓鱼的后台线程。"""
         if self.auto_fishing_thread and self.auto_fishing_thread.is_alive():
@@ -339,6 +463,18 @@ class FishingService:
 
         while self.auto_fishing_running:
             try:
+                today = get_today()
+                if today != self.today:
+                    # 如果今天日期变了，重置今日稀有鱼捕获数量
+                    self.today = today
+                    zone2 = self.inventory_repo.get_zone_by_id(2)
+                    zone3 = self.inventory_repo.get_zone_by_id(3)
+                    zone2.rare_fish_caught_today = 0
+                    zone3.rare_fish_caught_today = 0
+                    self.inventory_repo.update_fishing_zone(zone2)
+                    self.inventory_repo.update_fishing_zone(zone3)
+                    # 每次循环开始时检查是否需要应用每日税收
+                    self.apply_daily_taxes()
                 # 获取所有开启自动钓鱼的用户
                 auto_users_ids = self.user_repo.get_all_user_ids(auto_fishing_only=True)
 
