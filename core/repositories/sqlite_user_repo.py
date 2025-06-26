@@ -67,6 +67,7 @@ class SqliteUserRepository(AbstractUserRepository):
             last_wipe_bomb_time=parse_datetime(row["last_wipe_bomb_time"]),
             last_steal_time=parse_datetime(row["last_steal_time"]),
             last_login_time=parse_datetime(row["last_login_time"]),
+            fishing_zone_id=row["fishing_zone_id"],
         )
 
     def get_by_id(self, user_id: str) -> Optional[User]:
