@@ -5,7 +5,8 @@ from datetime import datetime
 
 # 导入抽象基类和领域模型
 from .abstract_repository import AbstractInventoryRepository
-from ..domain.models import UserFishInventoryItem, UserRodInstance, UserAccessoryInstance
+from ..domain.models import UserFishInventoryItem, UserRodInstance, UserAccessoryInstance, FishingZone
+
 
 class SqliteInventoryRepository(AbstractInventoryRepository):
     """用户库存仓储的SQLite实现"""
@@ -352,3 +353,30 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             # 删除数量为0的行，保持数据整洁
             cursor.execute("DELETE FROM user_fish_inventory WHERE user_id = ? AND quantity <= 0", (user_id,))
             conn.commit()
+    def get_zone_by_id(self, zone_id: int) -> FishingZone:
+        """根据ID获取钓鱼区域信息"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM fishing_zones WHERE id = ?", (zone_id,))
+            row = cursor.fetchone()
+            if row:
+                return FishingZone(**row)
+            else:
+                raise ValueError(f"钓鱼区域ID {zone_id} 不存在。")
+    def update_fishing_zone(self, zone: FishingZone) -> None:
+        """更新钓鱼区域信息"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE fishing_zones
+                SET name = ?, description = ?, daily_rare_fish_quota = ?, rare_fish_caught_today = ?
+                WHERE id = ?
+            """, (zone.name, zone.description, zone.daily_rare_fish_quota, zone.rare_fish_caught_today, zone.id))
+            conn.commit()
+
+    def get_all_fishing_zones(self) -> List[FishingZone]:
+        """获取所有钓鱼区域信息"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM fishing_zones")
+            return [FishingZone(**row) for row in cursor.fetchall()]

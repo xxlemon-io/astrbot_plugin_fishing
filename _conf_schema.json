@@ -46,5 +46,17 @@
     "type": "float",
     "hint": "税收的最大税率，超过此值不再增加",
     "default": 0.2
+  },
+  "area2num": {
+    "description": "钓鱼区域2中稀有鱼的数量",
+    "type": "int",
+    "hint": "钓鱼区域2中稀有鱼的数量，影响稀有鱼的掉落概率",
+    "default": 2000
+  },
+  "area3num": {
+    "description": "钓鱼区域3中稀有鱼的数量",
+    "type": "int",
+    "hint": "钓鱼区域3中稀有鱼的数量，影响稀有鱼的掉落概率",
+    "default": 500
   }
 }

@@ -43,7 +43,7 @@ from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_d
 @register("fish2.0",
           "tinker",
           "升级版的钓鱼插件，附带后台管理界面（个性化钓鱼游戏！）",
-          "1.3.11",
+          "1.3.12",
           "https://github.com/tinkerbellqwq/astrbot_plugin_fishing")
 class FishingPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
@@ -56,6 +56,8 @@ class FishingPlugin(Star):
         self.step_rate = config.get("step_rate", 0.01)
         self.max_rate = config.get("max_rate", 0.2)  # 最大税率
         self.min_rate = config.get("min_rate", 0.05)  # 最小税率
+        self.area2num = config.get("area2num", 2000)
+        self.area3num = config.get("area3num", 500)
         self.game_config = {
             "fishing": {"cost": 10, "cooldown_seconds": 180},
             "user": {"initial_coins": 200},
@@ -146,6 +148,7 @@ class FishingPlugin(Star):
         # --- 5. 初始化核心游戏数据 ---
         data_setup_service = DataSetupService(self.item_template_repo, self.gacha_repo)
         data_setup_service.setup_initial_data()
+        self.fishing_service.on_load(area2num=self.area2num, area3num=self.area3num)
 
         # --- Web后台配置 ---
         self.web_admin_task = None
@@ -1019,6 +1022,62 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 您还没有任何成就，快去完成任务或参与活动获取吧！")
 
+    @filter.command("税收记录")
+    async def tax_record(self, event: AstrMessageEvent):
+        """查看税收记录"""
+        user_id = event.get_sender_id()
+        result = self.user_service.get_tax_record(user_id)
+        if result:
+            if result["success"]:
+                records = result.get("records", [])
+                if not records:
+                    yield event.plain_result("📜 您还没有税收记录。")
+                    return
+                message = "【📜 税收记录】\n\n"
+                for record in records:
+                    message += f"⏱️ 时间: {safe_datetime_handler(record['timestamp'])}\n"
+                    message += f"💰 金额: {record['amount']} 金币\n"
+                    message += f"📊 描述: {record['tax_type']}\n\n"
+                yield event.plain_result(message)
+            else:
+                yield event.plain_result(f"❌ 查看税收记录失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("钓鱼区域", alias={"区域"})
+    async def fishing_area(self, event: AstrMessageEvent):
+        """查看当前钓鱼区域"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            result = self.fishing_service.get_user_fishing_zones(user_id)
+            if result:
+                if result["success"]:
+                    zones = result.get("zones", [])
+                    message = f"【🌊 钓鱼区域】\n"
+                    for zone in zones:
+                        message += f"区域名称: {zone['name']} (ID: {zone['zone_id']}) {'✅' if zone['whether_in_use'] else ''}\n"
+                        message += f"描述: {zone['description']}\n"
+                        if zone['zone_id'] >= 2:
+                            message += f"稀有鱼类数量: {zone['daily_rare_fish_quota']}（{zone['rare_fish_caught_today']}）\n"
+                    message += "使用「/钓鱼区域 ID」命令切换钓鱼区域。\n"
+                    yield event.plain_result(message)
+                else:
+                    yield event.plain_result(f"❌ 查看钓鱼区域失败：{result['message']}")
+            else:
+                yield event.plain_result("❌ 出错啦！请稍后再试。")
+            return
+        zone_id = args[1]
+        if not zone_id.isdigit():
+            yield event.plain_result("❌ 钓鱼区域 ID 必须是数字，请检查后重试。")
+            return
+        zone_id = int(zone_id)
+        if zone_id not in [1, 2, 3]:
+            yield event.plain_result("❌ 钓鱼区域 ID 必须是 1、2 或 3，请检查后重试。")
+            return
+        # 切换用户的钓鱼区域
+        result = self.fishing_service.set_user_fishing_zone(user_id, zone_id)
+        yield event.plain_result(result["message"] if result else "❌ 出错啦！请稍后再试。")
 
     @filter.command("钓鱼帮助")
     async def fishing_help(self, event: AstrMessageEvent):

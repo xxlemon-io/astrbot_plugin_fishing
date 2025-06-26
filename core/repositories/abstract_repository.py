@@ -7,7 +7,7 @@ from ..domain.models import (
     User, Fish, Rod, Bait, Accessory, Title, Achievement,
     UserRodInstance, UserAccessoryInstance, UserFishInventoryItem,
     FishingRecord, GachaRecord, WipeBombLog, MarketListing, TaxRecord,
-    GachaPool, GachaPoolItem
+    GachaPool, GachaPoolItem, FishingZone
 )
 
 # 定义用户成就进度的数据结构
@@ -189,6 +189,15 @@ class AbstractInventoryRepository(ABC):
     # 更新用户鱼类数量(增减)
     @abstractmethod
     def update_fish_quantity(self, user_id: str, fish_id: int, delta: int) -> None: pass
+    # 获取钓鱼区域信息
+    @abstractmethod
+    def get_zone_by_id(self, zone_id: int) -> FishingZone: pass
+    # 更新钓鱼区域信息
+    @abstractmethod
+    def update_fishing_zone(self, zone: FishingZone) -> None: pass
+    # 获取所有钓鱼区域
+    @abstractmethod
+    def get_all_fishing_zones(self) -> List[FishingZone]: pass
 
 class AbstractGachaRepository(ABC):
     """抽卡仓储接口"""
