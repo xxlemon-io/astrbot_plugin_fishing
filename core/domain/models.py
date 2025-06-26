@@ -156,6 +156,7 @@ class User:
     total_coins_earned: int = 0
     consecutive_login_days: int = 0
     fish_pond_capacity: int = 480
+    fishing_zone_id: int = 1  # 默认钓鱼区域ID
 
     # 装备信息
     equipped_rod_instance_id: Optional[int] = None
@@ -259,3 +260,17 @@ class TaxRecord:
     balance_after: int
     timestamp: datetime
     tax_type: str = "daily"
+
+@dataclass
+class FishingZone:
+    id: int
+    name: str
+    description: str
+    # 当天稀有鱼（4星和5星）的配额
+    daily_rare_fish_quota: int
+    # 今天已被钓走的稀有鱼数量
+    rare_fish_caught_today: int = 0
+
+    def __getitem__(self, item):
+        """允许通过属性名访问字段"""
+        return getattr(self, item)
