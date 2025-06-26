@@ -422,8 +422,9 @@ class FishingService:
                 tax_rate = min_rate + steps * step_rate
                 if tax_rate > max_rate:
                     tax_rate = max_rate
+            min_tax_amount = 1
             if tax_rate > 0:
-                tax_amount = int(user.coins * tax_rate)
+                tax_amount = max(int(user.coins * tax_rate), min_tax_amount)
                 original_coins = user.coins
                 user.coins -= tax_amount
 
