@@ -173,6 +173,10 @@ class FishingService:
         if not is_rare_fish_available:
             # 如果稀有鱼已达上限，则将5星鱼的权重设为0
             rarity_distribution[4] = 0.0
+            # 重新归一化概率分布
+            total = sum(rarity_distribution)
+            if total > 0:
+                rarity_distribution = [x / total for x in rarity_distribution]
         rarity = random.choices(
             [1, 2, 3, 4, 5],
             weights=rarity_distribution,
