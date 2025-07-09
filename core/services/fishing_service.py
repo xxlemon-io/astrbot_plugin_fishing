@@ -133,6 +133,11 @@ class FishingService:
                 if bait_expiry_time:
                     now = get_now()
                     expiry_time = bait_expiry_time + timedelta(minutes=bait_template.duration_minutes)
+                    # 移除两个时间的时区信息
+                    if now.tzinfo is not None:
+                        now = now.replace(tzinfo=None)
+                    if expiry_time.tzinfo is not None:
+                        expiry_time = expiry_time.replace(tzinfo=None)
                     if now > expiry_time:
                         # 鱼饵已过期，清除当前鱼饵
                         user.current_bait_id = None
