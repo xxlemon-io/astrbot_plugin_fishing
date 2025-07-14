@@ -145,8 +145,15 @@ class FishingService:
                         self.user_repo.update(user)
                         return {"success": False, "message": "❌ 鱼饵已过期，请重新使用鱼饵。"}
             else:
-                # 如果鱼饵没有设置持续时间, 是一次性鱼饵，消耗一个鱼饵
-                self.inventory_repo.update_bait_quantity(user_id, user.current_bait_id, -1)
+                if bait_template:
+                    # 如果鱼饵没有设置持续时间, 是一次性鱼饵，消耗一个鱼饵
+                    self.inventory_repo.update_bait_quantity(user_id, user.current_bait_id, -1)
+                else:
+                    # 如果鱼饵模板不存在，清除当前鱼饵
+                    user.current_bait_id = None
+                    user.bait_start_time = None
+                    self.user_repo.update(user)
+                    logger.warning(f"用户 {user_id} 的当前鱼饵已被清除，因为鱼饵模板不存在。")
 
 
         # 3. 判断是否成功钓到
@@ -243,6 +250,19 @@ class FishingService:
         user.total_weight_caught += weight
         user.total_coins_earned += value
         user.last_fishing_time = get_now()
+        self.user_repo.update(user)
+
+        # 判断用户的鱼竿和饰品是否真实存在
+        if user.equipped_rod_instance_id:
+            rod_instance = self.inventory_repo.get_user_rod_instance_by_id(user.user_id, user.equipped_rod_instance_id)
+            if not rod_instance:
+                user.equipped_rod_instance_id = None
+        if user.equipped_accessory_instance_id:
+            accessory_instance = self.inventory_repo.get_user_accessory_instance_by_id(user.user_id, user.equipped_accessory_instance_id)
+            if not accessory_instance:
+                user.equipped_accessory_instance_id = None
+
+        # 更新用户信息
         self.user_repo.update(user)
 
         # 记录日志
@@ -528,4 +548,7 @@ class FishingService:
 
             except Exception as e:
                 logger.error(f"自动钓鱼任务出错: {e}")
+                # 打印堆栈信息
+                import traceback
+                logger.error(traceback.format_exc())
                 time.sleep(60)
