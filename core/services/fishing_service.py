@@ -226,7 +226,7 @@ class FishingService:
 
         # 计算最终属性
         weight = random.randint(fish_template.min_weight, fish_template.max_weight)
-        value = int(fish_template.base_value * quality_modifier)
+        value = int(fish_template.base_value * coins_chance)
 
         # 计算一下是否超过用户鱼塘容量
         user_fish_inventory = self.inventory_repo.get_fish_inventory(user.user_id)
@@ -245,11 +245,20 @@ class FishingService:
             if zone:
                 zone.rare_fish_caught_today += 1
                 self.inventory_repo.update_fishing_zone(zone)
+
+        # 4.2
+        extra = random.random() <= (quality_modifier - 1)
+        if extra:
+            extra_weight = random.randint(fish_template.min_weight, fish_template.max_weight)
+            extra_value = fish_template.base_value
+            weight += extra_weight
+            value += extra_value
+
         # 5. 更新数据库
-        self.inventory_repo.add_fish_to_inventory(user.user_id, fish_template.fish_id)
+        self.inventory_repo.add_fish_to_inventory(user.user_id, fish_template.fish_id, quantity= 1 + extra)
 
         # 更新用户统计数据
-        user.total_fishing_count += 1
+        user.total_fishing_count += 1 + extra
         user.total_weight_caught += weight
         user.total_coins_earned += value
         user.last_fishing_time = get_now()
