@@ -169,7 +169,7 @@ class FishingService:
         # 4. 成功，生成渔获
         # 设置稀有度分布
         rarity_weights = {
-            1: [0.5, 0.25, 0.10, 0.01, 0],  # 区域一：4星概率极低，5星为0
+            1: [0.65, 0.25, 0.09, 0.01, 0],  # 区域一：4星概率极低，5星为0
             2: [0.5, 0.3, 0.16, 0.039, 0.001],  # 区域二：提升4星，引入极低概率5星
             3: [0.5, 0.3, 0.15, 0.045, 0.005]  # 区域三：大幅提升4星和5星
         }
@@ -185,8 +185,8 @@ class FishingService:
             rarity_distribution = [x / total for x in rarity_distribution]
         zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
         is_rare_fish_available = zone.rare_fish_caught_today < zone.daily_rare_fish_quota
-        if not is_rare_fish_available:
-            # 如果稀有鱼已达上限，则将5星鱼的权重设为0
+        if not is_rare_fish_available or user.fishing_zone_id == 1:
+            # 如果稀有鱼已达上限或者是区域一，则将5星鱼的权重设为0
             rarity_distribution[4] = 0.0
             # 重新归一化概率分布
             total = sum(rarity_distribution)
@@ -432,8 +432,8 @@ class FishingService:
     def on_load(self, area2num: int, area3num: int):
         zone2 = self.inventory_repo.get_zone_by_id(2)
         zone3 = self.inventory_repo.get_zone_by_id(3)
-        zone2.rare_fish_caught_today = area2num
-        zone3.rare_fish_caught_today = area3num
+        zone2.daily_rare_fish_quota = area2num
+        zone3.daily_rare_fish_quota = area3num
         self.inventory_repo.update_fishing_zone(zone2)
         self.inventory_repo.update_fishing_zone(zone3)
         logger.info(f"钓鱼区域2和3的今日稀有鱼捕获数量已加载: {area2num}, {area3num}")

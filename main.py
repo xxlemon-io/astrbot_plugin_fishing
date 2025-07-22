@@ -1054,7 +1054,7 @@ class FishingPlugin(Star):
                         message += f"区域名称: {zone['name']} (ID: {zone['zone_id']}) {'✅' if zone['whether_in_use'] else ''}\n"
                         message += f"描述: {zone['description']}\n"
                         if zone['zone_id'] >= 2:
-                            message += f"稀有鱼类数量: {zone['daily_rare_fish_quota']}（{zone['rare_fish_caught_today']}）\n"
+                            message += f"剩余稀有鱼类数量: {zone['daily_rare_fish_quota'] - zone['rare_fish_caught_today']}）\n"
                     message += "使用「/钓鱼区域 ID」命令切换钓鱼区域。\n"
                     yield event.plain_result(message)
                 else:
