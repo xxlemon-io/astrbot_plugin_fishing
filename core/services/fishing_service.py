@@ -88,7 +88,7 @@ class FishingService:
         quantity_modifier = 1.0 # 数量加成
         rare_chance = 0.0 # 稀有鱼出现几率
         coins_chance = 0.0 # 增加同稀有度高金币出现几率
-
+        logger.debug(f"当前钓鱼概率： base_success_rate={base_success_rate}, quality_modifier={quality_modifier}, quantity_modifier={quantity_modifier}, rare_chance={rare_chance}, coins_chance={coins_chance}")
         # 获取装备鱼竿并应用加成
         equipped_rod_instance = self.inventory_repo.get_user_equipped_rod(user.user_id)
         if equipped_rod_instance:
@@ -97,7 +97,7 @@ class FishingService:
                 quality_modifier *= rod_template.bonus_fish_quality_modifier
                 quantity_modifier *= rod_template.bonus_fish_quantity_modifier
                 rare_chance += rod_template.bonus_rare_fish_chance
-
+        logger.debug(f"装备鱼竿加成后： quality_modifier={quality_modifier}, quantity_modifier={quantity_modifier}, rare_chance={rare_chance}")
         # 获取装备饰品并应用加成
         equipped_accessory_instance = self.inventory_repo.get_user_equipped_accessory(user.user_id)
         if equipped_accessory_instance:
@@ -107,22 +107,10 @@ class FishingService:
                 quantity_modifier *= acc_template.bonus_fish_quantity_modifier
                 rare_chance += acc_template.bonus_rare_fish_chance
                 coins_chance += acc_template.bonus_coin_modifier
-
+        logger.debug(f"装备饰品加成后： quality_modifier={quality_modifier}, quantity_modifier={quantity_modifier}, rare_chance={rare_chance}, coins_chance={coins_chance}")
         # 获取鱼饵并应用加成
         cur_bait_id = user.current_bait_id
         garbage_reduction_modifier = None
-        if cur_bait_id is None:
-            # 随机获取一个库存鱼饵
-            random_bait_id = self.inventory_repo.get_random_bait(user.user_id)
-            if random_bait_id:
-                bait_template = self.item_template_repo.get_bait_by_id(random_bait_id)
-                user.current_bait_id = random_bait_id
-                if bait_template:
-                    quantity_modifier *= bait_template.quantity_modifier
-                    rare_chance += bait_template.rare_chance_modifier
-                    base_success_rate += bait_template.success_rate_modifier
-                    garbage_reduction_modifier = bait_template.garbage_reduction_modifier
-                    coins_chance += bait_template.value_modifier
 
         # 判断鱼饵是否过期
         if user.current_bait_id is not None:
@@ -155,7 +143,22 @@ class FishingService:
                     self.user_repo.update(user)
                     logger.warning(f"用户 {user_id} 的当前鱼饵已被清除，因为鱼饵模板不存在。")
 
+        if user.current_bait_id is None:
+            # 随机获取一个库存鱼饵
+            random_bait_id = self.inventory_repo.get_random_bait(user.user_id)
+            if random_bait_id:
+                user.current_bait_id = random_bait_id
 
+        if user.current_bait_id is not None:
+            bait_template = self.item_template_repo.get_bait_by_id(user.current_bait_id)
+            logger.info(f"鱼饵信息: {bait_template}")
+            if bait_template:
+                quantity_modifier *= bait_template.quantity_modifier
+                rare_chance += bait_template.rare_chance_modifier
+                base_success_rate += bait_template.success_rate_modifier
+                garbage_reduction_modifier = bait_template.garbage_reduction_modifier
+                coins_chance += bait_template.value_modifier
+        logger.debug(f"使用鱼饵加成后： base_success_rate={base_success_rate}, quality_modifier={quality_modifier}, quantity_modifier={quantity_modifier}, rare_chance={rare_chance}, coins_chance={coins_chance}")
         # 3. 判断是否成功钓到
         if random.random() >= base_success_rate:
             # 失败逻辑
