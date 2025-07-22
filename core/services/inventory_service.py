@@ -138,16 +138,15 @@ class InventoryService:
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
-
+        # 获取用户的鱼库存
+        fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
+        if not fish_inventory:
+            return {"success": False, "message": "❌ 你没有可以卖出的鱼"}
         if keep_one:
             # 调用仓储方法执行“保留一条”的数据库操作
             sold_value = self.inventory_repo.sell_fish_keep_one(user_id)
-            if sold_value == 0:
-                return {"success": False, "message": "❌ 没有可卖出的鱼（每种至少保留一条）"}
         else:
             sold_value = self.inventory_repo.get_fish_inventory_value(user_id)
-            if sold_value == 0:
-                return {"success": False, "message": "❌ 你没有可以卖出的鱼"}
             self.inventory_repo.clear_fish_inventory(user_id)
 
         # 更新用户金币
