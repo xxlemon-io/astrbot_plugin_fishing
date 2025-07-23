@@ -58,5 +58,66 @@
     "type": "int",
     "hint": "钓鱼区域3中稀有鱼的数量，影响稀有鱼的掉落概率",
     "default": 500
+  },
+  "fish_cost": {
+    "description": "钓鱼消耗的金币",
+    "type": "int",
+    "hint": "每次钓鱼消耗的金币",
+    "default": 10
+  },
+  "fish_cooldown_seconds": {
+    "description": "钓鱼的冷却时间",
+    "type": "int",
+    "hint": "每次钓鱼后的冷却时间，单位为秒",
+    "default": 180
+  },
+  "steal_cooldown_seconds": {
+    "description": "偷鱼的冷却时间",
+    "type": "int",
+    "hint": "每次偷鱼后的冷却时间，单位为秒",
+    "default": 14400
+  },
+  "user_initial_coins": {
+    "description": "用户初始金币",
+    "type": "int",
+    "hint": "新用户注册时的初始金币数量",
+    "default": 200
+  },
+  "market_listing_tax_rate": {
+    "description": "市场上架税率",
+    "type": "float",
+    "hint": "在市场上架物品时收取的税率",
+    "default": 0.05
+  },
+  "sell_prices": {
+    "description": "物品(鱼竿和饰品)的出售价格",
+    "type": "object",
+    "items": {
+      "by_rarity_1": {
+        "type": "int",
+        "default": 100,
+        "description": "稀有度1的出售价格"
+      },
+      "by_rarity_2": {
+        "type": "int",
+        "default": 500,
+        "description": "稀有度2的出售价格"
+      },
+      "by_rarity_3": {
+        "type": "int",
+        "default": 2000,
+        "description": "稀有度3的出售价格"
+      },
+      "by_rarity_4": {
+        "type": "int",
+        "default": 5000,
+        "description": "稀有度4的出售价格"
+      },
+      "by_rarity_5": {
+        "type": "int",
+        "default": 10000,
+        "description": "稀有度5的出售价格"
+      }
+    }
   }
 }

@@ -129,6 +129,7 @@ class UserRodInstance:
     rod_id: int
     is_equipped: bool
     obtained_at: datetime
+    refine_level: int = 1  # 精炼等级，默认为1
     current_durability: Optional[int] = None
 
 @dataclass
@@ -139,6 +140,7 @@ class UserAccessoryInstance:
     accessory_id: int
     is_equipped: bool
     obtained_at: datetime
+    refine_level: int = 1
 
 @dataclass
 class User:

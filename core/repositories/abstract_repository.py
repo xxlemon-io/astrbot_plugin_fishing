@@ -156,10 +156,10 @@ class AbstractInventoryRepository(ABC):
     # 根据user_id 和 rod_instance_id 获取用户的鱼竿实例
     @abstractmethod
     def get_user_rod_instance_by_id(self, user_id: str, rod_instance_id: int) -> Optional[UserRodInstance]: pass
-    # 清除用户的所有鱼竿实例（未装备）
+    # 清除用户的所有鱼竿实例（未装备和五星）
     @abstractmethod
     def clear_user_rod_instances(self, user_id: str) -> None: pass
-    # 清楚用户的所有饰品实例（未装备）
+    # 清除用户的所有饰品实例（未装备和五星）
     @abstractmethod
     def clear_user_accessory_instances(self, user_id: str) -> None: pass
     # 根据 user_id 和 accessory_instance_id 获取用户的饰品实例
@@ -198,6 +198,19 @@ class AbstractInventoryRepository(ABC):
     # 获取所有钓鱼区域
     @abstractmethod
     def get_all_fishing_zones(self) -> List[FishingZone]: pass
+    # 获取用户的鱼竿实例
+    @abstractmethod
+    def update_rod_instance(self, instance): pass
+    # 获取用户的饰品实例
+    @abstractmethod
+    def update_accessory_instance(self, instance): pass
+    # 获取用户的同一鱼竿实例
+    @abstractmethod
+    def get_same_rod_instances(self, user_id, rod_id) -> List[UserRodInstance]: pass
+    # 获取用户的同一饰品实例
+    @abstractmethod
+    def get_same_accessory_instances(self, user_id, accessory_id) -> List[UserAccessoryInstance]: pass
+
 
 class AbstractGachaRepository(ABC):
     """抽卡仓储接口"""
