@@ -13,7 +13,7 @@ from ..repositories.abstract_repository import (
     AbstractLogRepository
 )
 from ..domain.models import FishingRecord, TaxRecord
-from ..utils import get_now, get_fish_template, get_today
+from ..utils import get_now, get_fish_template, get_today, calculate_after_refine
 
 
 class FishingService:
@@ -94,19 +94,19 @@ class FishingService:
         if equipped_rod_instance:
             rod_template = self.item_template_repo.get_rod_by_id(equipped_rod_instance.rod_id)
             if rod_template:
-                quality_modifier *= rod_template.bonus_fish_quality_modifier
-                quantity_modifier *= rod_template.bonus_fish_quantity_modifier
-                rare_chance += rod_template.bonus_rare_fish_chance
+                quality_modifier *= calculate_after_refine(rod_template.bonus_fish_quality_modifier, refine_level= equipped_rod_instance.refine_level)
+                quantity_modifier *= calculate_after_refine(rod_template.bonus_fish_quantity_modifier, refine_level= equipped_rod_instance.refine_level)
+                rare_chance += calculate_after_refine(rod_template.bonus_rare_fish_chance, refine_level= equipped_rod_instance.refine_level)
         logger.debug(f"装备鱼竿加成后： quality_modifier={quality_modifier}, quantity_modifier={quantity_modifier}, rare_chance={rare_chance}")
         # 获取装备饰品并应用加成
         equipped_accessory_instance = self.inventory_repo.get_user_equipped_accessory(user.user_id)
         if equipped_accessory_instance:
             acc_template = self.item_template_repo.get_accessory_by_id(equipped_accessory_instance.accessory_id)
             if acc_template:
-                quality_modifier *= acc_template.bonus_fish_quality_modifier
-                quantity_modifier *= acc_template.bonus_fish_quantity_modifier
-                rare_chance += acc_template.bonus_rare_fish_chance
-                coins_chance += acc_template.bonus_coin_modifier
+                quality_modifier *= calculate_after_refine(acc_template.bonus_fish_quality_modifier, refine_level= equipped_accessory_instance.refine_level)
+                quantity_modifier *= calculate_after_refine(acc_template.bonus_fish_quantity_modifier, refine_level= equipped_accessory_instance.refine_level)
+                rare_chance += calculate_after_refine(acc_template.bonus_rare_fish_chance, refine_level= equipped_accessory_instance.refine_level)
+                coins_chance += calculate_after_refine(acc_template.bonus_coin_modifier, refine_level= equipped_accessory_instance.refine_level)
         logger.debug(f"装备饰品加成后： quality_modifier={quality_modifier}, quantity_modifier={quantity_modifier}, rare_chance={rare_chance}, coins_chance={coins_chance}")
         # 获取鱼饵并应用加成
         cur_bait_id = user.current_bait_id
@@ -151,7 +151,7 @@ class FishingService:
 
         if user.current_bait_id is not None:
             bait_template = self.item_template_repo.get_bait_by_id(user.current_bait_id)
-            logger.info(f"鱼饵信息: {bait_template}")
+            # logger.info(f"鱼饵信息: {bait_template}")
             if bait_template:
                 quantity_modifier *= bait_template.quantity_modifier
                 rare_chance += bait_template.rare_chance_modifier

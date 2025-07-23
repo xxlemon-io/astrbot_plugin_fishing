@@ -384,3 +384,45 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM fishing_zones")
             return [FishingZone(**row) for row in cursor.fetchall()]
+
+    def update_rod_instance(self, rod_instance: UserRodInstance):
+        """更新钓竿实例信息"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE user_rods
+                SET rod_id = ?, is_equipped = ?, current_durability = ?, refine_level = ?
+                WHERE rod_instance_id = ? AND user_id = ?
+            """, (rod_instance.rod_id, rod_instance.is_equipped, rod_instance.current_durability, rod_instance.refine_level, rod_instance.rod_instance_id, rod_instance.user_id))
+            conn.commit()
+
+    def update_accessory_instance(self, accessory_instance: UserAccessoryInstance):
+        """更新配件实例信息"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE user_accessories
+                SET accessory_id = ?, is_equipped = ?, refine_level = ?
+                WHERE accessory_instance_id = ? AND user_id = ?
+            """, (accessory_instance.accessory_id, accessory_instance.is_equipped, accessory_instance.refine_level, accessory_instance.accessory_instance_id, accessory_instance.user_id))
+            conn.commit()
+
+    def get_same_rod_instances(self, user_id: int, rod_id: str) -> List[UserRodInstance]:
+        """获取用户所有相同类型的钓竿实例"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM user_rods
+                WHERE user_id = ? AND rod_id = ?
+            """, (user_id, rod_id))
+            return [self._row_to_rod_instance(row) for row in cursor.fetchall()]
+
+    def get_same_accessory_instances(self, user_id: int, accessory_id: str) -> List[UserAccessoryInstance]:
+        """获取用户所有相同类型的配件实例"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM user_accessories
+                WHERE user_id = ? AND accessory_id = ?
+            """, (user_id, accessory_id))
+            return [self._row_to_accessory_instance(row) for row in cursor.fetchall()]

@@ -7,6 +7,7 @@ from ..repositories.abstract_repository import (
     AbstractUserRepository,
     AbstractItemTemplateRepository
 )
+from ..utils import calculate_after_refine
 
 class InventoryService:
     """封装与用户库存相关的业务逻辑"""
@@ -67,9 +68,10 @@ class InventoryService:
                     "instance_id": rod_instance.rod_instance_id,
                     "description": rod_template.description,
                     "is_equipped": rod_instance.is_equipped,
-                    "bonus_fish_quality_modifier": rod_template.bonus_fish_quality_modifier,
-                    "bonus_fish_quantity_modifier": rod_template.bonus_fish_quantity_modifier,
-                    "bonus_rare_fish_chance": rod_template.bonus_rare_fish_chance,
+                    "bonus_fish_quality_modifier": calculate_after_refine(rod_template.bonus_fish_quality_modifier, refine_level= rod_instance.refine_level),
+                    "bonus_fish_quantity_modifier": calculate_after_refine(rod_template.bonus_fish_quantity_modifier, refine_level= rod_instance.refine_level),
+                    "bonus_rare_fish_chance": calculate_after_refine(rod_template.bonus_rare_fish_chance, refine_level= rod_instance.refine_level),
+                    "refine_level": rod_instance.refine_level,
                 })
         return {
             "success": True,
@@ -116,10 +118,11 @@ class InventoryService:
                     "instance_id": accessory_instance.accessory_instance_id,
                     "description": accessory_template.description,
                     "is_equipped": accessory_instance.is_equipped,
-                    "bonus_fish_quality_modifier": accessory_template.bonus_fish_quality_modifier,
-                    "bonus_fish_quantity_modifier": accessory_template.bonus_fish_quantity_modifier,
-                    "bonus_rare_fish_chance": accessory_template.bonus_rare_fish_chance,
-                    "bonus_coin_modifier": accessory_template.bonus_coin_modifier
+                    "bonus_fish_quality_modifier": calculate_after_refine(accessory_template.bonus_fish_quality_modifier, refine_level=accessory_instance.refine_level),
+                    "bonus_fish_quantity_modifier": calculate_after_refine(accessory_template.bonus_fish_quantity_modifier, refine_level=accessory_instance.refine_level),
+                    "bonus_rare_fish_chance": calculate_after_refine(accessory_template.bonus_rare_fish_chance, refine_level=accessory_instance.refine_level),
+                    "bonus_coin_modifier": calculate_after_refine(accessory_template.bonus_coin_modifier, refine_level=accessory_instance.refine_level),
+                    "refine_level": accessory_instance.refine_level,
                 })
 
         return {
@@ -439,4 +442,97 @@ class InventoryService:
             "message": f"鱼塘升级成功！新容量为 {user.fish_pond_capacity}。",
             "new_capacity": user.fish_pond_capacity,
             "cost": cost
+        }
+
+    def refine(self, user_id, instance_id: int, rod_or_accessory: str):
+        """
+        精炼鱼竿或饰品，提升其属性。
+
+        Args:
+            user_id: 用户ID
+            instance_id: 鱼竿或饰品实例ID
+            rod_or_accessory: "rod" 或 "accessory"
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        refine_level_from = 1  # 默认精炼等级从1开始
+        refine_level_to = 5  # 精炼等级最高到5
+
+        if rod_or_accessory == "rod":
+            instances = self.inventory_repo.get_user_rod_instances(user_id)
+            instance = next((i for i in instances if i.rod_instance_id == instance_id), None)
+            if not instance:
+                return {"success": False, "message": "鱼竿不存在或不属于你"}
+            template = self.item_template_repo.get_rod_by_id(instance.rod_id)
+            # 消耗同一类型的鱼竿实例进行精炼
+            if instance.refine_level > 4:
+                return {"success": False, "message": "已达到最高精炼等级"}
+            same_instance_template_list = self.inventory_repo.get_same_rod_instances(user_id, instance.rod_id)
+            if len(same_instance_template_list) < 2:
+                return {"success": False, "message": "需要至少两条同类型鱼竿进行精炼"}
+            # 从 same_instance_template_list 中选出精炼的和被精炼消耗的两股实例
+            refine_level_from = instance.refine_level
+            for i in same_instance_template_list:
+                if i.rod_instance_id == instance_id:
+                    continue
+                # 找到一条可以消耗的鱼竿实例
+                instance_to_consume = i
+                refine_level_to = instance_to_consume.refine_level + instance.refine_level
+                self.inventory_repo.delete_rod_instance(instance_to_consume.rod_instance_id)
+        elif rod_or_accessory == "accessory":
+            instances = self.inventory_repo.get_user_accessory_instances(user_id)
+            instance = next((i for i in instances if i.accessory_instance_id == instance_id), None)
+            if not instance:
+                return {"success": False, "message": "饰品不存在或不属于你"}
+            template = self.item_template_repo.get_accessory_by_id(instance.accessory_id)
+            # 消耗同一类型的饰品实例进行精炼
+            if instance.refine_level > 4:
+                return {"success": False, "message": "已达到最高精炼等级"}
+            same_instance_template_list = self.inventory_repo.get_same_accessory_instances(user_id, instance.accessory_id)
+            if len(same_instance_template_list) < 2:
+                return {"success": False, "message": "需要至少两条同类型饰品进行精炼"}
+            refine_level_from = instance.refine_level
+            for i in same_instance_template_list:
+                if i.accessory_instance_id == instance_id:
+                    continue
+                # 找到一条可以消耗的饰品实例
+                instance_to_consume = i
+                refine_level_to = instance_to_consume.refine_level + instance.refine_level
+                self.inventory_repo.delete_accessory_instance(instance_to_consume.accessory_instance_id)
+        else:
+            return {"success": False, "message": "❌ 不支持的精炼类型"}
+
+        # 检查是否有足够的金币
+        refine_cost = {
+            1: 10000,
+            2: 30000,
+            3: 50000,
+            4: 100000
+        }
+        refine_cost_all = 0
+        for level in range(refine_level_from, min(refine_level_to, 5)):
+            refine_cost_all += refine_cost.get(level, 0)
+
+        if not user.can_afford(refine_cost_all):
+            return {"success": False, "message": f"需要 {refine_cost_all} 金币才能精炼到 {refine_level_to} 级，当前金币 {user.coins}"}
+
+        # 扣除金币
+        user.coins -= refine_cost_all
+
+        # 提升精炼等级
+        instance.refine_level = refine_level_to
+
+        # 更新实例
+        if rod_or_accessory == "rod":
+            self.inventory_repo.update_rod_instance(instance)
+        else:
+            self.inventory_repo.update_accessory_instance(instance)
+        # 更新用户信息
+        self.user_repo.update(user)
+        return {
+            "success": True,
+            "message": f"成功精炼{'鱼竿' if rod_or_accessory == 'rod' else '饰品'}，新精炼等级为 {instance.refine_level}。",
+            "new_refine_level": instance.refine_level
         }

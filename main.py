@@ -318,23 +318,49 @@ class FishingPlugin(Star):
         """查看用户鱼竿信息"""
         user_id = event.get_sender_id()
         rod_info = self.inventory_service.get_user_rod_inventory(user_id)
-        if rod_info:
+        if rod_info and rod_info["rods"]:
             # 构造输出信息,附带emoji
             message = "【🎣 鱼竿】：\n"
             for rod in rod_info["rods"]:
                 message += format_accessory_or_rod(rod)
                 if rod.get("bonus_rare_fish_chance", 1) != 1 and rod.get("bonus_fish_weight", 1.0) != 1.0:
                     message += f"   - 钓上鱼鱼类几率加成: {to_percentage(rod['bonus_rare_fish_chance'])}\n"
+                message += f"   -精炼等级: {rod.get('refine_level', 1)}\n"
             yield event.plain_result(message)
         else:
             yield event.plain_result("🎣 您还没有鱼竿，快去商店购买或抽奖获得吧！")
+
+    @filter.command("精炼鱼竿", alias={"鱼竿精炼"})
+    async def refine_rod(self, event: AstrMessageEvent):
+        """精炼鱼竿"""
+        user_id = event.get_sender_id()
+        rod_info = self.inventory_service.get_user_rod_inventory(user_id)
+        if not rod_info or not rod_info["rods"]:
+            yield event.plain_result("❌ 您还没有鱼竿，请先购买或抽奖获得。")
+            return
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要精炼的鱼竿 ID，例如：/精炼鱼竿 12")
+            return
+        rod_instance_id = args[1]
+        if not rod_instance_id.isdigit():
+            yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
+            return
+        result = self.inventory_service.refine(user_id, int(rod_instance_id), "rod")
+        if result:
+            if result["success"]:
+                yield event.plain_result(result["message"])
+            else:
+                yield event.plain_result(f"❌ 精炼鱼竿失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     @filter.command("鱼饵")
     async def bait(self, event: AstrMessageEvent):
         """查看用户鱼饵信息"""
         user_id = event.get_sender_id()
         bait_info = self.inventory_service.get_user_bait_inventory(user_id)
-        if bait_info:
+        if bait_info and bait_info["baits"]:
             # 构造输出信息,附带emoji
             message = "【🐟 鱼饵】：\n"
             for bait in bait_info["baits"]:
@@ -354,14 +380,40 @@ class FishingPlugin(Star):
         """查看用户饰品信息"""
         user_id = event.get_sender_id()
         accessories_info = self.inventory_service.get_user_accessory_inventory(user_id)
-        if accessories_info:
+        if accessories_info and accessories_info["accessories"]:
             # 构造输出信息,附带emoji
             message = "【💍 饰品】：\n"
             for accessory in accessories_info["accessories"]:
                 message += format_accessory_or_rod(accessory)
+                message += f"   -精炼等级: {accessory.get('refine_level', 1)}\n"
             yield event.plain_result(message)
         else:
             yield event.plain_result("💍 您还没有饰品，快去商店购买或抽奖获得吧！")
+
+    @filter.command("精炼饰品", alias={"饰品精炼"})
+    async def refine_accessory(self, event: AstrMessageEvent):
+        """精炼饰品"""
+        user_id = event.get_sender_id()
+        accessories_info = self.inventory_service.get_user_accessory_inventory(user_id)
+        if not accessories_info or not accessories_info["accessories"]:
+            yield event.plain_result("❌ 您还没有饰品，请先购买或抽奖获得。")
+            return
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要精炼的饰品 ID，例如：/精炼饰品 15")
+            return
+        accessory_instance_id = args[1]
+        if not accessory_instance_id.isdigit():
+            yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
+            return
+        result = self.inventory_service.refine(user_id, int(accessory_instance_id), "accessory")
+        if result:
+            if result["success"]:
+                yield event.plain_result(result["message"])
+            else:
+                yield event.plain_result(f"❌ 精炼饰品失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     @filter.command("使用鱼竿")
     async def use_rod(self, event: AstrMessageEvent):

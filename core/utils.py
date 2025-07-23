@@ -19,3 +19,12 @@ def get_fish_template(new_fish_list, coins_chance):
         return sorted_fish_list[max_move]
     else:
         return sorted_fish_list[random_index]
+
+def calculate_after_refine(before_value: float, refine_level: int) -> float:
+    """
+    计算经过精炼后的值
+    精炼公式：value * (1 + 0.1 * refine_level)
+    """
+    if before_value < 1:
+        return before_value * (1 + 0.1 * (refine_level - 1 if refine_level < 5 else 5))
+    return (before_value - 1) * (1 + 0.1 * (refine_level - 1 if refine_level < 5 else 5)) + 1
