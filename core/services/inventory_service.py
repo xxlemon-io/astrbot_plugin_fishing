@@ -443,119 +443,146 @@ class InventoryService:
             "new_capacity": user.fish_pond_capacity,
             "cost": cost
         }
-
-    def refine(self, user_id, instance_id: int, rod_or_accessory: str):
+    def refine(self, user_id, instance_id: int, item_type: str):
         """
         精炼鱼竿或饰品，提升其属性。
 
         Args:
             user_id: 用户ID
-            instance_id: 鱼竿或饰品实例ID
-            rod_or_accessory: "rod" 或 "accessory"
+            instance_id: 物品实例ID
+            item_type: 物品类型，"rod"或"accessory"
         """
+        # 检查用户是否存在
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
 
-        refine_level_from = 1  # 默认精炼等级从1开始
-        refine_level_to = 5  # 精炼等级最高到5
-        refine_cost = {
-            1: 10000,
-            2: 30000,
-            3: 50000,
-            4: 100000
+        # 精炼费用表
+        refine_costs = {1: 10000, 2: 30000, 3: 50000, 4: 100000}
+
+        # 根据物品类型设置相关配置
+        if item_type not in ["rod", "accessory"]:
+            return {"success": False, "message": "❌ 不支持的精炼类型"}
+
+        config = self._get_item_config(item_type, instance_id, user_id)
+        if not config["success"]:
+            return config
+
+        # 解包配置
+        instance = config["instance"]
+        item_name = config["item_name"]
+        id_field = config["id_field"]
+
+        # 检查精炼等级
+        if instance.refine_level > 4:
+            return {"success": False, "message": "已达到最高精炼等级"}
+
+        # 获取同类型物品列表
+        same_items = config["same_items"]
+        if len(same_items) < 2:
+            return {"success": False, "message": f"需要至少两个同类型{item_name}进行精炼"}
+
+        # 查找合适的消耗品进行精炼
+        refine_result = self._find_refinement_candidate(
+            user, instance, same_items, refine_costs, id_field, item_type
+        )
+
+        if not refine_result["success"]:
+            return refine_result
+
+        return {
+            "success": True,
+            "message": f"成功精炼{item_name}，新精炼等级为 {instance.refine_level}。",
+            "new_refine_level": instance.refine_level
         }
 
-        if rod_or_accessory == "rod":
+    def _get_item_config(self, item_type, instance_id, user_id) -> Dict[str, Any]:
+        """获取物品配置信息"""
+        if item_type == "rod":
             instances = self.inventory_repo.get_user_rod_instances(user_id)
             instance = next((i for i in instances if i.rod_instance_id == instance_id), None)
             if not instance:
                 return {"success": False, "message": "鱼竿不存在或不属于你"}
+
             template = self.item_template_repo.get_rod_by_id(instance.rod_id)
-            # 消耗同一类型的鱼竿实例进行精炼
-            if instance.refine_level > 4:
-                return {"success": False, "message": "已达到最高精炼等级"}
-            same_instance_template_list = self.inventory_repo.get_same_rod_instances(user_id, instance.rod_id)
-            if len(same_instance_template_list) < 2:
-                return {"success": False, "message": "需要至少两条同类型鱼竿进行精炼"}
-            # 从 same_instance_template_list 中选出精炼的和被精炼消耗的两股实例
-            refine_level_from = instance.refine_level
-            ok: bool = False
-            least_coins = None
-            for i in same_instance_template_list:
-                if i.rod_instance_id == instance_id:
-                    continue
-                # 找到一条可以消耗的鱼竿实例
-                instance_to_consume = i
-                refine_level_to = instance_to_consume.refine_level + instance.refine_level
-                # 检查是否有足够的金币
-                refine_cost_all = 0
-                for level in range(refine_level_from, min(refine_level_to, 5)):
-                    refine_cost_all += refine_cost.get(level, 0)
+            same_items = self.inventory_repo.get_same_rod_instances(user_id, instance.rod_id)
 
-                if not user.can_afford(refine_cost_all):
-                    if least_coins is None or refine_cost_all < least_coins:
-                        least_coins = refine_cost_all
-                    continue
+            return {
+                "success": True,
+                "instance": instance,
+                "template": template,
+                "same_items": same_items,
+                "item_name": "鱼竿",
+                "id_field": "rod_instance_id"
+            }
 
-                # 扣除金币
-                user.coins -= refine_cost_all
-
-                # 提升精炼等级
-                instance.refine_level = min(refine_level_to, 5)
-                self.inventory_repo.update_rod_instance(instance)
-                self.inventory_repo.delete_rod_instance(instance_to_consume.rod_instance_id)
-                self.user_repo.update(user)
-                ok = True
-            if not ok:
-                return {"success": False,"message": f"至少需要 {least_coins} 金币才能精炼，当前金币不足"}
-        elif rod_or_accessory == "accessory":
+        else:  # accessory
             instances = self.inventory_repo.get_user_accessory_instances(user_id)
             instance = next((i for i in instances if i.accessory_instance_id == instance_id), None)
             if not instance:
                 return {"success": False, "message": "饰品不存在或不属于你"}
+
             template = self.item_template_repo.get_accessory_by_id(instance.accessory_id)
-            # 消耗同一类型的饰品实例进行精炼
-            if instance.refine_level > 4:
-                return {"success": False, "message": "已达到最高精炼等级"}
-            same_instance_template_list = self.inventory_repo.get_same_accessory_instances(user_id, instance.accessory_id)
-            if len(same_instance_template_list) < 2:
-                return {"success": False, "message": "需要至少两条同类型饰品进行精炼"}
-            refine_level_from = instance.refine_level
-            ok: bool = False
-            least_coins = None
-            for i in same_instance_template_list:
-                if i.accessory_instance_id == instance_id:
-                    continue
-                # 找到一条可以消耗的饰品实例
-                instance_to_consume = i
-                refine_level_to = instance_to_consume.refine_level + instance.refine_level
-                # 检查是否有足够的金币
-                refine_cost_all = 0
-                for level in range(refine_level_from, min(refine_level_to, 5)):
-                    refine_cost_all += refine_cost.get(level, 0)
+            same_items = self.inventory_repo.get_same_accessory_instances(user_id, instance.accessory_id)
 
-                if not user.can_afford(refine_cost_all):
-                    if least_coins is None or refine_cost_all < least_coins:
-                        least_coins = refine_cost_all
-                    continue
+            return {
+                "success": True,
+                "instance": instance,
+                "template": template,
+                "same_items": same_items,
+                "item_name": "饰品",
+                "id_field": "accessory_instance_id"
+            }
 
-                # 扣除金币
-                user.coins -= refine_cost_all
+    def _find_refinement_candidate(self, user, instance, same_items, refine_costs, id_field, item_type):
+        """查找可用于精炼的候选物品"""
+        refine_level_from = instance.refine_level
+        min_cost = None
 
-                # 提升精炼等级
-                instance.refine_level = min(refine_level_to, 5)
-                self.inventory_repo.delete_accessory_instance(instance_to_consume.accessory_instance_id)
-                self.inventory_repo.update_accessory_instance(instance)
-                self.user_repo.update(user)
-                ok = True
-            if not ok:
-                return {"success": False, "message": f"至少需要 {least_coins} 金币才能精炼，当前金币不足"}
-        else:
-            return {"success": False, "message": "❌ 不支持的精炼类型"}
+        # 遍历所有可能的消耗品
+        for candidate in same_items:
+            # 跳过自身
+            if getattr(candidate, id_field) == getattr(instance, id_field):
+                continue
 
-        return {
-            "success": True,
-            "message": f"成功精炼{'鱼竿' if rod_or_accessory == 'rod' else '饰品'}，新精炼等级为 {instance.refine_level}。",
-            "new_refine_level": instance.refine_level
-        }
+            # 计算精炼后的等级上限
+            new_refine_level = min(candidate.refine_level + instance.refine_level, 5)
+
+            # 计算精炼成本
+            total_cost = 0
+            for level in range(refine_level_from, new_refine_level):
+                total_cost += refine_costs.get(level, 0)
+
+            # 记录最低成本
+            if min_cost is None or total_cost < min_cost:
+                min_cost = total_cost
+
+            # 检查用户是否有足够的金币
+            if not user.can_afford(total_cost):
+                continue
+
+            # 执行精炼操作
+            self._perform_refinement(user, instance, candidate, new_refine_level, total_cost, item_type)
+            return {"success": True}
+
+        # 如果没找到合适的候选品，返回错误
+        return {"success": False, "message": f"至少需要 {min_cost} 金币才能精炼，当前金币不足"}
+
+    def _perform_refinement(self, user, instance, candidate, new_refine_level, cost, item_type):
+        """执行精炼操作"""
+        # 扣除金币
+        user.coins -= cost
+
+        # 提升精炼等级
+        instance.refine_level = new_refine_level
+
+        # 根据物品类型执行相应操作
+        if item_type == "rod":
+            self.inventory_repo.update_rod_instance(instance)
+            self.inventory_repo.delete_rod_instance(candidate.rod_instance_id)
+        else:  # accessory
+            self.inventory_repo.update_accessory_instance(instance)
+            self.inventory_repo.delete_accessory_instance(candidate.accessory_instance_id)
+
+        # 更新用户信息
+        self.user_repo.update(user)
