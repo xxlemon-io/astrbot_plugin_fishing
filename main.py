@@ -5,7 +5,7 @@ from hypercorn.asyncio import serve
 
 from astrbot.api import logger, AstrBotConfig
 from astrbot.api.event import filter, AstrMessageEvent
-from astrbot.api.star import Context, Star, register
+from astrbot.api.star import Context, Star
 from astrbot.core.message.components import At
 from astrbot.core.star.filter.permission import PermissionType
 
@@ -55,9 +55,10 @@ class FishingPlugin(Star):
         self.area2num = config.get("area2num", 2000)
         self.area3num = config.get("area3num", 500)
         self.game_config = {
-            "fishing": {"cost": 10, "cooldown_seconds": 180},
-            "user": {"initial_coins": 200},
-            "market": {"listing_tax_rate": 0.05},
+            "fishing": {"cost": config.get("fish_cost", 10), "cooldown_seconds": config.get("fish_cooldown_seconds", 180)},
+            "steal": {"cooldown_seconds": config.get("steal_cooldown_seconds", 14400)},
+            "user": {"initial_coins": config.get("user_initial_coins", 200)},
+            "market": {"listing_tax_rate": config.get("market_listing_tax_rate", 0.05)},
             "consecutive_bonuses": {
                 "7": 1000,  # 连续签到7天奖励1000金币
                 "14": 50000,  # 连续签到14天奖励5000金币
@@ -77,11 +78,11 @@ class FishingPlugin(Star):
             },
             "sell_prices": {
               "by_rarity": {
-                  "1": 100,
-                  "2": 500,
-                  "3": 2000,
-                  "4": 5000,
-                  "5": 10000
+                  "1": config.get("sell_prices", {"by_rarity_1":100}).get("by_rarity_1", 100),
+                  "2": config.get("sell_prices", {"by_rarity_2": 500}).get("by_rarity_2", 500),
+                  "3": config.get("sell_prices", {"by_rarity_3": 1000}).get("by_rarity_3", 1000),
+                  "4": config.get("sell_prices", {"by_rarity_4": 5000}).get("by_rarity_4", 5000),
+                  "5": config.get("sell_prices", {"by_rarity_5": 10000}).get("by_rarity_5", 10000),
               }
             },
             "wipe_bomb": {
