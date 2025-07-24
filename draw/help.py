@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 def draw_help_image():
     # 画布尺寸
-    width, height = 800, 2500
+    width, height = 800, 2800
 
     # 1. 创建渐变背景
     def create_vertical_gradient(w, h, top_color, bottom_color):
@@ -209,6 +209,7 @@ def draw_help_image():
         ("查看卡池 [1-2]", "查看卡池"),
         ("抽卡记录", "查看抽卡记录"),
         ("擦弹 [金币数]", "用金币数\n进行擦弹"),
+        ("擦弹 [特殊参数]", "同上，但参数可以为：\n梭哈/梭一半/allin/halfin"),
         ("擦弹记录", "查看擦弹记录")
     ]
 
@@ -224,6 +225,8 @@ def draw_help_image():
 
     admin = [
         ("修改金币 [用户ID] [金币数]", "将用户的金币修改为金币数"),
+        ("奖励金币 [用户ID] [金币数]", "奖励用户金币"),
+        ("扣除金币 [用户ID] [金币数]", "扣除用户金币"),
         ("开启钓鱼后台管理", "开启钓鱼后台管理"),
         ("关闭钓鱼后台管理", "关闭钓鱼后台管理")
     ]
