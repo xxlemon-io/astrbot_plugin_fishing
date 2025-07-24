@@ -132,7 +132,7 @@ class FishingService:
                         user.bait_start_time = None
                         self.inventory_repo.update_bait_quantity(user_id, cur_bait_id, -1)
                         self.user_repo.update(user)
-                        return {"success": False, "message": "❌ 鱼饵已过期，请重新使用鱼饵。"}
+                        logger.warning(f"用户 {user_id} 的当前鱼饵{bait_template}已过期，已被清除。")
             else:
                 if bait_template:
                     # 如果鱼饵没有设置持续时间, 是一次性鱼饵，消耗一个鱼饵
