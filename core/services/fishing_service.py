@@ -227,7 +227,7 @@ class FishingService:
 
         # 计算最终属性
         weight = random.randint(fish_template.min_weight, fish_template.max_weight)
-        value = int(fish_template.base_value * coins_chance)
+        value = fish_template.base_value
 
         # 计算一下是否超过用户鱼塘容量
         user_fish_inventory = self.inventory_repo.get_fish_inventory(user.user_id)
