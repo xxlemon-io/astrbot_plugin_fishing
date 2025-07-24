@@ -913,6 +913,20 @@ class FishingPlugin(Star):
             yield event.plain_result("💸 请指定要擦弹的数量 ID，例如：/擦弹 123456789")
             return
         contribution_amount = args[1]
+        if contribution_amount in ['allin', 'halfin', '梭哈', '梭一半']:
+            # 查询用户当前金币数量
+            user = self.user_repo.get_by_id(user_id)
+            if user:
+                coins = user.coins
+            else:
+                yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
+                return
+            if contribution_amount == 'allin' or contribution_amount == '梭哈':
+                contribution_amount = coins
+            elif contribution_amount == 'halfin' or contribution_amount == '梭一半':
+                contribution_amount = coins // 2
+            contribution_amount = str(contribution_amount)
+        # 判断是否为int或数字字符串
         if not contribution_amount.isdigit():
             yield event.plain_result("❌ 擦弹数量必须是数字，请检查后重试。")
             return
