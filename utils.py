@@ -30,7 +30,7 @@ async def get_public_ip():
 
     return None
 
-async def _is_port_available(self, port):
+async def _is_port_available(port):
     """检查端口是否可用"""
     try:
         # 尝试绑定到指定端口
