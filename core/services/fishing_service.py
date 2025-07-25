@@ -136,7 +136,15 @@ class FishingService:
             else:
                 if bait_template:
                     # 如果鱼饵没有设置持续时间, 是一次性鱼饵，消耗一个鱼饵
-                    self.inventory_repo.update_bait_quantity(user_id, user.current_bait_id, -1)
+                    user_bait_inventory = self.inventory_repo.get_user_bait_inventory(user_id);
+                    if user_bait_inventory[cur_bait_id] > 0:
+                        self.inventory_repo.update_bait_quantity(user_id, user.current_bait_id, -1)
+                    else:
+                        # 如果用户没有库存鱼饵，清除当前鱼饵
+                        user.current_bait_id = None
+                        user.bait_start_time = None
+                        self.user_repo.update(user)
+                        logger.warning(f"用户 {user_id} 的当前鱼饵{bait_template}已被清除，因为库存不足。")
                 else:
                     # 如果鱼饵模板不存在，清除当前鱼饵
                     user.current_bait_id = None
