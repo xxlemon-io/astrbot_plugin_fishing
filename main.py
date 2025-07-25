@@ -38,7 +38,7 @@ from .core.utils import get_now
 from .draw.rank import draw_fishing_ranking
 from .draw.help import draw_help_image
 from .manager.server import create_app
-from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_datetime_handler
+from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_datetime_handler, _is_port_available
 
 
 class FishingPlugin(Star):
@@ -1265,6 +1265,11 @@ class FishingPlugin(Star):
             yield event.plain_result("❌ 钓鱼后台管理已经在运行中")
             return
         yield event.plain_result("🔄 正在启动钓鱼插件Web管理后台...")
+
+        if not await _is_port_available(self.port):
+            yield event.plain_result(f"❌ 端口 {self.port} 已被占用，请更换端口后重试")
+            return
+
         try:
             services_to_inject = {
                 "item_template_service": self.item_template_service,

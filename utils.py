@@ -1,4 +1,5 @@
 import re
+import socket
 
 import aiohttp
 
@@ -28,6 +29,18 @@ async def get_public_ip():
                 continue
 
     return None
+
+async def _is_port_available(self, port):
+    """检查端口是否可用"""
+    try:
+        # 尝试绑定到指定端口
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        sock.bind(('0.0.0.0', port))
+        sock.close()
+        return True
+    except:
+        return False
 
 # 将1.2等数字转换成百分数
 def to_percentage(value: float) -> str:
