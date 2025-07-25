@@ -418,7 +418,7 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
                 'name': zone.name,
                 'description': zone.description,
                 'rare_fish_quota': zone.daily_rare_fish_quota if hasattr(zone, 'daily_rare_fish_quota') else 0,
-                'rare_fish_remains': zone.rare_fish_caught_today if hasattr(zone, 'rare_fish_caught_today') else 0
+                'rare_fish_caught': zone.rare_fish_caught_today if hasattr(zone, 'rare_fish_caught_today') else 0
             }
     
     # 计算偷鱼剩余CD时间
