@@ -84,7 +84,6 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     positive_color = (34, 139, 34)  # 绿色
     negative_color = (220, 20, 60)  # 红色
     warning_color = (255, 140, 0)   # 橙色
-    accent_color = (255, 215, 0)    # 金色强调色
     empty_color = (128, 128, 128)  # 灰色
 
     # 4. 获取文本尺寸的辅助函数
@@ -146,7 +145,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         else:
             title_text = f"{current_title}"
 
-        draw.text((col1_x + nickname_width + 10, row1_y + height_offset), title_text, font=small_font, fill=accent_color)
+        draw.text((col1_x + nickname_width + 10, row1_y + height_offset), title_text, font=small_font, fill=warning_color)
     # else:
     #     title_text = "未装备
     #     draw.text((col1_x + nickname_width + 10, row1_y + height_offset), title_text, font=small_font, fill=text_color)
@@ -154,7 +153,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     # 金币
     coins = user_data.get('coins', 0)
     coins_text = f"金币: {coins:,}"
-    draw.text((col1_x, row2_y), coins_text, font=small_font, fill=accent_color)
+    draw.text((col1_x, row2_y), coins_text, font=small_font, fill=warning_color)
     
     # 钓鱼次数 - 调整列位置以均分
     total_fishing = user_data.get('total_fishing_count', 0)
@@ -202,7 +201,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         rod_name = current_rod['name'][:15] + "..." if len(current_rod['name']) > 15 else current_rod['name']
         draw.text((left_col_x, equipment_row2_y), rod_name, font=content_font, fill=text_color)
         rod_detail = f"{'☆' * min(current_rod.get('rarity', 1), 5)} Lv.{current_rod.get('refine_level', 1)}"
-        draw.text((left_col_x, equipment_row3_y), rod_detail, font=tiny_font, fill=accent_color)
+        draw.text((left_col_x, equipment_row3_y), rod_detail, font=tiny_font, fill=warning_color)
     else:
         draw.text((left_col_x, equipment_row2_y), "未装备", font=content_font, fill=empty_color)
 
@@ -215,7 +214,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         acc_name = current_accessory['name'][:15] + "..." if len(current_accessory['name']) > 15 else current_accessory['name']
         draw.text((left_col_x, equipment_row5_y), acc_name, font=content_font, fill=text_color)
         acc_detail = f"{'☆' * min(current_accessory.get('rarity', 1), 5)} Lv.{current_accessory.get('refine_level', 1)}"
-        draw.text((left_col_x, equipment_row6_y), acc_detail, font=tiny_font, fill=accent_color)
+        draw.text((left_col_x, equipment_row6_y), acc_detail, font=tiny_font, fill=warning_color)
     else:
         draw.text((left_col_x, equipment_row5_y), "未装备", font=content_font, fill=empty_color)
 
@@ -236,8 +235,8 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     if current_bait:
         bait_name = current_bait['name'][:15] + "..." if len(current_bait['name']) > 15 else current_bait['name']
         draw.text((right_col_x, equipment_row2_y), bait_name, font=content_font, fill=text_color)
-        bait_detail = f"{'☆' * min(current_bait.get('rarity', 1), 5)}"
-        draw.text((right_col_x, equipment_row3_y), bait_detail, font=tiny_font, fill=accent_color)
+        bait_detail = f"{'☆' * min(current_bait.get('rarity', 1), 5)} 剩余： {current_bait.get('quantity', 0)}"
+        draw.text((right_col_x, equipment_row3_y), bait_detail, font=tiny_font, fill=warning_color)
     else:
         draw.text((right_col_x, equipment_row2_y), "未使用", font=content_font, fill=empty_color)
 
@@ -252,9 +251,9 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     if fishing_zone.get('rare_fish_quota', 0) == 0:
         zone_detail = "此区域无稀有鱼"
     elif fishing_zone.get('rare_fish_quota', 0) - fishing_zone.get('rare_fish_caught', 0) > 0:
-        zone_detail = f"今日剩余稀有鱼：{fishing_zone.get('rare_fish_quota', 0) - fishing_zone.get('rare_fish_caught', 0)}条"
+        zone_detail = f"剩余稀有鱼：{fishing_zone.get('rare_fish_quota', 0) - fishing_zone.get('rare_fish_caught', 0)}条"
     else:
-        zone_detail = "此区域稀有鱼已捕获完毕"
+        zone_detail = "此区域目前没有稀有鱼"
     draw.text((right_col_x, equipment_row6_y), zone_detail, font=tiny_font, fill=empty_color)
 
     # 状态信息区域 - 合并今日状态和钓鱼状态
@@ -315,10 +314,10 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
             cd_text = f"偷鱼冷却: {hours}小时{minutes}分钟"
         else:
             cd_text = f"偷鱼冷却: {minutes}分钟"
-        cd_color = warning_color
-    else:
-        cd_text = "偷鱼冷却: 可用"
         cd_color = positive_color
+    else:
+        cd_text = "准备好偷鱼了！"
+        cd_color = negative_color
     draw.text((status_col2_x, status_row2_y), cd_text, font=content_font, fill=cd_color)
 
     # 第三行：鱼塘信息
@@ -329,7 +328,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         draw.text((status_col1_x, status_row3_y), pond_count_text, font=content_font, fill=text_color)
     else:
         # 鱼塘为空时显示
-        pond_empty_text = "鱼塘: 空"
+        pond_empty_text = "鱼塘里什么都没有..."
         draw.text((status_col1_x, status_row3_y), pond_empty_text, font=content_font, fill=empty_color)
 
 
@@ -404,9 +403,13 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
     if user.current_bait_id:
         bait_template = item_template_repo.get_bait_by_id(user.current_bait_id)
         if bait_template:
+            # 获取用户的鱼饵库存
+            bait_inventory = inventory_repo.get_user_bait_inventory(user_id)
+            bait_quantity = bait_inventory.get(user.current_bait_id, 0)
             current_bait = {
                 'name': bait_template.name,
-                'rarity': bait_template.rarity
+                'rarity': bait_template.rarity,
+                'quantity': bait_quantity
             }
     
     # 获取钓鱼区域信息
