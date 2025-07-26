@@ -244,7 +244,7 @@ class InventoryService:
             if rod_instance.is_equipped:
                 continue
             rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
-            if rod_template:
+            if rod_template and rod_template.rarity < 5:
                 sell_prices = self.config.get("sell_prices", {}).get("by_rarity", {})
                 sell_price = sell_prices.get(str(rod_template.rarity), 30)
                 total_value += sell_price
@@ -308,7 +308,7 @@ class InventoryService:
             if accessory_instance.is_equipped:
                 continue
             accessory_template = self.item_template_repo.get_accessory_by_id(accessory_instance.accessory_id)
-            if accessory_template:
+            if accessory_template and accessory_template.rarity < 5:
                 sell_prices = self.config.get("sell_prices", {}).get("by_rarity", {})
                 sell_price = sell_prices.get(str(accessory_template.rarity), 30)
                 total_value += sell_price
