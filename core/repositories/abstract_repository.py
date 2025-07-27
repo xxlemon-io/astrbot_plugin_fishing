@@ -146,7 +146,7 @@ class AbstractInventoryRepository(ABC):
     def get_user_rod_instances(self, user_id: str) -> List[UserRodInstance]: pass
     # 为用户添加一个鱼竿实例
     @abstractmethod
-    def add_rod_instance(self, user_id: str, rod_id: int, durability: Optional[int]) -> UserRodInstance: pass
+    def add_rod_instance(self, user_id: str, rod_id: int, durability: Optional[int], refine_level: int = 1) -> UserRodInstance: pass
     # 删除一个鱼竿实例
     @abstractmethod
     def delete_rod_instance(self, rod_instance_id: int) -> None: pass
@@ -182,7 +182,7 @@ class AbstractInventoryRepository(ABC):
     def get_user_accessory_instances(self, user_id: str) -> List[UserAccessoryInstance]: pass
     # 新增一个饰品实例
     @abstractmethod
-    def add_accessory_instance(self, user_id: str, accessory_id: int) -> UserAccessoryInstance: pass
+    def add_accessory_instance(self, user_id: str, accessory_id: int, refine_level: int = 1) -> UserAccessoryInstance: pass
     # 删除一个饰品实例
     @abstractmethod
     def delete_accessory_instance(self, accessory_instance_id: int) -> None: pass

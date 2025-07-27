@@ -245,6 +245,7 @@ class MarketListing:
     quantity: int
     price: int
     listed_at: datetime
+    refine_level: int = 1
     expires_at: Optional[datetime] = None
 
     def __getitem__(self, item):

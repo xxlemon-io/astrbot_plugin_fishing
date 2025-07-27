@@ -690,14 +690,14 @@ class FishingPlugin(Star):
             if result["rods"]:
                 message += "【🎣 鱼竿】:\n"
                 for rod in result["rods"]:
-                    message += f" - {rod['item_name']} (ID: {rod['market_id']}) - 价格: {rod['price']} 金币\n"
+                    message += f" - {rod['item_name']} 精{rod['refine_level']} (ID: {rod['market_id']}) - 价格: {rod['price']} 金币\n"
                     message += f" - 售卖人： {rod['seller_nickname']}\n\n"
             else:
                 message += "🎣 市场中没有鱼竿可供购买。\n\n"
             if result["accessories"]:
                 message += "【💍 饰品】:\n"
                 for accessory in result["accessories"]:
-                    message += f" - {accessory['item_name']} (ID: {accessory['market_id']}) - 价格: {accessory['price']} 金币\n"
+                    message += f" - {accessory['item_name']} 精{accessory['refine_level']} (ID: {accessory['market_id']}) - 价格: {accessory['price']} 金币\n"
                     message += f" - 售卖人： {accessory['seller_nickname']}\n\n"
             else:
                 message += "💍 市场中没有饰品可供购买。\n"

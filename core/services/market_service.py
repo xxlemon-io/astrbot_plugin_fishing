@@ -1,6 +1,7 @@
 from typing import Dict, Any
 from datetime import datetime
 
+from astrbot.core.utils.pip_installer import logger
 # 导入仓储接口和领域模型
 from ..repositories.abstract_repository import (
     AbstractMarketRepository,
@@ -69,6 +70,7 @@ class MarketService:
         item_template_id = None
         item_name = None
         item_description = None
+        item_refine_level = 1
         if item_type == "rod":
             user_items = self.inventory_repo.get_user_rod_instances(user_id)
             item_to_list = next((i for i in user_items if i.rod_instance_id == item_instance_id), None)
@@ -80,6 +82,7 @@ class MarketService:
             rod_template = self.item_template_repo.get_rod_by_id(item_template_id)
             item_name = rod_template.name if rod_template else None
             item_description = rod_template.description if rod_template else None
+            item_refine_level = item_to_list.refine_level
         elif item_type == "accessory":
             user_items = self.inventory_repo.get_user_accessory_instances(user_id)
             item_to_list = next((i for i in user_items if i.accessory_instance_id == item_instance_id), None)
@@ -91,6 +94,7 @@ class MarketService:
             accessory_template = self.item_template_repo.get_accessory_by_id(item_template_id)
             item_name = accessory_template.name if accessory_template else None
             item_description = accessory_template.description if accessory_template else None
+            item_refine_level = item_to_list.refine_level
         else:
             return {"success": False, "message": "该类型的物品无法上架"}
 
@@ -123,7 +127,8 @@ class MarketService:
             item_name=item_name,
             item_description=item_description,
             price=price,
-            listed_at=datetime.now()
+            listed_at=datetime.now(),
+            refine_level=item_refine_level
         )
         self.market_repo.add_listing(new_listing)
 
@@ -131,7 +136,7 @@ class MarketService:
 
     def buy_market_item(self, buyer_id: str, market_id: int) -> Dict[str, Any]:
         """
-        处理从市场购买其他玩家物品的逻辑。
+        处理从市场购买物品的逻辑。
         """
         buyer = self.user_repo.get_by_id(buyer_id)
         if not buyer:
@@ -141,8 +146,6 @@ class MarketService:
         if not listing:
             return {"success": False, "message": "该商品不存在或已被购买"}
 
-        if buyer_id == listing.user_id:
-            return {"success": False, "message": "你不能购买自己上架的物品"}
 
         seller = self.user_repo.get_by_id(listing.user_id)
         if not seller:
@@ -166,12 +169,14 @@ class MarketService:
             self.inventory_repo.add_rod_instance(
                 user_id=buyer_id,
                 rod_id=listing.item_id,
-                durability=rod_template.durability if rod_template else None
+                durability=rod_template.durability if rod_template else None,
+                refine_level=listing.refine_level
             )
         elif listing.item_type == "accessory":
             self.inventory_repo.add_accessory_instance(
                 user_id=buyer_id,
-                accessory_id=listing.item_id
+                accessory_id=listing.item_id,
+                refine_level=listing.refine_level
             )
 
         # 4. 从市场移除该商品

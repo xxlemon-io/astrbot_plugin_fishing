@@ -296,19 +296,19 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor.execute("SELECT * FROM user_rods WHERE user_id = ?", (user_id,))
             return [self._row_to_rod_instance(row) for row in cursor.fetchall()]
 
-    def add_rod_instance(self, user_id: str, rod_id: int, durability: Optional[int]) -> UserRodInstance:
+    def  add_rod_instance(self, user_id: str, rod_id: int, durability: Optional[int], refine_level:int = 1) -> UserRodInstance:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             now = datetime.now()
             cursor.execute("""
-                INSERT INTO user_rods (user_id, rod_id, current_durability, obtained_at, is_equipped)
-                VALUES (?, ?, ?, ?, 0)
-            """, (user_id, rod_id, durability, now))
+                INSERT INTO user_rods (user_id, rod_id, current_durability, obtained_at, refine_level, is_equipped)
+                VALUES (?, ?, ?, ?, ?, 0)
+            """, (user_id, rod_id, durability, now, refine_level))
             instance_id = cursor.lastrowid
             conn.commit()
             return UserRodInstance(
                 rod_instance_id=instance_id, user_id=user_id, rod_id=rod_id,
-                is_equipped=False, obtained_at=now, current_durability=durability
+                is_equipped=False, obtained_at=now, current_durability=durability, refine_level=refine_level
             )
 
     def delete_rod_instance(self, rod_instance_id: int) -> None:
@@ -324,19 +324,19 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor.execute("SELECT * FROM user_accessories WHERE user_id = ?", (user_id,))
             return [self._row_to_accessory_instance(row) for row in cursor.fetchall()]
 
-    def add_accessory_instance(self, user_id: str, accessory_id: int) -> UserAccessoryInstance:
+    def add_accessory_instance(self, user_id: str, accessory_id: int, refine_level: int = 1) -> UserAccessoryInstance:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             now = datetime.now()
             cursor.execute("""
-                INSERT INTO user_accessories (user_id, accessory_id, obtained_at, is_equipped)
-                VALUES (?, ?, ?, 0)
-            """, (user_id, accessory_id, now))
+                INSERT INTO user_accessories (user_id, accessory_id, obtained_at, refine_level, is_equipped)
+                VALUES (?, ?, ?, ?, 0)
+            """, (user_id, accessory_id, now, refine_level))
             instance_id = cursor.lastrowid
             conn.commit()
             return UserAccessoryInstance(
                 accessory_instance_id=instance_id, user_id=user_id, accessory_id=accessory_id,
-                is_equipped=False, obtained_at=now
+                is_equipped=False, obtained_at=now, refine_level=refine_level
             )
 
     def delete_accessory_instance(self, accessory_instance_id: int) -> None:

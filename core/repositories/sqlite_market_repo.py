@@ -85,6 +85,7 @@ class SqliteMarketRepository(AbstractMarketRepository):
                     m.item_id,
                     m.quantity,
                     m.price,
+                    m.refine_level,
                     m.listed_at,
                     CASE
                         WHEN m.item_type = 'rod' THEN r.name
@@ -111,15 +112,16 @@ class SqliteMarketRepository(AbstractMarketRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO market (user_id, item_type, item_id, quantity, price, listed_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO market (user_id, item_type, item_id, quantity, price, listed_at, refine_level)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (
                 listing.user_id,
                 listing.item_type,
                 listing.item_id,
                 listing.quantity,
                 listing.price,
-                listing.listed_at or datetime.now()
+                listing.listed_at or datetime.now(),
+                listing.refine_level
             ))
             conn.commit()
 
