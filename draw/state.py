@@ -5,7 +5,6 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import requests
 from io import BytesIO
 import time
-from astrbot.api import logger
 
 def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     """
@@ -60,8 +59,8 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
             draw.line([(0, y), (w, y)], fill=(r, g, b))
         return base
 
-    bg_top = (135, 206, 235)  # 天蓝色
-    bg_bot = (240, 248, 255)  # 淡蓝色
+    bg_top = (174, 214, 241)  # 柔和天蓝色
+    bg_bot = (245, 251, 255)  # 温和淡蓝色
     image = create_vertical_gradient(width, height, bg_top, bg_bot)
     draw = ImageDraw.Draw(image)
 
@@ -71,10 +70,6 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         try:
             return ImageFont.truetype(path, size)
         except Exception as e:
-            logger.warning(
-                f"Font resource '{name}' not found at '{path}' or failed to load (error: {e}). "
-                "Falling back to default font. This may affect UI consistency."
-            )
             return ImageFont.load_default()
 
     title_font = load_font("DouyinSansBold.otf", 28)
@@ -83,14 +78,28 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     small_font = load_font("DouyinSansBold.otf", 16)
     tiny_font = load_font("DouyinSansBold.otf", 14)
 
-    # 3. 颜色定义
-    title_color = (25, 25, 112)  # 深蓝色
-    text_color = (47, 79, 79)    # 深青色
-    card_bg = (255, 255, 255, 220)  # 半透明白色
-    positive_color = (34, 139, 34)  # 绿色
-    negative_color = (220, 20, 60)  # 红色
-    warning_color = (255, 140, 0)   # 橙色
-    empty_color = (128, 128, 128)  # 灰色
+    # 3. 颜色定义 - 温和协调的海洋主题配色
+    # 主色调：柔和蓝系
+    primary_dark = (52, 73, 94)      # 温和深蓝 - 主标题
+    primary_medium = (74, 105, 134)  # 柔和中蓝 - 副标题
+    primary_light = (108, 142, 191)  # 淡雅蓝 - 强调色
+    
+    # 文本色：和谐灰蓝色系
+    text_primary = (55, 71, 79)      # 温和深灰 - 主要文本
+    text_secondary = (120, 144, 156) # 柔和灰蓝 - 次要文本
+    text_muted = (176, 190, 197)     # 温和浅灰 - 弱化文本
+    
+    # 状态色：柔和自然色系
+    success_color = (76, 175, 80)    # 温和绿 - 成功/积极状态
+    warning_color = (255, 183, 77)   # 柔和橙 - 警告/中性
+    error_color = (229, 115, 115)    # 温和红 - 错误/消极状态
+    
+    # 背景色：更柔和的对比
+    card_bg = (255, 255, 255, 240)   # 高透明度白色
+    
+    # 特殊色：温和特色
+    gold_color = (240, 173, 78)      # 温和金色 - 金币
+    rare_color = (149, 117, 205)     # 柔和紫色 - 稀有物品
 
     # 4. 获取文本尺寸的辅助函数
     def get_text_size(text, font):
@@ -114,7 +123,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     title_w, title_h = get_text_size(title_text, title_font)
     title_x = (width - title_w) // 2
     title_y = 20
-    draw.text((title_x, title_y), title_text, font=title_font, fill=title_color)
+    draw.text((title_x, title_y), title_text, font=title_font, fill=primary_dark)
 
     # 用户基本信息卡片
     current_y = title_y + title_h + 15
@@ -128,15 +137,16 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     
     # 列位置
     col1_x_without_avatar = card_margin + 20  # 第一列
-    col1_x_with_avatar = col1_x_without_avatar + 60  # 有头像时偏移
+    avatar_size = 60
+    col1_x_with_avatar = col1_x_without_avatar + avatar_size + 10  # 有头像时偏移
     col1_x = col1_x_without_avatar # 默认无头像
+    col2_x = col1_x + 240 # 第二列位置
     
     # 行位置
     row1_y = current_y + 12
     row2_y = current_y + 52
 
     # 绘制用户头像 - 如有
-    avatar_size = 50
     if user_id := user_data.get('user_id'):
         if avatar_image := get_user_avatar(user_id, avatar_size):
             image.paste(avatar_image, (col1_x, row1_y))
@@ -146,7 +156,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     # 用户昵称
     nickname = user_data.get('nickname', '未知用户')
     nickname_text = f"{nickname}"
-    draw.text((col1_x, row1_y), nickname_text, font=subtitle_font, fill=title_color)
+    draw.text((col1_x, row1_y), nickname_text, font=subtitle_font, fill=primary_medium)
     
   
 
@@ -155,13 +165,12 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     nickname_width = get_text_size(nickname_text, subtitle_font)[0]
     height_offset = 5
     if current_title:
-
         if isinstance(current_title, dict):
             title_text = f"{current_title.get('name', '未知称号')}"
         else:
             title_text = f"{current_title}"
 
-        draw.text((col1_x + nickname_width + 10, row1_y + height_offset), title_text, font=small_font, fill=warning_color)
+        draw.text((col1_x + nickname_width + 10, row1_y + height_offset), title_text, font=small_font, fill=rare_color)
     # else:
     #     title_text = "未装备
     #     draw.text((col1_x + nickname_width + 10, row1_y + height_offset), title_text, font=small_font, fill=text_color)
@@ -169,14 +178,13 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     # 金币
     coins = user_data.get('coins', 0)
     coins_text = f"金币: {coins:,}"
-    draw.text((col1_x, row2_y), coins_text, font=small_font, fill=warning_color)
+    draw.text((col1_x, row2_y), coins_text, font=small_font, fill=gold_color)
     
     # 钓鱼次数 - 调整列位置以均分
     total_fishing = user_data.get('total_fishing_count', 0)
     fishing_text = f"钓鱼次数: {total_fishing:,}"
-    col2_adjusted_x = card_margin + (width - card_margin * 2) // 3 + card_margin
-    draw.text((col2_adjusted_x, row2_y), fishing_text, font=small_font, fill=text_color)
-    
+    draw.text((col2_x, row2_y), fishing_text, font=small_font, fill=text_primary)
+
     # 偷鱼总价值 - 调整列位置以均分 TODO
     # steal_total = user_data.get('steal_total_value', 0)
     # steal_text = f"偷鱼获金: {steal_total:,}"
@@ -186,7 +194,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     # 装备信息区域
     current_y += card_height + 5
     equipment_title = "当前装备"
-    draw.text((card_margin, current_y), equipment_title, font=subtitle_font, fill=title_color)
+    draw.text((card_margin, current_y), equipment_title, font=subtitle_font, fill=primary_medium)
     current_y += 30
 
     # 装备卡片 - 两列等宽布局
@@ -209,30 +217,35 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     equipment_row6_y = current_y + 110
 
     # 鱼竿标题
-    draw.text((left_col_x, equipment_row1_y), "鱼竿", font=small_font, fill=title_color)
+    draw.text((left_col_x, equipment_row1_y), "鱼竿", font=small_font, fill=primary_light)
     
     # 鱼竿内容
     current_rod = user_data.get('current_rod')
     if current_rod:
         rod_name = current_rod['name'][:15] + "..." if len(current_rod['name']) > 15 else current_rod['name']
-        draw.text((left_col_x, equipment_row2_y), rod_name, font=content_font, fill=text_color)
-        rod_detail = f"{'★' * min(current_rod.get('rarity', 1), 5)} Lv.{current_rod.get('refine_level', 1)}"
-        draw.text((left_col_x, equipment_row3_y), rod_detail, font=tiny_font, fill=warning_color)
+        draw.text((left_col_x, equipment_row2_y), rod_name, font=content_font, fill=text_primary)
+        # 根据稀有度选择颜色
+        rarity = current_rod.get('rarity', 1)
+        refined_level = current_rod.get('refine_level', 1)
+        star_color = rare_color if (rarity > 4 and refined_level > 4) else warning_color if rarity > 3 else text_secondary
+        draw.text((left_col_x, equipment_row3_y), f"{'★' * min(rarity, 5)} Lv.{refined_level}", font=tiny_font, fill=star_color)
     else:
-        draw.text((left_col_x, equipment_row2_y), "未装备", font=content_font, fill=empty_color)
+        draw.text((left_col_x, equipment_row2_y), "未装备", font=content_font, fill=text_muted)
 
     # 饰品标题
-    draw.text((left_col_x, equipment_row4_y), "饰品", font=small_font, fill=title_color)
+    draw.text((left_col_x, equipment_row4_y), "饰品", font=small_font, fill=primary_light)
     
     # 饰品内容
     current_accessory = user_data.get('current_accessory')
     if current_accessory:
         acc_name = current_accessory['name'][:15] + "..." if len(current_accessory['name']) > 15 else current_accessory['name']
-        draw.text((left_col_x, equipment_row5_y), acc_name, font=content_font, fill=text_color)
-        acc_detail = f"{'★' * min(current_accessory.get('rarity', 1), 5)} Lv.{current_accessory.get('refine_level', 1)}"
-        draw.text((left_col_x, equipment_row6_y), acc_detail, font=tiny_font, fill=warning_color)
+        draw.text((left_col_x, equipment_row5_y), acc_name, font=content_font, fill=text_primary)
+        rarity = current_accessory.get('rarity', 1)
+        refined_level = current_accessory.get('refine_level', 1)
+        star_color = rare_color if (rarity > 4 and refined_level > 4) else warning_color if rarity > 3 else text_secondary
+        draw.text((left_col_x, equipment_row6_y), f"{'★' * min(rarity, 5)} Lv.{refined_level}", font=tiny_font, fill=star_color)
     else:
-        draw.text((left_col_x, equipment_row5_y), "未装备", font=content_font, fill=empty_color)
+        draw.text((left_col_x, equipment_row5_y), "未装备", font=content_font, fill=text_muted)
 
     # 右列：鱼饵和区域
     right_card_x = left_card_x + card_width + 15
@@ -244,38 +257,43 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     right_col_x = right_card_x + 12
 
     # 鱼饵标题
-    draw.text((right_col_x, equipment_row1_y), "鱼饵", font=small_font, fill=title_color)
+    draw.text((right_col_x, equipment_row1_y), "鱼饵", font=small_font, fill=primary_light)
     
     # 鱼饵内容
     current_bait = user_data.get('current_bait')
     if current_bait:
         bait_name = current_bait['name'][:15] + "..." if len(current_bait['name']) > 15 else current_bait['name']
-        draw.text((right_col_x, equipment_row2_y), bait_name, font=content_font, fill=text_color)
-        bait_detail = f"{'★' * min(current_bait.get('rarity', 1), 5)} 剩余： {current_bait.get('quantity', 0)}"
-        draw.text((right_col_x, equipment_row3_y), bait_detail, font=tiny_font, fill=warning_color)
+        draw.text((right_col_x, equipment_row2_y), bait_name, font=content_font, fill=text_primary)
+        rarity = current_bait.get('rarity', 1)
+        star_color = rare_color if rarity > 4 else warning_color if rarity >= 3 else text_secondary
+        bait_detail = f"{'★' * min(rarity, 5)} 剩余：{current_bait.get('quantity', 0)}"
+        draw.text((right_col_x, equipment_row3_y), bait_detail, font=tiny_font, fill=star_color)
     else:
-        draw.text((right_col_x, equipment_row2_y), "未使用", font=content_font, fill=empty_color)
+        draw.text((right_col_x, equipment_row2_y), "未使用", font=content_font, fill=text_muted)
 
     # 钓鱼区域标题
-    draw.text((right_col_x, equipment_row4_y), "钓鱼区域", font=small_font, fill=title_color)
+    draw.text((right_col_x, equipment_row4_y), "钓鱼区域", font=small_font, fill=primary_light)
     
     # 钓鱼区域内容
     fishing_zone = user_data.get('fishing_zone', {})
     zone_name = fishing_zone.get('name', '未知区域')
     zone_display = zone_name[:12] + "..." if len(zone_name) > 12 else zone_name
-    draw.text((right_col_x, equipment_row5_y), zone_display, font=content_font, fill=text_color)
+    draw.text((right_col_x, equipment_row5_y), zone_display, font=content_font, fill=text_primary)
     if fishing_zone.get('rare_fish_quota', 0) == 0:
         zone_detail = "此区域无稀有鱼"
+        detail_color = text_muted
     elif fishing_zone.get('rare_fish_quota', 0) - fishing_zone.get('rare_fish_caught', 0) > 0:
         zone_detail = f"剩余稀有鱼：{fishing_zone.get('rare_fish_quota', 0) - fishing_zone.get('rare_fish_caught', 0)}条"
+        detail_color = success_color
     else:
-        zone_detail = "此区域目前没有稀有鱼"
-    draw.text((right_col_x, equipment_row6_y), zone_detail, font=tiny_font, fill=empty_color)
+        zone_detail = "今日稀有鱼已捕完"
+        detail_color = text_muted
+    draw.text((right_col_x, equipment_row6_y), zone_detail, font=tiny_font, fill=detail_color)
 
     # 状态信息区域 - 合并今日状态和钓鱼状态
     current_y += equipment_card_height + 5
     status_title = "状态信息"
-    draw.text((card_margin, current_y), status_title, font=subtitle_font, fill=title_color)
+    draw.text((card_margin, current_y), status_title, font=subtitle_font, fill=primary_medium)
     current_y += 30
 
     # 状态卡片 - 扩展高度容纳更多信息
@@ -295,30 +313,30 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     signed_today = user_data.get('signed_in_today', False)
     if signed_today:
         sign_text = "今日签到: 已签到"
-        sign_color = positive_color
+        sign_color = success_color
     else:
         sign_text = "今日签到: 未签到" 
-        sign_color = negative_color
+        sign_color = error_color
     draw.text((status_col1_x, status_row1_y), sign_text, font=content_font, fill=sign_color)
 
     # 右列第一行：擦弹次数
     wipe_remaining = user_data.get('wipe_bomb_remaining', 0)
     if wipe_remaining > 0:
         wipe_text = f"擦弹次数: 剩余 {wipe_remaining} 次"
-        wipe_color = negative_color
+        wipe_color = error_color
     else:
         wipe_text = "擦弹次数: 已用完"
-        wipe_color = positive_color
+        wipe_color = text_muted
     draw.text((status_col2_x, status_row1_y), wipe_text, font=content_font, fill=wipe_color)
 
     # 左列第二行：自动钓鱼状态
     auto_fishing = user_data.get('auto_fishing_enabled', False)
     if auto_fishing:
         auto_text = "自动钓鱼: 已开启"
-        auto_color = positive_color
+        auto_color = success_color
     else:
         auto_text = "自动钓鱼: 已关闭"
-        auto_color = negative_color
+        auto_color = error_color
     draw.text((status_col1_x, status_row2_y), auto_text, font=content_font, fill=auto_color)
 
     # 右列第二行：偷鱼CD信息
@@ -330,10 +348,10 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
             cd_text = f"偷鱼冷却: {hours}小时{minutes}分钟"
         else:
             cd_text = f"偷鱼冷却: {minutes}分钟"
-        cd_color = positive_color
+        cd_color = text_muted
     else:
         cd_text = "准备好偷鱼了！"
-        cd_color = negative_color
+        cd_color = error_color
     draw.text((status_col2_x, status_row2_y), cd_text, font=content_font, fill=cd_color)
 
     # 第三行：鱼塘信息
@@ -341,11 +359,11 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     if pond_info and pond_info.get('total_count', 0) > 0:
         # 左列：鱼塘鱼数
         pond_count_text = f"鱼塘数量: {pond_info['total_count']} 条， 价值: {pond_info['total_value']:,} 金币"
-        draw.text((status_col1_x, status_row3_y), pond_count_text, font=content_font, fill=text_color)
+        draw.text((status_col1_x, status_row3_y), pond_count_text, font=content_font, fill=text_primary)
     else:
         # 鱼塘为空时显示
         pond_empty_text = "鱼塘里什么都没有..."
-        draw.text((status_col1_x, status_row3_y), pond_empty_text, font=content_font, fill=empty_color)
+        draw.text((status_col1_x, status_row3_y), pond_empty_text, font=content_font, fill=text_muted)
 
 
     # 10. 底部信息 - 调整位置
@@ -353,7 +371,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     footer_text = f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     footer_w, footer_h = get_text_size(footer_text, small_font)
     footer_x = (width - footer_w) // 2
-    draw.text((footer_x, current_y), footer_text, font=small_font, fill=text_color)
+    draw.text((footer_x, current_y), footer_text, font=small_font, fill=text_secondary)
 
     # 12. 添加装饰性元素 - 保持简洁
     corner_size = 15  # 稍微减小装饰元素
