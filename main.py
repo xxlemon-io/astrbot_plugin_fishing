@@ -264,6 +264,36 @@ class FishingPlugin(Star):
 
     # ===========背包与资产管理==========
 
+    @filter.command("状态", alias={"用户状态", "查看状态"})
+    async def user_status(self, event: AstrMessageEvent):
+        """查看用户状态"""
+        user_id = event.get_sender_id()
+        user = self.user_repo.get_by_id(user_id)
+        if user:
+            # 导入绘制函数
+            from .draw.state import draw_state_image, get_user_state_data
+            
+            # 获取用户状态数据
+            user_data = get_user_state_data(
+                self.user_repo,
+                self.inventory_repo,
+                self.item_template_repo,
+                self.log_repo,
+                self.game_config,
+                user_id
+            )
+            
+            if user_data:
+                # 生成状态图像
+                image = draw_state_image(user_data)
+                # 保存图像到临时文件
+                image_path = "user_status.png"
+                image.save(image_path)
+                yield event.image_result(image_path)
+            else:
+                yield event.plain_result("❌ 获取用户状态数据失败。")
+        else:
+            yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
     @filter.command("鱼塘")
     async def pond(self, event: AstrMessageEvent):
         """查看用户鱼塘内的鱼"""
