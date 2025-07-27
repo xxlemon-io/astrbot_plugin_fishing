@@ -2,7 +2,10 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
-
+import requests
+from io import BytesIO
+import time
+from astrbot.api import logger
 
 def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     """
@@ -37,7 +40,6 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
             - steal_total_value: 偷鱼总价值 TODO
             - signed_in_today: 今日是否签到
             - wipe_bomb_remaining: 擦弹剩余次数
-    
     Returns:
         PIL.Image.Image: 生成的状态图像
     """
@@ -68,7 +70,11 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         path = os.path.join(os.path.dirname(__file__), "resource", name)
         try:
             return ImageFont.truetype(path, size)
-        except:
+        except Exception as e:
+            logger.warning(
+                f"Font resource '{name}' not found at '{path}' or failed to load (error: {e}). "
+                "Falling back to default font. This may affect UI consistency."
+            )
             return ImageFont.load_default()
 
     title_font = load_font("DouyinSansBold.otf", 28)
@@ -121,11 +127,21 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
                          10, fill=card_bg)
     
     # 列位置
-    col1_x = card_margin + 20  # 第一列
+    col1_x_without_avatar = card_margin + 20  # 第一列
+    col1_x_with_avatar = col1_x_without_avatar + 60  # 有头像时偏移
+    col1_x = col1_x_without_avatar # 默认无头像
     
     # 行位置
     row1_y = current_y + 12
     row2_y = current_y + 52
+
+    # 绘制用户头像 - 如有
+    avatar_size = 50
+    if user_id := user_data.get('user_id'):
+        if avatar_image := get_user_avatar(user_id, avatar_size):
+            image.paste(avatar_image, (col1_x, row1_y))
+            col1_x = col1_x_with_avatar # 更新 col1_x 以适应头像位置
+
     
     # 用户昵称
     nickname = user_data.get('nickname', '未知用户')
@@ -200,7 +216,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     if current_rod:
         rod_name = current_rod['name'][:15] + "..." if len(current_rod['name']) > 15 else current_rod['name']
         draw.text((left_col_x, equipment_row2_y), rod_name, font=content_font, fill=text_color)
-        rod_detail = f"{'☆' * min(current_rod.get('rarity', 1), 5)} Lv.{current_rod.get('refine_level', 1)}"
+        rod_detail = f"{'★' * min(current_rod.get('rarity', 1), 5)} Lv.{current_rod.get('refine_level', 1)}"
         draw.text((left_col_x, equipment_row3_y), rod_detail, font=tiny_font, fill=warning_color)
     else:
         draw.text((left_col_x, equipment_row2_y), "未装备", font=content_font, fill=empty_color)
@@ -213,7 +229,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     if current_accessory:
         acc_name = current_accessory['name'][:15] + "..." if len(current_accessory['name']) > 15 else current_accessory['name']
         draw.text((left_col_x, equipment_row5_y), acc_name, font=content_font, fill=text_color)
-        acc_detail = f"{'☆' * min(current_accessory.get('rarity', 1), 5)} Lv.{current_accessory.get('refine_level', 1)}"
+        acc_detail = f"{'★' * min(current_accessory.get('rarity', 1), 5)} Lv.{current_accessory.get('refine_level', 1)}"
         draw.text((left_col_x, equipment_row6_y), acc_detail, font=tiny_font, fill=warning_color)
     else:
         draw.text((left_col_x, equipment_row5_y), "未装备", font=content_font, fill=empty_color)
@@ -235,7 +251,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     if current_bait:
         bait_name = current_bait['name'][:15] + "..." if len(current_bait['name']) > 15 else current_bait['name']
         draw.text((right_col_x, equipment_row2_y), bait_name, font=content_font, fill=text_color)
-        bait_detail = f"{'☆' * min(current_bait.get('rarity', 1), 5)} 剩余： {current_bait.get('quantity', 0)}"
+        bait_detail = f"{'★' * min(current_bait.get('rarity', 1), 5)} 剩余： {current_bait.get('quantity', 0)}"
         draw.text((right_col_x, equipment_row3_y), bait_detail, font=tiny_font, fill=warning_color)
     else:
         draw.text((right_col_x, equipment_row2_y), "未使用", font=content_font, fill=empty_color)
@@ -528,3 +544,72 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
         'wipe_bomb_remaining': wipe_bomb_remaining,
         'pond_info': pond_info
     }
+
+def get_user_avatar(user_id: str, avatar_size: int = 50) -> Optional[Image.Image]:
+    """
+    获取用户头像并处理为圆形
+    
+    Args:
+        user_id: 用户ID
+        avatar_size: 头像尺寸
+    
+    Returns:
+        处理后的头像图像，如果失败返回None
+    """
+    try:
+        # 创建头像缓存目录
+        cache_dir = os.path.join("data/plugin_data/astrbot_plugin_fishing", "avatar_cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        avatar_cache_path = os.path.join(cache_dir, f"{user_id}_avatar.png")
+        
+        # 检查是否有缓存的头像（24小时刷新）
+        avatar_image = None
+        if os.path.exists(avatar_cache_path):
+            try:
+                file_age = time.time() - os.path.getmtime(avatar_cache_path)
+                if file_age < 86400:  # 24小时
+                    avatar_image = Image.open(avatar_cache_path).convert('RGBA')
+            except:
+                pass
+        
+        # 如果没有缓存或缓存过期，重新下载
+        if avatar_image is None:
+            avatar_url = f"https://q4.qlogo.cn/headimg_dl?dst_uin={user_id}&spec=640"
+            response = requests.get(avatar_url, timeout=2) # 2s超时
+            if response.status_code == 200:
+                avatar_image = Image.open(BytesIO(response.content)).convert('RGBA')
+                # 保存到缓存
+                avatar_image.save(avatar_cache_path, 'PNG')
+        
+        if avatar_image:
+            return avatar_postprocess(avatar_image, avatar_size)
+        
+    except Exception as e:
+        pass
+    
+    return None
+
+def avatar_postprocess(avatar_image: Image.Image, size: int) -> Image.Image:
+    """
+    将头像处理为指定大小的圆形
+    
+    Args:
+        avatar_image: 原始头像图像
+        size: 目标尺寸
+    
+    Returns:
+        处理后的圆形头像
+    """
+    # 调整头像大小
+    avatar_image = avatar_image.resize((size, size), Image.Resampling.LANCZOS)
+    
+    # 创建圆形遮罩
+    mask = Image.new('L', (size, size), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.ellipse([0, 0, size, size], fill=255)
+    
+    # 应用圆形遮罩
+    avatar_image.putalpha(mask)
+    
+    return avatar_image

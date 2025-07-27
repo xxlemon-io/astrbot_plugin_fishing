@@ -179,5 +179,5 @@ class GameMechanicsService:
 
         return {
             "success": True,
-            "message": f"✅ 成功从【{victim.nickname}】的鱼塘里偷到了一条{stolen_fish_template.rarity}☆【{stolen_fish_template.name}】！基础价值 {stolen_fish_template.base_value} 金币",
+            "message": f"✅ 成功从【{victim.nickname}】的鱼塘里偷到了一条{stolen_fish_template.rarity}★【{stolen_fish_template.name}】！基础价值 {stolen_fish_template.base_value} 金币",
         }
