@@ -127,7 +127,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
 
     # 用户基本信息卡片
     current_y = title_y + title_h + 15
-    card_height = 90
+    card_height = 85
     card_margin = 15
     
     # 用户信息卡片
@@ -138,7 +138,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     # 列位置
     col1_x_without_avatar = card_margin + 20  # 第一列
     avatar_size = 60
-    col1_x_with_avatar = col1_x_without_avatar + avatar_size + 10  # 有头像时偏移
+    col1_x_with_avatar = col1_x_without_avatar + avatar_size + 20  # 有头像时偏移
     col1_x = col1_x_without_avatar # 默认无头像
     col2_x = col1_x + 240 # 第二列位置
     
