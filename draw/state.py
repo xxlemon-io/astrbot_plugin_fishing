@@ -149,7 +149,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     # 绘制用户头像 - 如有
     if user_id := user_data.get('user_id'):
         if avatar_image := get_user_avatar(user_id, avatar_size):
-            image.paste(avatar_image, (col1_x, row1_y))
+            image.paste(avatar_image, (col1_x, row1_y), avatar_image)
             col1_x = col1_x_with_avatar # 更新 col1_x 以适应头像位置
 
     
@@ -610,24 +610,32 @@ def get_user_avatar(user_id: str, avatar_size: int = 50) -> Optional[Image.Image
 
 def avatar_postprocess(avatar_image: Image.Image, size: int) -> Image.Image:
     """
-    将头像处理为指定大小的圆形
-    
-    Args:
-        avatar_image: 原始头像图像
-        size: 目标尺寸
-    
-    Returns:
-        处理后的圆形头像
+    将头像处理为指定大小的圆角头像，抗锯齿效果
     """
     # 调整头像大小
     avatar_image = avatar_image.resize((size, size), Image.Resampling.LANCZOS)
     
-    # 创建圆形遮罩
-    mask = Image.new('L', (size, size), 0)
-    mask_draw = ImageDraw.Draw(mask)
-    mask_draw.ellipse([0, 0, size, size], fill=255)
+    # 使用更合适的圆角半径
+    corner_radius = size // 8  # 稍微减小圆角，看起来更自然
     
-    # 应用圆形遮罩
+    # 抗锯齿处理
+    scale_factor = 4
+    large_size = size * scale_factor
+    large_radius = corner_radius * scale_factor
+    
+    # 创建高质量遮罩
+    large_mask = Image.new('L', (large_size, large_size), 0)
+    large_draw = ImageDraw.Draw(large_mask)
+    
+    # 绘制圆角矩形
+    large_draw.rounded_rectangle(
+        [0, 0, large_size, large_size], 
+        radius=large_radius, 
+        fill=255
+    )
+    
+    # 高质量缩放
+    mask = large_mask.resize((size, size), Image.Resampling.LANCZOS)
     avatar_image.putalpha(mask)
     
     return avatar_image
