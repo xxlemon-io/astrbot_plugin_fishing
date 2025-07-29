@@ -46,6 +46,7 @@ class SqliteMarketRepository(AbstractMarketRepository):
                     m.item_id,
                     m.quantity,
                     m.price,
+                    m.refine_level,
                     m.listed_at,
                     CASE
                         WHEN m.item_type = 'rod' THEN r.name
