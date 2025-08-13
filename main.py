@@ -1203,7 +1203,27 @@ class FishingPlugin(Star):
                     message += f"🕰️ 首次捕获：{safe_datetime_handler(fish['first_caught_time'])}\n"
                     message += f"📜 描述：{fish['description']}\n"
 
-                yield event.plain_result(message)
+                if len(message) <= 500:
+                    yield event.plain_result(message)
+                    return
+
+                chunk_size = 500
+                text_chunks = [message[i:i + chunk_size] for i in range(0, len(message), chunk_size)]
+                if not text_chunks:
+                    yield event.plain_result("❌ 内容为空，无法发送。")
+                    return
+
+                from astrbot.api.message_components import Node, Plain
+                plain_components = [Plain(text=chunk) for chunk in text_chunks]
+                node = Node(
+                        uin=event.get_self_id(),
+                        name="鱼类图鉴",
+                        content=plain_components
+                )
+                try:
+                    yield event.chain_result([node])
+                except Exception as e:
+                    yield event.plain_result(f"❌ 发送转发消息失败：{e}")
             else:
                 yield event.plain_result(f"❌ 查看鱼类图鉴失败：{result['message']}")
         else:
