@@ -1207,23 +1207,35 @@ class FishingPlugin(Star):
                     yield event.plain_result(message)
                     return
 
-                chunk_size = 500
-                text_chunks = [message[i:i + chunk_size] for i in range(0, len(message), chunk_size)]
+                text_chunk_size = 1000  # 每个Plain文本块的最大字数
+                node_chunk_size = 4  # 每个Node中最多包含的Plain文本块数量
+                text_chunks = [message[i:i + text_chunk_size] for i in
+                               range(0, len(message), text_chunk_size)]
+
                 if not text_chunks:
                     yield event.plain_result("❌ 内容为空，无法发送。")
                     return
 
+                grouped_chunks = [text_chunks[i:i + node_chunk_size] for i in
+                                  range(0, len(text_chunks), node_chunk_size)]
+
                 from astrbot.api.message_components import Node, Plain
-                plain_components = [Plain(text=chunk) for chunk in text_chunks]
-                node = Node(
+                nodes_to_send = []
+                for i, group in enumerate(grouped_chunks):
+                    plain_components = [Plain(text=chunk) for chunk in group]
+
+                    node = Node(
                         uin=event.get_self_id(),
-                        name="鱼类图鉴",
+                        name=f"鱼类图鉴 - 第 {i + 1} 页",
                         content=plain_components
-                )
+                    )
+                    nodes_to_send.append(node)
+
                 try:
-                    yield event.chain_result([node])
+                    yield event.chain_result(nodes_to_send)
                 except Exception as e:
                     yield event.plain_result(f"❌ 发送转发消息失败：{e}")
+
             else:
                 yield event.plain_result(f"❌ 查看鱼类图鉴失败：{result['message']}")
         else:
