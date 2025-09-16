@@ -253,3 +253,139 @@ class UserService:
             "success": True,
             "records": records_data
         }
+
+    def get_users_for_admin(self, page: int = 1, per_page: int = 20, search: str = None) -> Dict[str, Any]:
+        """
+        获取用户列表用于后台管理
+        
+        Args:
+            page: 页码（从1开始）
+            per_page: 每页数量
+            search: 搜索关键词
+            
+        Returns:
+            包含用户列表和分页信息的字典
+        """
+        offset = (page - 1) * per_page
+        
+        if search:
+            users = self.user_repo.search_users(search, per_page)
+            total_count = len(users)  # 搜索时无法准确获取总数
+        else:
+            users = self.user_repo.get_all_users(per_page, offset)
+            total_count = self.user_repo.get_users_count()
+        
+        # 计算分页信息
+        total_pages = (total_count + per_page - 1) // per_page
+        
+        return {
+            "success": True,
+            "users": users,
+            "pagination": {
+                "current_page": page,
+                "per_page": per_page,
+                "total_count": total_count,
+                "total_pages": total_pages,
+                "has_prev": page > 1,
+                "has_next": page < total_pages
+            }
+        }
+
+    def get_user_details_for_admin(self, user_id: str) -> Dict[str, Any]:
+        """
+        获取用户详细信息用于后台管理
+        
+        Args:
+            user_id: 用户ID
+            
+        Returns:
+            包含用户详细信息的字典
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+        
+        # 获取用户的装备信息
+        equipped_rod = None
+        if user.equipped_rod_instance_id:
+            rod_instance = self.inventory_repo.get_user_rod_instance_by_id(user.user_id, user.equipped_rod_instance_id)
+            if rod_instance:
+                rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
+                if rod_template:
+                    equipped_rod = {
+                        "name": rod_template.name,
+                        "refine_level": rod_instance.refine_level
+                    }
+        
+        equipped_accessory = None
+        if user.equipped_accessory_instance_id:
+            accessory_instance = self.inventory_repo.get_user_accessory_instance_by_id(user.user_id, user.equipped_accessory_instance_id)
+            if accessory_instance:
+                accessory_template = self.item_template_repo.get_accessory_by_id(accessory_instance.accessory_id)
+                if accessory_template:
+                    equipped_accessory = {
+                        "name": accessory_template.name,
+                        "refine_level": accessory_instance.refine_level
+                    }
+        
+        current_title = None
+        if user.current_title_id:
+            title_template = self.item_template_repo.get_title_by_id(user.current_title_id)
+            if title_template:
+                current_title = title_template.name
+        
+        return {
+            "success": True,
+            "user": user,
+            "equipped_rod": equipped_rod,
+            "equipped_accessory": equipped_accessory,
+            "current_title": current_title
+        }
+
+    def update_user_for_admin(self, user_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        更新用户信息（管理员操作）
+        
+        Args:
+            user_id: 用户ID
+            updates: 要更新的字段字典
+            
+        Returns:
+            包含操作结果的字典
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+        
+        # 更新允许修改的字段
+        allowed_fields = [
+            'nickname', 'coins', 'premium_currency', 'total_fishing_count',
+            'total_weight_caught', 'total_coins_earned', 'consecutive_login_days',
+            'fish_pond_capacity', 'fishing_zone_id', 'auto_fishing_enabled'
+        ]
+        
+        for field, value in updates.items():
+            if field in allowed_fields and hasattr(user, field):
+                setattr(user, field, value)
+        
+        self.user_repo.update(user)
+        return {"success": True, "message": "用户信息更新成功"}
+
+    def delete_user_for_admin(self, user_id: str) -> Dict[str, Any]:
+        """
+        删除用户（管理员操作）
+        
+        Args:
+            user_id: 用户ID
+            
+        Returns:
+            包含操作结果的字典
+        """
+        if not self.user_repo.check_exists(user_id):
+            return {"success": False, "message": "用户不存在"}
+        
+        success = self.user_repo.delete_user(user_id)
+        if success:
+            return {"success": True, "message": "用户删除成功"}
+        else:
+            return {"success": False, "message": "用户删除失败"}

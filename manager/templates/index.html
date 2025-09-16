@@ -10,6 +10,18 @@
 
 <div class="row">
     <div class="col-lg-4 col-md-6 mb-4">
+        <a href="{{ url_for('admin_bp.manage_users') }}" class="dashboard-card">
+            <div class="card text-white bg-secondary h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-users d-block mb-3"></i>
+                    <h4 class="card-title">用户管理</h4>
+                    <p class="card-text">查看、编辑和管理所有游戏用户。</p>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-lg-4 col-md-6 mb-4">
         <a href="{{ url_for('admin_bp.manage_fish') }}" class="dashboard-card">
             <div class="card text-white bg-primary h-100">
                 <div class="card-body text-center">

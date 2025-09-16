@@ -358,3 +358,86 @@ async def delete_pool_item(item_id):
     item_template_service.delete_pool_item(item_id)
     await flash(f"奖池物品ID {item_id} 已删除！", "warning")
     return redirect(url_for("admin_bp.manage_gacha_pool_details", pool_id=pool_id))
+
+
+# --- 用户管理 ---
+@admin_bp.route("/users")
+@login_required
+async def manage_users():
+    user_service = current_app.config["USER_SERVICE"]
+    page = int(request.args.get("page", 1))
+    search = request.args.get("search", "")
+    
+    result = user_service.get_users_for_admin(page=page, per_page=20, search=search if search else None)
+    
+    if not result["success"]:
+        await flash("获取用户列表失败：" + result.get("message", "未知错误"), "danger")
+        return redirect(url_for("admin_bp.index"))
+    
+    return await render_template(
+        "users.html", 
+        users=result["users"], 
+        pagination=result["pagination"],
+        search=search
+    )
+
+@admin_bp.route("/users/<user_id>")
+@login_required
+async def get_user_detail(user_id):
+    user_service = current_app.config["USER_SERVICE"]
+    result = user_service.get_user_details_for_admin(user_id)
+    
+    if not result["success"]:
+        return {"success": False, "message": result["message"]}, 404
+    
+    # 将User对象转换为字典以便JSON序列化
+    user_dict = {
+        "user_id": result["user"].user_id,
+        "nickname": result["user"].nickname,
+        "coins": result["user"].coins,
+        "premium_currency": result["user"].premium_currency,
+        "total_fishing_count": result["user"].total_fishing_count,
+        "total_weight_caught": result["user"].total_weight_caught,
+        "total_coins_earned": result["user"].total_coins_earned,
+        "consecutive_login_days": result["user"].consecutive_login_days,
+        "fish_pond_capacity": result["user"].fish_pond_capacity,
+        "fishing_zone_id": result["user"].fishing_zone_id,
+        "auto_fishing_enabled": result["user"].auto_fishing_enabled,
+        "created_at": result["user"].created_at.isoformat() if result["user"].created_at else None,
+        "last_login_time": result["user"].last_login_time.isoformat() if result["user"].last_login_time else None
+    }
+    
+    return {
+        "success": True,
+        "user": user_dict,
+        "equipped_rod": result["equipped_rod"],
+        "equipped_accessory": result["equipped_accessory"],
+        "current_title": result["current_title"]
+    }
+
+@admin_bp.route("/users/<user_id>/update", methods=["POST"])
+@login_required
+async def update_user(user_id):
+    user_service = current_app.config["USER_SERVICE"]
+    
+    try:
+        # 获取JSON数据
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        
+        result = user_service.update_user_for_admin(user_id, data)
+        return result
+    except Exception as e:
+        return {"success": False, "message": f"更新用户时发生错误: {str(e)}"}, 500
+
+@admin_bp.route("/users/<user_id>/delete", methods=["POST"])
+@login_required
+async def delete_user(user_id):
+    user_service = current_app.config["USER_SERVICE"]
+    
+    try:
+        result = user_service.delete_user_for_admin(user_id)
+        return result
+    except Exception as e:
+        return {"success": False, "message": f"删除用户时发生错误: {str(e)}"}, 500

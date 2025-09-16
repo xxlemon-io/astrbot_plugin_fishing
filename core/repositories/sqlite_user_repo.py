@@ -155,3 +155,53 @@ class SqliteUserRepository(AbstractUserRepository):
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM users WHERE coins >= ?", (threshold,))
             return [self._row_to_user(row) for row in cursor.fetchall()]
+
+    def get_all_users(self, limit: int = 100, offset: int = 0) -> List[User]:
+        """获取所有用户（分页）"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
+            return [self._row_to_user(row) for row in cursor.fetchall()]
+
+    def get_users_count(self) -> int:
+        """获取用户总数"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM users")
+            return cursor.fetchone()[0]
+
+    def search_users(self, keyword: str, limit: int = 50) -> List[User]:
+        """搜索用户（按用户ID或昵称）"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM users 
+                WHERE user_id LIKE ? OR nickname LIKE ? 
+                ORDER BY created_at DESC 
+                LIMIT ?
+            """, (f"%{keyword}%", f"%{keyword}%", limit))
+            return [self._row_to_user(row) for row in cursor.fetchall()]
+
+    def delete_user(self, user_id: str) -> bool:
+        """删除用户（级联删除相关数据）"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                # 删除用户相关的所有数据
+                cursor.execute("DELETE FROM user_rods WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM user_accessories WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM user_fish_inventory WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM fishing_records WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM gacha_records WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM wipe_bomb_logs WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM market_listings WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM tax_records WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM user_achievement_progress WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM check_in_logs WHERE user_id = ?", (user_id,))
+                # 最后删除用户
+                cursor.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
+                conn.commit()
+                return cursor.rowcount > 0
+            except Exception:
+                conn.rollback()
+                return False

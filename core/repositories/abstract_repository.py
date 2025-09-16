@@ -36,6 +36,18 @@ class AbstractUserRepository(ABC):
     # 获取资产超过阈值的用户列表
     @abstractmethod
     def get_high_value_users(self, threshold: int) -> List[User]: pass
+    # 获取所有用户（分页）
+    @abstractmethod
+    def get_all_users(self, limit: int = 100, offset: int = 0) -> List[User]: pass
+    # 获取用户总数
+    @abstractmethod
+    def get_users_count(self) -> int: pass
+    # 搜索用户
+    @abstractmethod
+    def search_users(self, keyword: str, limit: int = 50) -> List[User]: pass
+    # 删除用户
+    @abstractmethod
+    def delete_user(self, user_id: str) -> bool: pass
 
 class AbstractItemTemplateRepository(ABC):
     """物品模板数据仓储接口"""
