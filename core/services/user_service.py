@@ -586,15 +586,55 @@ class UserService:
                 rod_template = self.item_template_repo.get_rod_by_id(item_id)
                 if not rod_template:
                     return {"success": False, "message": "鱼竿不存在"}
-                # 这里需要根据具体需求实现，可能需要指定实例ID
-                return {"success": False, "message": "鱼竿移除功能需要指定具体实例ID"}
+                
+                # 获取用户的所有该类型鱼竿实例
+                rod_instances = self.inventory_repo.get_user_rod_instances(user_id)
+                target_instances = [inst for inst in rod_instances if inst.rod_id == item_id]
+                
+                if len(target_instances) < quantity:
+                    return {"success": False, "message": f"库存不足，当前只有 {len(target_instances)} 个"}
+                
+                # 删除指定数量的实例（优先删除未装备的）
+                removed_count = 0
+                for instance in target_instances:
+                    if removed_count >= quantity:
+                        break
+                    # 如果正在装备，先取消装备
+                    if instance.rod_instance_id == user.equipped_rod_instance_id:
+                        user.equipped_rod_instance_id = None
+                        self.user_repo.update(user)
+                    # 删除实例
+                    self.inventory_repo.delete_rod_instance(instance.rod_instance_id)
+                    removed_count += 1
+                
+                return {"success": True, "message": f"成功移除 {rod_template.name} x{removed_count}"}
                 
             elif item_type == "accessory":
                 accessory_template = self.item_template_repo.get_accessory_by_id(item_id)
                 if not accessory_template:
                     return {"success": False, "message": "饰品不存在"}
-                # 这里需要根据具体需求实现，可能需要指定实例ID
-                return {"success": False, "message": "饰品移除功能需要指定具体实例ID"}
+                
+                # 获取用户的所有该类型饰品实例
+                accessory_instances = self.inventory_repo.get_user_accessory_instances(user_id)
+                target_instances = [inst for inst in accessory_instances if inst.accessory_id == item_id]
+                
+                if len(target_instances) < quantity:
+                    return {"success": False, "message": f"库存不足，当前只有 {len(target_instances)} 个"}
+                
+                # 删除指定数量的实例（优先删除未装备的）
+                removed_count = 0
+                for instance in target_instances:
+                    if removed_count >= quantity:
+                        break
+                    # 如果正在装备，先取消装备
+                    if instance.accessory_instance_id == user.equipped_accessory_instance_id:
+                        user.equipped_accessory_instance_id = None
+                        self.user_repo.update(user)
+                    # 删除实例
+                    self.inventory_repo.delete_accessory_instance(instance.accessory_instance_id)
+                    removed_count += 1
+                
+                return {"success": True, "message": f"成功移除 {accessory_template.name} x{removed_count}"}
                 
             elif item_type == "bait":
                 bait_template = self.item_template_repo.get_bait_by_id(item_id)
