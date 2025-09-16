@@ -193,12 +193,8 @@ class MarketService:
         为管理员提供分页的市场商品列表，支持筛选和搜索。
         """
         try:
-            logger.info(f"获取市场列表 - 参数: page={page}, per_page={per_page}, item_type={item_type}, min_price={min_price}, max_price={max_price}, search={search}")
-            
             # 获取筛选后的商品列表
-            logger.info("调用市场仓储获取所有商品")
             listings = self.market_repo.get_all_listings()
-            logger.info(f"从数据库获取到 {len(listings)} 个商品")
             
             # 应用筛选条件
             if item_type:

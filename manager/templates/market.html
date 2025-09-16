@@ -332,5 +332,55 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('admin_bp.static', filename='js/market_manager.js') }}"></script>
+<script>
+console.log('内联JavaScript正在运行');
+console.log('jQuery存在:', typeof $ !== 'undefined');
+console.log('Bootstrap存在:', typeof bootstrap !== 'undefined');
+
+// 测试静态文件URL
+console.log('JavaScript文件URL:', "{{ url_for('admin_bp.static', filename='js/market_manager.js') }}");
+
+// 添加时间戳防止缓存
+var timestamp = new Date().getTime();
+var scriptUrl = "{{ url_for('admin_bp.static', filename='js/market_manager.js') }}" + "?v=" + timestamp;
+
+console.log('准备加载JavaScript文件:', scriptUrl);
+
+// 手动加载JavaScript并添加错误处理
+var script = document.createElement('script');
+script.src = scriptUrl;
+script.onload = function() {
+    console.log('market_manager.js 加载成功');
+    
+    // 等待一下再检查函数是否存在
+    setTimeout(function() {
+        console.log('window.testMarketManager存在:', typeof window.testMarketManager !== 'undefined');
+        console.log('window.initializeMarketManager存在:', typeof window.initializeMarketManager !== 'undefined');
+        console.log('DOMContentLoaded事件状态:', document.readyState);
+        
+        // 手动触发初始化（以防DOM事件没有正确触发）
+        if (typeof window.initializeMarketManager === 'function') {
+            console.log('手动调用初始化函数');
+            window.initializeMarketManager();
+        } else {
+            console.error('initializeMarketManager函数不存在！');
+        }
+    }, 100);
+};
+script.onerror = function() {
+    console.error('market_manager.js 加载失败');
+};
+document.head.appendChild(script);
+
+// 也尝试直接使用传统方式加载（作为备用）
+setTimeout(function() {
+    if (typeof window.testMarketManager === 'undefined') {
+        console.log('尝试传统方式加载JavaScript');
+        var fallbackScript = document.createElement('script');
+        fallbackScript.src = scriptUrl;
+        fallbackScript.async = false;
+        document.head.appendChild(fallbackScript);
+    }
+}, 500);
+</script>
 {% endblock %}

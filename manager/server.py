@@ -41,7 +41,20 @@ def create_app(secret_key: str, services: Dict[str, Any]):
     def root():
         return redirect(url_for("admin_bp.index"))
     
+    @app.route("/favicon.ico")
+    def favicon():
+        # 返回404而不是500错误
+        from quart import abort
+        abort(404)
+    
     # 添加全局错误处理器
+    @app.errorhandler(404)
+    async def handle_404_error(error):
+        # 只对非静态资源记录404错误
+        if not request.path.startswith('/admin/static/') and request.path != '/favicon.ico':
+            logger.error(f"404 Not Found: {request.url} - {request.method}")
+        return "Not Found", 404
+    
     @app.errorhandler(500)
     async def handle_500_error(error):
         logger.error(f"Internal Server Error: {error}")
@@ -460,46 +473,11 @@ async def delete_user(user_id):
 
 
 # --- 市场管理 ---
-@admin_bp.route("/market/test")
-@login_required
-async def test_market():
-    """测试路由，用于排查问题"""
-    try:
-        logger.info("测试市场管理路由")
-        
-        # 检查服务是否存在
-        if "MARKET_SERVICE" not in current_app.config:
-            return f"MARKET_SERVICE not found. Available: {list(current_app.config.keys())}"
-        
-        market_service = current_app.config["MARKET_SERVICE"]
-        logger.info(f"Market service type: {type(market_service)}")
-        
-        # 简单测试调用
-        result = market_service.get_market_listings()
-        logger.info(f"Basic market listings result: {result}")
-        
-        return f"Success: {result.get('success')}, Rods: {len(result.get('rods', []))}, Accessories: {len(result.get('accessories', []))}"
-        
-    except Exception as e:
-        logger.error(f"测试路由出错: {e}")
-        logger.error(traceback.format_exc())
-        return f"Error: {str(e)}"
-
 @admin_bp.route("/market")
 @login_required
 async def manage_market():
     try:
-        logger.info("访问市场管理页面")
-        
-        # 检查服务是否存在
-        if "MARKET_SERVICE" not in current_app.config:
-            logger.error("MARKET_SERVICE not found in app config")
-            logger.error(f"Available services: {list(current_app.config.keys())}")
-            await flash("市场服务未正确初始化", "danger")
-            return redirect(url_for("admin_bp.index"))
-        
         market_service = current_app.config["MARKET_SERVICE"]
-        logger.info(f"Market service: {market_service}")
         
         # 获取查询参数
         page = int(request.args.get("page", 1))
@@ -508,15 +486,12 @@ async def manage_market():
         max_price = request.args.get("max_price", "")
         search = request.args.get("search", "")
         
-        logger.info(f"Query params: page={page}, item_type={item_type}, min_price={min_price}, max_price={max_price}, search={search}")
-        
         # 转换参数
         min_price = int(min_price) if min_price else None
         max_price = int(max_price) if max_price else None
         item_type = item_type if item_type else None
         search = search if search else None
         
-        logger.info("调用市场服务获取数据")
         result = market_service.get_all_market_listings_for_admin(
             page=page, 
             per_page=20,
@@ -526,13 +501,9 @@ async def manage_market():
             search=search
         )
         
-        logger.info(f"市场服务返回结果: success={result.get('success')}")
-        
         if not result["success"]:
             await flash("获取市场列表失败：" + result.get("message", "未知错误"), "danger")
             return redirect(url_for("admin_bp.index"))
-        
-        logger.info(f"准备渲染模板，商品数量: {len(result.get('listings', []))}")
         
         return await render_template(
             "market.html",
@@ -558,7 +529,10 @@ async def update_market_price(market_id):
     market_service = current_app.config["MARKET_SERVICE"]
     
     try:
+        logger.info(f"收到修改价格请求: market_id={market_id}")
         data = await request.get_json()
+        logger.info(f"请求数据: {data}")
+        
         if not data:
             return {"success": False, "message": "无效的请求数据"}, 400
         
@@ -567,8 +541,11 @@ async def update_market_price(market_id):
             return {"success": False, "message": "缺少价格参数"}, 400
         
         result = market_service.update_market_item_price(market_id, int(new_price))
+        logger.info(f"修改价格结果: {result}")
         return result
     except Exception as e:
+        logger.error(f"更新价格错误: {e}")
+        logger.error(traceback.format_exc())
         return {"success": False, "message": f"更新价格时发生错误: {str(e)}"}, 500
 
 @admin_bp.route("/market/<int:market_id>/remove", methods=["POST"])
@@ -577,9 +554,13 @@ async def remove_market_item(market_id):
     market_service = current_app.config["MARKET_SERVICE"]
     
     try:
+        logger.info(f"收到下架商品请求: market_id={market_id}")
         result = market_service.remove_market_item_by_admin(market_id)
+        logger.info(f"下架商品结果: {result}")
         return result
     except Exception as e:
+        logger.error(f"下架商品错误: {e}")
+        logger.error(traceback.format_exc())
         return {"success": False, "message": f"下架商品时发生错误: {str(e)}"}, 500
 
 

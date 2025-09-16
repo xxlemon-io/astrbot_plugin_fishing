@@ -1,33 +1,84 @@
+// 立即执行的日志，确保文件被执行
+console.log('=== MARKET_MANAGER.JS 开始执行 ===');
+
 /**
  * 市场管理JavaScript交互逻辑
  * 支持实时刷新、价格修改、商品下架等功能
  */
 
+console.log('开始加载market_manager.js');
+
+// 全局错误捕获
+window.addEventListener('error', function(e) {
+    console.error('JavaScript错误:', e.error, e.filename, e.lineno);
+});
+
 // 全局状态
 let currentMarketId = null;
 
+console.log('全局变量初始化完成');
+
 // DOM加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM加载完成，开始初始化市场管理器');
     initializeMarketManager();
+});
+
+// 也在页面加载后进行初始化（双重保险）
+window.addEventListener('load', function() {
+    console.log('页面完全加载，再次检查市场管理器');
+    // 检查是否已经初始化
+    const editButtons = document.querySelectorAll('.edit-price-btn');
+    console.log('找到编辑按钮数量:', editButtons.length);
+    if (editButtons.length > 0 && !editButtons[0].hasAttribute('data-initialized')) {
+        console.log('重新初始化市场管理器');
+        initializeMarketManager();
+    }
 });
 
 /**
  * 初始化市场管理器
  */
 function initializeMarketManager() {
+    console.log('initializeMarketManager函数被调用');
+    try {
+        console.log('开始初始化市场管理器...');
+    
+    // 检查页面元素
+    const marketTable = document.querySelector('.table');
+    console.log('市场表格存在:', !!marketTable);
+    
     // 绑定价格编辑按钮事件
+    console.log('绑定价格编辑事件...');
     bindPriceEditEvents();
     
     // 绑定商品下架按钮事件
+    console.log('绑定下架事件...');
     bindRemoveItemEvents();
     
     // 绑定筛选表单事件
+    console.log('绑定筛选事件...');
     bindFilterEvents();
     
     // 设置自动刷新
+    console.log('设置自动刷新...');
     setupAutoRefresh();
     
     console.log('市场管理器初始化完成');
+    
+        // 添加全局测试函数
+        window.testMarketManager = function() {
+            console.log('=== 市场管理器测试 ===');
+            console.log('编辑按钮数量:', document.querySelectorAll('.edit-price-btn').length);
+            console.log('下架按钮数量:', document.querySelectorAll('.remove-item-btn').length);
+            console.log('价格输入框数量:', document.querySelectorAll('.price-input').length);
+            return '测试完成，请查看控制台输出';
+        };
+        
+        console.log('市场管理器初始化完成，testMarketManager已定义');
+    } catch (error) {
+        console.error('初始化市场管理器时出错:', error);
+    }
 }
 
 /**
@@ -35,9 +86,14 @@ function initializeMarketManager() {
  */
 function bindPriceEditEvents() {
     // 编辑价格按钮
-    document.querySelectorAll('.edit-price-btn').forEach(button => {
+    const editButtons = document.querySelectorAll('.edit-price-btn');
+    console.log('绑定编辑按钮事件，找到按钮数量:', editButtons.length);
+    editButtons.forEach((button, index) => {
+        console.log(`绑定第${index + 1}个编辑按钮，market_id:`, button.dataset.marketId);
+        button.setAttribute('data-initialized', 'true');
         button.addEventListener('click', function() {
             const marketId = this.dataset.marketId;
+            console.log('点击编辑价格按钮，market_id:', marketId);
             enablePriceEdit(marketId);
         });
     });
@@ -46,6 +102,7 @@ function bindPriceEditEvents() {
     document.querySelectorAll('.save-price-btn').forEach(button => {
         button.addEventListener('click', function() {
             const marketId = this.dataset.marketId;
+            console.log('点击保存价格按钮，market_id:', marketId);
             savePriceChange(marketId);
         });
     });
@@ -76,12 +133,16 @@ function bindPriceEditEvents() {
  * 绑定商品下架相关事件
  */
 function bindRemoveItemEvents() {
-    document.querySelectorAll('.remove-item-btn').forEach(button => {
+    const removeButtons = document.querySelectorAll('.remove-item-btn');
+    console.log('绑定下架按钮事件，找到按钮数量:', removeButtons.length);
+    removeButtons.forEach((button, index) => {
+        console.log(`绑定第${index + 1}个下架按钮，market_id:`, button.dataset.marketId);
         button.addEventListener('click', function() {
             const marketId = this.dataset.marketId;
             const itemName = this.dataset.itemName;
             const sellerName = this.dataset.sellerName;
             
+            console.log('点击下架按钮，market_id:', marketId, 'item:', itemName);
             showRemoveConfirmModal(marketId, itemName, sellerName);
         });
     });
@@ -193,6 +254,8 @@ async function savePriceChange(marketId) {
     const priceInput = document.getElementById(`price-input-${marketId}`);
     const newPrice = parseInt(priceInput.value);
 
+    console.log('保存价格修改:', marketId, newPrice);
+
     if (!newPrice || newPrice <= 0) {
         showAlert('请输入有效的价格（大于0）', 'warning');
         return;
@@ -201,6 +264,7 @@ async function savePriceChange(marketId) {
     try {
         showLoading(true);
         
+        console.log('发送价格修改请求到:', `/admin/market/${marketId}/price`);
         const response = await fetch(`/admin/market/${marketId}/price`, {
             method: 'POST',
             headers: {
@@ -209,7 +273,9 @@ async function savePriceChange(marketId) {
             body: JSON.stringify({ price: newPrice })
         });
 
+        console.log('服务器响应状态:', response.status);
         const result = await response.json();
+        console.log('服务器响应结果:', result);
 
         if (result.success) {
             // 更新页面显示
@@ -263,6 +329,7 @@ async function removeMarketItem(marketId) {
     try {
         showLoading(true);
         
+        console.log('发送下架请求到:', `/admin/market/${marketId}/remove`);
         const response = await fetch(`/admin/market/${marketId}/remove`, {
             method: 'POST',
             headers: {
@@ -270,7 +337,9 @@ async function removeMarketItem(marketId) {
             }
         });
 
+        console.log('下架响应状态:', response.status);
         const result = await response.json();
+        console.log('下架响应结果:', result);
 
         if (result.success) {
             // 移除商品行
@@ -454,3 +523,15 @@ function validatePrice(price) {
 // 导出函数供全局使用
 window.refreshMarketData = refreshMarketData;
 window.clearFilters = clearFilters;
+window.initializeMarketManager = initializeMarketManager;
+
+// 立即执行调试检查
+console.log('JavaScript文件执行完毕');
+console.log('当前DOM状态:', document.readyState);
+console.log('initializeMarketManager函数定义:', typeof initializeMarketManager);
+
+// 如果DOM已经准备好，立即初始化
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    console.log('DOM已就绪，立即初始化');
+    setTimeout(initializeMarketManager, 0);
+}
