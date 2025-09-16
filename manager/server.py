@@ -441,3 +441,83 @@ async def delete_user(user_id):
         return result
     except Exception as e:
         return {"success": False, "message": f"删除用户时发生错误: {str(e)}"}, 500
+
+
+# --- 用户物品管理 ---
+@admin_bp.route("/users/<user_id>/inventory")
+@login_required
+async def manage_user_inventory(user_id):
+    try:
+        user_service = current_app.config["USER_SERVICE"]
+        item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
+        
+        # 获取用户库存信息
+        inventory_result = user_service.get_user_inventory_for_admin(user_id)
+        
+        if not inventory_result["success"]:
+            await flash("获取用户库存失败：" + inventory_result.get("message", "未知错误"), "danger")
+            return redirect(url_for("admin_bp.manage_users"))
+        
+        # 获取所有物品模板用于添加物品
+        all_fish = item_template_service.get_all_fish()
+        all_rods = item_template_service.get_all_rods()
+        all_accessories = item_template_service.get_all_accessories()
+        all_baits = item_template_service.get_all_baits()
+        
+        return await render_template(
+            "users_inventory.html",
+            user_id=user_id,
+            user_nickname=inventory_result["nickname"],
+            inventory=inventory_result,
+            all_fish=all_fish,
+            all_rods=all_rods,
+            all_accessories=all_accessories,
+            all_baits=all_baits
+        )
+    except Exception as e:
+        await flash(f"页面加载失败: {str(e)}", "danger")
+        return redirect(url_for("admin_bp.manage_users"))
+
+@admin_bp.route("/users/<user_id>/inventory/add", methods=["POST"])
+@login_required
+async def add_item_to_user_inventory(user_id):
+    user_service = current_app.config["USER_SERVICE"]
+    
+    try:
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        
+        item_type = data.get("item_type")
+        item_id = data.get("item_id")
+        quantity = data.get("quantity", 1)
+        
+        if not item_type or not item_id:
+            return {"success": False, "message": "缺少必要参数"}, 400
+        
+        result = user_service.add_item_to_user_inventory(user_id, item_type, item_id, quantity)
+        return result
+    except Exception as e:
+        return {"success": False, "message": f"添加物品时发生错误: {str(e)}"}, 500
+
+@admin_bp.route("/users/<user_id>/inventory/remove", methods=["POST"])
+@login_required
+async def remove_item_from_user_inventory(user_id):
+    user_service = current_app.config["USER_SERVICE"]
+    
+    try:
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        
+        item_type = data.get("item_type")
+        item_id = data.get("item_id")
+        quantity = data.get("quantity", 1)
+        
+        if not item_type or not item_id:
+            return {"success": False, "message": "缺少必要参数"}, 400
+        
+        result = user_service.remove_item_from_user_inventory(user_id, item_type, item_id, quantity)
+        return result
+    except Exception as e:
+        return {"success": False, "message": f"移除物品时发生错误: {str(e)}"}, 500

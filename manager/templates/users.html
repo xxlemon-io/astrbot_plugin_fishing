@@ -79,6 +79,9 @@
                                 <button class="btn btn-sm btn-warning edit-btn" data-user-id="{{ user.user_id }}">
                                     <i class="fas fa-edit"></i> 编辑
                                 </button>
+                                <a href="{{ url_for('admin_bp.manage_user_inventory', user_id=user.user_id) }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-boxes"></i> 物品
+                                </a>
                                 <button class="btn btn-sm btn-danger delete-btn" data-user-id="{{ user.user_id }}" data-user-name="{{ user.nickname or user.user_id }}">
                                     <i class="fas fa-trash"></i> 删除
                                 </button>
@@ -118,6 +121,9 @@
                                 <button class="btn btn-sm btn-outline-warning edit-btn" data-user-id="{{ user.user_id }}">
                                     <i class="fas fa-edit"></i>
                                 </button>
+                                <a href="{{ url_for('admin_bp.manage_user_inventory', user_id=user.user_id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-boxes"></i>
+                                </a>
                                 <button class="btn btn-sm btn-outline-danger delete-btn" data-user-id="{{ user.user_id }}" data-user-name="{{ user.nickname or user.user_id }}">
                                     <i class="fas fa-trash"></i>
                                 </button>

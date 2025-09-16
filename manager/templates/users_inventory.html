@@ -1,0 +1,381 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="fas fa-boxes"></i> 用户物品管理 - {{ user_nickname }}</h2>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addItemModal">
+            <i class="fas fa-plus"></i> 添加物品
+        </button>
+        <a href="{{ url_for('admin_bp.manage_users') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> 返回用户列表
+        </a>
+    </div>
+</div>
+
+<!-- 库存统计卡片 -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ inventory.stats.fish_count }}</h4>
+                        <p class="card-text">鱼类</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-water fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ inventory.stats.rod_count }}</h4>
+                        <p class="card-text">鱼竿</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-gavel fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ inventory.stats.accessory_count }}</h4>
+                        <p class="card-text">饰品</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-gem fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ inventory.stats.bait_count }}</h4>
+                        <p class="card-text">鱼饵</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-bug fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 总价值显示 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-success">
+            <div class="card-body text-center">
+                <h5 class="card-title text-success">
+                    <i class="fas fa-coins"></i> 库存总价值: {{ inventory.stats.total_inventory_value }} 金币
+                </h5>
+                <p class="card-text">
+                    鱼类价值: {{ inventory.stats.fish_total_value }} 金币 | 
+                    鱼饵价值: {{ inventory.stats.bait_total_value }} 金币
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 物品分类标签页 -->
+<ul class="nav nav-tabs" id="inventoryTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="fish-tab" data-bs-toggle="tab" data-bs-target="#fish" type="button" role="tab">
+            <i class="fas fa-water"></i> 鱼类 ({{ inventory.stats.fish_count }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="rods-tab" data-bs-toggle="tab" data-bs-target="#rods" type="button" role="tab">
+            <i class="fas fa-gavel"></i> 鱼竿 ({{ inventory.stats.rod_count }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="accessories-tab" data-bs-toggle="tab" data-bs-target="#accessories" type="button" role="tab">
+            <i class="fas fa-gem"></i> 饰品 ({{ inventory.stats.accessory_count }})
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="baits-tab" data-bs-toggle="tab" data-bs-target="#baits" type="button" role="tab">
+            <i class="fas fa-bug"></i> 鱼饵 ({{ inventory.stats.bait_count }})
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="inventoryTabsContent">
+    <!-- 鱼类库存 -->
+    <div class="tab-pane fade show active" id="fish" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                {% if inventory.fish_inventory %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>名称</th>
+                                <th>稀有度</th>
+                                <th>基础价值</th>
+                                <th>数量</th>
+                                <th>总价值</th>
+                                <th class="text-end">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in inventory.fish_inventory %}
+                            <tr>
+                                <td>{{ item.fish_id }}</td>
+                                <td>{{ item.name }}</td>
+                                <td>{{ '★' * item.rarity }}</td>
+                                <td>{{ item.base_value }}</td>
+                                <td>{{ item.quantity }}</td>
+                                <td>{{ item.total_value }}</td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-danger" onclick="removeItem('fish', {{ item.fish_id }}, {{ item.quantity }})">
+                                        <i class="fas fa-trash"></i> 移除
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-water fa-3x mb-3"></i>
+                    <p>该用户没有鱼类库存</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 鱼竿库存 -->
+    <div class="tab-pane fade" id="rods" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                {% if inventory.rod_inventory %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>实例ID</th>
+                                <th>名称</th>
+                                <th>稀有度</th>
+                                <th>精炼等级</th>
+                                <th>耐久度</th>
+                                <th>状态</th>
+                                <th class="text-end">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in inventory.rod_inventory %}
+                            <tr>
+                                <td>{{ item.instance_id }}</td>
+                                <td>{{ item.name }}</td>
+                                <td>{{ '★' * item.rarity }}</td>
+                                <td>{{ item.refine_level }}</td>
+                                <td>{{ item.durability or '∞' }}</td>
+                                <td>
+                                    {% if item.is_equipped %}
+                                        <span class="badge bg-success">已装备</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">未装备</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-danger" onclick="removeItem('rod', {{ item.rod_id }}, 1)">
+                                        <i class="fas fa-trash"></i> 移除
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-gavel fa-3x mb-3"></i>
+                    <p>该用户没有鱼竿库存</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 饰品库存 -->
+    <div class="tab-pane fade" id="accessories" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                {% if inventory.accessory_inventory %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>实例ID</th>
+                                <th>名称</th>
+                                <th>稀有度</th>
+                                <th>精炼等级</th>
+                                <th>状态</th>
+                                <th class="text-end">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in inventory.accessory_inventory %}
+                            <tr>
+                                <td>{{ item.instance_id }}</td>
+                                <td>{{ item.name }}</td>
+                                <td>{{ '★' * item.rarity }}</td>
+                                <td>{{ item.refine_level }}</td>
+                                <td>
+                                    {% if item.is_equipped %}
+                                        <span class="badge bg-success">已装备</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">未装备</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-danger" onclick="removeItem('accessory', {{ item.accessory_id }}, 1)">
+                                        <i class="fas fa-trash"></i> 移除
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-gem fa-3x mb-3"></i>
+                    <p>该用户没有饰品库存</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 鱼饵库存 -->
+    <div class="tab-pane fade" id="baits" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                {% if inventory.bait_inventory %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>名称</th>
+                                <th>稀有度</th>
+                                <th>单价</th>
+                                <th>数量</th>
+                                <th>总价值</th>
+                                <th class="text-end">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in inventory.bait_inventory %}
+                            <tr>
+                                <td>{{ item.bait_id }}</td>
+                                <td>{{ item.name }}</td>
+                                <td>{{ '★' * item.rarity }}</td>
+                                <td>{{ item.cost }}</td>
+                                <td>{{ item.quantity }}</td>
+                                <td>{{ item.total_value }}</td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-danger" onclick="removeItem('bait', {{ item.bait_id }}, {{ item.quantity }})">
+                                        <i class="fas fa-trash"></i> 移除
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-bug fa-3x mb-3"></i>
+                    <p>该用户没有鱼饵库存</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加物品模态框 -->
+<div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="addItemModalLabel">添加物品到用户库存</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addItemForm">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="itemType" class="form-label">物品类型</label>
+                            <select class="form-select" id="itemType" required>
+                                <option value="">选择物品类型</option>
+                                <option value="fish">鱼类</option>
+                                <option value="rod">鱼竿</option>
+                                <option value="accessory">饰品</option>
+                                <option value="bait">鱼饵</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="itemId" class="form-label">物品</label>
+                            <select class="form-select" id="itemId" required disabled>
+                                <option value="">请先选择物品类型</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="quantity" class="form-label">数量</label>
+                            <input type="number" class="form-control" id="quantity" value="1" min="1" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="addItem()">添加物品</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 定义JS需要的后端URL变量
+    const userId = "{{ user_id }}";
+    const addItemUrl = "{{ url_for('admin_bp.add_item_to_user_inventory', user_id=user_id) }}";
+    const removeItemUrl = "{{ url_for('admin_bp.remove_item_from_user_inventory', user_id=user_id) }}";
+    
+    // 物品模板数据
+    const fishTemplates = {{ all_fish | tojson | safe }};
+    const rodTemplates = {{ all_rods | tojson | safe }};
+    const accessoryTemplates = {{ all_accessories | tojson | safe }};
+    const baitTemplates = {{ all_baits | tojson | safe }};
+    
+    // 强制变量初始化（防止时序问题）
+    void addItemUrl;
+</script>
+<script src="{{ url_for('admin_bp.static', filename='js/users_inventory_manager.js') }}?v={{ range(1000, 9999) | random }}"></script>
+{% endblock %}
