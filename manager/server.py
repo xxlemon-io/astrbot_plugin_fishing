@@ -529,10 +529,7 @@ async def update_market_price(market_id):
     market_service = current_app.config["MARKET_SERVICE"]
     
     try:
-        logger.info(f"收到修改价格请求: market_id={market_id}")
         data = await request.get_json()
-        logger.info(f"请求数据: {data}")
-        
         if not data:
             return {"success": False, "message": "无效的请求数据"}, 400
         
@@ -541,7 +538,6 @@ async def update_market_price(market_id):
             return {"success": False, "message": "缺少价格参数"}, 400
         
         result = market_service.update_market_item_price(market_id, int(new_price))
-        logger.info(f"修改价格结果: {result}")
         return result
     except Exception as e:
         logger.error(f"更新价格错误: {e}")
@@ -554,9 +550,7 @@ async def remove_market_item(market_id):
     market_service = current_app.config["MARKET_SERVICE"]
     
     try:
-        logger.info(f"收到下架商品请求: market_id={market_id}")
         result = market_service.remove_market_item_by_admin(market_id)
-        logger.info(f"下架商品结果: {result}")
         return result
     except Exception as e:
         logger.error(f"下架商品错误: {e}")
