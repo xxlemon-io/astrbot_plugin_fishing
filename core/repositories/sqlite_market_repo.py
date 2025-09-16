@@ -132,3 +132,18 @@ class SqliteMarketRepository(AbstractMarketRepository):
             cursor = conn.cursor()
             cursor.execute("DELETE FROM market WHERE market_id = ?", (market_id,))
             conn.commit()
+
+    def update_listing(self, listing: MarketListing) -> None:
+        """更新市场商品信息"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE market 
+                SET price = ?, refine_level = ?
+                WHERE market_id = ?
+            """, (
+                listing.price,
+                listing.refine_level,
+                listing.market_id
+            ))
+            conn.commit()

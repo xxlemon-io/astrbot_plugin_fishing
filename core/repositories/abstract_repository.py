@@ -268,6 +268,9 @@ class AbstractMarketRepository(ABC):
     # 移除一个市场商品
     @abstractmethod
     def remove_listing(self, market_id: int) -> None: pass
+    # 更新市场商品
+    @abstractmethod
+    def update_listing(self, listing: MarketListing) -> None: pass
 
 class AbstractLogRepository(ABC):
     """日志类数据仓储接口"""

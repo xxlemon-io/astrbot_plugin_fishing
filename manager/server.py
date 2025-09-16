@@ -443,6 +443,82 @@ async def delete_user(user_id):
         return {"success": False, "message": f"删除用户时发生错误: {str(e)}"}, 500
 
 
+# --- 市场管理 ---
+@admin_bp.route("/market")
+@login_required
+async def manage_market():
+    market_service = current_app.config["MARKET_SERVICE"]
+    
+    # 获取查询参数
+    page = int(request.args.get("page", 1))
+    item_type = request.args.get("item_type", "")
+    min_price = request.args.get("min_price", "")
+    max_price = request.args.get("max_price", "")
+    search = request.args.get("search", "")
+    
+    # 转换参数
+    min_price = int(min_price) if min_price else None
+    max_price = int(max_price) if max_price else None
+    item_type = item_type if item_type else None
+    search = search if search else None
+    
+    result = market_service.get_all_market_listings_for_admin(
+        page=page, 
+        per_page=20,
+        item_type=item_type,
+        min_price=min_price,
+        max_price=max_price,
+        search=search
+    )
+    
+    if not result["success"]:
+        await flash("获取市场列表失败：" + result.get("message", "未知错误"), "danger")
+        return redirect(url_for("admin_bp.index"))
+    
+    return await render_template(
+        "market.html",
+        listings=result["listings"],
+        pagination=result["pagination"],
+        stats=result["stats"],
+        filters={
+            "item_type": request.args.get("item_type", ""),
+            "min_price": request.args.get("min_price", ""),
+            "max_price": request.args.get("max_price", ""),
+            "search": request.args.get("search", "")
+        }
+    )
+
+@admin_bp.route("/market/<int:market_id>/price", methods=["POST"])
+@login_required
+async def update_market_price(market_id):
+    market_service = current_app.config["MARKET_SERVICE"]
+    
+    try:
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        
+        new_price = data.get("price")
+        if not new_price:
+            return {"success": False, "message": "缺少价格参数"}, 400
+        
+        result = market_service.update_market_item_price(market_id, int(new_price))
+        return result
+    except Exception as e:
+        return {"success": False, "message": f"更新价格时发生错误: {str(e)}"}, 500
+
+@admin_bp.route("/market/<int:market_id>/remove", methods=["POST"])
+@login_required
+async def remove_market_item(market_id):
+    market_service = current_app.config["MARKET_SERVICE"]
+    
+    try:
+        result = market_service.remove_market_item_by_admin(market_id)
+        return result
+    except Exception as e:
+        return {"success": False, "message": f"下架商品时发生错误: {str(e)}"}, 500
+
+
 # --- 用户物品管理 ---
 @admin_bp.route("/users/<user_id>/inventory")
 @login_required
