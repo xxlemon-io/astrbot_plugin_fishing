@@ -269,11 +269,8 @@
     const updateUserUrl = baseUrl + "/users/";
     const deleteUserUrl = baseUrl + "/users/";
     
-    // 调试信息
-    console.log('Base URL:', baseUrl);
-    console.log('User Detail URL:', userDetailUrl);
-    console.log('Update User URL:', updateUserUrl);
-    console.log('Delete User URL:', deleteUserUrl);
+    // 强制变量初始化（防止时序问题）
+    console.log('URLs initialized');
 </script>
 <script src="{{ url_for('admin_bp.static', filename='js/users_manager.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}
