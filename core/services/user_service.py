@@ -389,3 +389,227 @@ class UserService:
             return {"success": True, "message": "用户删除成功"}
         else:
             return {"success": False, "message": "用户删除失败"}
+
+    def get_user_inventory_for_admin(self, user_id: str) -> Dict[str, Any]:
+        """
+        获取用户物品库存信息（管理员操作）
+        
+        Args:
+            user_id: 用户ID
+            
+        Returns:
+            包含用户物品库存信息的字典
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+        
+        # 获取鱼类库存
+        fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
+        fish_data = []
+        for item in fish_inventory:
+            fish_template = self.item_template_repo.get_fish_by_id(item.fish_id)
+            if fish_template:
+                fish_data.append({
+                    "fish_id": item.fish_id,
+                    "name": fish_template.name,
+                    "rarity": fish_template.rarity,
+                    "base_value": fish_template.base_value,
+                    "quantity": item.quantity,
+                    "total_value": fish_template.base_value * item.quantity
+                })
+        
+        # 获取鱼竿库存
+        rod_instances = self.inventory_repo.get_user_rod_instances(user_id)
+        rod_data = []
+        for instance in rod_instances:
+            rod_template = self.item_template_repo.get_rod_by_id(instance.rod_id)
+            if rod_template:
+                rod_data.append({
+                    "instance_id": instance.rod_instance_id,
+                    "rod_id": instance.rod_id,
+                    "name": rod_template.name,
+                    "rarity": rod_template.rarity,
+                    "refine_level": instance.refine_level,
+                    "durability": instance.durability,
+                    "is_equipped": instance.rod_instance_id == user.equipped_rod_instance_id
+                })
+        
+        # 获取饰品库存
+        accessory_instances = self.inventory_repo.get_user_accessory_instances(user_id)
+        accessory_data = []
+        for instance in accessory_instances:
+            accessory_template = self.item_template_repo.get_accessory_by_id(instance.accessory_id)
+            if accessory_template:
+                accessory_data.append({
+                    "instance_id": instance.accessory_instance_id,
+                    "accessory_id": instance.accessory_id,
+                    "name": accessory_template.name,
+                    "rarity": accessory_template.rarity,
+                    "refine_level": instance.refine_level,
+                    "is_equipped": instance.accessory_instance_id == user.equipped_accessory_instance_id
+                })
+        
+        # 获取鱼饵库存
+        bait_inventory = self.inventory_repo.get_user_bait_inventory(user_id)
+        bait_data = []
+        for bait_id, quantity in bait_inventory.items():
+            bait_template = self.item_template_repo.get_bait_by_id(bait_id)
+            if bait_template and quantity > 0:
+                bait_data.append({
+                    "bait_id": bait_id,
+                    "name": bait_template.name,
+                    "rarity": bait_template.rarity,
+                    "quantity": quantity,
+                    "cost": bait_template.cost,
+                    "total_value": bait_template.cost * quantity
+                })
+        
+        # 计算总价值
+        fish_total_value = sum(item["total_value"] for item in fish_data)
+        bait_total_value = sum(item["total_value"] for item in bait_data)
+        
+        return {
+            "success": True,
+            "user_id": user_id,
+            "nickname": user.nickname,
+            "fish_inventory": fish_data,
+            "rod_inventory": rod_data,
+            "accessory_inventory": accessory_data,
+            "bait_inventory": bait_data,
+            "stats": {
+                "fish_count": len(fish_data),
+                "rod_count": len(rod_data),
+                "accessory_count": len(accessory_data),
+                "bait_count": len(bait_data),
+                "fish_total_value": fish_total_value,
+                "bait_total_value": bait_total_value,
+                "total_inventory_value": fish_total_value + bait_total_value
+            }
+        }
+
+    def add_item_to_user_inventory(self, user_id: str, item_type: str, item_id: int, quantity: int = 1) -> Dict[str, Any]:
+        """
+        向用户库存添加物品（管理员操作）
+        
+        Args:
+            user_id: 用户ID
+            item_type: 物品类型 (fish, rod, accessory, bait)
+            item_id: 物品ID
+            quantity: 数量
+            
+        Returns:
+            包含操作结果的字典
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+        
+        try:
+            if item_type == "fish":
+                fish_template = self.item_template_repo.get_fish_by_id(item_id)
+                if not fish_template:
+                    return {"success": False, "message": "鱼类不存在"}
+                self.inventory_repo.add_fish_to_inventory(user_id, item_id, quantity)
+                return {"success": True, "message": f"成功添加 {fish_template.name} x{quantity}"}
+                
+            elif item_type == "rod":
+                rod_template = self.item_template_repo.get_rod_by_id(item_id)
+                if not rod_template:
+                    return {"success": False, "message": "鱼竿不存在"}
+                for _ in range(quantity):
+                    self.inventory_repo.add_rod_instance(user_id, item_id, rod_template.durability)
+                return {"success": True, "message": f"成功添加 {rod_template.name} x{quantity}"}
+                
+            elif item_type == "accessory":
+                accessory_template = self.item_template_repo.get_accessory_by_id(item_id)
+                if not accessory_template:
+                    return {"success": False, "message": "饰品不存在"}
+                for _ in range(quantity):
+                    self.inventory_repo.add_accessory_instance(user_id, item_id)
+                return {"success": True, "message": f"成功添加 {accessory_template.name} x{quantity}"}
+                
+            elif item_type == "bait":
+                bait_template = self.item_template_repo.get_bait_by_id(item_id)
+                if not bait_template:
+                    return {"success": False, "message": "鱼饵不存在"}
+                self.inventory_repo.update_bait_quantity(user_id, item_id, quantity)
+                return {"success": True, "message": f"成功添加 {bait_template.name} x{quantity}"}
+                
+            else:
+                return {"success": False, "message": "不支持的物品类型"}
+                
+        except Exception as e:
+            return {"success": False, "message": f"添加物品失败: {str(e)}"}
+
+    def remove_item_from_user_inventory(self, user_id: str, item_type: str, item_id: int, quantity: int = 1) -> Dict[str, Any]:
+        """
+        从用户库存移除物品（管理员操作）
+        
+        Args:
+            user_id: 用户ID
+            item_type: 物品类型 (fish, rod, accessory, bait)
+            item_id: 物品ID
+            quantity: 数量
+            
+        Returns:
+            包含操作结果的字典
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+        
+        try:
+            if item_type == "fish":
+                fish_template = self.item_template_repo.get_fish_by_id(item_id)
+                if not fish_template:
+                    return {"success": False, "message": "鱼类不存在"}
+                # 检查库存数量
+                fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
+                current_quantity = 0
+                for item in fish_inventory:
+                    if item.fish_id == item_id:
+                        current_quantity = item.quantity
+                        break
+                
+                if current_quantity < quantity:
+                    return {"success": False, "message": f"库存不足，当前只有 {current_quantity} 个"}
+                
+                # 减少数量
+                self.inventory_repo.update_bait_quantity(user_id, item_id, -quantity)
+                return {"success": True, "message": f"成功移除 {fish_template.name} x{quantity}"}
+                
+            elif item_type == "rod":
+                rod_template = self.item_template_repo.get_rod_by_id(item_id)
+                if not rod_template:
+                    return {"success": False, "message": "鱼竿不存在"}
+                # 这里需要根据具体需求实现，可能需要指定实例ID
+                return {"success": False, "message": "鱼竿移除功能需要指定具体实例ID"}
+                
+            elif item_type == "accessory":
+                accessory_template = self.item_template_repo.get_accessory_by_id(item_id)
+                if not accessory_template:
+                    return {"success": False, "message": "饰品不存在"}
+                # 这里需要根据具体需求实现，可能需要指定实例ID
+                return {"success": False, "message": "饰品移除功能需要指定具体实例ID"}
+                
+            elif item_type == "bait":
+                bait_template = self.item_template_repo.get_bait_by_id(item_id)
+                if not bait_template:
+                    return {"success": False, "message": "鱼饵不存在"}
+                # 检查库存数量
+                bait_inventory = self.inventory_repo.get_user_bait_inventory(user_id)
+                current_quantity = bait_inventory.get(item_id, 0)
+                
+                if current_quantity < quantity:
+                    return {"success": False, "message": f"库存不足，当前只有 {current_quantity} 个"}
+                
+                # 减少数量
+                self.inventory_repo.update_bait_quantity(user_id, item_id, -quantity)
+                return {"success": True, "message": f"成功移除 {bait_template.name} x{quantity}"}
+                
+            else:
+                return {"success": False, "message": "不支持的物品类型"}
+                
+        except Exception as e:
+            return {"success": False, "message": f"移除物品失败: {str(e)}"}
