@@ -36,15 +36,6 @@ function initializeMarketManager() {
         
         // 设置自动刷新
         setupAutoRefresh();
-        
-        // 添加全局测试函数
-        window.testMarketManager = function() {
-            console.log('=== 市场管理器测试 ===');
-            console.log('编辑按钮数量:', document.querySelectorAll('.edit-price-btn').length);
-            console.log('下架按钮数量:', document.querySelectorAll('.remove-item-btn').length);
-            console.log('价格输入框数量:', document.querySelectorAll('.price-input').length);
-            return '测试完成，请查看控制台输出';
-        };
     } catch (error) {
         console.error('初始化市场管理器时出错:', error);
     }
