@@ -270,7 +270,7 @@
     const deleteUserUrl = baseUrl + "/users/";
     
     // 强制变量初始化（防止时序问题）
-    console.log('URLs initialized');
+    void updateUserUrl; // 强制变量求值，无副作用
 </script>
 <script src="{{ url_for('admin_bp.static', filename='js/users_manager.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}
