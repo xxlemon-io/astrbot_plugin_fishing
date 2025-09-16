@@ -1,8 +1,6 @@
 // 用户物品管理JavaScript
 
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('用户物品管理页面加载完成');
-    
+document.addEventListener('DOMContentLoaded', function() {    
     // 初始化物品类型选择器
     initializeItemTypeSelector();
     
