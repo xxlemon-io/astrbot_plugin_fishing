@@ -264,9 +264,16 @@
 <script>
     // 定义JS需要的后端URL变量
     const usersUrl = "{{ url_for('admin_bp.manage_users') }}";
-    const userDetailUrl = "{{ url_for('admin_bp.get_user_detail', user_id='') }}";
-    const updateUserUrl = "{{ url_for('admin_bp.update_user', user_id='') }}";
-    const deleteUserUrl = "{{ url_for('admin_bp.delete_user', user_id='') }}";
+    const baseUrl = "{{ url_for('admin_bp.manage_users') }}".replace('/users', '');
+    const userDetailUrl = baseUrl + "/users/";
+    const updateUserUrl = baseUrl + "/users/";
+    const deleteUserUrl = baseUrl + "/users/";
+    
+    // 调试信息
+    console.log('Base URL:', baseUrl);
+    console.log('User Detail URL:', userDetailUrl);
+    console.log('Update User URL:', updateUserUrl);
+    console.log('Delete User URL:', deleteUserUrl);
 </script>
-<script src="{{ url_for('admin_bp.static', filename='js/users_manager.js') }}"></script>
+<script src="{{ url_for('admin_bp.static', filename='js/users_manager.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}

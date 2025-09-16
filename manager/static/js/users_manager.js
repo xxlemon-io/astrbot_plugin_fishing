@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing user management... (v2.0)');
     // 视图切换
     const listViewRadio = document.getElementById('listView');
     const cardViewRadio = document.getElementById('cardView');
@@ -76,37 +77,60 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 表单提交
-    document.getElementById('user-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const formData = new FormData(this);
-        const userId = formData.get('user_id');
+    const form = document.getElementById('user-form');
+    if (form) {
+        console.log('Form found, attaching event listener');
+        form.addEventListener('submit', function(e) {
+            console.log('=== FORM SUBMIT DEBUG ===');
+            console.log('Form submit event triggered');
+            console.log('Event target:', e.target);
+            console.log('Form action:', e.target.action);
+            console.log('========================');
+            e.preventDefault();
+            const formData = new FormData(this);
+            const userId = formData.get('user_id');
         
-        // 将表单数据转换为对象
-        const userData = {};
-        for (let [key, value] of formData.entries()) {
-            if (key === 'auto_fishing_enabled') {
-                userData[key] = true;
-            } else if (value !== '') {
-                userData[key] = value;
+            // 将表单数据转换为对象
+            const userData = {};
+            for (let [key, value] of formData.entries()) {
+                if (key === 'auto_fishing_enabled') {
+                    userData[key] = true;
+                } else if (value !== '') {
+                    userData[key] = value;
+                }
             }
-        }
 
-        // 转换数字字段
-        const numberFields = ['coins', 'premium_currency', 'total_fishing_count', 'total_weight_caught', 
-                             'total_coins_earned', 'consecutive_login_days', 'fish_pond_capacity', 'fishing_zone_id'];
-        numberFields.forEach(field => {
-            if (userData[field] !== undefined) {
-                userData[field] = parseInt(userData[field]) || 0;
-            }
+            // 转换数字字段
+            const numberFields = ['coins', 'premium_currency', 'total_fishing_count', 'total_weight_caught', 
+                                 'total_coins_earned', 'consecutive_login_days', 'fish_pond_capacity', 'fishing_zone_id'];
+            numberFields.forEach(field => {
+                if (userData[field] !== undefined) {
+                    userData[field] = parseInt(userData[field]) || 0;
+                }
+            });
+
+            console.log('=== FORM PROCESSING DEBUG ===');
+            console.log('Form submitted for user:', userId);
+            console.log('Form data:', userData);
+            console.log('About to call updateUser...');
+            console.log('============================');
+            updateUser(userId, userData);
         });
-
-        updateUser(userId, userData);
-    });
+    } else {
+        console.error('Form with id "user-form" not found');
+        console.log('Available forms:', document.querySelectorAll('form'));
+        console.log('All form elements:', document.getElementsByTagName('form'));
+    }
 
     // 加载用户详情
     async function loadUserDetail(userId) {
         try {
-            const response = await fetch(userDetailUrl + userId);
+            const url = userDetailUrl + userId;
+            console.log('=== LOAD USER DETAIL DEBUG ===');
+            console.log('Loading user detail for:', userId);
+            console.log('Detail URL:', url);
+            console.log('================================');
+            const response = await fetch(url);
             const data = await response.json();
             
             if (data.success) {
@@ -174,7 +198,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // 加载用户进行编辑
     async function loadUserForEdit(userId) {
         try {
-            const response = await fetch(userDetailUrl + userId);
+            const url = userDetailUrl + userId;
+            console.log('=== LOAD USER FOR EDIT DEBUG ===');
+            console.log('Loading user for edit:', userId);
+            console.log('Edit URL:', url);
+            console.log('=================================');
+            const response = await fetch(url);
             const data = await response.json();
             
             if (data.success) {
@@ -194,8 +223,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('fishing_zone_id').value = user.fishing_zone_id;
                 document.getElementById('auto_fishing_enabled').checked = user.auto_fishing_enabled;
                 
-                // 设置表单动作
-                form.action = updateUserUrl + userId;
+                // 设置表单动作（虽然我们使用JavaScript处理，但保持一致性）
+                const actionUrl = updateUserUrl + userId + '/update';
+                form.action = actionUrl;
+                console.log('=== FORM ACTION DEBUG ===');
+                console.log('Form action set to:', actionUrl);
+                console.log('updateUserUrl:', updateUserUrl);
+                console.log('userId:', userId);
+                console.log('========================');
                 
                 // 显示模态框
                 new bootstrap.Modal(document.getElementById('userModal')).show();
@@ -211,7 +246,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // 更新用户
     async function updateUser(userId, userData) {
         try {
-            const response = await fetch(updateUserUrl + userId, {
+            // 确保URL构建正确
+            const url = updateUserUrl + userId + '/update';
+            console.log('=== UPDATE USER DEBUG ===');
+            console.log('updateUser called with userId:', userId);
+            console.log('updateUserUrl:', updateUserUrl);
+            console.log('Final Update URL:', url);
+            console.log('User data:', userData);
+            console.log('========================');
+            const response = await fetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -237,7 +280,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // 删除用户
     async function deleteUser(userId) {
         try {
-            const response = await fetch(deleteUserUrl + userId, {
+            const url = deleteUserUrl + userId + '/delete';
+            console.log('=== DELETE USER DEBUG ===');
+            console.log('Deleting user:', userId);
+            console.log('Delete URL:', url);
+            console.log('=========================');
+            const response = await fetch(url, {
                 method: 'POST'
             });
             
