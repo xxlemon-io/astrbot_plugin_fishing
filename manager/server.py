@@ -1,11 +1,13 @@
 import functools
 import os
+import traceback
 from typing import Dict, Any
 
 from quart import (
     Quart, render_template, request, redirect, url_for, session, flash,
     Blueprint, current_app
 )
+from astrbot.api import logger
 
 
 admin_bp = Blueprint(
@@ -38,6 +40,20 @@ def create_app(secret_key: str, services: Dict[str, Any]):
     @app.route("/")
     def root():
         return redirect(url_for("admin_bp.index"))
+    
+    # 添加全局错误处理器
+    @app.errorhandler(500)
+    async def handle_500_error(error):
+        logger.error(f"Internal Server Error: {error}")
+        logger.error(traceback.format_exc())
+        return "Internal Server Error", 500
+    
+    @app.errorhandler(Exception)
+    async def handle_exception(error):
+        logger.error(f"Unhandled Exception: {error}")
+        logger.error(traceback.format_exc())
+        return "Internal Server Error", 500
+    
     return app
 
 def login_required(f):
@@ -444,49 +460,97 @@ async def delete_user(user_id):
 
 
 # --- 市场管理 ---
+@admin_bp.route("/market/test")
+@login_required
+async def test_market():
+    """测试路由，用于排查问题"""
+    try:
+        logger.info("测试市场管理路由")
+        
+        # 检查服务是否存在
+        if "MARKET_SERVICE" not in current_app.config:
+            return f"MARKET_SERVICE not found. Available: {list(current_app.config.keys())}"
+        
+        market_service = current_app.config["MARKET_SERVICE"]
+        logger.info(f"Market service type: {type(market_service)}")
+        
+        # 简单测试调用
+        result = market_service.get_market_listings()
+        logger.info(f"Basic market listings result: {result}")
+        
+        return f"Success: {result.get('success')}, Rods: {len(result.get('rods', []))}, Accessories: {len(result.get('accessories', []))}"
+        
+    except Exception as e:
+        logger.error(f"测试路由出错: {e}")
+        logger.error(traceback.format_exc())
+        return f"Error: {str(e)}"
+
 @admin_bp.route("/market")
 @login_required
 async def manage_market():
-    market_service = current_app.config["MARKET_SERVICE"]
-    
-    # 获取查询参数
-    page = int(request.args.get("page", 1))
-    item_type = request.args.get("item_type", "")
-    min_price = request.args.get("min_price", "")
-    max_price = request.args.get("max_price", "")
-    search = request.args.get("search", "")
-    
-    # 转换参数
-    min_price = int(min_price) if min_price else None
-    max_price = int(max_price) if max_price else None
-    item_type = item_type if item_type else None
-    search = search if search else None
-    
-    result = market_service.get_all_market_listings_for_admin(
-        page=page, 
-        per_page=20,
-        item_type=item_type,
-        min_price=min_price,
-        max_price=max_price,
-        search=search
-    )
-    
-    if not result["success"]:
-        await flash("获取市场列表失败：" + result.get("message", "未知错误"), "danger")
+    try:
+        logger.info("访问市场管理页面")
+        
+        # 检查服务是否存在
+        if "MARKET_SERVICE" not in current_app.config:
+            logger.error("MARKET_SERVICE not found in app config")
+            logger.error(f"Available services: {list(current_app.config.keys())}")
+            await flash("市场服务未正确初始化", "danger")
+            return redirect(url_for("admin_bp.index"))
+        
+        market_service = current_app.config["MARKET_SERVICE"]
+        logger.info(f"Market service: {market_service}")
+        
+        # 获取查询参数
+        page = int(request.args.get("page", 1))
+        item_type = request.args.get("item_type", "")
+        min_price = request.args.get("min_price", "")
+        max_price = request.args.get("max_price", "")
+        search = request.args.get("search", "")
+        
+        logger.info(f"Query params: page={page}, item_type={item_type}, min_price={min_price}, max_price={max_price}, search={search}")
+        
+        # 转换参数
+        min_price = int(min_price) if min_price else None
+        max_price = int(max_price) if max_price else None
+        item_type = item_type if item_type else None
+        search = search if search else None
+        
+        logger.info("调用市场服务获取数据")
+        result = market_service.get_all_market_listings_for_admin(
+            page=page, 
+            per_page=20,
+            item_type=item_type,
+            min_price=min_price,
+            max_price=max_price,
+            search=search
+        )
+        
+        logger.info(f"市场服务返回结果: success={result.get('success')}")
+        
+        if not result["success"]:
+            await flash("获取市场列表失败：" + result.get("message", "未知错误"), "danger")
+            return redirect(url_for("admin_bp.index"))
+        
+        logger.info(f"准备渲染模板，商品数量: {len(result.get('listings', []))}")
+        
+        return await render_template(
+            "market.html",
+            listings=result["listings"],
+            pagination=result["pagination"],
+            stats=result["stats"],
+            filters={
+                "item_type": request.args.get("item_type", ""),
+                "min_price": request.args.get("min_price", ""),
+                "max_price": request.args.get("max_price", ""),
+                "search": request.args.get("search", "")
+            }
+        )
+    except Exception as e:
+        logger.error(f"市场管理页面出错: {e}")
+        logger.error(traceback.format_exc())
+        await flash(f"页面加载失败: {str(e)}", "danger")
         return redirect(url_for("admin_bp.index"))
-    
-    return await render_template(
-        "market.html",
-        listings=result["listings"],
-        pagination=result["pagination"],
-        stats=result["stats"],
-        filters={
-            "item_type": request.args.get("item_type", ""),
-            "min_price": request.args.get("min_price", ""),
-            "max_price": request.args.get("max_price", ""),
-            "search": request.args.get("search", "")
-        }
-    )
 
 @admin_bp.route("/market/<int:market_id>/price", methods=["POST"])
 @login_required
