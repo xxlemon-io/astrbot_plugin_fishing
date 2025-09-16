@@ -188,7 +188,17 @@
                             <span class="badge bg-light text-dark">{{ listing.seller_nickname }}</span>
                         </td>
                         <td>
-                            <small>{{ listing.listed_at.strftime('%Y-%m-%d %H:%M') if listing.listed_at else '未知' }}</small>
+                            <small>
+                                {% if listing.listed_at %}
+                                    {% if listing.listed_at.strftime is defined %}
+                                        {{ listing.listed_at.strftime('%Y-%m-%d %H:%M') }}
+                                    {% else %}
+                                        {{ listing.listed_at }}
+                                    {% endif %}
+                                {% else %}
+                                    未知
+                                {% endif %}
+                            </small>
                         </td>
                         <td>
                             <div class="btn-group-vertical btn-group-sm" role="group">

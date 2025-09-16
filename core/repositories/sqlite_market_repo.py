@@ -18,7 +18,10 @@ class SqliteMarketRepository(AbstractMarketRepository):
         """获取一个线程安全的数据库连接。"""
         conn = getattr(self._local, "connection", None)
         if conn is None:
-            conn = sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES)
+            conn = sqlite3.connect(
+                self.db_path, 
+                detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES
+            )
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA foreign_keys = ON;")
             self._local.connection = conn
@@ -28,7 +31,19 @@ class SqliteMarketRepository(AbstractMarketRepository):
         """将数据库行对象映射到 MarketListing 领域模型。"""
         if not row:
             return None
-        return MarketListing(**row)
+        
+        # 转换为字典并处理日期字段
+        data = dict(row)
+        
+        # 确保 listed_at 是 datetime 对象
+        if 'listed_at' in data and isinstance(data['listed_at'], str):
+            try:
+                data['listed_at'] = datetime.fromisoformat(data['listed_at'].replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                # 如果解析失败，使用当前时间
+                data['listed_at'] = datetime.now()
+        
+        return MarketListing(**data)
 
 
     def get_listing_by_id(self, market_id: int) -> Optional[MarketListing]:
