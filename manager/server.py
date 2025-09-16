@@ -451,27 +451,19 @@ async def manage_user_inventory(user_id):
         user_service = current_app.config["USER_SERVICE"]
         item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
         
-        print(f"DEBUG: 开始处理用户 {user_id} 的库存管理请求")
-        
         # 获取用户库存信息
-        print("DEBUG: 调用 get_user_inventory_for_admin")
         inventory_result = user_service.get_user_inventory_for_admin(user_id)
-        print(f"DEBUG: get_user_inventory_for_admin 结果: {inventory_result}")
         
         if not inventory_result["success"]:
-            print(f"DEBUG: 获取用户库存失败: {inventory_result.get('message', '未知错误')}")
             await flash("获取用户库存失败：" + inventory_result.get("message", "未知错误"), "danger")
             return redirect(url_for("admin_bp.manage_users"))
         
         # 获取所有物品模板用于添加物品
-        print("DEBUG: 获取物品模板")
         all_fish = item_template_service.get_all_fish()
         all_rods = item_template_service.get_all_rods()
         all_accessories = item_template_service.get_all_accessories()
         all_baits = item_template_service.get_all_baits()
-        print(f"DEBUG: 物品模板获取完成 - 鱼类: {len(all_fish)}, 鱼竿: {len(all_rods)}, 饰品: {len(all_accessories)}, 鱼饵: {len(all_baits)}")
         
-        print("DEBUG: 准备渲染模板")
         return await render_template(
             "users_inventory.html",
             user_id=user_id,
@@ -483,9 +475,6 @@ async def manage_user_inventory(user_id):
             all_baits=all_baits
         )
     except Exception as e:
-        print(f"ERROR: 用户库存管理页面出错: {e}")
-        import traceback
-        print(f"ERROR: 完整错误堆栈:\n{traceback.format_exc()}")
         await flash(f"页面加载失败: {str(e)}", "danger")
         return redirect(url_for("admin_bp.manage_users"))
 
