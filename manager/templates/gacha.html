@@ -16,8 +16,11 @@
                 <h5 class="card-title">{{ pool.name }} (ID: {{ pool.gacha_pool_id }})</h5>
                 <p class="card-text">{{ pool.description or '无描述' }}</p>
                 <p>
-                    <span class="badge bg-primary">花费金币: {{ pool.cost_coins }}</span>
-                    <span class="badge bg-warning text-dark ms-2">花费高级货币: {{ pool.cost_premium_currency }}</span>
+                    {% if pool.cost_premium_currency and pool.cost_premium_currency > 0 %}
+                        <span class="badge bg-warning text-dark">花费：高级货币 {{ pool.cost_premium_currency }}</span>
+                    {% else %}
+                        <span class="badge bg-primary">花费：金币 {{ pool.cost_coins }}</span>
+                    {% endif %}
                 </p>
             </div>
             <div class="card-footer text-end">
@@ -54,9 +57,15 @@
                 <div class="modal-body">
                     <div class="mb-3"><label>名称</label><input type="text" name="name" class="form-control" required></div>
                     <div class="mb-3"><label>描述</label><textarea name="description" class="form-control" rows="2"></textarea></div>
-                    <div class="mb-3"><label>花费金币</label><input type="number" name="cost_coins" class="form-control" value="0"></div>
-                    <div class="mb-1"><label>花费高级货币</label><input type="number" name="cost_premium_currency" class="form-control" value="0"></div>
-                    <div class="form-text text-muted">若填写了高级货币，抽卡将优先消耗高级货币。</div>
+                    <div class="mb-3">
+                        <label>消耗货币</label>
+                        <select name="currency_type" class="form-select">
+                            <option value="coins">金币</option>
+                            <option value="premium">高级货币</option>
+                        </select>
+                    </div>
+                    <div class="mb-1"><label>消耗数量</label><input type="number" name="cost_amount" class="form-control" value="0"></div>
+                    <div class="form-text text-muted">卡池消耗为单一币种：金币或高级货币。</div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
@@ -80,6 +89,8 @@ document.addEventListener('DOMContentLoaded', function () {
         modalTitle.textContent = '添加新奖池';
         form.action = "{{ url_for('admin_bp.add_gacha_pool') }}";
         form.reset();
+        if (form.elements['currency_type']) form.elements['currency_type'].value = 'coins';
+        if (form.elements['cost_amount']) form.elements['cost_amount'].value = 0;
     });
 
     document.querySelectorAll('.edit-btn').forEach(button => {
@@ -87,11 +98,14 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = JSON.parse(this.dataset.itemJson);
             modalTitle.textContent = `编辑奖池: ${data.name}`;
             form.action = `/admin/gacha/edit/${data.gacha_pool_id}`;
-            for (const key in data) {
-                if (form.elements[key]) {
-                    form.elements[key].value = data[key] || '';
-                }
-            }
+            // 名称与描述
+            if (form.elements['name']) form.elements['name'].value = data.name || '';
+            if (form.elements['description']) form.elements['description'].value = data.description || '';
+
+            // 货币类型与金额（单选）
+            const isPremium = (data.cost_premium_currency && data.cost_premium_currency > 0);
+            if (form.elements['currency_type']) form.elements['currency_type'].value = isPremium ? 'premium' : 'coins';
+            if (form.elements['cost_amount']) form.elements['cost_amount'].value = isPremium ? (data.cost_premium_currency || 0) : (data.cost_coins || 0);
         });
     });
 });
