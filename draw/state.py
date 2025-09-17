@@ -178,14 +178,14 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     # 金币
     coins = user_data.get('coins', 0)
     coins_text = f"金币: {coins:,}"
-    draw.text((col1_x, row2_y), coins_text, font=small_font, fill=gold_color)
+    draw.text((col1_x, row2_y - 12), coins_text, font=small_font, fill=gold_color)
     
     # 高级货币（另起一行，避免与右侧“钓鱼次数”重叠）
     if 'premium_currency' in user_data:
         premium = user_data.get('premium_currency', 0)
         premium_text = f"高级货币: {premium:,}"
-        # 另起新行显示（卡片高度85，row2_y+24 仍在卡片内）
-        draw.text((col1_x, row2_y + 24), premium_text, font=small_font, fill=primary_light)
+        # 另起新行显示并整体上移，避免超出白色卡片底部
+        draw.text((col1_x, row2_y + 8), premium_text, font=small_font, fill=primary_light)
     
     # 钓鱼次数 - 调整列位置以均分
     total_fishing = user_data.get('total_fishing_count', 0)
