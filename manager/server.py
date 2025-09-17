@@ -79,6 +79,15 @@ def login_required(f):
         return await f(*args, **kwargs)
     return decorated_function
 
+def admin_required(f):
+    @functools.wraps(f)
+    async def decorated_function(*args, **kwargs):
+        if not session.get("is_admin"):
+            await flash("无权限访问该页面", "danger")
+            return redirect(url_for("admin_bp.login"))
+        return await f(*args, **kwargs)
+    return decorated_function
+
 @admin_bp.route("/login", methods=["GET", "POST"])
 async def login():
     if request.method == "POST":
@@ -87,6 +96,8 @@ async def login():
         secret_key = current_app.config["SECRET_LOGIN_KEY"]
         if form.get("secret_key") == secret_key:
             session["logged_in"] = True
+            # 简单角色标记：现阶段使用同一密钥视为管理员
+            session["is_admin"] = True
             await flash("登录成功！", "success")
             return redirect(url_for("admin_bp.index"))
         else:
@@ -394,12 +405,13 @@ async def delete_pool_item(item_id):
 # --- 用户管理 ---
 @admin_bp.route("/users")
 @login_required
+@admin_required
 async def manage_users():
     user_service = current_app.config["USER_SERVICE"]
     page = int(request.args.get("page", 1))
     search = request.args.get("search", "")
     
-    result = user_service.get_users_for_admin(page=page, per_page=20, search=search if search else None)
+    result = user_service.get_users_for_admin(page=page, per_page=20, search=search or None)
     
     if not result["success"]:
         await flash("获取用户列表失败：" + result.get("message", "未知错误"), "danger")
@@ -414,6 +426,7 @@ async def manage_users():
 
 @admin_bp.route("/users/<user_id>")
 @login_required
+@admin_required
 async def get_user_detail(user_id):
     user_service = current_app.config["USER_SERVICE"]
     result = user_service.get_user_details_for_admin(user_id)
@@ -448,6 +461,7 @@ async def get_user_detail(user_id):
 
 @admin_bp.route("/users/<user_id>/update", methods=["POST"])
 @login_required
+@admin_required
 async def update_user(user_id):
     user_service = current_app.config["USER_SERVICE"]
     
@@ -457,19 +471,18 @@ async def update_user(user_id):
         if not data:
             return {"success": False, "message": "无效的请求数据"}, 400
         
-        result = user_service.update_user_for_admin(user_id, data)
-        return result
+        return user_service.update_user_for_admin(user_id, data)
     except Exception as e:
         return {"success": False, "message": f"更新用户时发生错误: {str(e)}"}, 500
 
 @admin_bp.route("/users/<user_id>/delete", methods=["POST"])
 @login_required
+@admin_required
 async def delete_user(user_id):
     user_service = current_app.config["USER_SERVICE"]
     
     try:
-        result = user_service.delete_user_for_admin(user_id)
-        return result
+        return user_service.delete_user_for_admin(user_id)
     except Exception as e:
         return {"success": False, "message": f"删除用户时发生错误: {str(e)}"}, 500
 
@@ -563,10 +576,23 @@ async def remove_market_item(market_id):
         logger.error(traceback.format_exc())
         return {"success": False, "message": f"下架商品时发生错误: {str(e)}"}, 500
 
+@admin_bp.route("/users/create", methods=["POST"])
+@login_required
+@admin_required
+async def create_user():
+    user_service = current_app.config["USER_SERVICE"]
+    try:
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        return user_service.create_user_for_admin(data)
+    except Exception as e:
+        return {"success": False, "message": f"创建用户时发生错误: {str(e)}"}, 500
 
 # --- 用户物品管理 ---
 @admin_bp.route("/users/<user_id>/inventory")
 @login_required
+@admin_required
 async def manage_user_inventory(user_id):
     try:
         user_service = current_app.config["USER_SERVICE"]

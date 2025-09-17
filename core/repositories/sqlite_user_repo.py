@@ -170,17 +170,27 @@ class SqliteUserRepository(AbstractUserRepository):
             cursor.execute("SELECT COUNT(*) FROM users")
             return cursor.fetchone()[0]
 
-    def search_users(self, keyword: str, limit: int = 50) -> List[User]:
-        """搜索用户（按用户ID或昵称）"""
+    def search_users(self, keyword: str, limit: int = 50, offset: int = 0) -> List[User]:
+        """搜索用户（按用户ID或昵称，支持分页）"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT * FROM users 
                 WHERE user_id LIKE ? OR nickname LIKE ? 
                 ORDER BY created_at DESC 
-                LIMIT ?
-            """, (f"%{keyword}%", f"%{keyword}%", limit))
+                LIMIT ? OFFSET ?
+            """, (f"%{keyword}%", f"%{keyword}%", limit, offset))
             return [self._row_to_user(row) for row in cursor.fetchall()]
+
+    def get_search_users_count(self, keyword: str) -> int:
+        """获取搜索结果的总数"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT COUNT(*) FROM users WHERE user_id LIKE ? OR nickname LIKE ?",
+                (f"%{keyword}%", f"%{keyword}%")
+            )
+            return cursor.fetchone()[0]
 
     def delete_user(self, user_id: str) -> bool:
         """删除用户（级联删除相关数据）"""
