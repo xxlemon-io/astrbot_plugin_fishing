@@ -264,13 +264,18 @@ class AbstractMarketRepository(ABC):
     def get_listing_by_id(self, market_id: int) -> Optional[MarketListing]: pass
     # 获取所有市场商品
     @abstractmethod
-    def get_all_listings(self) -> List[MarketListing]: pass
+    def get_all_listings(self, page: int = None, per_page: int = None, 
+                        item_type: str = None, min_price: int = None, 
+                        max_price: int = None, search: str = None) -> tuple: pass
     # 添加一个市场商品
     @abstractmethod
     def add_listing(self, listing: MarketListing) -> None: pass
     # 移除一个市场商品
     @abstractmethod
     def remove_listing(self, market_id: int) -> None: pass
+    # 更新市场商品
+    @abstractmethod
+    def update_listing(self, listing: MarketListing) -> None: pass
 
 class AbstractLogRepository(ABC):
     """日志类数据仓储接口"""

@@ -36,8 +36,8 @@ class MarketService:
         提供查看市场所有商品的功能。
         """
         try:
-            # 仓储层已经做好了连接查询，直接返回即可
-            listings = self.market_repo.get_all_listings()
+            # 获取所有商品（不分页）
+            listings, _ = self.market_repo.get_all_listings()
             # 按物品类型分组，便于前端展示
             rods = [item for item in listings if item.item_type == "rod"]
             accessories = [item for item in listings if item.item_type == "accessory"]
@@ -183,3 +183,135 @@ class MarketService:
         self.market_repo.remove_listing(market_id)
 
         return {"success": True, "message": f"✅ 购买成功，花费 {listing.price} 金币！"}
+
+    # --- 管理员功能 ---
+
+    def get_all_market_listings_for_admin(self, page: int = 1, per_page: int = 20, 
+                                         item_type: str = None, min_price: int = None, 
+                                         max_price: int = None, search: str = None) -> Dict[str, Any]:
+        """
+        为管理员提供分页的市场商品列表，支持筛选和搜索。
+        """
+        try:
+            # 验证分页参数
+            if page < 1:
+                page = 1
+            if per_page < 1:
+                per_page = 20
+            
+            # 从数据库层获取筛选和分页后的数据
+            listings, total_items = self.market_repo.get_all_listings(
+                page=page,
+                per_page=per_page,
+                item_type=item_type,
+                min_price=min_price,
+                max_price=max_price,
+                search=search
+            )
+            
+            # 计算分页信息
+            total_pages = (total_items + per_page - 1) // per_page if total_items > 0 else 1
+            
+            # 验证页面范围
+            if page > total_pages and total_pages > 0:
+                page = total_pages
+                # 重新获取数据
+                listings, total_items = self.market_repo.get_all_listings(
+                    page=page,
+                    per_page=per_page,
+                    item_type=item_type,
+                    min_price=min_price,
+                    max_price=max_price,
+                    search=search
+                )
+            
+            # 获取统计信息
+            all_listings, total_count = self.market_repo.get_all_listings()
+            stats = {
+                "total_listings": total_count,
+                "filtered_listings": total_items,
+                "total_value": sum(item.price for item in listings),
+                "rod_count": len([item for item in all_listings if item.item_type == "rod"]),
+                "accessory_count": len([item for item in all_listings if item.item_type == "accessory"])
+            }
+            
+            return {
+                "success": True,
+                "listings": listings,
+                "pagination": {
+                    "current_page": page,
+                    "total_pages": total_pages,
+                    "total_items": total_items,
+                    "per_page": per_page,
+                    "has_prev": page > 1,
+                    "has_next": page < total_pages
+                },
+                "stats": stats
+            }
+        except Exception as e:
+            logger.error(f"获取管理员市场列表失败: {e}")
+            return {"success": False, "message": f"获取市场列表失败: {e}"}
+
+    def update_market_item_price(self, market_id: int, new_price: int) -> Dict[str, Any]:
+        """
+        管理员修改市场商品价格。
+        """
+        try:
+            if new_price <= 0:
+                return {"success": False, "message": "价格必须大于0"}
+                
+            listing = self.market_repo.get_listing_by_id(market_id)
+            if not listing:
+                return {"success": False, "message": "商品不存在"}
+            
+            old_price = listing.price
+            listing.price = new_price
+            self.market_repo.update_listing(listing)
+            
+            return {
+                "success": True, 
+                "message": f"商品价格已从 {old_price} 金币修改为 {new_price} 金币"
+            }
+        except Exception as e:
+            logger.error(f"修改商品价格失败: {e}")
+            return {"success": False, "message": f"修改价格失败: {e}"}
+
+    def remove_market_item_by_admin(self, market_id: int) -> Dict[str, Any]:
+        """
+        管理员下架商品，物品返还给卖家。
+        """
+        try:
+            listing = self.market_repo.get_listing_by_id(market_id)
+            if not listing:
+                return {"success": False, "message": "商品不存在"}
+            
+            seller = self.user_repo.get_by_id(listing.user_id)
+            if not seller:
+                return {"success": False, "message": "卖家不存在，无法返还物品"}
+            
+            # 将物品返还给卖家
+            if listing.item_type == "rod":
+                rod_template = self.item_template_repo.get_rod_by_id(listing.item_id)
+                self.inventory_repo.add_rod_instance(
+                    user_id=listing.user_id,
+                    rod_id=listing.item_id,
+                    durability=rod_template.durability if rod_template else None,
+                    refine_level=listing.refine_level
+                )
+            elif listing.item_type == "accessory":
+                self.inventory_repo.add_accessory_instance(
+                    user_id=listing.user_id,
+                    accessory_id=listing.item_id,
+                    refine_level=listing.refine_level
+                )
+            
+            # 从市场移除
+            self.market_repo.remove_listing(market_id)
+            
+            return {
+                "success": True, 
+                "message": f"商品已下架，已返还给卖家 {seller.nickname}"
+            }
+        except Exception as e:
+            logger.error(f"下架商品失败: {e}")
+            return {"success": False, "message": f"下架商品失败: {e}"}
