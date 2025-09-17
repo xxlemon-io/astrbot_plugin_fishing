@@ -50,7 +50,7 @@ function bindPriceEditEvents() {
     editButtons.forEach(button => {
         button.setAttribute('data-initialized', 'true');
         button.addEventListener('click', function() {
-            const marketId = this.dataset.marketId;
+            const {marketId} = this.dataset;
             enablePriceEdit(marketId);
         });
     });
@@ -58,7 +58,7 @@ function bindPriceEditEvents() {
     // 保存价格按钮
     document.querySelectorAll('.save-price-btn').forEach(button => {
         button.addEventListener('click', function() {
-            const marketId = this.dataset.marketId;
+            const {marketId} = this.dataset;
             savePriceChange(marketId);
         });
     });
@@ -66,7 +66,7 @@ function bindPriceEditEvents() {
     // 取消编辑按钮
     document.querySelectorAll('.cancel-price-btn').forEach(button => {
         button.addEventListener('click', function() {
-            const marketId = this.dataset.marketId;
+            const {marketId} = this.dataset;
             cancelPriceEdit(marketId);
         });
     });
@@ -91,9 +91,7 @@ function bindPriceEditEvents() {
 function bindRemoveItemEvents() {
     document.querySelectorAll('.remove-item-btn').forEach(button => {
         button.addEventListener('click', function() {
-            const marketId = this.dataset.marketId;
-            const itemName = this.dataset.itemName;
-            const sellerName = this.dataset.sellerName;
+            const {marketId, itemName, sellerName} = this.dataset;
             
             showRemoveConfirmModal(marketId, itemName, sellerName);
         });
@@ -246,7 +244,13 @@ async function savePriceChange(marketId) {
 function updatePriceDisplay(marketId, newPrice) {
     const priceDisplay = document.getElementById(`price-display-${marketId}`);
     if (priceDisplay) {
-        priceDisplay.innerHTML = `<i class="fas fa-coins text-warning"></i> ${newPrice}`;
+        // 使用安全的DOM操作替代innerHTML
+        priceDisplay.textContent = '';
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-coins text-warning';
+        const text = document.createTextNode(` ${newPrice}`);
+        priceDisplay.appendChild(icon);
+        priceDisplay.appendChild(text);
     }
 }
 
@@ -378,7 +382,11 @@ function refreshMarketData(showMessage = true) {
             const newTable = doc.querySelector('.table-responsive');
             const currentTable = document.querySelector('.table-responsive');
             if (newTable && currentTable) {
-                currentTable.innerHTML = newTable.innerHTML;
+                // 使用安全的方法替换内容
+                currentTable.textContent = '';
+                Array.from(newTable.childNodes).forEach(node => {
+                    currentTable.appendChild(node.cloneNode(true));
+                });
             }
             
             // 更新统计信息
@@ -432,10 +440,17 @@ function showAlert(message, type = 'info') {
     // 创建警告元素
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    `;
+    
+    // 使用安全的DOM操作
+    const messageText = document.createTextNode(message);
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'btn-close';
+    closeButton.setAttribute('data-bs-dismiss', 'alert');
+    closeButton.setAttribute('aria-label', 'Close');
+    
+    alertDiv.appendChild(messageText);
+    alertDiv.appendChild(closeButton);
     
     // 插入到主容器顶部
     const mainContainer = document.querySelector('main .container');

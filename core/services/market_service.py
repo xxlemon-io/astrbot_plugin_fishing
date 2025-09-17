@@ -36,8 +36,8 @@ class MarketService:
         提供查看市场所有商品的功能。
         """
         try:
-            # 仓储层已经做好了连接查询，直接返回即可
-            listings = self.market_repo.get_all_listings()
+            # 获取所有商品（不分页）
+            listings, _ = self.market_repo.get_all_listings()
             # 按物品类型分组，便于前端展示
             rods = [item for item in listings if item.item_type == "rod"]
             accessories = [item for item in listings if item.item_type == "accessory"]
@@ -193,44 +193,51 @@ class MarketService:
         为管理员提供分页的市场商品列表，支持筛选和搜索。
         """
         try:
-            # 获取筛选后的商品列表
-            listings = self.market_repo.get_all_listings()
+            # 验证分页参数
+            if page < 1:
+                page = 1
+            if per_page < 1:
+                per_page = 20
             
-            # 应用筛选条件
-            if item_type:
-                listings = [item for item in listings if item.item_type == item_type]
-            
-            if min_price is not None:
-                listings = [item for item in listings if item.price >= min_price]
-                
-            if max_price is not None:
-                listings = [item for item in listings if item.price <= max_price]
-            
-            if search:
-                search_lower = search.lower()
-                listings = [item for item in listings if 
-                          (item.item_name and search_lower in item.item_name.lower()) or
-                          (item.seller_nickname and search_lower in item.seller_nickname.lower())]
+            # 从数据库层获取筛选和分页后的数据
+            listings, total_items = self.market_repo.get_all_listings(
+                page=page,
+                per_page=per_page,
+                item_type=item_type,
+                min_price=min_price,
+                max_price=max_price,
+                search=search
+            )
             
             # 计算分页信息
-            total_items = len(listings)
-            total_pages = (total_items + per_page - 1) // per_page
-            start_idx = (page - 1) * per_page
-            end_idx = start_idx + per_page
-            paginated_listings = listings[start_idx:end_idx]
+            total_pages = (total_items + per_page - 1) // per_page if total_items > 0 else 1
             
-            # 统计信息
+            # 验证页面范围
+            if page > total_pages and total_pages > 0:
+                page = total_pages
+                # 重新获取数据
+                listings, total_items = self.market_repo.get_all_listings(
+                    page=page,
+                    per_page=per_page,
+                    item_type=item_type,
+                    min_price=min_price,
+                    max_price=max_price,
+                    search=search
+                )
+            
+            # 获取统计信息
+            all_listings, total_count = self.market_repo.get_all_listings()
             stats = {
-                "total_listings": len(self.market_repo.get_all_listings()),
+                "total_listings": total_count,
                 "filtered_listings": total_items,
                 "total_value": sum(item.price for item in listings),
-                "rod_count": len([item for item in listings if item.item_type == "rod"]),
-                "accessory_count": len([item for item in listings if item.item_type == "accessory"])
+                "rod_count": len([item for item in all_listings if item.item_type == "rod"]),
+                "accessory_count": len([item for item in all_listings if item.item_type == "accessory"])
             }
             
             return {
                 "success": True,
-                "listings": paginated_listings,
+                "listings": listings,
                 "pagination": {
                     "current_page": page,
                     "total_pages": total_pages,

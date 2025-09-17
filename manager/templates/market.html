@@ -169,7 +169,11 @@
                             {% endif %}
                         </td>
                         <td>
-                            <span class="badge bg-info">+{{ listing.refine_level or 1 }}</span>
+                            {% if listing.refine_level is not none %}
+                                <span class="badge bg-info">+{{ listing.refine_level }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">未知</span>
+                            {% endif %}
                         </td>
                         <td>
                             <div class="d-flex align-items-center">

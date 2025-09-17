@@ -53,18 +53,20 @@ def create_app(secret_key: str, services: Dict[str, Any]):
         # 只对非静态资源记录404错误
         if not request.path.startswith('/admin/static/') and request.path != '/favicon.ico':
             logger.error(f"404 Not Found: {request.url} - {request.method}")
+        
+        # 为API路径返回JSON，为页面返回HTML
+        if request.path.startswith('/admin/market/') and request.method in ['POST', 'PUT', 'DELETE']:
+            return {"success": False, "message": "API端点不存在"}, 404
         return "Not Found", 404
     
     @app.errorhandler(500)
     async def handle_500_error(error):
         logger.error(f"Internal Server Error: {error}")
         logger.error(traceback.format_exc())
-        return "Internal Server Error", 500
-    
-    @app.errorhandler(Exception)
-    async def handle_exception(error):
-        logger.error(f"Unhandled Exception: {error}")
-        logger.error(traceback.format_exc())
+        
+        # 为API路径返回JSON，为页面返回HTML
+        if request.path.startswith('/admin/market/') and request.method in ['POST', 'PUT', 'DELETE']:
+            return {"success": False, "message": "服务器内部错误"}, 500
         return "Internal Server Error", 500
     
     return app
@@ -489,8 +491,8 @@ async def manage_market():
         # 转换参数
         min_price = int(min_price) if min_price else None
         max_price = int(max_price) if max_price else None
-        item_type = item_type if item_type else None
-        search = search if search else None
+        item_type = item_type or None
+        search = search or None
         
         result = market_service.get_all_market_listings_for_admin(
             page=page, 
@@ -534,11 +536,16 @@ async def update_market_price(market_id):
             return {"success": False, "message": "无效的请求数据"}, 400
         
         new_price = data.get("price")
-        if not new_price:
+        if new_price is None:
             return {"success": False, "message": "缺少价格参数"}, 400
-        
-        result = market_service.update_market_item_price(market_id, int(new_price))
-        return result
+
+        # 类型校验: 检查 new_price 是否为数字
+        try:
+            new_price_numeric = float(new_price)
+        except (TypeError, ValueError):
+            return {"success": False, "message": "价格参数必须为数字"}, 400
+
+        return market_service.update_market_item_price(market_id, int(new_price_numeric))
     except Exception as e:
         logger.error(f"更新价格错误: {e}")
         logger.error(traceback.format_exc())
@@ -550,8 +557,7 @@ async def remove_market_item(market_id):
     market_service = current_app.config["MARKET_SERVICE"]
     
     try:
-        result = market_service.remove_market_item_by_admin(market_id)
-        return result
+        return market_service.remove_market_item_by_admin(market_id)
     except Exception as e:
         logger.error(f"下架商品错误: {e}")
         logger.error(traceback.format_exc())
