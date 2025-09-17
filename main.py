@@ -1409,6 +1409,74 @@ class FishingPlugin(Star):
             self.user_repo.update(user)
             updated += 1
         yield event.plain_result(f"✅ 已向 {updated} 位用户每人发放 {amount_int} 高级货币")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("全体扣除金币")
+    async def deduct_all_coins(self, event: AstrMessageEvent):
+        """从所有注册用户扣除金币（不低于0）"""
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定扣除的金币数量，例如：/全体扣除金币 1000")
+            return
+        amount = args[1]
+        if not amount.isdigit() or int(amount) <= 0:
+            yield event.plain_result("❌ 扣除数量必须是正整数，请检查后重试。")
+            return
+        amount_int = int(amount)
+        user_ids = self.user_repo.get_all_user_ids()
+        if not user_ids:
+            yield event.plain_result("❌ 当前没有注册用户。")
+            return
+        affected = 0
+        total_deducted = 0
+        for uid in user_ids:
+            user = self.user_repo.get_by_id(uid)
+            if not user:
+                continue
+            if user.coins <= 0:
+                continue
+            deduct = amount_int if user.coins >= amount_int else user.coins
+            if deduct <= 0:
+                continue
+            user.coins -= deduct
+            self.user_repo.update(user)
+            affected += 1
+            total_deducted += deduct
+        yield event.plain_result(f"✅ 已从 {affected} 位用户总计扣除 {total_deducted} 金币（每人至多 {amount_int}）")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("全体扣除高级货币")
+    async def deduct_all_premium(self, event: AstrMessageEvent):
+        """从所有注册用户扣除高级货币（不低于0）"""
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定扣除的高级货币数量，例如：/全体扣除高级货币 100")
+            return
+        amount = args[1]
+        if not amount.isdigit() or int(amount) <= 0:
+            yield event.plain_result("❌ 扣除数量必须是正整数，请检查后重试。")
+            return
+        amount_int = int(amount)
+        user_ids = self.user_repo.get_all_user_ids()
+        if not user_ids:
+            yield event.plain_result("❌ 当前没有注册用户。")
+            return
+        affected = 0
+        total_deducted = 0
+        for uid in user_ids:
+            user = self.user_repo.get_by_id(uid)
+            if not user:
+                continue
+            if user.premium_currency <= 0:
+                continue
+            deduct = amount_int if user.premium_currency >= amount_int else user.premium_currency
+            if deduct <= 0:
+                continue
+            user.premium_currency -= deduct
+            self.user_repo.update(user)
+            affected += 1
+            total_deducted += deduct
+        yield event.plain_result(f"✅ 已从 {affected} 位用户总计扣除 {total_deducted} 高级货币（每人至多 {amount_int}）")
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("奖励金币")
     async def reward_coins(self, event: AstrMessageEvent):
