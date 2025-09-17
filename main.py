@@ -527,7 +527,17 @@ class FishingPlugin(Star):
         user_id = event.get_sender_id()
         user = self.user_repo.get_by_id(user_id)
         if user:
-            yield event.plain_result(f"💰 您的金币余额：{user.coins} 金币")
+            yield event.plain_result(f"💰 金币：{user.coins} ｜ 💎 高级货币：{user.premium_currency}")
+        else:
+            yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
+
+    @filter.command("高级货币", alias={"钻石", "星石"})
+    async def premium(self, event: AstrMessageEvent):
+        """查看用户高级货币信息"""
+        user_id = event.get_sender_id()
+        user = self.user_repo.get_by_id(user_id)
+        if user:
+            yield event.plain_result(f"💎 您的高级货币余额：{user.premium_currency}")
         else:
             yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
 
@@ -821,7 +831,10 @@ class FishingPlugin(Star):
                 return
             message = "【🎰 抽奖池列表】\n\n"
             for pool in pools.get("pools", []):
-                message += f"ID: {pool['gacha_pool_id']} - {pool['name']} - {pool['description']}\n 💰 花费：{pool['cost_coins']} 金币 / 次\n\n"
+                cost_text = f"💰 金币 {pool['cost_coins']} / 次"
+                if pool['cost_premium_currency']:
+                    cost_text = f"💎 高级货币 {pool['cost_premium_currency']} / 次"
+                message += f"ID: {pool['gacha_pool_id']} - {pool['name']} - {pool['description']}\n {cost_text}\n\n"
             # 添加卡池详细信息
             message += "【📋 卡池详情】使用「查看卡池 ID」命令查看详细物品概率\n"
             message += "【🎲 抽卡命令】使用「抽卡 ID」命令选择抽卡池进行单次抽卡\n"
@@ -901,7 +914,10 @@ class FishingPlugin(Star):
                 message = "【🎰 卡池详情】\n\n"
                 message += f"ID: {pool['gacha_pool_id']} - {pool['name']}\n"
                 message += f"描述: {pool['description']}\n"
-                message += f"花费: {pool['cost_coins']} 金币 / 次\n\n"
+                if pool['cost_premium_currency']:
+                    message += f"花费: {pool['cost_premium_currency']} 高级货币 / 次\n\n"
+                else:
+                    message += f"花费: {pool['cost_coins']} 金币 / 次\n\n"
                 message += "【📋 物品概率】\n"
 
                 if result["probabilities"]:
@@ -1265,6 +1281,80 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("修改高级货币")
+    async def modify_premium(self, event: AstrMessageEvent):
+        """修改用户高级货币"""
+        args = event.message_str.split(" ")
+        if len(args) < 3:
+            yield event.plain_result("❌ 请指定用户 ID 和高级货币数量，例如：/修改高级货币 123456789 100")
+            return
+        target_user_id = args[1]
+        if not target_user_id.isdigit():
+            yield event.plain_result("❌ 用户 ID 必须是数字，请检查后重试。")
+            return
+        premium = args[2]
+        if not premium.isdigit():
+            yield event.plain_result("❌ 高级货币数量必须是数字，请检查后重试。")
+            return
+        user = self.user_repo.get_by_id(target_user_id)
+        if not user:
+            yield event.plain_result("❌ 用户不存在或未注册，请检查后重试。")
+            return
+        user.premium_currency = int(premium)
+        self.user_repo.update(user)
+        yield event.plain_result(f"✅ 成功修改用户 {target_user_id} 的高级货币为 {premium}")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("奖励高级货币")
+    async def reward_premium(self, event: AstrMessageEvent):
+        """奖励用户高级货币"""
+        args = event.message_str.split(" ")
+        if len(args) < 3:
+            yield event.plain_result("❌ 请指定用户 ID 和高级货币数量，例如：/奖励高级货币 123456789 100")
+            return
+        target_user_id = args[1]
+        if not target_user_id.isdigit():
+            yield event.plain_result("❌ 用户 ID 必须是数字，请检查后重试。")
+            return
+        premium = args[2]
+        if not premium.isdigit():
+            yield event.plain_result("❌ 高级货币数量必须是数字，请检查后重试。")
+            return
+        user = self.user_repo.get_by_id(target_user_id)
+        if not user:
+            yield event.plain_result("❌ 用户不存在或未注册，请检查后重试。")
+            return
+        user.premium_currency += int(premium)
+        self.user_repo.update(user)
+        yield event.plain_result(f"✅ 成功给用户 {target_user_id} 奖励 {premium} 高级货币")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("扣除高级货币")
+    async def deduct_premium(self, event: AstrMessageEvent):
+        """扣除用户高级货币"""
+        args = event.message_str.split(" ")
+        if len(args) < 3:
+            yield event.plain_result("❌ 请指定用户 ID 和高级货币数量，例如：/扣除高级货币 123456789 100")
+            return
+        target_user_id = args[1]
+        if not target_user_id.isdigit():
+            yield event.plain_result("❌ 用户 ID 必须是数字，请检查后重试。")
+            return
+        premium = args[2]
+        if not premium.isdigit():
+            yield event.plain_result("❌ 高级货币数量必须是数字，请检查后重试。")
+            return
+        user = self.user_repo.get_by_id(target_user_id)
+        if not user:
+            yield event.plain_result("❌ 用户不存在或未注册，请检查后重试。")
+            return
+        if int(premium) > user.premium_currency:
+            yield event.plain_result("❌ 扣除的高级货币不能超过用户当前拥有数量")
+            return
+        user.premium_currency -= int(premium)
+        self.user_repo.update(user)
+        yield event.plain_result(f"✅ 成功扣除用户 {target_user_id} 的 {premium} 高级货币")
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("奖励金币")
     async def reward_coins(self, event: AstrMessageEvent):

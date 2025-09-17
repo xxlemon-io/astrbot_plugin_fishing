@@ -180,6 +180,13 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     coins_text = f"金币: {coins:,}"
     draw.text((col1_x, row2_y), coins_text, font=small_font, fill=gold_color)
     
+    # 高级货币（显示在金币右侧）
+    if 'premium_currency' in user_data:
+        premium = user_data.get('premium_currency', 0)
+        coins_w = get_text_size(coins_text, small_font)[0]
+        premium_text = f"  高级货币: {premium:,}"
+        draw.text((col1_x + coins_w + 12, row2_y), premium_text, font=small_font, fill=primary_light)
+    
     # 钓鱼次数 - 调整列位置以均分
     total_fishing = user_data.get('total_fishing_count', 0)
     fishing_text = f"钓鱼次数: {total_fishing:,}"
@@ -549,6 +556,7 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
         'user_id': user.user_id,
         'nickname': user.nickname or user.user_id,
         'coins': user.coins,
+        'premium_currency': getattr(user, 'premium_currency', 0),
         'current_rod': current_rod,
         'current_accessory': current_accessory,
         'current_bait': current_bait,

@@ -17,6 +17,7 @@
                 <p class="card-text">{{ pool.description or '无描述' }}</p>
                 <p>
                     <span class="badge bg-primary">花费金币: {{ pool.cost_coins }}</span>
+                    <span class="badge bg-warning text-dark ms-2">花费高级货币: {{ pool.cost_premium_currency }}</span>
                 </p>
             </div>
             <div class="card-footer text-end">
@@ -54,6 +55,8 @@
                     <div class="mb-3"><label>名称</label><input type="text" name="name" class="form-control" required></div>
                     <div class="mb-3"><label>描述</label><textarea name="description" class="form-control" rows="2"></textarea></div>
                     <div class="mb-3"><label>花费金币</label><input type="number" name="cost_coins" class="form-control" value="0"></div>
+                    <div class="mb-1"><label>花费高级货币</label><input type="number" name="cost_premium_currency" class="form-control" value="0"></div>
+                    <div class="form-text text-muted">若填写了高级货币，抽卡将优先消耗高级货币。</div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
