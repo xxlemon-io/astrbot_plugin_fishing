@@ -42,9 +42,12 @@ class AbstractUserRepository(ABC):
     # 获取用户总数
     @abstractmethod
     def get_users_count(self) -> int: pass
-    # 搜索用户
+    # 搜索用户（支持分页）
     @abstractmethod
-    def search_users(self, keyword: str, limit: int = 50) -> List[User]: pass
+    def search_users(self, keyword: str, limit: int = 50, offset: int = 0) -> List[User]: pass
+    # 搜索用户的总数
+    @abstractmethod
+    def get_search_users_count(self, keyword: str) -> int: pass
     # 删除用户
     @abstractmethod
     def delete_user(self, user_id: str) -> bool: pass
