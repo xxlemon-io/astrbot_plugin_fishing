@@ -527,7 +527,7 @@ class FishingPlugin(Star):
         user_id = event.get_sender_id()
         user = self.user_repo.get_by_id(user_id)
         if user:
-            yield event.plain_result(f"💰 金币：{user.coins} ｜ 💎 高级货币：{user.premium_currency}")
+            yield event.plain_result(f"💰 您的金币余额：{user.coins} 金币")
         else:
             yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
 
