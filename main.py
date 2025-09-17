@@ -1355,6 +1355,60 @@ class FishingPlugin(Star):
         user.premium_currency -= int(premium)
         self.user_repo.update(user)
         yield event.plain_result(f"✅ 成功扣除用户 {target_user_id} 的 {premium} 高级货币")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("全体奖励金币")
+    async def reward_all_coins(self, event: AstrMessageEvent):
+        """给所有注册用户发放金币"""
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定奖励的金币数量，例如：/全体奖励金币 1000")
+            return
+        amount = args[1]
+        if not amount.isdigit() or int(amount) <= 0:
+            yield event.plain_result("❌ 奖励数量必须是正整数，请检查后重试。")
+            return
+        amount_int = int(amount)
+        user_ids = self.user_repo.get_all_user_ids()
+        if not user_ids:
+            yield event.plain_result("❌ 当前没有注册用户。")
+            return
+        updated = 0
+        for uid in user_ids:
+            user = self.user_repo.get_by_id(uid)
+            if not user:
+                continue
+            user.coins += amount_int
+            self.user_repo.update(user)
+            updated += 1
+        yield event.plain_result(f"✅ 已向 {updated} 位用户每人发放 {amount_int} 金币")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("全体奖励高级货币")
+    async def reward_all_premium(self, event: AstrMessageEvent):
+        """给所有注册用户发放高级货币"""
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定奖励的高级货币数量，例如：/全体奖励高级货币 100")
+            return
+        amount = args[1]
+        if not amount.isdigit() or int(amount) <= 0:
+            yield event.plain_result("❌ 奖励数量必须是正整数，请检查后重试。")
+            return
+        amount_int = int(amount)
+        user_ids = self.user_repo.get_all_user_ids()
+        if not user_ids:
+            yield event.plain_result("❌ 当前没有注册用户。")
+            return
+        updated = 0
+        for uid in user_ids:
+            user = self.user_repo.get_by_id(uid)
+            if not user:
+                continue
+            user.premium_currency += amount_int
+            self.user_repo.update(user)
+            updated += 1
+        yield event.plain_result(f"✅ 已向 {updated} 位用户每人发放 {amount_int} 高级货币")
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("奖励金币")
     async def reward_coins(self, event: AstrMessageEvent):
