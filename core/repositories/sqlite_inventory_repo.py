@@ -34,12 +34,29 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
     def _row_to_rod_instance(self, row: sqlite3.Row) -> Optional[UserRodInstance]:
         if not row:
             return None
-        return UserRodInstance(**row)
+        # 手动映射字段，确保字段名匹配
+        return UserRodInstance(
+            rod_instance_id=row['rod_instance_id'],
+            user_id=row['user_id'],
+            rod_id=row['rod_id'],
+            is_equipped=bool(row['is_equipped']),
+            obtained_at=row['obtained_at'],
+            refine_level=row['refine_level'] if 'refine_level' in row.keys() else 1,
+            current_durability=row['current_durability'] if 'current_durability' in row.keys() else None
+        )
 
     def _row_to_accessory_instance(self, row: sqlite3.Row) -> Optional[UserAccessoryInstance]:
         if not row:
             return None
-        return UserAccessoryInstance(**row)
+        # 手动映射字段，确保字段名匹配
+        return UserAccessoryInstance(
+            accessory_instance_id=row['accessory_instance_id'],
+            user_id=row['user_id'],
+            accessory_id=row['accessory_id'],
+            is_equipped=bool(row['is_equipped']),
+            obtained_at=row['obtained_at'],
+            refine_level=row['refine_level'] if 'refine_level' in row.keys() else 1
+        )
 
     # --- Fish Inventory Methods ---
     def get_fish_inventory(self, user_id: str) -> List[UserFishInventoryItem]:

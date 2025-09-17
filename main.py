@@ -1335,6 +1335,7 @@ class FishingPlugin(Star):
         try:
             services_to_inject = {
                 "item_template_service": self.item_template_service,
+                "user_service": self.user_service,
             }
             app = create_app(
                 secret_key=self.secret_key,

@@ -1,0 +1,282 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="fas fa-users"></i> 用户管理</h2>
+    <div class="d-flex gap-2">
+        <div class="input-group" style="width: 300px;">
+            <input type="text" class="form-control" id="searchInput" placeholder="搜索用户ID或昵称...">
+            <button class="btn btn-outline-secondary" type="button" id="searchBtn">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#userModal" id="addUserBtn">
+            <i class="fas fa-plus"></i> 添加用户
+        </button>
+    </div>
+</div>
+
+<div class="card border-primary">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>用户列表</span>
+        <div class="d-flex align-items-center gap-3">
+            <span class="text-muted">共 {{ pagination.total_count }} 个用户</span>
+            <div class="btn-group" role="group">
+                <input type="radio" class="btn-check" name="viewMode" id="listView" autocomplete="off" checked>
+                <label class="btn btn-outline-secondary" for="listView">
+                    <i class="fas fa-list"></i>
+                </label>
+                <input type="radio" class="btn-check" name="viewMode" id="cardView" autocomplete="off">
+                <label class="btn btn-outline-secondary" for="cardView">
+                    <i class="fas fa-th"></i>
+                </label>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- 列表视图 -->
+        <div id="listViewContent">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>用户ID</th>
+                            <th>昵称</th>
+                            <th>金币</th>
+                            <th>钓鱼次数</th>
+                            <th>总重量</th>
+                            <th>注册时间</th>
+                            <th>最后登录</th>
+                            <th>状态</th>
+                            <th class="text-end">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>
+                                <code>{{ user.user_id }}</code>
+                            </td>
+                            <td>{{ user.nickname or '未设置' }}</td>
+                            <td>
+                                <span class="badge bg-warning text-dark">{{ user.coins }}</span>
+                            </td>
+                            <td>{{ user.total_fishing_count }}</td>
+                            <td>{{ user.total_weight_caught }}g</td>
+                            <td>{{ user.created_at.strftime('%Y-%m-%d %H:%M') if user.created_at else '未知' }}</td>
+                            <td>{{ user.last_login_time.strftime('%Y-%m-%d %H:%M') if user.last_login_time else '从未' }}</td>
+                            <td>
+                                {% if user.auto_fishing_enabled %}
+                                    <span class="badge bg-success">自动钓鱼</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">手动</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-info view-btn" data-user-id="{{ user.user_id }}">
+                                    <i class="fas fa-eye"></i> 查看
+                                </button>
+                                <button class="btn btn-sm btn-warning edit-btn" data-user-id="{{ user.user_id }}">
+                                    <i class="fas fa-edit"></i> 编辑
+                                </button>
+                                <a href="{{ url_for('admin_bp.manage_user_inventory', user_id=user.user_id) }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-boxes"></i> 物品
+                                </a>
+                                <button class="btn btn-sm btn-danger delete-btn" data-user-id="{{ user.user_id }}" data-user-name="{{ user.nickname or user.user_id }}">
+                                    <i class="fas fa-trash"></i> 删除
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 卡片视图 -->
+        <div id="cardViewContent" style="display: none;">
+            <div class="row">
+                {% for user in users %}
+                <div class="col-lg-4 col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="card-title mb-0">{{ user.nickname or '未设置昵称' }}</h6>
+                                <span class="badge bg-primary">{{ user.coins }} 金币</span>
+                            </div>
+                            <p class="card-text">
+                                <small class="text-muted">
+                                    <code>{{ user.user_id }}</code><br>
+                                    钓鱼 {{ user.total_fishing_count }} 次<br>
+                                    总重量 {{ user.total_weight_caught }}g<br>
+                                    注册于 {{ user.created_at.strftime('%Y-%m-%d') if user.created_at else '未知' }}
+                                </small>
+                            </p>
+                        </div>
+                        <div class="card-footer bg-transparent">
+                            <div class="btn-group w-100" role="group">
+                                <button class="btn btn-sm btn-outline-info view-btn" data-user-id="{{ user.user_id }}">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning edit-btn" data-user-id="{{ user.user_id }}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <a href="{{ url_for('admin_bp.manage_user_inventory', user_id=user.user_id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-boxes"></i>
+                                </a>
+                                <button class="btn btn-sm btn-outline-danger delete-btn" data-user-id="{{ user.user_id }}" data-user-name="{{ user.nickname or user.user_id }}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 分页 -->
+        {% if pagination.total_pages > 1 %}
+        <nav aria-label="用户分页">
+            <ul class="pagination justify-content-center">
+                {% if pagination.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ pagination.current_page - 1 }}">上一页</a>
+                </li>
+                {% endif %}
+                
+                {% for page_num in range(1, pagination.total_pages + 1) %}
+                    {% if page_num == pagination.current_page %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% elif page_num <= 3 or page_num > pagination.total_pages - 3 or (page_num >= pagination.current_page - 1 and page_num <= pagination.current_page + 1) %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_num }}">{{ page_num }}</a>
+                    </li>
+                    {% elif page_num == 4 and pagination.current_page > 5 %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% elif page_num == pagination.total_pages - 3 and pagination.current_page < pagination.total_pages - 4 %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if pagination.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ pagination.current_page + 1 }}">下一页</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 用户详情模态框 -->
+<div class="modal fade" id="userDetailModal" tabindex="-1" aria-labelledby="userDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userDetailModalLabel">用户详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="userDetailContent">
+                <!-- 用户详情内容将通过JavaScript加载 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-warning" id="editFromDetailBtn">编辑用户</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 用户编辑模态框 -->
+<div class="modal fade" id="userModal" tabindex="-1" aria-labelledby="userModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="user-form" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="userModalLabel">编辑用户</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="user_id" class="form-label">用户ID</label>
+                            <input type="text" id="user_id" name="user_id" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="nickname" class="form-label">昵称</label>
+                            <input type="text" id="nickname" name="nickname" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="coins" class="form-label">金币</label>
+                            <input type="number" id="coins" name="coins" class="form-control" min="0" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="premium_currency" class="form-label">高级货币</label>
+                            <input type="number" id="premium_currency" name="premium_currency" class="form-control" min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="total_fishing_count" class="form-label">钓鱼次数</label>
+                            <input type="number" id="total_fishing_count" name="total_fishing_count" class="form-control" min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="total_weight_caught" class="form-label">总重量 (g)</label>
+                            <input type="number" id="total_weight_caught" name="total_weight_caught" class="form-control" min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="total_coins_earned" class="form-label">总赚取金币</label>
+                            <input type="number" id="total_coins_earned" name="total_coins_earned" class="form-control" min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="consecutive_login_days" class="form-label">连续登录天数</label>
+                            <input type="number" id="consecutive_login_days" name="consecutive_login_days" class="form-control" min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="fish_pond_capacity" class="form-label">鱼塘容量</label>
+                            <input type="number" id="fish_pond_capacity" name="fish_pond_capacity" class="form-control" min="1">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="fishing_zone_id" class="form-label">钓鱼区域ID</label>
+                            <input type="number" id="fishing_zone_id" name="fishing_zone_id" class="form-control" min="1">
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="auto_fishing_enabled" name="auto_fishing_enabled">
+                                <label class="form-check-label" for="auto_fishing_enabled">
+                                    启用自动钓鱼
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 定义JS需要的后端URL变量
+    const usersUrl = "{{ url_for('admin_bp.manage_users') }}";
+    const baseUrl = "{{ url_for('admin_bp.manage_users') }}".replace('/users', '');
+    const userDetailUrl = baseUrl + "/users/";
+    const updateUserUrl = baseUrl + "/users/";
+    const deleteUserUrl = baseUrl + "/users/";
+    
+    // 强制变量初始化（防止时序问题）
+    void updateUserUrl; // 强制变量求值，无副作用
+</script>
+<script src="{{ url_for('admin_bp.static', filename='js/users_manager.js') }}?v={{ range(1000, 9999) | random }}"></script>
+{% endblock %}
