@@ -543,7 +543,7 @@ class FishingPlugin(Star):
 
     # ===========商店与市场==========
 
-    @filter.command("全部卖出")
+    @filter.command("全部卖出", alias={"全部出售", "卖出全部", "出售全部", "卖光", "清空鱼", "一键卖出"})
     async def sell_all(self, event: AstrMessageEvent):
         """卖出用户所有鱼"""
         user_id = event.get_sender_id()
@@ -553,7 +553,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("保留卖出")
+    @filter.command("保留卖出", alias={"保留出售", "卖出保留", "出售保留", "留一卖出", "卖鱼留一"})
     async def sell_keep(self, event: AstrMessageEvent):
         """卖出用户鱼，但保留每种鱼一条"""
         user_id = event.get_sender_id()
@@ -563,7 +563,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("出售稀有度")
+    @filter.command("出售稀有度", alias={"按稀有度出售", "稀有度出售", "卖稀有度", "出售星级", "按星级出售"})
     async def sell_by_rarity(self, event: AstrMessageEvent):
         """按稀有度出售鱼"""
         user_id = event.get_sender_id()
@@ -581,7 +581,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("出售鱼竿")
+    @filter.command("出售鱼竿", alias={"卖出鱼竿", "卖鱼竿", "卖掉鱼竿"})
     async def sell_rod(self, event: AstrMessageEvent):
         """出售鱼竿"""
         user_id = event.get_sender_id()
@@ -603,7 +603,7 @@ class FishingPlugin(Star):
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     # 批量删除用户鱼竿
-    @filter.command("出售所有鱼竿", alias={ "出售全部鱼竿" })
+    @filter.command("出售所有鱼竿", alias={"出售全部鱼竿", "卖出所有鱼竿", "卖出全部鱼竿", "卖光鱼竿", "清空鱼竿", "一键卖鱼竿"})
     async def sell_all_rods(self, event: AstrMessageEvent):
         """出售用户所有鱼竿"""
         user_id = event.get_sender_id()
@@ -613,7 +613,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("出售饰品")
+    @filter.command("出售饰品", alias={"卖出饰品", "卖饰品", "卖掉饰品"})
     async def sell_accessories(self, event: AstrMessageEvent):
         """出售饰品"""
         user_id = event.get_sender_id()
@@ -634,7 +634,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("出售所有饰品", alias={ "出售全部饰品" })
+    @filter.command("出售所有饰品", alias={"出售全部饰品", "卖出所有饰品", "卖出全部饰品", "卖光饰品", "清空饰品", "一键卖饰品"})
     async def sell_all_accessories(self, event: AstrMessageEvent):
         """出售用户所有饰品"""
         user_id = event.get_sender_id()
