@@ -57,6 +57,40 @@ class UserService:
             "message": f"注册成功！欢迎 {nickname} 🎉 你获得了 {initial_coins} 金币作为起始资金。"
         }
 
+    def create_user_for_admin(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """管理员创建用户，支持设置初始字段。"""
+        user_id = data.get("user_id")
+        if not user_id:
+            return {"success": False, "message": "缺少 user_id"}
+
+        if self.user_repo.check_exists(user_id):
+            return {"success": False, "message": "用户已存在"}
+
+        nickname = data.get("nickname")
+        initial_coins = data.get("coins")
+        if not isinstance(initial_coins, int):
+            initial_coins = self.config.get("user", {}).get("initial_coins", 200)
+
+        # 先最小化创建用户记录
+        new_user = User(
+            user_id=user_id,
+            nickname=nickname,
+            coins=initial_coins,
+            created_at=get_now()
+        )
+        self.user_repo.add(new_user)
+
+        # 组装可更新字段并复用更新逻辑
+        allowed_fields = {
+            'nickname', 'coins', 'premium_currency', 'total_fishing_count',
+            'total_weight_caught', 'total_coins_earned', 'consecutive_login_days',
+            'fish_pond_capacity', 'fishing_zone_id', 'auto_fishing_enabled'
+        }
+        updates = {k: v for k, v in data.items() if k in allowed_fields}
+        if updates:
+            return self.update_user_for_admin(user_id, updates)
+        return {"success": True, "message": "用户创建成功"}
+
     def get_leaderboard_data(self, limit: int = 10) -> Dict[str, Any]:
         """
         获取排行榜数据。
@@ -269,8 +303,8 @@ class UserService:
         offset = (page - 1) * per_page
         
         if search:
-            users = self.user_repo.search_users(search, per_page)
-            total_count = len(users)  # 搜索时无法准确获取总数
+            users = self.user_repo.search_users(search, per_page, offset)
+            total_count = self.user_repo.get_search_users_count(search)
         else:
             users = self.user_repo.get_all_users(per_page, offset)
             total_count = self.user_repo.get_users_count()
@@ -364,8 +398,26 @@ class UserService:
             'fish_pond_capacity', 'fishing_zone_id', 'auto_fishing_enabled'
         ]
         
+        # 定义关键字段的校验逻辑
+        def is_valid(field: str, value: Any) -> bool:
+            numeric_non_negative = {
+                'coins', 'premium_currency', 'total_fishing_count', 'total_weight_caught',
+                'total_coins_earned', 'consecutive_login_days', 'fish_pond_capacity'
+            }
+            if field in numeric_non_negative:
+                return isinstance(value, int) and value >= 0
+            if field == 'fishing_zone_id':
+                return isinstance(value, int) and (self.inventory_repo.get_zone_by_id(value) is not None)
+            if field == 'auto_fishing_enabled':
+                return isinstance(value, bool)
+            if field == 'nickname':
+                return (isinstance(value, str) and 0 < len(value) <= 32)
+            return True
+
         for field, value in updates.items():
             if field in allowed_fields and hasattr(user, field):
+                if not is_valid(field, value):
+                    return {"success": False, "message": f"字段 {field} 的值无效: {value}"}
                 setattr(user, field, value)
         
         self.user_repo.update(user)

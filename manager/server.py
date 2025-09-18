@@ -1,11 +1,13 @@
 import functools
 import os
+import traceback
 from typing import Dict, Any
 
 from quart import (
     Quart, render_template, request, redirect, url_for, session, flash,
     Blueprint, current_app
 )
+from astrbot.api import logger
 
 
 admin_bp = Blueprint(
@@ -38,12 +40,50 @@ def create_app(secret_key: str, services: Dict[str, Any]):
     @app.route("/")
     def root():
         return redirect(url_for("admin_bp.index"))
+    
+    @app.route("/favicon.ico")
+    def favicon():
+        # 返回404而不是500错误
+        from quart import abort
+        abort(404)
+    
+    # 添加全局错误处理器
+    @app.errorhandler(404)
+    async def handle_404_error(error):
+        # 只对非静态资源记录404错误
+        if not request.path.startswith('/admin/static/') and request.path != '/favicon.ico':
+            logger.error(f"404 Not Found: {request.url} - {request.method}")
+        
+        # 为API路径返回JSON，为页面返回HTML
+        if request.path.startswith('/admin/market/') and request.method in ['POST', 'PUT', 'DELETE']:
+            return {"success": False, "message": "API端点不存在"}, 404
+        return "Not Found", 404
+    
+    @app.errorhandler(500)
+    async def handle_500_error(error):
+        logger.error(f"Internal Server Error: {error}")
+        logger.error(traceback.format_exc())
+        
+        # 为API路径返回JSON，为页面返回HTML
+        if request.path.startswith('/admin/market/') and request.method in ['POST', 'PUT', 'DELETE']:
+            return {"success": False, "message": "服务器内部错误"}, 500
+        return "Internal Server Error", 500
+    
     return app
 
 def login_required(f):
     @functools.wraps(f)
     async def decorated_function(*args, **kwargs):
         if "logged_in" not in session:
+            return redirect(url_for("admin_bp.login"))
+        return await f(*args, **kwargs)
+    return decorated_function
+
+def admin_required(f):
+    @functools.wraps(f)
+    async def decorated_function(*args, **kwargs):
+        if not session.get("is_admin"):
+            await flash("无权限访问该页面", "danger")
             return redirect(url_for("admin_bp.login"))
         return await f(*args, **kwargs)
     return decorated_function
@@ -56,6 +96,8 @@ async def login():
         secret_key = current_app.config["SECRET_LOGIN_KEY"]
         if form.get("secret_key") == secret_key:
             session["logged_in"] = True
+            # 简单角色标记：现阶段使用同一密钥视为管理员
+            session["is_admin"] = True
             await flash("登录成功！", "success")
             return redirect(url_for("admin_bp.index"))
         else:
@@ -363,12 +405,13 @@ async def delete_pool_item(item_id):
 # --- 用户管理 ---
 @admin_bp.route("/users")
 @login_required
+@admin_required
 async def manage_users():
     user_service = current_app.config["USER_SERVICE"]
     page = int(request.args.get("page", 1))
     search = request.args.get("search", "")
     
-    result = user_service.get_users_for_admin(page=page, per_page=20, search=search if search else None)
+    result = user_service.get_users_for_admin(page=page, per_page=20, search=search or None)
     
     if not result["success"]:
         await flash("获取用户列表失败：" + result.get("message", "未知错误"), "danger")
@@ -383,6 +426,7 @@ async def manage_users():
 
 @admin_bp.route("/users/<user_id>")
 @login_required
+@admin_required
 async def get_user_detail(user_id):
     user_service = current_app.config["USER_SERVICE"]
     result = user_service.get_user_details_for_admin(user_id)
@@ -417,6 +461,7 @@ async def get_user_detail(user_id):
 
 @admin_bp.route("/users/<user_id>/update", methods=["POST"])
 @login_required
+@admin_required
 async def update_user(user_id):
     user_service = current_app.config["USER_SERVICE"]
     
@@ -426,26 +471,128 @@ async def update_user(user_id):
         if not data:
             return {"success": False, "message": "无效的请求数据"}, 400
         
-        result = user_service.update_user_for_admin(user_id, data)
-        return result
+        return user_service.update_user_for_admin(user_id, data)
     except Exception as e:
         return {"success": False, "message": f"更新用户时发生错误: {str(e)}"}, 500
 
 @admin_bp.route("/users/<user_id>/delete", methods=["POST"])
 @login_required
+@admin_required
 async def delete_user(user_id):
     user_service = current_app.config["USER_SERVICE"]
     
     try:
-        result = user_service.delete_user_for_admin(user_id)
-        return result
+        return user_service.delete_user_for_admin(user_id)
     except Exception as e:
         return {"success": False, "message": f"删除用户时发生错误: {str(e)}"}, 500
 
 
+# --- 市场管理 ---
+@admin_bp.route("/market")
+@login_required
+async def manage_market():
+    try:
+        market_service = current_app.config["MARKET_SERVICE"]
+        
+        # 获取查询参数
+        page = int(request.args.get("page", 1))
+        item_type = request.args.get("item_type", "")
+        min_price = request.args.get("min_price", "")
+        max_price = request.args.get("max_price", "")
+        search = request.args.get("search", "")
+        
+        # 转换参数
+        min_price = int(min_price) if min_price else None
+        max_price = int(max_price) if max_price else None
+        item_type = item_type or None
+        search = search or None
+        
+        result = market_service.get_all_market_listings_for_admin(
+            page=page, 
+            per_page=20,
+            item_type=item_type,
+            min_price=min_price,
+            max_price=max_price,
+            search=search
+        )
+        
+        if not result["success"]:
+            await flash("获取市场列表失败：" + result.get("message", "未知错误"), "danger")
+            return redirect(url_for("admin_bp.index"))
+        
+        return await render_template(
+            "market.html",
+            listings=result["listings"],
+            pagination=result["pagination"],
+            stats=result["stats"],
+            filters={
+                "item_type": request.args.get("item_type", ""),
+                "min_price": request.args.get("min_price", ""),
+                "max_price": request.args.get("max_price", ""),
+                "search": request.args.get("search", "")
+            }
+        )
+    except Exception as e:
+        logger.error(f"市场管理页面出错: {e}")
+        logger.error(traceback.format_exc())
+        await flash(f"页面加载失败: {str(e)}", "danger")
+        return redirect(url_for("admin_bp.index"))
+
+@admin_bp.route("/market/<int:market_id>/price", methods=["POST"])
+@login_required
+async def update_market_price(market_id):
+    market_service = current_app.config["MARKET_SERVICE"]
+    
+    try:
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        
+        new_price = data.get("price")
+        if new_price is None:
+            return {"success": False, "message": "缺少价格参数"}, 400
+
+        # 类型校验: 检查 new_price 是否为数字
+        try:
+            new_price_numeric = float(new_price)
+        except (TypeError, ValueError):
+            return {"success": False, "message": "价格参数必须为数字"}, 400
+
+        return market_service.update_market_item_price(market_id, int(new_price_numeric))
+    except Exception as e:
+        logger.error(f"更新价格错误: {e}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": f"更新价格时发生错误: {str(e)}"}, 500
+
+@admin_bp.route("/market/<int:market_id>/remove", methods=["POST"])
+@login_required
+async def remove_market_item(market_id):
+    market_service = current_app.config["MARKET_SERVICE"]
+    
+    try:
+        return market_service.remove_market_item_by_admin(market_id)
+    except Exception as e:
+        logger.error(f"下架商品错误: {e}")
+        logger.error(traceback.format_exc())
+        return {"success": False, "message": f"下架商品时发生错误: {str(e)}"}, 500
+
+@admin_bp.route("/users/create", methods=["POST"])
+@login_required
+@admin_required
+async def create_user():
+    user_service = current_app.config["USER_SERVICE"]
+    try:
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        return user_service.create_user_for_admin(data)
+    except Exception as e:
+        return {"success": False, "message": f"创建用户时发生错误: {str(e)}"}, 500
+
 # --- 用户物品管理 ---
 @admin_bp.route("/users/<user_id>/inventory")
 @login_required
+@admin_required
 async def manage_user_inventory(user_id):
     try:
         user_service = current_app.config["USER_SERVICE"]

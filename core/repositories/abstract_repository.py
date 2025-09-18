@@ -42,9 +42,12 @@ class AbstractUserRepository(ABC):
     # 获取用户总数
     @abstractmethod
     def get_users_count(self) -> int: pass
-    # 搜索用户
+    # 搜索用户（支持分页）
     @abstractmethod
-    def search_users(self, keyword: str, limit: int = 50) -> List[User]: pass
+    def search_users(self, keyword: str, limit: int = 50, offset: int = 0) -> List[User]: pass
+    # 搜索用户的总数
+    @abstractmethod
+    def get_search_users_count(self, keyword: str) -> int: pass
     # 删除用户
     @abstractmethod
     def delete_user(self, user_id: str) -> bool: pass
@@ -261,13 +264,18 @@ class AbstractMarketRepository(ABC):
     def get_listing_by_id(self, market_id: int) -> Optional[MarketListing]: pass
     # 获取所有市场商品
     @abstractmethod
-    def get_all_listings(self) -> List[MarketListing]: pass
+    def get_all_listings(self, page: int = None, per_page: int = None, 
+                        item_type: str = None, min_price: int = None, 
+                        max_price: int = None, search: str = None) -> tuple: pass
     # 添加一个市场商品
     @abstractmethod
     def add_listing(self, listing: MarketListing) -> None: pass
     # 移除一个市场商品
     @abstractmethod
     def remove_listing(self, market_id: int) -> None: pass
+    # 更新市场商品
+    @abstractmethod
+    def update_listing(self, listing: MarketListing) -> None: pass
 
 class AbstractLogRepository(ABC):
     """日志类数据仓储接口"""
