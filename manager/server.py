@@ -285,7 +285,17 @@ async def manage_gacha():
 async def add_gacha_pool():
     form = await request.form
     item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
-    item_template_service.add_pool_template(form.to_dict())
+    data = form.to_dict()
+    # 将 currency_type/cost_amount 映射到 cost_coins 或 cost_premium_currency
+    currency_type = data.get("currency_type", "coins")
+    amount = int(data.get("cost_amount", 0) or 0)
+    payload = {
+        "name": data.get("name"),
+        "description": data.get("description"),
+        "cost_coins": amount if currency_type == "coins" else 0,
+        "cost_premium_currency": amount if currency_type == "premium" else 0,
+    }
+    item_template_service.add_pool_template(payload)
     await flash("奖池添加成功！", "success")
     return redirect(url_for("admin_bp.manage_gacha"))
 
@@ -295,7 +305,16 @@ async def add_gacha_pool():
 async def edit_gacha_pool(pool_id):
     form = await request.form
     item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
-    item_template_service.update_pool_template(pool_id, form.to_dict())
+    data = form.to_dict()
+    currency_type = data.get("currency_type", "coins")
+    amount = int(data.get("cost_amount", 0) or 0)
+    payload = {
+        "name": data.get("name"),
+        "description": data.get("description"),
+        "cost_coins": amount if currency_type == "coins" else 0,
+        "cost_premium_currency": amount if currency_type == "premium" else 0,
+    }
+    item_template_service.update_pool_template(pool_id, payload)
     await flash(f"奖池ID {pool_id} 更新成功！", "success")
     return redirect(url_for("admin_bp.manage_gacha"))
 

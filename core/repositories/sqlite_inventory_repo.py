@@ -172,25 +172,25 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             return self._row_to_rod_instance(row) if row else None
 
     def clear_user_rod_instances(self, user_id: str) -> None:
-        """清空用户的所有未装备和非五星的钓竿实例"""
+        """清空用户的所有未装备且小于5星的钓竿实例"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 DELETE FROM user_rods
-                WHERE user_id = ? AND is_equipped = 0 AND rod_id NOT IN (
-                    SELECT rod_id FROM rods WHERE rarity = 5
+                WHERE user_id = ? AND is_equipped = 0 AND rod_id IN (
+                    SELECT rod_id FROM rods WHERE rarity < 5
                 )
             """, (user_id,))
             conn.commit()
 
     def clear_user_accessory_instances(self, user_id: str) -> None:
-        """清空用户的所有未装备和非五星的配件实例"""
+        """清空用户的所有未装备且小于5星的配件实例"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 DELETE FROM user_accessories
-                WHERE user_id = ? AND is_equipped = 0 AND accessory_id NOT IN (
-                    SELECT accessory_id FROM accessories WHERE rarity = 5
+                WHERE user_id = ? AND is_equipped = 0 AND accessory_id IN (
+                    SELECT accessory_id FROM accessories WHERE rarity < 5
                 )
             """, (user_id,))
             conn.commit()

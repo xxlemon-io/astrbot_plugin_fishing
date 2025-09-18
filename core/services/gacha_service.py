@@ -118,9 +118,17 @@ class GachaService:
         if not pool or not pool.items:
             return {"success": False, "message": "卡池不存在或卡池为空"}
 
-        total_cost = pool.cost_coins * num_draws
-        if not user.can_afford(total_cost):
-            return {"success": False, "message": f"金币不足，需要 {total_cost} 金币"}
+        # 计算费用：若配置了高级货币费用，则优先使用高级货币；否则使用金币
+        use_premium_currency = (getattr(pool, "cost_premium_currency", 0) or 0) > 0
+        total_premium_cost = (pool.cost_premium_currency or 0) * num_draws
+        total_coin_cost = (pool.cost_coins or 0) * num_draws
+
+        if use_premium_currency:
+            if user.premium_currency < total_premium_cost:
+                return {"success": False, "message": f"高级货币不足，需要 {total_premium_cost} 点高级货币"}
+        else:
+            if not user.can_afford(total_coin_cost):
+                return {"success": False, "message": f"金币不足，需要 {total_coin_cost} 金币"}
 
         # 1. 执行抽卡
         draw_results = []
@@ -133,7 +141,10 @@ class GachaService:
             return {"success": False, "message": "抽卡失败，请检查卡池配置"}
 
         # 2. 扣除费用
-        user.coins -= total_cost
+        if use_premium_currency:
+            user.premium_currency -= total_premium_cost
+        else:
+            user.coins -= total_coin_cost
         self.user_repo.update(user)
 
         # 3. 发放奖励并记录日志
