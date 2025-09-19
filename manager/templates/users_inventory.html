@@ -191,7 +191,7 @@
                                 <td>{{ item.name }}</td>
                                 <td>{{ '★' * item.rarity }}</td>
                                 <td>{{ item.refine_level }}</td>
-                                <td>{{ item.durability or '∞' }}</td>
+                                <td>{{ item.durability if item.durability is not none else '∞' }}</td>
                                 <td>
                                     {% if item.is_equipped %}
                                         <span class="badge bg-success">已装备</span>
