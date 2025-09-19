@@ -659,10 +659,13 @@ class InventoryService:
                 import random
                 if random.random() > success_rate:
                     # 精炼失败，返回失败消息
+                    item_name_display = "鱼竿" if item_type == "rod" else "饰品"
                     return {
                         "success": False, 
-                        "message": f"精炼失败！运气不佳，{item_type}未能成功精炼。",
-                        "failed": True
+                        "message": f"💔 精炼失败！{item_name_display}精炼到{target_level}级失败，但装备完好无损。成功率为{success_rate:.0%}，再试一次吧！",
+                        "failed": True,
+                        "success_rate": success_rate,
+                        "target_level": target_level
                     }
 
             # 执行精炼操作
