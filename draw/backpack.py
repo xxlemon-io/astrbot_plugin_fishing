@@ -225,6 +225,25 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     def get_text_size(text, font):
         bbox = draw.textbbox((0, 0), text, font=font)
         return bbox[2] - bbox[0], bbox[3] - bbox[1]
+    
+    # 文本按像素宽度换行，确保不超出卡片
+    def wrap_text_by_width(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list:
+        if not text:
+            return []
+        lines = []
+        current = ""
+        for ch in text:
+            test = current + ch
+            w, _ = get_text_size(test, font)
+            if w <= max_width:
+                current = test
+            else:
+                if current:
+                    lines.append(current)
+                current = ch
+        if current:
+            lines.append(current)
+        return lines
 
     # 5. 绘制圆角矩形
     def draw_rounded_rectangle(draw, bbox, radius, fill=None, outline=None, width=1):
@@ -260,7 +279,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     avatar_size = 60
     col1_x_with_avatar = col1_x_without_avatar + avatar_size + 20  # 有头像时偏移
     col1_x = col1_x_without_avatar # 默认无头像
-    col2_x = col1_x + 300 # 第二列位置
+    col2_x = col1_x + 300 # 第二列位置（初始，若头像改变后会重算）
     
     # 行位置
     row1_y = current_y + 12
@@ -271,19 +290,42 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         if avatar_image := get_user_avatar(user_id, avatar_size):
             image.paste(avatar_image, (col1_x, row1_y), avatar_image)
             col1_x = col1_x_with_avatar # 更新 col1_x 以适应头像位置
+            col2_x = col1_x + 300  # 头像存在时，第二列起点随之右移
 
     # 用户昵称
     nickname = user_data.get('nickname', '未知用户')
     nickname_text = f"{nickname}"
     draw.text((col1_x, row1_y), nickname_text, font=subtitle_font, fill=primary_medium)
     
-    # 统计信息
+    # 统计信息 + 装备总价值
     rods_count = len(user_data.get('rods', []))
     accessories_count = len(user_data.get('accessories', []))
     baits_count = len(user_data.get('baits', []))
     
+    # 计算总价值（简化估算）
+    total_value = 0
+    for rod in user_data.get('rods', []):
+        rarity = rod.get('rarity', 1)
+        refine_level = rod.get('refine_level', 1)
+        base_value = rarity * 1000
+        refined_value = base_value * (1 + max(refine_level - 1, 0) * 0.5)
+        total_value += refined_value
+    for accessory in user_data.get('accessories', []):
+        rarity = accessory.get('rarity', 1)
+        refine_level = accessory.get('refine_level', 1)
+        base_value = rarity * 1000
+        refined_value = base_value * (1 + max(refine_level - 1, 0) * 0.5)
+        total_value += refined_value
+    for bait in user_data.get('baits', []):
+        rarity = bait.get('rarity', 1)
+        quantity = bait.get('quantity', 0)
+        base_value = rarity * 100
+        total_value += base_value * quantity
+    
     stats_text = f"鱼竿: {rods_count} | 饰品: {accessories_count} | 鱼饵: {baits_count}"
-    draw.text((col1_x, row2_y), stats_text, font=small_font, fill=text_secondary)
+    draw.text((col2_x, row1_y), stats_text, font=small_font, fill=text_secondary)
+    value_text = f"装备总价值: {int(total_value):,} 金币"
+    draw.text((col2_x, row2_y - 8), value_text, font=small_font, fill=gold_color)
 
     current_y += card_height + 20
 
@@ -317,7 +359,9 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             # 计算名称宽度，然后在其右边放置ID
             name_w, _ = get_text_size(rod_name, content_font)
             draw.text((x + 15, y + 15), rod_name, font=content_font, fill=text_primary)
-            draw.text((x + 15 + name_w + 10, y + 15), f"ID: {instance_id}", font=tiny_font, fill=text_muted)
+            id_w, id_h = get_text_size("ID: 000000", tiny_font)
+            # 让ID与装备名底部对齐（y同基线高度）
+            draw.text((x + 15 + name_w + 10, y + 15 + (get_text_size(rod_name, content_font)[1] - id_h)), f"ID: {instance_id}", font=tiny_font, fill=primary_light)
             
             # 稀有度和精炼等级
             rarity = rod.get('rarity', 1)
@@ -347,18 +391,17 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                 draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
                 bonus_y += 18
             
-            # 描述 - 支持换行
+            # 描述 - 支持换行且不超出卡片
             if rod.get('description'):
-                desc_text = rod['description']
-                # 如果描述太长，进行换行处理
-                max_chars_per_line = 25  # 每行最大字符数
-                if len(desc_text) > max_chars_per_line:
-                    lines = []
-                    for i in range(0, len(desc_text), max_chars_per_line):
-                        lines.append(desc_text[i:i+max_chars_per_line])
-                    desc_text = '\n'.join(lines)
-                
-                draw.text((x + 15, bonus_y), f"📋 {desc_text}", font=tiny_font, fill=text_secondary)
+                desc_text = f"📋 {rod['description']}"
+                available_width = card_width - 30
+                lines = wrap_text_by_width(desc_text, tiny_font, available_width)
+                # 计算可绘制的最大行数，避免超出卡片底部
+                line_h = get_text_size("测", tiny_font)[1] + 2
+                max_lines = max((y + card_height - 20) - bonus_y, 0) // line_h
+                if max_lines > 0:
+                    for i, line in enumerate(lines[:max_lines]):
+                        draw.text((x + 15, bonus_y + i * line_h), line, font=tiny_font, fill=text_secondary)
         
         # 更新当前Y位置
         rows = (len(rods) + 1) // 2
@@ -398,7 +441,8 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             # 计算名称宽度，然后在其右边放置ID
             name_w, _ = get_text_size(acc_name, content_font)
             draw.text((x + 15, y + 15), acc_name, font=content_font, fill=text_primary)
-            draw.text((x + 15 + name_w + 10, y + 15), f"ID: {instance_id}", font=tiny_font, fill=text_muted)
+            id_w, id_h = get_text_size("ID: 000000", tiny_font)
+            draw.text((x + 15 + name_w + 10, y + 15 + (get_text_size(acc_name, content_font)[1] - id_h)), f"ID: {instance_id}", font=tiny_font, fill=primary_light)
             
             # 稀有度和精炼等级
             rarity = accessory.get('rarity', 1)
@@ -432,18 +476,16 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                 draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=gold_color)
                 bonus_y += 18
             
-            # 描述 - 支持换行
+            # 描述 - 支持换行且不超出卡片
             if accessory.get('description'):
-                desc_text = accessory['description']
-                # 如果描述太长，进行换行处理
-                max_chars_per_line = 25  # 每行最大字符数
-                if len(desc_text) > max_chars_per_line:
-                    lines = []
-                    for i in range(0, len(desc_text), max_chars_per_line):
-                        lines.append(desc_text[i:i+max_chars_per_line])
-                    desc_text = '\n'.join(lines)
-                
-                draw.text((x + 15, bonus_y), f"📋 {desc_text}", font=tiny_font, fill=text_secondary)
+                desc_text = f"📋 {accessory['description']}"
+                available_width = card_width - 30
+                lines = wrap_text_by_width(desc_text, tiny_font, available_width)
+                line_h = get_text_size("测", tiny_font)[1] + 2
+                max_lines = max((y + card_height - 20) - bonus_y, 0) // line_h
+                if max_lines > 0:
+                    for i, line in enumerate(lines[:max_lines]):
+                        draw.text((x + 15, bonus_y + i * line_h), line, font=tiny_font, fill=text_secondary)
         
         # 更新当前Y位置
         rows = (len(accessories) + 1) // 2
@@ -476,32 +518,39 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                                  (x, y, x + card_width, y + card_height), 
                                  6, fill=card_bg)
             
-            # 鱼饵名称
+            # 鱼饵名称 和 ID
             bait_name = bait['name'][:12] + "..." if len(bait['name']) > 12 else bait['name']
-            draw.text((x + 10, y + 10), bait_name, font=small_font, fill=text_primary)
+            name_w, _ = get_text_size(bait_name, small_font)
+            draw.text((x + 15, y + 10), bait_name, font=small_font, fill=text_primary)
+            bait_id = bait.get('bait_id', 'N/A')
+            draw.text((x + 15 + name_w + 10, y + 12), f"ID: {bait_id}", font=tiny_font, fill=primary_light)
             
             # 稀有度
             rarity = bait.get('rarity', 1)
             star_color = rare_color if rarity > 4 else warning_color if rarity >= 3 else text_secondary
-            draw.text((x + 10, y + 30), format_rarity_display(rarity), font=tiny_font, fill=star_color)
+            draw.text((x + 15, y + 30), format_rarity_display(rarity), font=tiny_font, fill=star_color)
             
             # 数量
             quantity = bait.get('quantity', 0)
-            draw.text((x + 10, y + 50), f"数量: {quantity}", font=tiny_font, fill=text_secondary)
+            draw.text((x + 15, y + 50), f"数量: {quantity}", font=tiny_font, fill=text_secondary)
             
             # 持续时间
             duration = bait.get('duration_minutes', 0)
             if duration > 0:
-                draw.text((x + 10, y + 70), f"持续: {duration}分钟", font=tiny_font, fill=primary_light)
+                draw.text((x + 15, y + 70), f"持续: {duration}分钟", font=tiny_font, fill=primary_light)
             
             # 效果描述
             if bait.get('effect_description'):
-                effect_text = bait['effect_description'][:20] + "..." if len(bait['effect_description']) > 20 else bait['effect_description']
-                draw.text((x + 10, y + 90), f"效果: {effect_text}", font=tiny_font, fill=text_secondary)
+                effect_text = f"效果: {bait['effect_description']}"
+                available_width = card_width - 30
+                lines = wrap_text_by_width(effect_text, tiny_font, available_width)
+                line_h = get_text_size("测", tiny_font)[1] + 2
+                max_lines = max((y + card_height - 20) - (y + 90), 0) // line_h
+                if max_lines > 0:
+                    for i, line in enumerate(lines[:max_lines]):
+                        draw.text((x + 15, y + 90 + i * line_h), line, font=tiny_font, fill=text_secondary)
             
-            # 鱼饵ID
-            bait_id = bait.get('bait_id', 'N/A')
-            draw.text((x + 10, y + card_height - 20), f"ID: {bait_id}", font=tiny_font, fill=text_muted)
+            # 底部保留空间（不再在左下角重复ID）
         
         # 更新当前Y位置
         rows = (len(baits) + 1) // 2
@@ -510,11 +559,23 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         draw.text((30, current_y), "🐟 您还没有鱼饵，快去商店购买或抽奖获得吧！", font=content_font, fill=text_muted)
         current_y += 50
 
-    # 底部信息
-    current_y += 20
+    # 底部信息 - 确保不被截断
+    current_y += 30
     footer_text = f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     footer_w, footer_h = get_text_size(footer_text, small_font)
     footer_x = (width - footer_w) // 2
+    # 如果超出原始高度，则扩展画布
+    needed_height = current_y + footer_h + 30
+    if needed_height > height:
+        # 扩展画布高度
+        new_image = Image.new('RGB', (width, needed_height), (255, 255, 255))
+        # 重新绘制渐变背景
+        bg = create_vertical_gradient(width, needed_height, bg_top, bg_bot)
+        new_image.paste(bg, (0, 0))
+        new_image.paste(image, (0, 0))
+        image = new_image
+        draw = ImageDraw.Draw(image)
+        height = needed_height
     draw.text((footer_x, current_y), footer_text, font=small_font, fill=text_secondary)
 
     # 添加装饰性元素
