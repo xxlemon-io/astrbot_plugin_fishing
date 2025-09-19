@@ -163,6 +163,10 @@ class SqliteItemTemplateRepository(AbstractItemTemplateRepository):
     def add_rod_template(self, data: Dict[str, Any]) -> None:
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            # 注意：durability 允许为 0，不能用 "or None" 否则 0 会被当作 None
+            durability_value = data.get("durability")
+            if durability_value == "":
+                durability_value = None
             cursor.execute("""
                 INSERT INTO rods (name, description, rarity, source, purchase_cost,
                                   bonus_fish_quality_modifier, bonus_fish_quantity_modifier,
@@ -170,13 +174,17 @@ class SqliteItemTemplateRepository(AbstractItemTemplateRepository):
                 VALUES (:name, :description, :rarity, :source, :purchase_cost,
                         :bonus_fish_quality_modifier, :bonus_fish_quantity_modifier,
                         :bonus_rare_fish_chance, :durability, :icon_url)
-            """, {**data, "purchase_cost": data.get("purchase_cost") or None, "durability": data.get("durability") or None, "icon_url": data.get("icon_url")})
+            """, {**data, "purchase_cost": data.get("purchase_cost") or None, "durability": durability_value, "icon_url": data.get("icon_url")})
             conn.commit()
 
     def update_rod_template(self, rod_id: int, data: Dict[str, Any]) -> None:
         data["rod_id"] = rod_id
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            # 注意：durability 允许为 0，不能用 "or None"
+            durability_value = data.get("durability")
+            if durability_value == "":
+                durability_value = None
             cursor.execute("""
                 UPDATE rods SET
                     name = :name, description = :description, rarity = :rarity, source = :source,
@@ -185,7 +193,7 @@ class SqliteItemTemplateRepository(AbstractItemTemplateRepository):
                     bonus_rare_fish_chance = :bonus_rare_fish_chance, durability = :durability,
                     icon_url = :icon_url
                 WHERE rod_id = :rod_id
-            """, {**data, "purchase_cost": data.get("purchase_cost") or None, "durability": data.get("durability") or None, "icon_url": data.get("icon_url")})
+            """, {**data, "purchase_cost": data.get("purchase_cost") or None, "durability": durability_value, "icon_url": data.get("icon_url")})
             conn.commit()
 
     def delete_rod_template(self, rod_id: int) -> None:
