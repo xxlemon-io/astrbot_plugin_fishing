@@ -144,6 +144,50 @@ class SqliteGachaRepository(AbstractGachaRepository):
             cursor.execute("DELETE FROM gacha_pools WHERE gacha_pool_id = ?", (pool_id,))
             conn.commit()
 
+    def copy_pool_template(self, pool_id: int) -> int:
+        """复制一个抽卡池及其所有物品，返回新的pool_id"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 获取原卡池信息
+            cursor.execute("SELECT * FROM gacha_pools WHERE gacha_pool_id = ?", (pool_id,))
+            original_pool = cursor.fetchone()
+            if not original_pool:
+                raise ValueError(f"Pool with ID {pool_id} not found")
+            
+            # 创建新卡池，名称加上"(副本)"
+            cursor.execute("""
+                INSERT INTO gacha_pools (name, description, cost_coins, cost_premium_currency)
+                VALUES (?, ?, ?, ?)
+            """, (
+                f"{original_pool['name']} (副本)",
+                original_pool['description'],
+                original_pool['cost_coins'],
+                original_pool['cost_premium_currency']
+            ))
+            
+            # 获取新卡池ID
+            new_pool_id = cursor.lastrowid
+            
+            # 复制所有物品
+            cursor.execute("SELECT * FROM gacha_pool_items WHERE gacha_pool_id = ?", (pool_id,))
+            items = cursor.fetchall()
+            
+            for item in items:
+                cursor.execute("""
+                    INSERT INTO gacha_pool_items (gacha_pool_id, item_type, item_id, quantity, weight)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (
+                    new_pool_id,
+                    item['item_type'],
+                    item['item_id'],
+                    item['quantity'],
+                    item['weight']
+                ))
+            
+            conn.commit()
+            return new_pool_id
+
     # Pool Item CRUD
     def add_item_to_pool(self, pool_id: int, data: Dict[str, Any]) -> None:
         """后台向抽卡池添加一个物品"""

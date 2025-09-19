@@ -247,6 +247,9 @@ class AbstractGachaRepository(ABC):
     # 删除抽卡池
     @abstractmethod
     def delete_pool_template(self, pool_id: int) -> None: pass
+    # 复制抽卡池
+    @abstractmethod
+    def copy_pool_template(self, pool_id: int) -> int: pass
     # 添加物品到抽卡池
     @abstractmethod
     def add_item_to_pool(self, pool_id: int, data: Dict[str, Any]) -> GachaPoolItem: pass

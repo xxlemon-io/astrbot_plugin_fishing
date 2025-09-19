@@ -30,7 +30,12 @@
                     {% for item in items %}
                     <tr>
                         <td>{{ item.gacha_pool_item_id }}</td>
-                        <td>{{ item.item_name }} (ID: {{ item.item_id }})</td>
+                        <td>
+                            {{ item.item_name }} (ID: {{ item.item_id }})
+                            {% if item.rarity %}
+                                <span class="text-warning">{{ '★' * item.rarity }}</span>
+                            {% endif %}
+                        </td>
                         <td><span class="badge bg-secondary">{{ item.item_type }}</span></td>
                         <td>{{ item.quantity }}</td>
                         <td>{{ item.weight }}</td>
@@ -72,13 +77,13 @@
                                 <option value="coins-0">金币</option>
                             </optgroup>
                             <optgroup label="鱼竿">
-                                {% for rod in all_rods %}<option value="rod-{{ rod.rod_id }}">{{ rod.name }}</option>{% endfor %}
+                                {% for rod in all_rods %}<option value="rod-{{ rod.rod_id }}">{{ rod.name }} {{ '★' * rod.rarity }}</option>{% endfor %}
                             </optgroup>
                              <optgroup label="鱼饵">
-                                {% for bait in all_baits %}<option value="bait-{{ bait.bait_id }}">{{ bait.name }}</option>{% endfor %}
+                                {% for bait in all_baits %}<option value="bait-{{ bait.bait_id }}">{{ bait.name }} {{ '★' * bait.rarity }}</option>{% endfor %}
                             </optgroup>
                             <optgroup label="饰品">
-                                {% for acc in all_accessories %}<option value="accessory-{{ acc.accessory_id }}">{{ acc.name }}</option>{% endfor %}
+                                {% for acc in all_accessories %}<option value="accessory-{{ acc.accessory_id }}">{{ acc.name }} {{ '★' * acc.rarity }}</option>{% endfor %}
                             </optgroup>
                         </select>
                     </div>
