@@ -568,23 +568,6 @@ class InventoryService:
                         "destroyed": True
                     }
 
-        # 构建成功消息，包含耐久度信息
-        success_message = f"成功精炼{item_name}，新精炼等级为 {instance.refine_level}。"
-        
-        # 检查是否达到了无限耐久的条件
-        if hasattr(instance, 'current_durability'):
-            if instance.current_durability is None:
-                # 获得无限耐久的特殊庆祝消息
-                success_message += f" 🎉✨ 装备已达到完美状态，获得永久耐久！这是真正的神器！ ✨🎉"
-            elif instance.current_durability is not None:
-                # 普通耐久度恢复消息
-                success_message += f" 耐久度已恢复并提升至 {instance.current_durability}！"
-        
-        return {
-            "success": True,
-            "message": success_message,
-            "new_refine_level": instance.refine_level
-        }
 
     def _get_refine_config_by_rarity(self, rarity: int, base_costs: dict) -> tuple:
         """
@@ -735,14 +718,38 @@ class InventoryService:
                     }
 
             # 执行精炼操作
-            self._perform_refinement(user, instance, candidate, new_refine_level, total_cost, item_type)
-            return {"success": True}
+            is_first_infinite = self._perform_refinement(user, instance, candidate, new_refine_level, total_cost, item_type)
+            
+            # 构建成功消息，包含耐久度信息
+            if item_type == "rod":
+                template = self.item_template_repo.get_rod_by_id(instance.rod_id)
+            else:
+                template = self.item_template_repo.get_accessory_by_id(instance.accessory_id)
+            
+            item_name = template.name if template else "装备"
+            success_message = f"成功精炼{item_name}，新精炼等级为 {instance.refine_level}。"
+            
+            # 检查是否达到了无限耐久的条件
+            if hasattr(instance, 'current_durability'):
+                if instance.current_durability is None and is_first_infinite:
+                    # 首次获得无限耐久的特殊庆祝消息
+                    success_message += f" 🎉✨ 装备已达到完美状态，获得永久耐久！这是真正的神器！ ✨🎉"
+                elif instance.current_durability is not None:
+                    # 普通耐久度恢复消息
+                    success_message += f" 耐久度已恢复并提升至 {instance.current_durability}！"
+                # 已经是无限耐久的装备再次精炼：不添加特殊消息，保持简洁
+            
+            return {
+                "success": True,
+                "message": success_message,
+                "new_refine_level": instance.refine_level
+            }
 
         # 如果没找到合适的候选品，返回错误
         return {"success": False, "message": f"至少需要 {min_cost} 金币才能精炼，当前金币不足"}
 
     def _perform_refinement(self, user, instance, candidate, new_refine_level, cost, item_type):
-        """执行精炼操作"""
+        """执行精炼操作，返回是否首次获得无限耐久"""
         # 扣除金币
         user.coins -= cost
 
@@ -758,7 +765,11 @@ class InventoryService:
         old_refine_level = instance.refine_level
         instance.refine_level = new_refine_level
 
+        # 检查精炼前是否已经是无限耐久
+        was_infinite_before = hasattr(instance, 'current_durability') and instance.current_durability is None
+
         # 处理耐久度恢复和上限提升
+        is_first_infinite = False
         if original_max_durability is not None:
             # 获取装备稀有度
             rarity = template.rarity if hasattr(template, 'rarity') else 1
@@ -769,6 +780,8 @@ class InventoryService:
                 # 更新最大耐久度为None（如果装备实例有这个字段）
                 if hasattr(instance, 'max_durability'):
                     instance.max_durability = None
+                # 标记是否首次获得无限耐久
+                is_first_infinite = not was_infinite_before
             else:
                 # 普通精炼：计算新的最大耐久度
                 # 公式：新上限 = 原始上限 * (1.5)^精炼等级
@@ -792,3 +805,5 @@ class InventoryService:
 
         # 更新用户信息
         self.user_repo.update(user)
+        
+        return is_first_infinite
