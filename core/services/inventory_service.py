@@ -729,15 +729,71 @@ class InventoryService:
                 
                 import random
                 if random.random() > success_rate:
-                    # 精炼失败，返回失败消息
-                    item_name_display = "鱼竿" if item_type == "rod" else "饰品"
-                    return {
-                        "success": False, 
+                    # 精炼失败：在高等级（>=6）启用毁坏/降级机制
+                    # 获取模板与名称
+                    if item_type == "rod":
+                        template = self.item_template_repo.get_rod_by_id(instance.rod_id)
+                        item_name_display = template.name if template else "鱼竿"
+                    else:
+                        template = self.item_template_repo.get_accessory_by_id(instance.accessory_id)
+                        item_name_display = template.name if template else "饰品"
+
+                    # 基础失败返回（默认完好无损）
+                    base_fail = {
+                        "success": False,
                         "message": f"💔 精炼失败！{item_name_display}精炼到{target_level}级失败，但装备完好无损。成功率为{success_rate:.0%}，再试一次吧！",
                         "failed": True,
                         "success_rate": success_rate,
                         "target_level": target_level
                     }
+
+                    # 仅在6级及以上且有稀有度信息时，判定毁坏机制
+                    if instance.refine_level >= 6 and template and hasattr(template, 'rarity'):
+                        rarity = template.rarity
+                        # 按稀有度设定毁坏概率
+                        if rarity <= 2:
+                            destruction_chance = 0.10
+                            survival_chance = 0.50
+                        elif rarity <= 4:
+                            destruction_chance = 0.20
+                            survival_chance = 0.30
+                        elif rarity <= 6:
+                            destruction_chance = 0.25
+                            survival_chance = 0.10
+                        else:
+                            destruction_chance = 0.40
+                            survival_chance = 0.10
+
+                        if random.random() < destruction_chance:
+                            # 有机会保留（降级1级），否则毁坏
+                            if random.random() < survival_chance:
+                                # 降级并保留
+                                instance.refine_level = max(1, instance.refine_level - 1)
+                                if item_type == "rod":
+                                    self.inventory_repo.update_rod_instance(instance)
+                                else:
+                                    self.inventory_repo.update_accessory_instance(instance)
+                                return {
+                                    "success": False,
+                                    "message": f"💥 精炼失败！{item_name_display}等级降为 {instance.refine_level}，但装备得以保留！",
+                                    "destroyed": False,
+                                    "level_reduced": True,
+                                    "new_refine_level": instance.refine_level
+                                }
+                            else:
+                                # 彻底毁坏
+                                if item_type == "rod":
+                                    self.inventory_repo.delete_rod_instance(instance.rod_instance_id)
+                                else:
+                                    self.inventory_repo.delete_accessory_instance(instance.accessory_instance_id)
+                                return {
+                                    "success": False,
+                                    "message": f"💥 精炼失败！{item_name_display}在精炼过程中毁坏了！",
+                                    "destroyed": True
+                                }
+
+                    # 默认：完好无损
+                    return base_fail
 
             # 执行精炼操作
             is_first_infinite = self._perform_refinement(user, instance, candidate, new_refine_level, total_cost, item_type)
