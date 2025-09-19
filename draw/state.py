@@ -242,25 +242,25 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         current_dur = current_rod.get('current_durability')
         max_dur = current_rod.get('max_durability')
         
-         # 在鱼竿名称右边显示耐久度
-         if max_dur is not None and current_dur is not None:
-             # 有限耐久装备
-             durability_text = f" (耐久: {current_dur}/{max_dur})"
-             # 根据耐久度设置颜色 - 使用与整体设计一致的颜色系统
-             durability_ratio = current_dur / max_dur if max_dur > 0 else 0
-             if durability_ratio > 0.6:
-                 dur_color = success_color  # 使用成功色 - 温和绿
-             elif durability_ratio > 0.3:
-                 dur_color = warning_color  # 使用警告色 - 柔和橙
-             else:
-                 dur_color = error_color    # 使用错误色 - 温和红
-         elif current_dur is None:
-             # 无限耐久装备
-             durability_text = " (永久)"
-             dur_color = primary_light     # 使用主色调 - 淡雅蓝，与UI风格一致
-         else:
-             durability_text = ""
-             dur_color = text_primary
+        # 在鱼竿名称右边显示耐久度
+        if max_dur is not None and current_dur is not None:
+            # 有限耐久装备
+            durability_text = f" (耐久: {current_dur}/{max_dur})"
+            # 根据耐久度设置颜色 - 使用与整体设计一致的颜色系统
+            durability_ratio = current_dur / max_dur if max_dur > 0 else 0
+            if durability_ratio > 0.6:
+                dur_color = success_color  # 使用成功色 - 温和绿
+            elif durability_ratio > 0.3:
+                dur_color = warning_color  # 使用警告色 - 柔和橙
+            else:
+                dur_color = error_color    # 使用错误色 - 温和红
+        elif current_dur is None:
+            # 无限耐久装备
+            durability_text = " (永久)"
+            dur_color = primary_light     # 使用主色调 - 淡雅蓝，与UI风格一致
+        else:
+            durability_text = ""
+            dur_color = text_primary
         
         # 显示鱼竿名称
         draw.text((left_col_x, equipment_row2_y), rod_name, font=content_font, fill=text_primary)
