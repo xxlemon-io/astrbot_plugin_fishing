@@ -135,6 +135,19 @@ class FishingPlugin(Star):
                                                       self.item_template_repo, self.log_repo)
         self.fishing_service = FishingService(self.user_repo, self.inventory_repo, self.item_template_repo,
                                               self.log_repo, self.game_config)
+        # 尝试注册一个消息推送回调（若运行环境支持主动推送能力）
+        def _try_notify(user_id: str, message: str):
+            try:
+                # 如果运行环境提供上下文推送接口，可在此处集成
+                # 由于不同适配器实现不同，这里做降级为日志输出
+                from astrbot.api import logger as _logger
+                _logger.info(f"[系统消息][{user_id}] {message}")
+            except Exception:
+                pass
+        try:
+            self.fishing_service.register_notifier(_try_notify)
+        except Exception:
+            pass
 
         self.item_template_service = ItemTemplateService(self.item_template_repo, self.gacha_repo)
 

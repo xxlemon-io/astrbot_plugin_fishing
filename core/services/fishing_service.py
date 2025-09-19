@@ -37,6 +37,15 @@ class FishingService:
         # 自动钓鱼线程相关属性
         self.auto_fishing_thread: Optional[threading.Thread] = None
         self.auto_fishing_running = False
+        # 可选的消息通知回调：签名 (user_id: str, message: str) -> None
+        self._notifier = None
+
+    def register_notifier(self, notifier):
+        """
+        注册一个用于发送系统消息的回调（例如私聊/频道推送）。
+        回调应为同步函数，签名为 (user_id: str, message: str) -> None。
+        """
+        self._notifier = notifier
 
     def toggle_auto_fishing(self, user_id: str) -> Dict[str, Any]:
         """
@@ -274,25 +283,31 @@ class FishingService:
         
         # 处理装备耐久度消耗
         equipment_broken_messages = []
-        
+
         # 判断用户的鱼竿是否存在并处理耐久度
         if user.equipped_rod_instance_id:
             rod_instance = self.inventory_repo.get_user_rod_instance_by_id(user.user_id, user.equipped_rod_instance_id)
             if not rod_instance:
                 user.equipped_rod_instance_id = None
             else:
-                # 减少鱼竿耐久度
+                # 减少鱼竿耐久度（仅当为有限耐久时）
                 if rod_instance.current_durability is not None and rod_instance.current_durability > 0:
                     rod_instance.current_durability -= 1
                     self.inventory_repo.update_rod_instance(rod_instance)
-                    
-                    # 检查鱼竿是否损坏
-                    if rod_instance.current_durability <= 0:
-                        # 鱼竿损坏，自动卸下
-                        user.equipped_rod_instance_id = None
-                        rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
-                        rod_name = rod_template.name if rod_template else "鱼竿"
-                        equipment_broken_messages.append(f"⚠️ 您的{rod_name}已损坏，自动卸下！")
+
+                # 无论是刚减为0，还是之前就是0，都进行一次破损检查与卸下，保证一致性
+                if rod_instance.current_durability is not None and rod_instance.current_durability <= 0:
+                    # 鱼竿损坏，自动卸下（同步 user 与实例 is_equipped 状态）
+                    user.equipped_rod_instance_id = None
+                    # 统一使用仓储方法重置装备状态，避免前端/状态页不一致
+                    self.inventory_repo.set_equipment_status(
+                        user.user_id,
+                        rod_instance_id=None,
+                        accessory_instance_id=user.equipped_accessory_instance_id
+                    )
+                    rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
+                    rod_name = rod_template.name if rod_template else "鱼竿"
+                    equipment_broken_messages.append(f"⚠️ 您的{rod_name}已损坏，自动卸下！")
         
         # 判断用户的饰品是否存在（饰品暂时不消耗耐久度）
         if user.equipped_accessory_instance_id:
@@ -580,7 +595,16 @@ class FishingService:
                         continue
 
                     # 执行钓鱼
-                    self.go_fish(user_id)
+                    result = self.go_fish(user_id)
+                    # 自动钓鱼时，如装备损坏，尝试进行消息推送
+                    if result and result.get("equipment_broken_messages"):
+                        for msg in result["equipment_broken_messages"]:
+                            try:
+                                if self._notifier:
+                                    self._notifier(user_id, msg)
+                            except Exception:
+                                # 通知失败不影响主流程
+                                pass
                     # if result['success']:
                     #     fish = result["fish"]
                     #     logger.info(f"用户 {user_id} 自动钓鱼成功: {fish['name']}")
