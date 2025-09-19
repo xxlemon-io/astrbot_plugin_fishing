@@ -482,12 +482,22 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
     if rod_instance:
         rod_template = item_template_repo.get_rod_by_id(rod_instance.rod_id)
         if rod_template:
+            # 计算精炼后的最大耐久度，与背包一致：原始 * (1.5)^(精炼等级-1)
+            if rod_template.durability is not None:
+                refined_max_durability = int(rod_template.durability * (1.5 ** (max(rod_instance.refine_level, 1) - 1)))
+            else:
+                refined_max_durability = None
+
+            # 如果实例是无限耐久，则上限也视为 None
+            if rod_instance.current_durability is None:
+                refined_max_durability = None
+
             current_rod = {
                 'name': rod_template.name,
                 'rarity': rod_template.rarity,
                 'refine_level': rod_instance.refine_level,
                 'current_durability': rod_instance.current_durability,
-                'max_durability': rod_template.durability
+                'max_durability': refined_max_durability
             }
     
     # 获取当前装备的饰品
