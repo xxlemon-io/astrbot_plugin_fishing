@@ -62,6 +62,14 @@ class InventoryService:
         for rod_instance in rod_instances:
             rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
             if rod_template:
+                # 计算精炼后的最大耐久度
+                if rod_template.durability is not None:
+                    # 每级精炼增加前一级50%的耐久上限
+                    refine_bonus_multiplier = (1.5 ** (rod_instance.refine_level - 1))
+                    refined_max_durability = int(rod_template.durability * refine_bonus_multiplier)
+                else:
+                    refined_max_durability = None
+                
                 enriched_rods.append({
                     "name": rod_template.name,
                     "rarity": rod_template.rarity,
@@ -73,7 +81,7 @@ class InventoryService:
                     "bonus_rare_fish_chance": calculate_after_refine(rod_template.bonus_rare_fish_chance, refine_level= rod_instance.refine_level, rarity=rod_template.rarity),
                     "refine_level": rod_instance.refine_level,
                     "current_durability": rod_instance.current_durability,
-                    "max_durability": rod_template.durability,
+                    "max_durability": refined_max_durability,
                 })
         return {
             "success": True,
@@ -481,7 +489,7 @@ class InventoryService:
         id_field = config["id_field"]
 
         # 检查精炼等级
-        if instance.refine_level > 10:
+        if instance.refine_level >= 10:
             return {"success": False, "message": "已达到最高精炼等级"}
 
         # 获取装备稀有度
@@ -560,9 +568,16 @@ class InventoryService:
                         "destroyed": True
                     }
 
+        # 构建成功消息，包含耐久度信息
+        success_message = f"成功精炼{item_name}，新精炼等级为 {instance.refine_level}。"
+        
+        # 如果有耐久度系统，添加耐久度恢复信息
+        if hasattr(instance, 'current_durability') and instance.current_durability is not None:
+            success_message += f" 耐久度已恢复并提升至 {instance.current_durability}！"
+        
         return {
             "success": True,
-            "message": f"成功精炼{item_name}，新精炼等级为 {instance.refine_level}。",
+            "message": success_message,
             "new_refine_level": instance.refine_level
         }
 
@@ -578,25 +593,31 @@ class InventoryService:
         Returns:
             tuple: (调整后的费用表, 成功率表)
         """
-        # 1-4星装备：高成功率，低费用，让它们可以通过精炼追上高星装备
+        # 1-4星装备：逐级递减成功率，让高等级精炼有挑战性
         if rarity <= 4:
             # 费用大幅减少，让低星装备精炼更便宜
             cost_multiplier = 0.1 + (rarity - 1) * 0.05  # 1星10%, 2星15%, 3星20%, 4星25%
             adjusted_costs = {level: int(cost * cost_multiplier) for level, cost in base_costs.items()}
             
-            # 高成功率设计，确保低星装备能够稳定精炼到高等级
-            base_success_rate = 0.98 - (rarity - 1) * 0.02  # 1星98%, 2星96%, 3星94%, 4星92%
-            success_rates = {}
-            for level in range(1, 11):
-                if level <= 6:
-                    # 1-6级保持高成功率
-                    success_rates[level] = base_success_rate
-                elif level <= 8:
-                    # 7-8级稍微降低
-                    success_rates[level] = base_success_rate - 0.05  # 降低5%
-                else:
-                    # 9-10级再降低一点，但仍然保持较高成功率
-                    success_rates[level] = base_success_rate - 0.1  # 降低10%
+            # 重新设计成功率：低等级高成功率，高等级逐渐降低
+            if rarity <= 2:  # 1-2星：保持较高成功率
+                success_rates = {
+                    1: 0.95, 2: 0.95, 3: 0.90, 4: 0.90,
+                    5: 0.85, 6: 0.80, 7: 0.75, 8: 0.70,
+                    9: 0.60, 10: 0.50
+                }
+            elif rarity == 3:  # 3星：中等成功率
+                success_rates = {
+                    1: 0.90, 2: 0.90, 3: 0.85, 4: 0.85,
+                    5: 0.80, 6: 0.75, 7: 0.65, 8: 0.55,
+                    9: 0.45, 10: 0.35
+                }
+            else:  # 4星：更有挑战性
+                success_rates = {
+                    1: 0.85, 2: 0.85, 3: 0.80, 4: 0.80,
+                    5: 0.75, 6: 0.70, 7: 0.60, 8: 0.50,
+                    9: 0.40, 10: 0.30
+                }
             
         # 5-6星装备：中等成功率和费用
         elif rarity <= 6:
@@ -673,6 +694,10 @@ class InventoryService:
 
             # 计算精炼后的等级上限
             new_refine_level = min(candidate.refine_level + instance.refine_level, 10)
+            
+            # 如果新等级和当前等级相同，跳过这个候选（已经达到上限）
+            if new_refine_level == refine_level_from:
+                continue
 
             # 计算精炼成本
             total_cost = 0
@@ -716,8 +741,31 @@ class InventoryService:
         # 扣除金币
         user.coins -= cost
 
+        # 获取原始最大耐久度（用于计算精炼加成）
+        if item_type == "rod":
+            template = self.item_template_repo.get_rod_by_id(instance.rod_id)
+        else:
+            template = self.item_template_repo.get_accessory_by_id(instance.accessory_id)
+        
+        original_max_durability = template.durability if template and template.durability is not None else None
+
         # 提升精炼等级
+        old_refine_level = instance.refine_level
         instance.refine_level = new_refine_level
+
+        # 处理耐久度恢复和上限提升
+        if original_max_durability is not None:
+            # 计算新的最大耐久度：每级精炼增加前一级50%的耐久上限
+            # 公式：新上限 = 原始上限 * (1 + 0.5)^精炼等级
+            refine_bonus_multiplier = (1.5 ** (new_refine_level - 1))
+            new_max_durability = int(original_max_durability * refine_bonus_multiplier)
+            
+            # 精炼成功时恢复全部耐久度到新的最大值
+            instance.current_durability = new_max_durability
+            
+            # 更新最大耐久度（如果装备实例有这个字段）
+            if hasattr(instance, 'max_durability'):
+                instance.max_durability = new_max_durability
 
         # 根据物品类型执行相应操作
         if item_type == "rod":
