@@ -687,14 +687,23 @@ class InventoryService:
         refine_level_from = instance.refine_level
         min_cost = None
 
-        # 遍历所有可能的消耗品
-        for candidate in same_items:
+        # 优先使用未装备且精炼等级最低的材料，避免误用高精材料
+        sorted_candidates = sorted(
+            same_items,
+            key=lambda i: (getattr(i, 'is_equipped', False), getattr(i, 'refine_level', 1))
+        )
+
+        # 遍历所有可能的消耗品（已排序）
+        for candidate in sorted_candidates:
             # 跳过自身
             if getattr(candidate, id_field) == getattr(instance, id_field):
                 continue
+            # 跳过正在装备的材料
+            if getattr(candidate, 'is_equipped', False):
+                continue
 
-            # 计算精炼后的等级上限
-            new_refine_level = min(candidate.refine_level + instance.refine_level, 10)
+            # 计算精炼后的等级：一次只提升1级，杜绝一口吃成胖子
+            new_refine_level = min(refine_level_from + 1, 10)
             
             # 如果新等级和当前等级相同，跳过这个候选（已经达到上限）
             if new_refine_level == refine_level_from:
