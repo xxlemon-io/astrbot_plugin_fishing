@@ -294,6 +294,30 @@ class FishingPlugin(Star):
                 yield event.plain_result("❌ 获取用户状态数据失败。")
         else:
             yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
+
+    @filter.command("背包", alias={"查看背包", "我的背包"})
+    async def user_backpack(self, event: AstrMessageEvent):
+        """查看用户背包"""
+        user_id = event.get_sender_id()
+        user = self.user_repo.get_by_id(user_id)
+        if user:
+            # 导入绘制函数
+            from .draw.backpack import draw_backpack_image, get_user_backpack_data
+            
+            # 获取用户背包数据
+            backpack_data = get_user_backpack_data(self.inventory_service, user_id)
+            
+            # 设置用户昵称
+            backpack_data['nickname'] = user.nickname or user_id
+            
+            # 生成背包图像
+            image = draw_backpack_image(backpack_data)
+            # 保存图像到临时文件
+            image_path = "user_backpack.png"
+            image.save(image_path)
+            yield event.image_result(image_path)
+        else:
+            yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
     @filter.command("鱼塘")
     async def pond(self, event: AstrMessageEvent):
         """查看用户鱼塘内的鱼"""
