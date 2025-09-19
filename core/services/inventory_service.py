@@ -501,7 +501,7 @@ class InventoryService:
         # 获取同类型物品列表
         same_items = config["same_items"]
         if len(same_items) < 2:
-            return {"success": False, "message": f"需要至少两个同类型{item_name}进行精炼"}
+            return {"success": False, "message": f"需要至少两个同类型{item_name}进行精炼。当前拥有：{len(same_items)}个"}
 
         # 查找合适的消耗品进行精炼
         refine_result = self._find_refinement_candidate(
@@ -514,6 +514,9 @@ class InventoryService:
                 return refine_result
             # 其他失败情况（如金币不足）
             return refine_result
+
+        # 成功路径：直接返回结果，避免落入后续错误分支
+        return refine_result
 
         # 重构毁坏机制：根据稀有度调整毁坏概率
         if instance.refine_level >= 6:
@@ -633,14 +636,17 @@ class InventoryService:
 
     def _get_item_config(self, item_type, instance_id, user_id) -> Dict[str, Any]:
         """获取物品配置信息"""
+        # 确保用户ID为整数类型（数据库层面需要）
+        user_id_int = int(user_id) if isinstance(user_id, str) else user_id
+        
         if item_type == "rod":
-            instances = self.inventory_repo.get_user_rod_instances(user_id)
+            instances = self.inventory_repo.get_user_rod_instances(user_id_int)
             instance = next((i for i in instances if i.rod_instance_id == instance_id), None)
             if not instance:
                 return {"success": False, "message": "鱼竿不存在或不属于你"}
 
             template = self.item_template_repo.get_rod_by_id(instance.rod_id)
-            same_items = self.inventory_repo.get_same_rod_instances(user_id, instance.rod_id)
+            same_items = self.inventory_repo.get_same_rod_instances(user_id_int, instance.rod_id)
 
             return {
                 "success": True,
@@ -652,13 +658,13 @@ class InventoryService:
             }
 
         else:  # accessory
-            instances = self.inventory_repo.get_user_accessory_instances(user_id)
+            instances = self.inventory_repo.get_user_accessory_instances(user_id_int)
             instance = next((i for i in instances if i.accessory_instance_id == instance_id), None)
             if not instance:
                 return {"success": False, "message": "饰品不存在或不属于你"}
 
             template = self.item_template_repo.get_accessory_by_id(instance.accessory_id)
-            same_items = self.inventory_repo.get_same_accessory_instances(user_id, instance.accessory_id)
+            same_items = self.inventory_repo.get_same_accessory_instances(user_id_int, instance.accessory_id)
 
             return {
                 "success": True,
