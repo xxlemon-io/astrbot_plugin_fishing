@@ -245,6 +245,70 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             lines.append(current)
         return lines
 
+    # 动态扩展画布高度，避免被裁剪
+    def ensure_height(needed_height: int):
+        nonlocal image, draw, height
+        if needed_height <= height:
+            return
+        new_h = needed_height
+        new_image = Image.new('RGB', (width, new_h), (255, 255, 255))
+        bg = create_vertical_gradient(width, new_h, bg_top, bg_bot)
+        new_image.paste(bg, (0, 0))
+        new_image.paste(image, (0, 0))
+        image = new_image
+        draw = ImageDraw.Draw(image)
+        height = new_h
+
+    # 计算不同类型卡片的动态高度
+    def measure_rod_card_height(rod, card_width: int) -> int:
+        line_h = get_text_size("测", tiny_font)[1] + 2
+        attr_lines = 0
+        if rod.get('bonus_fish_quality_modifier', 1.0) not in (1.0, 1) and rod.get('bonus_fish_quality_modifier', 0) > 0:
+            attr_lines += 1
+        if rod.get('bonus_fish_quantity_modifier', 1.0) not in (1.0, 1) and rod.get('bonus_fish_quantity_modifier', 0) > 0:
+            attr_lines += 1
+        if rod.get('bonus_rare_fish_chance', 1.0) not in (1.0, 1) and rod.get('bonus_rare_fish_chance', 0) > 0:
+            attr_lines += 1
+        desc_lines = 0
+        if rod.get('description'):
+            lines = wrap_text_by_width(f"{rod['description']}", tiny_font, card_width - 30)
+            desc_lines = len(lines)
+        header_height = 85
+        bottom_pad = 20
+        card_h = header_height + attr_lines * 18 + desc_lines * line_h + bottom_pad
+        return max(card_h, 160)
+
+    def measure_accessory_card_height(acc, card_width: int) -> int:
+        line_h = get_text_size("测", tiny_font)[1] + 2
+        attr_lines = 0
+        if acc.get('bonus_fish_quality_modifier', 1.0) not in (1.0, 1) and acc.get('bonus_fish_quality_modifier', 0) > 0:
+            attr_lines += 1
+        if acc.get('bonus_fish_quantity_modifier', 1.0) not in (1.0, 1) and acc.get('bonus_fish_quantity_modifier', 0) > 0:
+            attr_lines += 1
+        if acc.get('bonus_rare_fish_chance', 1.0) not in (1.0, 1) and acc.get('bonus_rare_fish_chance', 0) > 0:
+            attr_lines += 1
+        if acc.get('bonus_coin_modifier', 1.0) not in (1.0, 1) and acc.get('bonus_coin_modifier', 0) > 0:
+            attr_lines += 1
+        desc_lines = 0
+        if acc.get('description'):
+            lines = wrap_text_by_width(f"{acc['description']}", tiny_font, card_width - 30)
+            desc_lines = len(lines)
+        header_height = 85
+        bottom_pad = 20
+        card_h = header_height + attr_lines * 18 + desc_lines * line_h + bottom_pad
+        return max(card_h, 160)
+
+    def measure_bait_card_height(bait, card_width: int) -> int:
+        line_h = get_text_size("测", tiny_font)[1] + 2
+        desc_lines = 0
+        if bait.get('effect_description'):
+            lines = wrap_text_by_width(f"效果: {bait['effect_description']}", tiny_font, card_width - 30)
+            desc_lines = len(lines)
+        header_height = 90
+        bottom_pad = 20
+        card_h = header_height + desc_lines * line_h + bottom_pad
+        return max(card_h, 120)
+
     # 5. 绘制圆角矩形
     def draw_rounded_rectangle(draw, bbox, radius, fill=None, outline=None, width=1):
         x1, y1, x2, y2 = bbox
@@ -345,17 +409,37 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     current_y += 35
 
     if rods:
-        # 计算鱼竿卡片布局 - 每行2个
+        # 计算鱼竿卡片布局 - 每行2个（动态高度）
         card_width = (width - 90) // 2
-        card_height = 180
         card_margin = 15
         
         for i, rod in enumerate(rods):
             row = i // 2
             col = i % 2
             x = 30 + col * (card_width + card_margin)
-            y = current_y + row * (card_height + card_margin)
+            # 为不同列分别累计高度，避免同一行卡片高度不一致时重叠
+            # 先根据当前已绘制的同列卡片数量，计算该列累计高度
+            # 简化做法：按行从上到下绘制，逐行计算行高
+            if col == 0:
+                # 新的一行，计算本行两个卡片的高度，取最大值作为行高
+                left_h = measure_rod_card_height(rod, card_width)
+                right_index = i + 1
+                if right_index < len(rods):
+                    right_h = measure_rod_card_height(rods[right_index], card_width)
+                else:
+                    right_h = 0
+                row_h = max(left_h, right_h)
+                y = current_y
+                current_row_y = y
+                next_row_y = current_row_y + row_h + card_margin
+            else:
+                # 同一行右列与左列对齐
+                y = current_row_y
             
+            # 动态高度
+            card_height = measure_rod_card_height(rod, card_width)
+            ensure_height(y + card_height + 40)
+
             # 绘制鱼竿卡片
             draw_rounded_rectangle(draw, 
                                  (x, y, x + card_width, y + card_height), 
@@ -402,7 +486,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             
             # 描述 - 支持换行且不超出卡片
             if rod.get('description'):
-                desc_text = f"描述: {rod['description']}"
+                desc_text = f"{rod['description']}"
                 available_width = card_width - 30
                 lines = wrap_text_by_width(desc_text, tiny_font, available_width)
                 # 计算可绘制的最大行数，避免超出卡片底部
@@ -412,9 +496,8 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                     for i, line in enumerate(lines[:max_lines]):
                         draw.text((x + 15, bonus_y + i * line_h), line, font=tiny_font, fill=text_secondary)
         
-        # 更新当前Y位置
-        rows = (len(rods) + 1) // 2
-        current_y += rows * (card_height + card_margin)
+        # 更新当前Y位置到下一行起点
+        current_y = next_row_y if 'next_row_y' in locals() else current_y
     else:
         draw.text((30, current_y), "🎣 您还没有鱼竿，快去商店购买或抽奖获得吧！", font=content_font, fill=text_muted)
         current_y += 50
@@ -427,17 +510,31 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     current_y += 35
 
     if accessories:
-        # 计算饰品卡片布局 - 每行2个
+        # 计算饰品卡片布局 - 每行2个（动态高度）
         card_width = (width - 90) // 2
-        card_height = 180
         card_margin = 15
         
         for i, accessory in enumerate(accessories):
             row = i // 2
             col = i % 2
             x = 30 + col * (card_width + card_margin)
-            y = current_y + row * (card_height + card_margin)
+            if col == 0:
+                left_h = measure_accessory_card_height(accessory, card_width)
+                right_index = i + 1
+                if right_index < len(accessories):
+                    right_h = measure_accessory_card_height(accessories[right_index], card_width)
+                else:
+                    right_h = 0
+                row_h = max(left_h, right_h)
+                y = current_y
+                current_row_y = y
+                next_row_y = current_row_y + row_h + card_margin
+            else:
+                y = current_row_y
             
+            card_height = measure_accessory_card_height(accessory, card_width)
+            ensure_height(y + card_height + 40)
+
             # 绘制饰品卡片
             draw_rounded_rectangle(draw, 
                                  (x, y, x + card_width, y + card_height), 
@@ -487,7 +584,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             
             # 描述 - 支持换行且不超出卡片
             if accessory.get('description'):
-                desc_text = f"描述: {accessory['description']}"
+                desc_text = f"{accessory['description']}"
                 available_width = card_width - 30
                 lines = wrap_text_by_width(desc_text, tiny_font, available_width)
                 line_h = get_text_size("测", tiny_font)[1] + 2
@@ -497,8 +594,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                         draw.text((x + 15, bonus_y + i * line_h), line, font=tiny_font, fill=text_secondary)
         
         # 更新当前Y位置
-        rows = (len(accessories) + 1) // 2
-        current_y += rows * (card_height + card_margin)
+        current_y = next_row_y if 'next_row_y' in locals() else current_y
     else:
         draw.text((30, current_y), "💍 您还没有饰品，快去商店购买或抽奖获得吧！", font=content_font, fill=text_muted)
         current_y += 50
@@ -511,17 +607,31 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     current_y += 35
 
     if baits:
-        # 计算鱼饵卡片布局 - 每行2个，增加高度显示详细信息
+        # 计算鱼饵卡片布局 - 每行2个（动态高度）
         card_width = (width - 90) // 2
-        card_height = 140
         card_margin = 15
         
         for i, bait in enumerate(baits):
             row = i // 2
             col = i % 2
             x = 30 + col * (card_width + card_margin)
-            y = current_y + row * (card_height + card_margin)
+            if col == 0:
+                left_h = measure_bait_card_height(bait, card_width)
+                right_index = i + 1
+                if right_index < len(baits):
+                    right_h = measure_bait_card_height(baits[right_index], card_width)
+                else:
+                    right_h = 0
+                row_h = max(left_h, right_h)
+                y = current_y
+                current_row_y = y
+                next_row_y = current_row_y + row_h + card_margin
+            else:
+                y = current_row_y
             
+            card_height = measure_bait_card_height(bait, card_width)
+            ensure_height(y + card_height + 40)
+
             # 绘制鱼饵卡片
             draw_rounded_rectangle(draw, 
                                  (x, y, x + card_width, y + card_height), 
@@ -562,8 +672,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             # 底部保留空间（不再在左下角重复ID）
         
         # 更新当前Y位置
-        rows = (len(baits) + 1) // 2
-        current_y += rows * (card_height + card_margin)
+        current_y = next_row_y if 'next_row_y' in locals() else current_y
     else:
         draw.text((30, current_y), "🐟 您还没有鱼饵，快去商店购买或抽奖获得吧！", font=content_font, fill=text_muted)
         current_y += 50
