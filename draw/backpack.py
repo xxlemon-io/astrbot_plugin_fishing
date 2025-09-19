@@ -102,7 +102,7 @@ def avatar_postprocess(avatar_image: Image.Image, size: int) -> Image.Image:
 
 def calculate_dynamic_height(user_data: Dict[str, Any]) -> int:
     """
-    计算动态画布高度
+    计算动态画布高度 - 使用保守估算
     
     Args:
         user_data: 用户背包数据
@@ -113,32 +113,35 @@ def calculate_dynamic_height(user_data: Dict[str, Any]) -> int:
     # 基础高度
     base_height = 200  # 标题 + 用户信息卡片 + 底部信息
     
-    # 鱼竿区域高度
+    # 鱼竿区域高度 - 保守估算
     rods = user_data.get('rods', [])
     if rods:
-        # 标题高度 + 卡片高度（每行2个）
         rows = (len(rods) + 1) // 2
-        rod_height = 35 + rows * 180 + (rows - 1) * 15
+        # 估算每个鱼竿卡片平均高度为200px（有描述的会更高）
+        avg_height = 200
+        rod_height = 35 + rows * avg_height + (rows - 1) * 15
     else:
-        rod_height = 35 + 50  # 标题 + 空状态提示
+        rod_height = 35 + 50
     
-    # 饰品区域高度
+    # 饰品区域高度 - 保守估算
     accessories = user_data.get('accessories', [])
     if accessories:
-        # 标题高度 + 卡片高度（每行2个）
         rows = (len(accessories) + 1) // 2
-        accessory_height = 35 + rows * 180 + (rows - 1) * 15
+        # 估算每个饰品卡片平均高度为200px
+        avg_height = 200
+        accessory_height = 35 + rows * avg_height + (rows - 1) * 15
     else:
-        accessory_height = 35 + 50  # 标题 + 空状态提示
+        accessory_height = 35 + 50
     
-    # 鱼饵区域高度
+    # 鱼饵区域高度 - 保守估算
     baits = user_data.get('baits', [])
     if baits:
-        # 标题高度 + 卡片高度（每行2个）
         rows = (len(baits) + 1) // 2
-        bait_height = 35 + rows * 140 + (rows - 1) * 15
+        # 估算每个鱼饵卡片平均高度为130px（较小）
+        avg_height = 130
+        bait_height = 35 + rows * avg_height + (rows - 1) * 15
     else:
-        bait_height = 35 + 50  # 标题 + 空状态提示
+        bait_height = 35 + 50
     
     # 区域间距
     section_spacing = 20 * 3  # 3个区域间距
@@ -305,10 +308,8 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             lines = wrap_text_by_width(f"效果: {bait['effect_description']}", tiny_font, card_width - 30)
             desc_lines = len(lines)
         # 基础信息高度：名称+星级+数量 = 70px
-        header_height = 70
-        # 如果有持续时间，增加20px
-        if bait.get('duration_minutes', 0) > 0:
-            header_height += 20
+        # 名称+星级+数量=70px，持续时间存在才加20，否则不占位
+        header_height = 70 + (20 if bait.get('duration_minutes', 0) > 0 else 0)
         bottom_pad = 20
         card_h = header_height + desc_lines * line_h + bottom_pad
         
@@ -445,12 +446,13 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                 row_h = max(left_h, right_h)
                 y = row_start_y
                 next_row_start_y = row_start_y + row_h + card_margin
+                # 使用统一行高
+                card_height = row_h
             else:
                 # 同一行右列与左列对齐
                 y = row_start_y
-            
-            # 动态高度
-            card_height = measure_rod_card_height(rod, card_width)
+                # 右列使用相同行高
+                card_height = row_h
             ensure_height(y + card_height + 40)
 
             # 绘制鱼竿卡片
@@ -545,10 +547,12 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                 row_h = max(left_h, right_h)
                 y = row_start_y
                 next_row_start_y = row_start_y + row_h + card_margin
+                # 使用统一行高
+                card_height = row_h
             else:
                 y = row_start_y
-            
-            card_height = measure_accessory_card_height(accessory, card_width)
+                # 右列使用相同行高
+                card_height = row_h
             ensure_height(y + card_height + 40)
 
             # 绘制饰品卡片
@@ -645,10 +649,12 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                 row_h = max(left_h, right_h)
                 y = row_start_y
                 next_row_start_y = row_start_y + row_h + card_margin
+                # 使用统一行高绘制，确保同一行卡片高度一致
+                card_height = row_h
             else:
                 y = row_start_y
-            
-            card_height = measure_bait_card_height(bait, card_width)
+                # 右列也使用相同的行高
+                card_height = row_h
             ensure_height(y + card_height + 40)
 
             # 绘制鱼饵卡片
@@ -713,6 +719,11 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         new_image.paste(bg, (0, 0))
         new_image.paste(image, (0, 0))
         image = new_image
+        draw = ImageDraw.Draw(image)
+        height = needed_height
+    elif needed_height < height:
+        # 裁剪画布，移除多余空白
+        image = image.crop((0, 0, width, needed_height))
         draw = ImageDraw.Draw(image)
         height = needed_height
     draw.text((footer_x, current_y), footer_text, font=small_font, fill=text_secondary)
