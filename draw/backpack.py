@@ -307,17 +307,20 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         if bait.get('effect_description'):
             lines = wrap_text_by_width(f"效果: {bait['effect_description']}", tiny_font, card_width - 30)
             desc_lines = len(lines)
+        
         # 基础信息高度：名称+星级+数量 = 70px
-        # 名称+星级+数量=70px，持续时间存在才加20，否则不占位
         header_height = 70 + (20 if bait.get('duration_minutes', 0) > 0 else 0)
-        bottom_pad = 20
+        
+        # 动态底部间距：有描述时稍大，无描述时紧凑
+        bottom_pad = 15 if desc_lines > 0 else 10
         card_h = header_height + desc_lines * line_h + bottom_pad
         
         # 如果没有持续时间也没有效果描述，使用紧凑高度
         if bait.get('duration_minutes', 0) <= 0 and not bait.get('effect_description'):
-            return 100  # 紧凑高度：70 + 30 = 100px
+            return 95  # 紧凑高度：70 + 25 = 95px
         
-        return max(card_h, 120)
+        # 移除最小高度限制，让卡片根据实际内容调整
+        return card_h
 
     # 5. 绘制圆角矩形
     def draw_rounded_rectangle(draw, bbox, radius, fill=None, outline=None, width=1):
@@ -691,7 +694,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                 available_width = card_width - 30
                 lines = wrap_text_by_width(effect_text, tiny_font, available_width)
                 line_h = get_text_size("测", tiny_font)[1] + 2
-                max_lines = max((y + card_height - 20) - next_y, 0) // line_h
+                max_lines = max((y + card_height - 15) - next_y, 0) // line_h
                 if max_lines > 0:
                     for i, line in enumerate(lines[:max_lines]):
                         draw.text((x + 15, next_y + i * line_h), line, font=tiny_font, fill=text_secondary)
