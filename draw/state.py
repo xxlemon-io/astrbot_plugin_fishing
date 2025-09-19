@@ -257,7 +257,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         current_dur = current_rod.get('current_durability')
         max_dur = current_rod.get('max_durability')
         
-        if max_dur is not None:
+        if max_dur is not None and current_dur is not None:
             # 有限耐久装备
             durability_text = f"耐久: {current_dur}/{max_dur}"
             # 根据耐久度设置颜色
