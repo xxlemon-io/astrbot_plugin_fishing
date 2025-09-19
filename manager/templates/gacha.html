@@ -15,6 +15,7 @@
             <div class="card-body">
                 <h5 class="card-title">{{ pool.name }} (ID: {{ pool.gacha_pool_id }})</h5>
                 <p class="card-text">{{ pool.description or '无描述' }}</p>
+                
                 <p>
                     {% if pool.cost_premium_currency and pool.cost_premium_currency > 0 %}
                         <span class="badge bg-warning text-dark">花费：高级货币 {{ pool.cost_premium_currency }}</span>
@@ -33,6 +34,11 @@
                 <a href="{{ url_for('admin_bp.manage_gacha_pool_details', pool_id=pool.gacha_pool_id) }}" class="btn btn-sm btn-secondary">
                     <i class="fas fa-cogs"></i> 管理物品
                 </a>
+                <form action="{{ url_for('admin_bp.copy_gacha_pool', pool_id=pool.gacha_pool_id) }}" method="post" class="d-inline" onsubmit="return confirm('确定要复制【{{ pool.name }}】及其所有物品吗？');">
+                    <button type="submit" class="btn btn-sm btn-success">
+                        <i class="fas fa-copy"></i> 复制
+                    </button>
+                </form>
                 <form action="{{ url_for('admin_bp.delete_gacha_pool', pool_id=pool.gacha_pool_id) }}" method="post" class="d-inline" onsubmit="return confirm('确定要删除【{{ pool.name }}】及其所有物品吗？');">
                     <button type="submit" class="btn btn-sm btn-danger">
                         <i class="fas fa-trash"></i> 删除

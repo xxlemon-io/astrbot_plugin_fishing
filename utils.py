@@ -1,5 +1,10 @@
 import re
 import socket
+import os
+import platform
+import signal
+import subprocess
+import time
 
 import aiohttp
 
@@ -41,6 +46,140 @@ async def _is_port_available(port):
         return True
     except:
         return False
+
+def _get_pids_listening_on_port(port: int):
+    """返回正在监听指定端口的进程PID列表。"""
+    pids = set()
+    system_name = platform.system().lower()
+
+    try:
+        if "windows" in system_name:
+            # Windows: 尝试 netstat
+            try:
+                result = subprocess.check_output(["netstat", "-ano"], text=True, errors="ignore", timeout=5)
+                for line in result.splitlines():
+                    parts = line.split()
+                    if len(parts) >= 5 and parts[0] in ("TCP", "UDP"):
+                        local_addr = parts[1]
+                        state = parts[3] if parts[0] == "TCP" else "LISTENING"
+                        pid = parts[-1]
+                        if f":{port}" in local_addr and state.upper() == "LISTENING" and pid.isdigit():
+                            pids.add(int(pid))
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+                logger.warning("netstat 不可用或执行失败")
+        else:
+            # Unix-like: 依次尝试多种方法
+            methods = [
+                # 方法1: lsof（常见但在容器中可能缺失）
+                lambda: subprocess.check_output(["lsof", "-i", f":{port}", "-sTCP:LISTEN", "-t"], text=True, timeout=3),
+                # 方法2: ss（更现代，通常可用）
+                lambda: subprocess.check_output(["ss", "-ltnp", f"sport = {port}"], text=True, timeout=3),
+                # 方法3: netstat（传统工具）
+                lambda: subprocess.check_output(["netstat", "-tlnp"], text=True, timeout=3)
+            ]
+            
+            for i, method in enumerate(methods):
+                try:
+                    result = method()
+                    if i == 0:  # lsof
+                        for line in result.splitlines():
+                            if line.strip().isdigit():
+                                pids.add(int(line.strip()))
+                        break
+                    elif i == 1:  # ss
+                        for line in result.splitlines():
+                            if f":{port} " in line or line.strip().endswith(f":{port}"):
+                                # 查找 pid=XXXX 或 users:(("进程名",pid=XXXX,fd=X))
+                                pid_match = re.search(r'pid=(\d+)', line)
+                                if pid_match:
+                                    pids.add(int(pid_match.group(1)))
+                        break
+                    elif i == 2:  # netstat
+                        for line in result.splitlines():
+                            if f":{port} " in line and "LISTEN" in line:
+                                parts = line.split()
+                                if len(parts) >= 7 and "/" in parts[-1]:
+                                    pid_str = parts[-1].split("/")[0]
+                                    if pid_str.isdigit():
+                                        pids.add(int(pid_str))
+                        break
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
+                    continue
+            
+
+    except Exception as e:
+        logger.warning(f"获取端口 {port} 占用进程时出错: {e}")
+
+    # 排除当前进程，避免误杀自身
+    current_pid = os.getpid()
+    if current_pid in pids:
+        pids.discard(current_pid)
+    return list(pids)
+
+def kill_processes_on_port(port: int):
+    """尝试终止监听指定端口的进程。返回 (success, killed_pids)。"""
+    pids = _get_pids_listening_on_port(port)
+    if not pids:
+        return True, []
+
+    system_name = platform.system().lower()
+    killed = []
+
+    for pid in pids:
+        try:
+            if "windows" in system_name:
+                # Windows: 使用 taskkill
+                try:
+                    subprocess.run(["taskkill", "/PID", str(pid), "/F"], 
+                                 capture_output=True, text=True, timeout=5)
+                    killed.append(pid)
+                except (subprocess.TimeoutExpired, FileNotFoundError):
+                    logger.warning(f"taskkill 不可用或超时，尝试直接终止进程 {pid}")
+                    # 必要时可尝试其他方法
+                    pass
+            else:
+                # Unix-like: 优雅终止 -> 强制终止
+                success = False
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                    # 等待进程响应 SIGTERM
+                    for _ in range(10):  # 1秒内检查
+                        try:
+                            os.kill(pid, 0)  # 检查进程是否存在
+                            time.sleep(0.1)
+                        except ProcessLookupError:
+                            success = True
+                            break
+                    
+                    if not success:
+                        # 进程未响应，强制终止
+                        os.kill(pid, signal.SIGKILL)
+                    
+                    killed.append(pid)
+                except ProcessLookupError:
+                    # 进程已不存在
+                    killed.append(pid)
+                except PermissionError:
+                    logger.warning(f"权限不足，无法终止进程 {pid}")
+                except Exception as e:
+                    logger.warning(f"终止进程 {pid} 失败: {e}")
+        except Exception as e:
+            logger.warning(f"处理进程 {pid} 时出错: {e}")
+
+    # 等待端口释放
+    deadline = time.time() + 3
+    while time.time() < deadline:
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(0.5)
+            sock.bind(("0.0.0.0", port))
+            sock.close()
+            return True, killed
+        except Exception:
+            time.sleep(0.2)
+            continue
+
+    return len(killed) > 0, killed  # 即使端口未释放，如果杀死了进程也算部分成功
 
 # 将1.2等数字转换成百分数
 def to_percentage(value: float) -> str:

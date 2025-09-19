@@ -276,7 +276,13 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         if rod.get('description'):
             lines = wrap_text_by_width(f"{rod['description']}", tiny_font, card_width - 30)
             desc_lines = len(lines)
-        header_height = 85
+        
+        # 检查是否有耐久度信息，如果有则增加高度
+        durability_height = 0
+        if rod.get('max_durability') is not None or rod.get('current_durability') is None:
+            durability_height = 20  # 耐久度显示的额外高度（包括无限耐久）
+        
+        header_height = 85 + durability_height
         bottom_pad = 20
         card_h = header_height + attr_lines * 18 + desc_lines * line_h + bottom_pad
         return max(card_h, 160)
@@ -477,18 +483,52 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             # 稀有度和精炼等级
             rarity = rod.get('rarity', 1)
             refine_level = rod.get('refine_level', 1)
-            star_color = rare_color if (rarity > 4 and refine_level > 4) else warning_color if rarity > 3 else text_secondary
+            if refine_level >= 10:
+                star_color = (255, 0, 0)  # 红色 - 10级
+            elif refine_level >= 6:
+                star_color = (255, 165, 0)  # 橙色 - 6-9级
+            elif rarity > 4 and refine_level > 4:
+                star_color = rare_color
+            elif rarity > 3:
+                star_color = warning_color
+            else:
+                star_color = text_secondary
             draw.text((x + 15, y + 40), f"{format_rarity_display(rarity)} Lv.{refine_level}", font=small_font, fill=star_color)
             
-            # 装备状态
+            # 装备状态和耐久度
             is_equipped = rod.get('is_equipped', False)
+            current_dur = rod.get('current_durability')
+            max_dur = rod.get('max_durability')
+            
             if is_equipped:
                 draw.text((x + 15, y + 60), "已装备", font=small_font, fill=success_color)
             else:
                 draw.text((x + 15, y + 60), "未装备", font=small_font, fill=text_muted)
             
+            # 显示耐久度
+            if max_dur is not None and current_dur is not None:
+                # 有限耐久装备
+                durability_text = f"耐久: {current_dur}/{max_dur}"
+                # 根据耐久度设置颜色 - 使用与整体设计一致的颜色系统
+                durability_ratio = current_dur / max_dur if max_dur > 0 else 0
+                if durability_ratio > 0.6:
+                    dur_color = success_color  # 使用成功色 - 温和绿
+                elif durability_ratio > 0.3:
+                    dur_color = warning_color  # 使用警告色 - 柔和橙
+                else:
+                    dur_color = error_color    # 使用错误色 - 温和红
+                draw.text((x + 15, y + 80), durability_text, font=tiny_font, fill=dur_color)
+                bonus_y = y + 105  # 调整后续内容位置
+            elif current_dur is None:
+                # 无限耐久装备
+                durability_text = "耐久: ∞"
+                dur_color = primary_light     # 使用主色调 - 淡雅蓝，与UI风格一致
+                draw.text((x + 15, y + 80), durability_text, font=tiny_font, fill=dur_color)
+                bonus_y = y + 105  # 调整后续内容位置
+            else:
+                bonus_y = y + 85
+            
             # 属性加成 - 参考format_accessory_or_rod函数
-            bonus_y = y + 85
             if rod.get('bonus_fish_quality_modifier', 1.0) != 1.0 and rod.get('bonus_fish_quality_modifier', 1) != 1 and rod.get('bonus_fish_quality_modifier', 1) > 0:
                 bonus_text = f"鱼类质量加成: {to_percentage(rod['bonus_fish_quality_modifier'])}"
                 draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
@@ -576,7 +616,16 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             # 稀有度和精炼等级
             rarity = accessory.get('rarity', 1)
             refine_level = accessory.get('refine_level', 1)
-            star_color = rare_color if (rarity > 4 and refine_level > 4) else warning_color if rarity > 3 else text_secondary
+            if refine_level >= 10:
+                star_color = (255, 0, 0)  # 红色 - 10级
+            elif refine_level >= 6:
+                star_color = (255, 165, 0)  # 橙色 - 6-9级
+            elif rarity > 4 and refine_level > 4:
+                star_color = rare_color
+            elif rarity > 3:
+                star_color = warning_color
+            else:
+                star_color = text_secondary
             draw.text((x + 15, y + 40), f"{format_rarity_display(rarity)} Lv.{refine_level}", font=small_font, fill=star_color)
             
             # 装备状态

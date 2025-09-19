@@ -81,6 +81,10 @@ class ItemTemplateService:
     def delete_pool_template(self, pool_id: int):
         self.gacha_repo.delete_pool_template(pool_id)
 
+    def copy_pool_template(self, pool_id: int) -> int:
+        """复制一个抽卡池及其所有物品"""
+        return self.gacha_repo.copy_pool_template(pool_id)
+
     def get_pool_details_for_admin(self, pool_id: int) -> Dict[str, Any]:
         pool = self.gacha_repo.get_pool_by_id(pool_id)
         # 为后台提供所有可添加的物品选项

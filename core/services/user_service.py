@@ -708,3 +708,86 @@ class UserService:
                 
         except Exception as e:
             return {"success": False, "message": f"移除物品失败: {str(e)}"}
+
+    def update_user_rod_instance_for_admin(self, user_id: str, rod_instance_id: int, updates: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        管理员更新用户的鱼竿实例属性（精炼等级、耐久度）。
+
+        支持的字段：
+        - refine_level: 1-10 的整数
+        - durability 或 current_durability: 非负整数，或 null 表示无限耐久
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        instance = self.inventory_repo.get_user_rod_instance_by_id(user_id, rod_instance_id)
+        if not instance:
+            return {"success": False, "message": "鱼竿实例不存在或不属于该用户"}
+
+        # 提取并校验字段
+        if "refine_level" in updates:
+            rl = updates.get("refine_level")
+            if not isinstance(rl, int) or rl < 1 or rl > 10:
+                return {"success": False, "message": "精炼等级必须为 1-10 的整数"}
+            instance.refine_level = rl
+
+        # 接受 durability 或 current_durability 字段名
+        if "durability" in updates or "current_durability" in updates:
+            dur_val = updates.get("durability") if "durability" in updates else updates.get("current_durability")
+            if dur_val is None:
+                instance.current_durability = None
+            else:
+                # 支持字符串数字
+                if isinstance(dur_val, str):
+                    dur_val = dur_val.strip()
+                    if dur_val == "":
+                        instance.current_durability = None
+                    else:
+                        try:
+                            dur_val = int(dur_val)
+                        except ValueError:
+                            return {"success": False, "message": "耐久度必须为非负整数或留空表示无限"}
+                if isinstance(dur_val, int):
+                    if dur_val < 0:
+                        return {"success": False, "message": "耐久度不能为负数"}
+                    instance.current_durability = dur_val
+                elif dur_val is not None:
+                    return {"success": False, "message": "耐久度必须为非负整数或留空表示无限"}
+
+        # 如果模板不支持耐久度，则强制为None
+        rod_template = self.item_template_repo.get_rod_by_id(instance.rod_id)
+        if rod_template and rod_template.durability is None:
+            instance.current_durability = None
+
+        # 持久化
+        self.inventory_repo.update_rod_instance(instance)
+        return {"success": True, "message": "鱼竿实例已更新"}
+
+    def update_user_accessory_instance_for_admin(self, user_id: str, accessory_instance_id: int, updates: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        管理员更新用户的饰品实例属性（精炼等级）。
+        支持的字段：
+        - refine_level: 1-10 的整数
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        instance = self.inventory_repo.get_user_accessory_instance_by_id(user_id, accessory_instance_id)
+        if not instance:
+            return {"success": False, "message": "饰品实例不存在或不属于该用户"}
+
+        if "refine_level" in updates:
+            rl = updates.get("refine_level")
+            if not isinstance(rl, int):
+                try:
+                    rl = int(rl)
+                except Exception:
+                    return {"success": False, "message": "精炼等级必须为 1-10 的整数"}
+            if rl < 1 or rl > 10:
+                return {"success": False, "message": "精炼等级必须为 1-10 的整数"}
+            instance.refine_level = rl
+
+        self.inventory_repo.update_accessory_instance(instance)
+        return {"success": True, "message": "饰品实例已更新"}

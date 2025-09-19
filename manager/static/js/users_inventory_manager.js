@@ -6,6 +6,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 绑定事件监听器
     bindEventListeners();
+
+    // 恢复并监听标签状态
+    restoreActiveTab();
+    attachTabPersistence();
 });
 
 function initializeItemTypeSelector() {
@@ -68,7 +72,148 @@ function bindEventListeners() {
     }
 }
 
+function getActiveTabTarget() {
+    const active = document.querySelector('#inventoryTabs .nav-link.active');
+    return active ? active.getAttribute('data-bs-target') : null;
+}
+
+function saveActiveTab() {
+    try {
+        const target = getActiveTabTarget();
+        if (target) {
+            localStorage.setItem(`ui_last_inv_tab_${userId}`, target);
+        }
+    } catch (e) {
+        // 忽略存储错误
+    }
+}
+
+function restoreActiveTab() {
+    try {
+        const saved = localStorage.getItem(`ui_last_inv_tab_${userId}`);
+        if (!saved) return;
+        const btn = document.querySelector(`#inventoryTabs button[data-bs-target="${saved}"]`);
+        if (btn && window.bootstrap && bootstrap.Tab) {
+            const tab = new bootstrap.Tab(btn);
+            tab.show();
+        } else if (btn) {
+            // 兜底：模拟点击
+            btn.click();
+        }
+    } catch (e) {
+        // 忽略读取错误
+    }
+}
+
+function attachTabPersistence() {
+    const buttons = document.querySelectorAll('#inventoryTabs button[data-bs-toggle="tab"]');
+    buttons.forEach(btn => {
+        btn.addEventListener('shown.bs.tab', function() {
+            try {
+                const target = this.getAttribute('data-bs-target');
+                if (target) localStorage.setItem(`ui_last_inv_tab_${userId}`, target);
+            } catch (e) {}
+        });
+        // 兼容无 Bootstrap 事件的情况
+        btn.addEventListener('click', saveActiveTab);
+    });
+}
+
+function makeUpdateUrl(tmpl, instanceId) {
+    return tmpl.replace('12345', String(instanceId));
+}
+
+async function editRodRefine(instanceId, currentLevel) {
+    const input = prompt(`设置精炼等级 (1-10):`, String(currentLevel ?? 1));
+    if (input === null) return;
+    const level = parseInt(input);
+    if (isNaN(level) || level < 1 || level > 10) {
+        alert('请输入 1-10 的整数');
+        return;
+    }
+    try {
+        const resp = await fetch(makeUpdateUrl(updateRodInstanceUrlTemplate, instanceId), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refine_level: level })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess('精炼等级已更新');
+            location.reload();
+        } else {
+            showError('更新失败：' + data.message);
+        }
+    } catch (e) {
+        console.error(e);
+        showError('请求失败');
+    }
+}
+
+async function editRodDurability(instanceId, currentDurability) {
+    const placeholder = (currentDurability === '' || currentDurability === null || typeof currentDurability === 'undefined') ? '无限(留空)' : String(currentDurability);
+    const input = prompt(`设置耐久度（留空代表 ∞）:`, placeholder);
+    if (input === null) return;
+    const payload = {};
+    if (input.trim() === '') {
+        payload.durability = null;
+    } else {
+        const val = parseInt(input);
+        if (isNaN(val) || val < 0) {
+            alert('请输入非负整数，或留空表示无限');
+            return;
+        }
+        payload.durability = val;
+    }
+    try {
+        const resp = await fetch(makeUpdateUrl(updateRodInstanceUrlTemplate, instanceId), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess('耐久度已更新');
+            location.reload();
+        } else {
+            showError('更新失败：' + data.message);
+        }
+    } catch (e) {
+        console.error(e);
+        showError('请求失败');
+    }
+}
+
+async function editAccessoryRefine(instanceId, currentLevel) {
+    const input = prompt(`设置精炼等级 (1-10):`, String(currentLevel ?? 1));
+    if (input === null) return;
+    const level = parseInt(input);
+    if (isNaN(level) || level < 1 || level > 10) {
+        alert('请输入 1-10 的整数');
+        return;
+    }
+    try {
+        const resp = await fetch(makeUpdateUrl(updateAccessoryInstanceUrlTemplate, instanceId), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refine_level: level })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            showSuccess('精炼等级已更新');
+            location.reload();
+        } else {
+            showError('更新失败：' + data.message);
+        }
+    } catch (e) {
+        console.error(e);
+        showError('请求失败');
+    }
+}
+
 async function addItem() {
+    // 先保存当前标签
+    saveActiveTab();
     const itemType = document.getElementById('itemType').value;
     const itemId = document.getElementById('itemId').value;
     const quantity = parseInt(document.getElementById('quantity').value);
@@ -100,7 +245,7 @@ async function addItem() {
             if (modal) {
                 modal.hide();
             }
-            // 刷新页面
+            // 刷新页面（恢复到之前的标签）
             location.reload();
         } else {
             alert('添加失败：' + data.message);
@@ -112,6 +257,8 @@ async function addItem() {
 }
 
 async function removeItem(itemType, itemId, maxQuantity) {
+    // 先保存当前标签
+    saveActiveTab();
     const quantity = prompt(`请输入要移除的数量 (最多 ${maxQuantity} 个):`, '1');
     
     if (quantity === null) return; // 用户取消
@@ -148,7 +295,7 @@ async function removeItem(itemType, itemId, maxQuantity) {
         
         if (data.success) {
             alert(data.message);
-            // 刷新页面
+            // 刷新页面（恢复到之前的标签）
             location.reload();
         } else {
             alert('移除失败：' + data.message);

@@ -277,6 +277,7 @@ async def delete_accessory(accessory_id):
 async def manage_gacha():
     item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
     pools = item_template_service.get_all_gacha_pools()
+    # 直接渲染，不再拼装包含物品的展示数据
     return await render_template("gacha.html", pools=pools)
 
 
@@ -319,6 +320,18 @@ async def edit_gacha_pool(pool_id):
     return redirect(url_for("admin_bp.manage_gacha"))
 
 
+@admin_bp.route("/gacha/copy/<int:pool_id>", methods=["POST"])
+@login_required
+async def copy_gacha_pool(pool_id):
+    item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
+    try:
+        new_pool_id = item_template_service.copy_pool_template(pool_id)
+        await flash(f"奖池ID {pool_id} 已成功复制，新奖池ID为 {new_pool_id}！", "success")
+    except Exception as e:
+        await flash(f"复制奖池失败：{str(e)}", "danger")
+    return redirect(url_for("admin_bp.manage_gacha"))
+
+
 @admin_bp.route("/gacha/delete/<int:pool_id>", methods=["POST"])
 @login_required
 async def delete_gacha_pool(pool_id):
@@ -344,26 +357,31 @@ async def manage_gacha_pool_details(pool_id):
         # 将 dataclass 转换为字典以便修改
         item_dict = item.__dict__
         item_name = "未知物品"
+        item_rarity = None  # 添加星级属性
         item_type = item.item_type
         item_id = item.item_id
 
-        # 根据类型从 item_template_service 获取名称
+        # 根据类型从 item_template_service 获取名称和星级
         if item_type == "rod":
             template = item_template_service.item_template_repo.get_rod_by_id(item_id)
             if template:
                 item_name = template.name
+                item_rarity = template.rarity
         elif item_type == "accessory":
             template = item_template_service.item_template_repo.get_accessory_by_id(item_id)
             if template:
                 item_name = template.name
+                item_rarity = template.rarity
         elif item_type == "bait":
             template = item_template_service.item_template_repo.get_bait_by_id(item_id)
             if template:
                 item_name = template.name
+                item_rarity = template.rarity
         elif item_type == "fish":
             template = item_template_service.item_template_repo.get_fish_by_id(item_id)
             if template:
                 item_name = template.name
+                item_rarity = template.rarity
         elif item_type == "titles":
             template = item_template_service.item_template_repo.get_title_by_id(item_id)
             if template:
@@ -372,6 +390,7 @@ async def manage_gacha_pool_details(pool_id):
             item_name = f"{item.quantity} 金币"
 
         item_dict["item_name"] = item_name  # 添加名称属性
+        item_dict["rarity"] = item_rarity  # 添加星级属性
         enriched_items.append(item_dict)
 
     return await render_template(
@@ -687,3 +706,30 @@ async def remove_item_from_user_inventory(user_id):
         return result
     except Exception as e:
         return {"success": False, "message": f"移除物品时发生错误: {str(e)}"}, 500
+
+# --- 用户物品实例属性编辑（精炼等级/耐久度） ---
+@admin_bp.route("/users/<user_id>/inventory/rod/<int:instance_id>/update", methods=["POST"])
+@login_required
+@admin_required
+async def update_rod_instance(user_id, instance_id):
+    user_service = current_app.config["USER_SERVICE"]
+    try:
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        return user_service.update_user_rod_instance_for_admin(user_id, instance_id, data)
+    except Exception as e:
+        return {"success": False, "message": f"更新鱼竿实例时发生错误: {str(e)}"}, 500
+
+@admin_bp.route("/users/<user_id>/inventory/accessory/<int:instance_id>/update", methods=["POST"])
+@login_required
+@admin_required
+async def update_accessory_instance(user_id, instance_id):
+    user_service = current_app.config["USER_SERVICE"]
+    try:
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        return user_service.update_user_accessory_instance_for_admin(user_id, instance_id, data)
+    except Exception as e:
+        return {"success": False, "message": f"更新饰品实例时发生错误: {str(e)}"}, 500

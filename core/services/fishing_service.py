@@ -94,19 +94,19 @@ class FishingService:
         if equipped_rod_instance:
             rod_template = self.item_template_repo.get_rod_by_id(equipped_rod_instance.rod_id)
             if rod_template:
-                quality_modifier *= calculate_after_refine(rod_template.bonus_fish_quality_modifier, refine_level= equipped_rod_instance.refine_level)
-                quantity_modifier *= calculate_after_refine(rod_template.bonus_fish_quantity_modifier, refine_level= equipped_rod_instance.refine_level)
-                rare_chance += calculate_after_refine(rod_template.bonus_rare_fish_chance, refine_level= equipped_rod_instance.refine_level)
+                quality_modifier *= calculate_after_refine(rod_template.bonus_fish_quality_modifier, refine_level= equipped_rod_instance.refine_level, rarity=rod_template.rarity)
+                quantity_modifier *= calculate_after_refine(rod_template.bonus_fish_quantity_modifier, refine_level= equipped_rod_instance.refine_level, rarity=rod_template.rarity)
+                rare_chance += calculate_after_refine(rod_template.bonus_rare_fish_chance, refine_level= equipped_rod_instance.refine_level, rarity=rod_template.rarity)
         logger.debug(f"装备鱼竿加成后： quality_modifier={quality_modifier}, quantity_modifier={quantity_modifier}, rare_chance={rare_chance}")
         # 获取装备饰品并应用加成
         equipped_accessory_instance = self.inventory_repo.get_user_equipped_accessory(user.user_id)
         if equipped_accessory_instance:
             acc_template = self.item_template_repo.get_accessory_by_id(equipped_accessory_instance.accessory_id)
             if acc_template:
-                quality_modifier *= calculate_after_refine(acc_template.bonus_fish_quality_modifier, refine_level= equipped_accessory_instance.refine_level)
-                quantity_modifier *= calculate_after_refine(acc_template.bonus_fish_quantity_modifier, refine_level= equipped_accessory_instance.refine_level)
-                rare_chance += calculate_after_refine(acc_template.bonus_rare_fish_chance, refine_level= equipped_accessory_instance.refine_level)
-                coins_chance += calculate_after_refine(acc_template.bonus_coin_modifier, refine_level= equipped_accessory_instance.refine_level)
+                quality_modifier *= calculate_after_refine(acc_template.bonus_fish_quality_modifier, refine_level= equipped_accessory_instance.refine_level, rarity=acc_template.rarity)
+                quantity_modifier *= calculate_after_refine(acc_template.bonus_fish_quantity_modifier, refine_level= equipped_accessory_instance.refine_level, rarity=acc_template.rarity)
+                rare_chance += calculate_after_refine(acc_template.bonus_rare_fish_chance, refine_level= equipped_accessory_instance.refine_level, rarity=acc_template.rarity)
+                coins_chance += calculate_after_refine(acc_template.bonus_coin_modifier, refine_level= equipped_accessory_instance.refine_level, rarity=acc_template.rarity)
         logger.debug(f"装备饰品加成后： quality_modifier={quality_modifier}, quantity_modifier={quantity_modifier}, rare_chance={rare_chance}, coins_chance={coins_chance}")
         # 获取鱼饵并应用加成
         cur_bait_id = user.current_bait_id
@@ -271,13 +271,30 @@ class FishingService:
         user.total_weight_caught += weight
         user.total_coins_earned += value
         user.last_fishing_time = get_now()
-        self.user_repo.update(user)
-
-        # 判断用户的鱼竿和饰品是否真实存在
+        
+        # 处理装备耐久度消耗
+        equipment_broken_messages = []
+        
+        # 判断用户的鱼竿是否存在并处理耐久度
         if user.equipped_rod_instance_id:
             rod_instance = self.inventory_repo.get_user_rod_instance_by_id(user.user_id, user.equipped_rod_instance_id)
             if not rod_instance:
                 user.equipped_rod_instance_id = None
+            else:
+                # 减少鱼竿耐久度
+                if rod_instance.current_durability is not None and rod_instance.current_durability > 0:
+                    rod_instance.current_durability -= 1
+                    self.inventory_repo.update_rod_instance(rod_instance)
+                    
+                    # 检查鱼竿是否损坏
+                    if rod_instance.current_durability <= 0:
+                        # 鱼竿损坏，自动卸下
+                        user.equipped_rod_instance_id = None
+                        rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
+                        rod_name = rod_template.name if rod_template else "鱼竿"
+                        equipment_broken_messages.append(f"⚠️ 您的{rod_name}已损坏，自动卸下！")
+        
+        # 判断用户的饰品是否存在（饰品暂时不消耗耐久度）
         if user.equipped_accessory_instance_id:
             accessory_instance = self.inventory_repo.get_user_accessory_instance_by_id(user.user_id, user.equipped_accessory_instance_id)
             if not accessory_instance:
@@ -301,7 +318,7 @@ class FishingService:
         self.log_repo.add_fishing_record(record)
 
         # 6. 构建成功返回结果
-        return {
+        result = {
             "success": True,
             "fish": {
                 "name": fish_template.name,
@@ -310,6 +327,12 @@ class FishingService:
                 "value": value
             }
         }
+        
+        # 添加装备损坏消息
+        if equipment_broken_messages:
+            result["equipment_broken_messages"] = equipment_broken_messages
+        
+        return result
 
     def get_user_pokedex(self, user_id: str) -> Dict[str, Any]:
         """获取用户的图鉴信息。"""
