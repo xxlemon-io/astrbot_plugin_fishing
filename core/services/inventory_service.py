@@ -507,12 +507,32 @@ class InventoryService:
             # 其他失败情况（如金币不足）
             return refine_result
 
-        # 检查是否发生毁坏（6级开始50%概率）
+        # 重构毁坏机制：根据稀有度调整毁坏概率
         if instance.refine_level >= 6:
+            # 获取装备稀有度
+            rarity = template.rarity if hasattr(template, 'rarity') else 5
+            
+            # 根据稀有度设置毁坏概率：低星装备毁坏概率更低
+            if rarity <= 2:
+                destruction_chance = 0.1  # 1-2星：10%毁坏概率
+            elif rarity <= 4:
+                destruction_chance = 0.2  # 3-4星：20%毁坏概率
+            elif rarity <= 6:
+                destruction_chance = 0.25  # 5-6星：25%毁坏概率（降低了10%）
+            else:
+                destruction_chance = 0.4   # 7星+：40%毁坏概率（降低了10%）
+            
             import random
-            if random.random() < 0.5:  # 50%概率毁坏
-                # 小概率保留等级（10%概率）
-                if random.random() < 0.1:  # 10%概率保留等级
+            if random.random() < destruction_chance:
+                # 根据稀有度设置保留概率：低星装备更容易保留
+                if rarity <= 2:
+                    survival_chance = 0.5  # 1-2星：50%概率保留
+                elif rarity <= 4:
+                    survival_chance = 0.3  # 3-4星：30%概率保留
+                else:
+                    survival_chance = 0.1  # 5星+：10%概率保留
+                
+                if random.random() < survival_chance:
                     # 等级降1级，但保留装备
                     instance.refine_level = max(1, instance.refine_level - 1)
                     if item_type == "rod":
@@ -549,6 +569,7 @@ class InventoryService:
     def _get_refine_config_by_rarity(self, rarity: int, base_costs: dict) -> tuple:
         """
         根据装备稀有度获取精炼费用和成功率
+        重构设计：让低星装备更容易精炼到高等级，以追上高星装备的基础属性
         
         Args:
             rarity: 装备稀有度 (1-10星)
@@ -557,29 +578,42 @@ class InventoryService:
         Returns:
             tuple: (调整后的费用表, 成功率表)
         """
-        # 1-4星装备更容易精炼，按梯度设计
+        # 1-4星装备：高成功率，低费用，让它们可以通过精炼追上高星装备
         if rarity <= 4:
-            # 费用按稀有度梯度递减：1星最便宜，4星稍贵
-            cost_multiplier = 0.2 + (rarity - 1) * 0.1  # 1星20%, 2星30%, 3星40%, 4星50%
+            # 费用大幅减少，让低星装备精炼更便宜
+            cost_multiplier = 0.1 + (rarity - 1) * 0.05  # 1星10%, 2星15%, 3星20%, 4星25%
             adjusted_costs = {level: int(cost * cost_multiplier) for level, cost in base_costs.items()}
             
-            # 成功率按稀有度梯度递减：1星最高，4星稍低
-            base_success_rate = 0.95 - (rarity - 1) * 0.05  # 1星95%, 2星90%, 3星85%, 4星80%
+            # 高成功率设计，确保低星装备能够稳定精炼到高等级
+            base_success_rate = 0.98 - (rarity - 1) * 0.02  # 1星98%, 2星96%, 3星94%, 4星92%
             success_rates = {}
             for level in range(1, 11):
-                if level <= 4:
-                    success_rates[level] = base_success_rate  # 1-4级保持基础成功率
-                elif level <= 6:
-                    success_rates[level] = base_success_rate - 0.1  # 5-6级降低10%
+                if level <= 6:
+                    # 1-6级保持高成功率
+                    success_rates[level] = base_success_rate
                 elif level <= 8:
-                    success_rates[level] = base_success_rate - 0.2  # 7-8级降低20%
+                    # 7-8级稍微降低
+                    success_rates[level] = base_success_rate - 0.05  # 降低5%
                 else:
-                    success_rates[level] = base_success_rate - 0.3  # 9-10级降低30%
+                    # 9-10级再降低一点，但仍然保持较高成功率
+                    success_rates[level] = base_success_rate - 0.1  # 降低10%
             
-        # 5星及以上装备保持现有逻辑
+        # 5-6星装备：中等成功率和费用
+        elif rarity <= 6:
+            # 费用适中
+            cost_multiplier = 0.5 + (rarity - 5) * 0.2  # 5星50%, 6星70%
+            adjusted_costs = {level: int(cost * cost_multiplier) for level, cost in base_costs.items()}
+            
+            # 提高中等成功率，让高端玩家有动力继续精炼
+            success_rates = {
+                1: 0.9, 2: 0.9, 3: 0.9, 4: 0.9,
+                5: 0.85, 6: 0.8, 7: 0.75, 8: 0.7,
+                9: 0.65, 10: 0.6
+            }
+            
+        # 7星及以上装备：保持挑战性
         else:
             adjusted_costs = base_costs.copy()
-            # 5星及以上装备成功率较低
             success_rates = {
                 1: 0.8, 2: 0.8, 3: 0.8, 4: 0.8,
                 5: 0.7, 6: 0.6, 7: 0.5, 8: 0.4,
@@ -661,10 +695,13 @@ class InventoryService:
                 import random
                 if random.random() > success_rate:
                     # 精炼失败，返回失败消息
+                    item_name_display = "鱼竿" if item_type == "rod" else "饰品"
                     return {
                         "success": False, 
-                        "message": f"精炼失败！运气不佳，{item_type}未能成功精炼。",
-                        "failed": True
+                        "message": f"💔 精炼失败！{item_name_display}精炼到{target_level}级失败，但装备完好无损。成功率为{success_rate:.0%}，再试一次吧！",
+                        "failed": True,
+                        "success_rate": success_rate,
+                        "target_level": target_level
                     }
 
             # 执行精炼操作
