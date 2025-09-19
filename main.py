@@ -38,7 +38,7 @@ from .core.utils import get_now
 from .draw.rank import draw_fishing_ranking
 from .draw.help import draw_help_image
 from .manager.server import create_app
-from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_datetime_handler, _is_port_available
+from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_datetime_handler, _is_port_available, format_rarity_display
 
 
 class FishingPlugin(Star):

@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 def format_rarity_display(rarity: int) -> str:
@@ -9,6 +9,142 @@ def format_rarity_display(rarity: int) -> str:
         return '★' * rarity
     else:
         return '★★★★★★★★★★+'
+
+def to_percentage(value: float) -> str:
+    """将小数转换为百分比字符串"""
+    if value is None:
+        return "0%"
+    if value < 1:
+        return f"{value * 100:.2f}%"
+    else:
+        return f"{(value - 1) * 100:.2f}%"
+
+def get_user_avatar(user_id: str, avatar_size: int = 50) -> Optional[Image.Image]:
+    """
+    获取用户头像并处理为圆形
+    
+    Args:
+        user_id: 用户ID
+        avatar_size: 头像尺寸
+    
+    Returns:
+        处理后的头像图像，如果失败返回None
+    """
+    try:
+        import requests
+        from io import BytesIO
+        import time
+        
+        # 创建头像缓存目录
+        cache_dir = os.path.join("data/plugin_data/astrbot_plugin_fishing", "avatar_cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        avatar_cache_path = os.path.join(cache_dir, f"{user_id}_avatar.png")
+        
+        # 检查是否有缓存的头像（24小时刷新）
+        avatar_image = None
+        if os.path.exists(avatar_cache_path):
+            try:
+                file_age = time.time() - os.path.getmtime(avatar_cache_path)
+                if file_age < 86400:  # 24小时
+                    avatar_image = Image.open(avatar_cache_path).convert('RGBA')
+            except:
+                pass
+        
+        # 如果没有缓存或缓存过期，重新下载
+        if avatar_image is None:
+            avatar_url = f"https://q4.qlogo.cn/headimg_dl?dst_uin={user_id}&spec=640"
+            response = requests.get(avatar_url, timeout=2) # 2s超时
+            if response.status_code == 200:
+                avatar_image = Image.open(BytesIO(response.content)).convert('RGBA')
+                # 保存到缓存
+                avatar_image.save(avatar_cache_path, 'PNG')
+        
+        if avatar_image:
+            return avatar_postprocess(avatar_image, avatar_size)
+        
+    except Exception as e:
+        pass
+    
+    return None
+
+def avatar_postprocess(avatar_image: Image.Image, size: int) -> Image.Image:
+    """
+    将头像处理为指定大小的圆角头像，抗锯齿效果
+    """
+    # 调整头像大小
+    avatar_image = avatar_image.resize((size, size), Image.Resampling.LANCZOS)
+    
+    # 使用更合适的圆角半径
+    corner_radius = size // 8  # 稍微减小圆角，看起来更自然
+    
+    # 抗锯齿处理
+    scale_factor = 4
+    large_size = size * scale_factor
+    large_radius = corner_radius * scale_factor
+    
+    # 创建高质量遮罩
+    large_mask = Image.new('L', (large_size, large_size), 0)
+    large_draw = ImageDraw.Draw(large_mask)
+    
+    # 绘制圆角矩形
+    large_draw.rounded_rectangle(
+        [0, 0, large_size, large_size], 
+        radius=large_radius, 
+        fill=255
+    )
+    
+    # 高质量缩放
+    mask = large_mask.resize((size, size), Image.Resampling.LANCZOS)
+    avatar_image.putalpha(mask)
+    
+    return avatar_image
+
+def calculate_dynamic_height(user_data: Dict[str, Any]) -> int:
+    """
+    计算动态画布高度
+    
+    Args:
+        user_data: 用户背包数据
+    
+    Returns:
+        计算出的画布高度
+    """
+    # 基础高度
+    base_height = 200  # 标题 + 用户信息卡片 + 底部信息
+    
+    # 鱼竿区域高度
+    rods = user_data.get('rods', [])
+    if rods:
+        # 标题高度 + 卡片高度（每行2个）
+        rows = (len(rods) + 1) // 2
+        rod_height = 35 + rows * 180 + (rows - 1) * 15
+    else:
+        rod_height = 35 + 50  # 标题 + 空状态提示
+    
+    # 饰品区域高度
+    accessories = user_data.get('accessories', [])
+    if accessories:
+        # 标题高度 + 卡片高度（每行2个）
+        rows = (len(accessories) + 1) // 2
+        accessory_height = 35 + rows * 180 + (rows - 1) * 15
+    else:
+        accessory_height = 35 + 50  # 标题 + 空状态提示
+    
+    # 鱼饵区域高度
+    baits = user_data.get('baits', [])
+    if baits:
+        # 标题高度 + 卡片高度（每行2个）
+        rows = (len(baits) + 1) // 2
+        bait_height = 35 + rows * 140 + (rows - 1) * 15
+    else:
+        bait_height = 35 + 50  # 标题 + 空状态提示
+    
+    # 区域间距
+    section_spacing = 20 * 3  # 3个区域间距
+    
+    total_height = base_height + rod_height + accessory_height + bait_height + section_spacing
+    return max(total_height, 600)  # 最小高度600
 
 def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     """
@@ -25,8 +161,10 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     Returns:
         PIL.Image.Image: 生成的背包图像
     """
-    # 画布尺寸 
-    width, height = 800, 1000
+    # 画布尺寸 - 使用动态高度
+    width = 800
+    # 先计算需要的高度
+    height = calculate_dynamic_height(user_data)
     
     # 1. 创建渐变背景
     def create_vertical_gradient(w, h, top_color, bottom_color):
@@ -107,12 +245,47 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     title_y = 20
     draw.text((title_x, title_y), title_text, font=title_font, fill=primary_dark)
 
-    # 用户信息
-    nickname = user_data.get('nickname', '未知用户')
-    nickname_text = f"👤 {nickname}"
-    draw.text((30, title_y + title_h + 15), nickname_text, font=subtitle_font, fill=primary_medium)
+    # 用户信息卡片
+    current_y = title_y + title_h + 15
+    card_height = 80
+    card_margin = 15
+    
+    # 用户信息卡片
+    draw_rounded_rectangle(draw, 
+                         (card_margin, current_y, width - card_margin, current_y + card_height), 
+                         10, fill=card_bg)
+    
+    # 列位置
+    col1_x_without_avatar = card_margin + 20  # 第一列
+    avatar_size = 60
+    col1_x_with_avatar = col1_x_without_avatar + avatar_size + 20  # 有头像时偏移
+    col1_x = col1_x_without_avatar # 默认无头像
+    col2_x = col1_x + 300 # 第二列位置
+    
+    # 行位置
+    row1_y = current_y + 12
+    row2_y = current_y + 52
 
-    current_y = title_y + title_h + 60
+    # 绘制用户头像 - 如有
+    if user_id := user_data.get('user_id'):
+        if avatar_image := get_user_avatar(user_id, avatar_size):
+            image.paste(avatar_image, (col1_x, row1_y), avatar_image)
+            col1_x = col1_x_with_avatar # 更新 col1_x 以适应头像位置
+
+    # 用户昵称
+    nickname = user_data.get('nickname', '未知用户')
+    nickname_text = f"{nickname}"
+    draw.text((col1_x, row1_y), nickname_text, font=subtitle_font, fill=primary_medium)
+    
+    # 统计信息
+    rods_count = len(user_data.get('rods', []))
+    accessories_count = len(user_data.get('accessories', []))
+    baits_count = len(user_data.get('baits', []))
+    
+    stats_text = f"鱼竿: {rods_count} | 饰品: {accessories_count} | 鱼饵: {baits_count}"
+    draw.text((col1_x, row2_y), stats_text, font=small_font, fill=text_secondary)
+
+    current_y += card_height + 20
 
     # 鱼竿区域
     rods = user_data.get('rods', [])
@@ -123,7 +296,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     if rods:
         # 计算鱼竿卡片布局 - 每行2个
         card_width = (width - 90) // 2
-        card_height = 120
+        card_height = 180
         card_margin = 15
         
         for i, rod in enumerate(rods):
@@ -137,31 +310,55 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                                  (x, y, x + card_width, y + card_height), 
                                  8, fill=card_bg)
             
-            # 鱼竿名称
-            rod_name = rod['name'][:12] + "..." if len(rod['name']) > 12 else rod['name']
-            draw.text((x + 10, y + 10), rod_name, font=content_font, fill=text_primary)
+            # 鱼竿名称和ID在同一行
+            rod_name = rod['name'][:15] + "..." if len(rod['name']) > 15 else rod['name']
+            instance_id = rod.get('instance_id', 'N/A')
+            
+            # 计算名称宽度，然后在其右边放置ID
+            name_w, _ = get_text_size(rod_name, content_font)
+            draw.text((x + 15, y + 15), rod_name, font=content_font, fill=text_primary)
+            draw.text((x + 15 + name_w + 10, y + 15), f"ID: {instance_id}", font=tiny_font, fill=text_muted)
             
             # 稀有度和精炼等级
             rarity = rod.get('rarity', 1)
             refine_level = rod.get('refine_level', 1)
             star_color = rare_color if (rarity > 4 and refine_level > 4) else warning_color if rarity > 3 else text_secondary
-            draw.text((x + 10, y + 35), f"{format_rarity_display(rarity)} Lv.{refine_level}", font=small_font, fill=star_color)
+            draw.text((x + 15, y + 40), f"{format_rarity_display(rarity)} Lv.{refine_level}", font=small_font, fill=star_color)
             
             # 装备状态
             is_equipped = rod.get('is_equipped', False)
             if is_equipped:
-                draw.text((x + 10, y + 55), "✅ 已装备", font=small_font, fill=success_color)
+                draw.text((x + 15, y + 60), "✅ 已装备", font=small_font, fill=success_color)
             else:
-                draw.text((x + 10, y + 55), "⭕ 未装备", font=small_font, fill=text_muted)
+                draw.text((x + 15, y + 60), "⭕ 未装备", font=small_font, fill=text_muted)
             
-            # 属性加成
-            if rod.get('bonus_rare_fish_chance', 0) > 0:
-                bonus_text = f"稀有鱼+{rod['bonus_rare_fish_chance']:.1%}"
-                draw.text((x + 10, y + 80), bonus_text, font=tiny_font, fill=primary_light)
+            # 属性加成 - 参考format_accessory_or_rod函数
+            bonus_y = y + 85
+            if rod.get('bonus_fish_quality_modifier', 1.0) != 1.0 and rod.get('bonus_fish_quality_modifier', 1) != 1 and rod.get('bonus_fish_quality_modifier', 1) > 0:
+                bonus_text = f"✨ 鱼类质量加成: {to_percentage(rod['bonus_fish_quality_modifier'])}"
+                draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
+                bonus_y += 18
+            if rod.get('bonus_fish_quantity_modifier', 1.0) != 1.0 and rod.get('bonus_fish_quantity_modifier', 1) != 1 and rod.get('bonus_fish_quantity_modifier', 1) > 0:
+                bonus_text = f"📊 鱼类数量加成: {to_percentage(rod['bonus_fish_quantity_modifier'])}"
+                draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
+                bonus_y += 18
+            if rod.get('bonus_rare_fish_chance', 1.0) != 1.0 and rod.get('bonus_rare_fish_chance', 1) != 1 and rod.get('bonus_rare_fish_chance', 1) > 0:
+                bonus_text = f"🎣 钓鱼几率加成: {to_percentage(rod['bonus_rare_fish_chance'])}"
+                draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
+                bonus_y += 18
             
-            # 实例ID
-            instance_id = rod.get('instance_id', 'N/A')
-            draw.text((x + 10, y + 95), f"ID: {instance_id}", font=tiny_font, fill=text_secondary)
+            # 描述 - 支持换行
+            if rod.get('description'):
+                desc_text = rod['description']
+                # 如果描述太长，进行换行处理
+                max_chars_per_line = 25  # 每行最大字符数
+                if len(desc_text) > max_chars_per_line:
+                    lines = []
+                    for i in range(0, len(desc_text), max_chars_per_line):
+                        lines.append(desc_text[i:i+max_chars_per_line])
+                    desc_text = '\n'.join(lines)
+                
+                draw.text((x + 15, bonus_y), f"📋 {desc_text}", font=tiny_font, fill=text_secondary)
         
         # 更新当前Y位置
         rows = (len(rods) + 1) // 2
@@ -180,7 +377,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     if accessories:
         # 计算饰品卡片布局 - 每行2个
         card_width = (width - 90) // 2
-        card_height = 120
+        card_height = 180
         card_margin = 15
         
         for i, accessory in enumerate(accessories):
@@ -194,31 +391,59 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                                  (x, y, x + card_width, y + card_height), 
                                  8, fill=card_bg)
             
-            # 饰品名称
-            acc_name = accessory['name'][:12] + "..." if len(accessory['name']) > 12 else accessory['name']
-            draw.text((x + 10, y + 10), acc_name, font=content_font, fill=text_primary)
+            # 饰品名称和ID在同一行
+            acc_name = accessory['name'][:15] + "..." if len(accessory['name']) > 15 else accessory['name']
+            instance_id = accessory.get('instance_id', 'N/A')
+            
+            # 计算名称宽度，然后在其右边放置ID
+            name_w, _ = get_text_size(acc_name, content_font)
+            draw.text((x + 15, y + 15), acc_name, font=content_font, fill=text_primary)
+            draw.text((x + 15 + name_w + 10, y + 15), f"ID: {instance_id}", font=tiny_font, fill=text_muted)
             
             # 稀有度和精炼等级
             rarity = accessory.get('rarity', 1)
             refine_level = accessory.get('refine_level', 1)
             star_color = rare_color if (rarity > 4 and refine_level > 4) else warning_color if rarity > 3 else text_secondary
-            draw.text((x + 10, y + 35), f"{format_rarity_display(rarity)} Lv.{refine_level}", font=small_font, fill=star_color)
+            draw.text((x + 15, y + 40), f"{format_rarity_display(rarity)} Lv.{refine_level}", font=small_font, fill=star_color)
             
             # 装备状态
             is_equipped = accessory.get('is_equipped', False)
             if is_equipped:
-                draw.text((x + 10, y + 55), "✅ 已装备", font=small_font, fill=success_color)
+                draw.text((x + 15, y + 60), "✅ 已装备", font=small_font, fill=success_color)
             else:
-                draw.text((x + 10, y + 55), "⭕ 未装备", font=small_font, fill=text_muted)
+                draw.text((x + 15, y + 60), "⭕ 未装备", font=small_font, fill=text_muted)
             
-            # 属性加成
-            if accessory.get('bonus_coin_modifier', 0) > 0:
-                bonus_text = f"金币+{accessory['bonus_coin_modifier']:.1%}"
-                draw.text((x + 10, y + 80), bonus_text, font=tiny_font, fill=gold_color)
+            # 属性加成 - 参考format_accessory_or_rod函数
+            bonus_y = y + 85
+            if accessory.get('bonus_fish_quality_modifier', 1.0) != 1.0 and accessory.get('bonus_fish_quality_modifier', 1) != 1 and accessory.get('bonus_fish_quality_modifier', 1) > 0:
+                bonus_text = f"✨ 鱼类质量加成: {to_percentage(accessory['bonus_fish_quality_modifier'])}"
+                draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
+                bonus_y += 18
+            if accessory.get('bonus_fish_quantity_modifier', 1.0) != 1.0 and accessory.get('bonus_fish_quantity_modifier', 1) != 1 and accessory.get('bonus_fish_quantity_modifier', 1) > 0:
+                bonus_text = f"📊 鱼类数量加成: {to_percentage(accessory['bonus_fish_quantity_modifier'])}"
+                draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
+                bonus_y += 18
+            if accessory.get('bonus_rare_fish_chance', 1.0) != 1.0 and accessory.get('bonus_rare_fish_chance', 1) != 1 and accessory.get('bonus_rare_fish_chance', 1) > 0:
+                bonus_text = f"🎣 钓鱼几率加成: {to_percentage(accessory['bonus_rare_fish_chance'])}"
+                draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
+                bonus_y += 18
+            if accessory.get('bonus_coin_modifier', 1.0) != 1.0 and accessory.get('bonus_coin_modifier', 1) != 1 and accessory.get('bonus_coin_modifier', 1) > 0:
+                bonus_text = f"💰 金币加成: {to_percentage(accessory['bonus_coin_modifier'])}"
+                draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=gold_color)
+                bonus_y += 18
             
-            # 实例ID
-            instance_id = accessory.get('instance_id', 'N/A')
-            draw.text((x + 10, y + 95), f"ID: {instance_id}", font=tiny_font, fill=text_secondary)
+            # 描述 - 支持换行
+            if accessory.get('description'):
+                desc_text = accessory['description']
+                # 如果描述太长，进行换行处理
+                max_chars_per_line = 25  # 每行最大字符数
+                if len(desc_text) > max_chars_per_line:
+                    lines = []
+                    for i in range(0, len(desc_text), max_chars_per_line):
+                        lines.append(desc_text[i:i+max_chars_per_line])
+                    desc_text = '\n'.join(lines)
+                
+                draw.text((x + 15, bonus_y), f"📋 {desc_text}", font=tiny_font, fill=text_secondary)
         
         # 更新当前Y位置
         rows = (len(accessories) + 1) // 2
@@ -235,14 +460,14 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     current_y += 35
 
     if baits:
-        # 计算鱼饵卡片布局 - 每行3个
-        card_width = (width - 120) // 3
-        card_height = 100
-        card_margin = 10
+        # 计算鱼饵卡片布局 - 每行2个，增加高度显示详细信息
+        card_width = (width - 90) // 2
+        card_height = 140
+        card_margin = 15
         
         for i, bait in enumerate(baits):
-            row = i // 3
-            col = i % 3
+            row = i // 2
+            col = i % 2
             x = 30 + col * (card_width + card_margin)
             y = current_y + row * (card_height + card_margin)
             
@@ -252,29 +477,34 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                                  6, fill=card_bg)
             
             # 鱼饵名称
-            bait_name = bait['name'][:8] + "..." if len(bait['name']) > 8 else bait['name']
-            draw.text((x + 8, y + 8), bait_name, font=small_font, fill=text_primary)
+            bait_name = bait['name'][:12] + "..." if len(bait['name']) > 12 else bait['name']
+            draw.text((x + 10, y + 10), bait_name, font=small_font, fill=text_primary)
             
             # 稀有度
             rarity = bait.get('rarity', 1)
             star_color = rare_color if rarity > 4 else warning_color if rarity >= 3 else text_secondary
-            draw.text((x + 8, y + 25), format_rarity_display(rarity), font=tiny_font, fill=star_color)
+            draw.text((x + 10, y + 30), format_rarity_display(rarity), font=tiny_font, fill=star_color)
             
             # 数量
             quantity = bait.get('quantity', 0)
-            draw.text((x + 8, y + 40), f"数量: {quantity}", font=tiny_font, fill=text_secondary)
+            draw.text((x + 10, y + 50), f"数量: {quantity}", font=tiny_font, fill=text_secondary)
             
             # 持续时间
             duration = bait.get('duration_minutes', 0)
             if duration > 0:
-                draw.text((x + 8, y + 55), f"持续: {duration}分钟", font=tiny_font, fill=primary_light)
+                draw.text((x + 10, y + 70), f"持续: {duration}分钟", font=tiny_font, fill=primary_light)
+            
+            # 效果描述
+            if bait.get('effect_description'):
+                effect_text = bait['effect_description'][:20] + "..." if len(bait['effect_description']) > 20 else bait['effect_description']
+                draw.text((x + 10, y + 90), f"效果: {effect_text}", font=tiny_font, fill=text_secondary)
             
             # 鱼饵ID
             bait_id = bait.get('bait_id', 'N/A')
-            draw.text((x + 8, y + 80), f"ID: {bait_id}", font=tiny_font, fill=text_muted)
+            draw.text((x + 10, y + card_height - 20), f"ID: {bait_id}", font=tiny_font, fill=text_muted)
         
         # 更新当前Y位置
-        rows = (len(baits) + 2) // 3
+        rows = (len(baits) + 1) // 2
         current_y += rows * (card_height + card_margin)
     else:
         draw.text((30, current_y), "🐟 您还没有鱼饵，快去商店购买或抽奖获得吧！", font=content_font, fill=text_muted)
