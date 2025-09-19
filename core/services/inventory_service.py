@@ -571,9 +571,14 @@ class InventoryService:
         # 构建成功消息，包含耐久度信息
         success_message = f"成功精炼{item_name}，新精炼等级为 {instance.refine_level}。"
         
-        # 如果有耐久度系统，添加耐久度恢复信息
-        if hasattr(instance, 'current_durability') and instance.current_durability is not None:
-            success_message += f" 耐久度已恢复并提升至 {instance.current_durability}！"
+        # 检查是否达到了无限耐久的条件
+        if hasattr(instance, 'current_durability'):
+            if instance.current_durability is None:
+                # 获得无限耐久的特殊庆祝消息
+                success_message += f" 🎉✨ 装备已达到完美状态，获得永久耐久！这是真正的神器！ ✨🎉"
+            elif instance.current_durability is not None:
+                # 普通耐久度恢复消息
+                success_message += f" 耐久度已恢复并提升至 {instance.current_durability}！"
         
         return {
             "success": True,
@@ -755,17 +760,27 @@ class InventoryService:
 
         # 处理耐久度恢复和上限提升
         if original_max_durability is not None:
-            # 计算新的最大耐久度：每级精炼增加前一级50%的耐久上限
-            # 公式：新上限 = 原始上限 * (1 + 0.5)^精炼等级
-            refine_bonus_multiplier = (1.5 ** (new_refine_level - 1))
-            new_max_durability = int(original_max_durability * refine_bonus_multiplier)
+            # 获取装备稀有度
+            rarity = template.rarity if hasattr(template, 'rarity') else 1
             
-            # 精炼成功时恢复全部耐久度到新的最大值
-            instance.current_durability = new_max_durability
-            
-            # 更新最大耐久度（如果装备实例有这个字段）
-            if hasattr(instance, 'max_durability'):
-                instance.max_durability = new_max_durability
+            # 5星以上10级装备获得无限耐久 - 终极奖励！
+            if new_refine_level >= 10 and rarity >= 5:
+                instance.current_durability = None  # 无限耐久
+                # 更新最大耐久度为None（如果装备实例有这个字段）
+                if hasattr(instance, 'max_durability'):
+                    instance.max_durability = None
+            else:
+                # 普通精炼：计算新的最大耐久度
+                # 公式：新上限 = 原始上限 * (1.5)^精炼等级
+                refine_bonus_multiplier = (1.5 ** (new_refine_level - 1))
+                new_max_durability = int(original_max_durability * refine_bonus_multiplier)
+                
+                # 精炼成功时恢复全部耐久度到新的最大值
+                instance.current_durability = new_max_durability
+                
+                # 更新最大耐久度（如果装备实例有这个字段）
+                if hasattr(instance, 'max_durability'):
+                    instance.max_durability = new_max_durability
 
         # 根据物品类型执行相应操作
         if item_type == "rod":
