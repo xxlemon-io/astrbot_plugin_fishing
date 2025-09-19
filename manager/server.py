@@ -706,3 +706,30 @@ async def remove_item_from_user_inventory(user_id):
         return result
     except Exception as e:
         return {"success": False, "message": f"移除物品时发生错误: {str(e)}"}, 500
+
+# --- 用户物品实例属性编辑（精炼等级/耐久度） ---
+@admin_bp.route("/users/<user_id>/inventory/rod/<int:instance_id>/update", methods=["POST"])
+@login_required
+@admin_required
+async def update_rod_instance(user_id, instance_id):
+    user_service = current_app.config["USER_SERVICE"]
+    try:
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        return user_service.update_user_rod_instance_for_admin(user_id, instance_id, data)
+    except Exception as e:
+        return {"success": False, "message": f"更新鱼竿实例时发生错误: {str(e)}"}, 500
+
+@admin_bp.route("/users/<user_id>/inventory/accessory/<int:instance_id>/update", methods=["POST"])
+@login_required
+@admin_required
+async def update_accessory_instance(user_id, instance_id):
+    user_service = current_app.config["USER_SERVICE"]
+    try:
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        return user_service.update_user_accessory_instance_for_admin(user_id, instance_id, data)
+    except Exception as e:
+        return {"success": False, "message": f"更新饰品实例时发生错误: {str(e)}"}, 500

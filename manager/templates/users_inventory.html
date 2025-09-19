@@ -200,6 +200,12 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-primary me-1" onclick="editRodRefine({{ item.instance_id }}, {{ item.refine_level }})">
+                                        <i class="fas fa-level-up-alt"></i> 设精炼
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-info me-1" onclick="editRodDurability({{ item.instance_id }}, '{{ item.durability if item.durability is not none else '' }}')">
+                                        <i class="fas fa-wrench"></i> 设耐久
+                                    </button>
                                     <button class="btn btn-sm btn-danger" onclick="removeItem('rod', {{ item.rod_id }}, 1)">
                                         <i class="fas fa-trash"></i> 移除
                                     </button>
@@ -251,6 +257,9 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-primary me-1" onclick="editAccessoryRefine({{ item.instance_id }}, {{ item.refine_level }})">
+                                        <i class="fas fa-level-up-alt"></i> 设精炼
+                                    </button>
                                     <button class="btn btn-sm btn-danger" onclick="removeItem('accessory', {{ item.accessory_id }}, 1)">
                                         <i class="fas fa-trash"></i> 移除
                                     </button>
@@ -367,6 +376,8 @@
     const userId = "{{ user_id }}";
     const addItemUrl = "{{ url_for('admin_bp.add_item_to_user_inventory', user_id=user_id) }}";
     const removeItemUrl = "{{ url_for('admin_bp.remove_item_from_user_inventory', user_id=user_id) }}";
+    const updateRodInstanceUrlTemplate = "{{ url_for('admin_bp.update_rod_instance', user_id=user_id, instance_id=12345) }}";
+    const updateAccessoryInstanceUrlTemplate = "{{ url_for('admin_bp.update_accessory_instance', user_id=user_id, instance_id=12345) }}";
     
     // 物品模板数据
     const fishTemplates = {{ all_fish | tojson | safe }};
