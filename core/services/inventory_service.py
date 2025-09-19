@@ -498,17 +498,34 @@ class InventoryService:
         if instance.refine_level >= 6:
             import random
             if random.random() < 0.5:  # 50%概率毁坏
-                # 删除装备
-                if item_type == "rod":
-                    self.inventory_repo.delete_rod_instance(instance.rod_instance_id)
-                else:  # accessory
-                    self.inventory_repo.delete_accessory_instance(instance.accessory_instance_id)
-                
-                return {
-                    "success": False,
-                    "message": f"💥 精炼失败！{item_name}在精炼过程中毁坏了！",
-                    "destroyed": True
-                }
+                # 小概率保留等级（10%概率）
+                if random.random() < 0.1:  # 10%概率保留等级
+                    # 等级降1级，但保留装备
+                    instance.refine_level = max(1, instance.refine_level - 1)
+                    if item_type == "rod":
+                        self.inventory_repo.update_rod_instance(instance)
+                    else:  # accessory
+                        self.inventory_repo.update_accessory_instance(instance)
+                    
+                    return {
+                        "success": False,
+                        "message": f"💥 精炼失败！{item_name}等级降为 {instance.refine_level}，但装备得以保留！",
+                        "destroyed": False,
+                        "level_reduced": True,
+                        "new_refine_level": instance.refine_level
+                    }
+                else:
+                    # 完全毁坏装备
+                    if item_type == "rod":
+                        self.inventory_repo.delete_rod_instance(instance.rod_instance_id)
+                    else:  # accessory
+                        self.inventory_repo.delete_accessory_instance(instance.accessory_instance_id)
+                    
+                    return {
+                        "success": False,
+                        "message": f"💥 精炼失败！{item_name}在精炼过程中毁坏了！",
+                        "destroyed": True
+                    }
 
         return {
             "success": True,
