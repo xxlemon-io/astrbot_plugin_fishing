@@ -304,9 +304,18 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         if bait.get('effect_description'):
             lines = wrap_text_by_width(f"效果: {bait['effect_description']}", tiny_font, card_width - 30)
             desc_lines = len(lines)
-        header_height = 90
+        # 基础信息高度：名称+星级+数量 = 70px
+        header_height = 70
+        # 如果有持续时间，增加20px
+        if bait.get('duration_minutes', 0) > 0:
+            header_height += 20
         bottom_pad = 20
         card_h = header_height + desc_lines * line_h + bottom_pad
+        
+        # 如果没有持续时间也没有效果描述，使用紧凑高度
+        if bait.get('duration_minutes', 0) <= 0 and not bait.get('effect_description'):
+            return 100  # 紧凑高度：70 + 30 = 100px
+        
         return max(card_h, 120)
 
     # 5. 绘制圆角矩形
@@ -332,14 +341,16 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     current_y = title_y + title_h + 15
     card_height = 80
     card_margin = 15
+    # 保持与装备卡片一致的边距（30px左右边距，与装备区域对齐）
+    user_card_margin = 30
     
     # 用户信息卡片
     draw_rounded_rectangle(draw, 
-                         (card_margin, current_y, width - card_margin, current_y + card_height), 
+                         (user_card_margin, current_y, width - user_card_margin, current_y + card_height), 
                          10, fill=card_bg)
     
     # 列位置
-    col1_x_without_avatar = card_margin + 20  # 第一列
+    col1_x_without_avatar = user_card_margin + 20  # 第一列（使用新的边距）
     avatar_size = 60
     col1_x_with_avatar = col1_x_without_avatar + avatar_size + 20  # 有头像时偏移
     col1_x = col1_x_without_avatar # 默认无头像
@@ -412,16 +423,19 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         # 计算鱼竿卡片布局 - 每行2个（动态高度）
         card_width = (width - 90) // 2
         card_margin = 15
+        # 行起始与下一行起点
+        row_start_y = current_y
+        next_row_start_y = current_y
         
         for i, rod in enumerate(rods):
             row = i // 2
             col = i % 2
             x = 30 + col * (card_width + card_margin)
-            # 为不同列分别累计高度，避免同一行卡片高度不一致时重叠
-            # 先根据当前已绘制的同列卡片数量，计算该列累计高度
-            # 简化做法：按行从上到下绘制，逐行计算行高
+            
             if col == 0:
-                # 新的一行，计算本行两个卡片的高度，取最大值作为行高
+                # 开启新行：将起始Y推进到上一行计算出的下一行起点
+                row_start_y = next_row_start_y
+                # 预先量测本行行高（左右取最大）
                 left_h = measure_rod_card_height(rod, card_width)
                 right_index = i + 1
                 if right_index < len(rods):
@@ -429,12 +443,11 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                 else:
                     right_h = 0
                 row_h = max(left_h, right_h)
-                y = current_y
-                current_row_y = y
-                next_row_y = current_row_y + row_h + card_margin
+                y = row_start_y
+                next_row_start_y = row_start_y + row_h + card_margin
             else:
                 # 同一行右列与左列对齐
-                y = current_row_y
+                y = row_start_y
             
             # 动态高度
             card_height = measure_rod_card_height(rod, card_width)
@@ -497,7 +510,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                         draw.text((x + 15, bonus_y + i * line_h), line, font=tiny_font, fill=text_secondary)
         
         # 更新当前Y位置到下一行起点
-        current_y = next_row_y if 'next_row_y' in locals() else current_y
+        current_y = next_row_start_y
     else:
         draw.text((30, current_y), "🎣 您还没有鱼竿，快去商店购买或抽奖获得吧！", font=content_font, fill=text_muted)
         current_y += 50
@@ -513,12 +526,16 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         # 计算饰品卡片布局 - 每行2个（动态高度）
         card_width = (width - 90) // 2
         card_margin = 15
+        row_start_y = current_y
+        next_row_start_y = current_y
         
         for i, accessory in enumerate(accessories):
             row = i // 2
             col = i % 2
             x = 30 + col * (card_width + card_margin)
+            
             if col == 0:
+                row_start_y = next_row_start_y
                 left_h = measure_accessory_card_height(accessory, card_width)
                 right_index = i + 1
                 if right_index < len(accessories):
@@ -526,11 +543,10 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                 else:
                     right_h = 0
                 row_h = max(left_h, right_h)
-                y = current_y
-                current_row_y = y
-                next_row_y = current_row_y + row_h + card_margin
+                y = row_start_y
+                next_row_start_y = row_start_y + row_h + card_margin
             else:
-                y = current_row_y
+                y = row_start_y
             
             card_height = measure_accessory_card_height(accessory, card_width)
             ensure_height(y + card_height + 40)
@@ -594,7 +610,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                         draw.text((x + 15, bonus_y + i * line_h), line, font=tiny_font, fill=text_secondary)
         
         # 更新当前Y位置
-        current_y = next_row_y if 'next_row_y' in locals() else current_y
+        current_y = next_row_start_y
     else:
         draw.text((30, current_y), "💍 您还没有饰品，快去商店购买或抽奖获得吧！", font=content_font, fill=text_muted)
         current_y += 50
@@ -610,12 +626,16 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         # 计算鱼饵卡片布局 - 每行2个（动态高度）
         card_width = (width - 90) // 2
         card_margin = 15
+        row_start_y = current_y
+        next_row_start_y = current_y
         
         for i, bait in enumerate(baits):
             row = i // 2
             col = i % 2
             x = 30 + col * (card_width + card_margin)
+            
             if col == 0:
+                row_start_y = next_row_start_y
                 left_h = measure_bait_card_height(bait, card_width)
                 right_index = i + 1
                 if right_index < len(baits):
@@ -623,11 +643,10 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                 else:
                     right_h = 0
                 row_h = max(left_h, right_h)
-                y = current_y
-                current_row_y = y
-                next_row_y = current_row_y + row_h + card_margin
+                y = row_start_y
+                next_row_start_y = row_start_y + row_h + card_margin
             else:
-                y = current_row_y
+                y = row_start_y
             
             card_height = measure_bait_card_height(bait, card_width)
             ensure_height(y + card_height + 40)
@@ -653,10 +672,12 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             quantity = bait.get('quantity', 0)
             draw.text((x + 15, y + 50), f"数量: {quantity}", font=tiny_font, fill=text_secondary)
             
-            # 持续时间
+            # 持续时间（动态排布，存在才占位）
+            next_y = y + 70
             duration = bait.get('duration_minutes', 0)
             if duration > 0:
-                draw.text((x + 15, y + 70), f"持续: {duration}分钟", font=tiny_font, fill=primary_light)
+                draw.text((x + 15, next_y), f"持续: {duration}分钟", font=tiny_font, fill=primary_light)
+                next_y += 20
             
             # 效果描述
             if bait.get('effect_description'):
@@ -664,15 +685,15 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                 available_width = card_width - 30
                 lines = wrap_text_by_width(effect_text, tiny_font, available_width)
                 line_h = get_text_size("测", tiny_font)[1] + 2
-                max_lines = max((y + card_height - 20) - (y + 90), 0) // line_h
+                max_lines = max((y + card_height - 20) - next_y, 0) // line_h
                 if max_lines > 0:
                     for i, line in enumerate(lines[:max_lines]):
-                        draw.text((x + 15, y + 90 + i * line_h), line, font=tiny_font, fill=text_secondary)
+                        draw.text((x + 15, next_y + i * line_h), line, font=tiny_font, fill=text_secondary)
             
             # 底部保留空间（不再在左下角重复ID）
         
         # 更新当前Y位置
-        current_y = next_row_y if 'next_row_y' in locals() else current_y
+        current_y = next_row_start_y
     else:
         draw.text((30, current_y), "🐟 您还没有鱼饵，快去商店购买或抽奖获得吧！", font=content_font, fill=text_muted)
         current_y += 50
