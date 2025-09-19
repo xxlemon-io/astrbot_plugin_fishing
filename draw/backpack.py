@@ -258,7 +258,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         draw.ellipse([x2 - 2*radius, y2 - 2*radius, x2, y2], fill=fill, outline=outline, width=width)
 
     # 绘制标题
-    title_text = "🎒 用户背包"
+    title_text = "用户背包"
     title_w, title_h = get_text_size(title_text, title_font)
     title_x = (width - title_w) // 2
     title_y = 20
@@ -297,7 +297,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     nickname_text = f"{nickname}"
     draw.text((col1_x, row1_y), nickname_text, font=subtitle_font, fill=primary_medium)
     
-    # 统计信息 + 装备总价值
+    # 统计信息 + 装备总价值（用户名下方横向排布）
     rods_count = len(user_data.get('rods', []))
     accessories_count = len(user_data.get('accessories', []))
     baits_count = len(user_data.get('baits', []))
@@ -323,16 +323,25 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         total_value += base_value * quantity
     
     stats_text = f"鱼竿: {rods_count} | 饰品: {accessories_count} | 鱼饵: {baits_count}"
-    draw.text((col2_x, row1_y), stats_text, font=small_font, fill=text_secondary)
     value_text = f"装备总价值: {int(total_value):,} 金币"
-    draw.text((col2_x, row2_y - 8), value_text, font=small_font, fill=gold_color)
+    stats_w, stats_h = get_text_size(stats_text, small_font)
+    value_w, value_h = get_text_size(value_text, small_font)
+    gap = 24
+    row_y = row2_y - 6
+    available_w = (width - card_margin - 10) - col1_x
+    if stats_w + gap + value_w <= available_w:
+        draw.text((col1_x, row_y), stats_text, font=small_font, fill=text_secondary)
+        draw.text((col1_x + stats_w + gap, row_y), value_text, font=small_font, fill=gold_color)
+    else:
+        draw.text((col1_x, row_y), stats_text, font=small_font, fill=text_secondary)
+        draw.text((col1_x, row_y + stats_h + 4), value_text, font=small_font, fill=gold_color)
 
     current_y += card_height + 20
 
     # 鱼竿区域
     rods = user_data.get('rods', [])
     rod_section_y = current_y
-    draw.text((30, rod_section_y), "🎣 鱼竿", font=subtitle_font, fill=primary_medium)
+    draw.text((30, rod_section_y), "鱼竿", font=subtitle_font, fill=primary_medium)
     current_y += 35
 
     if rods:
@@ -372,28 +381,28 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             # 装备状态
             is_equipped = rod.get('is_equipped', False)
             if is_equipped:
-                draw.text((x + 15, y + 60), "✅ 已装备", font=small_font, fill=success_color)
+                draw.text((x + 15, y + 60), "已装备", font=small_font, fill=success_color)
             else:
-                draw.text((x + 15, y + 60), "⭕ 未装备", font=small_font, fill=text_muted)
+                draw.text((x + 15, y + 60), "未装备", font=small_font, fill=text_muted)
             
             # 属性加成 - 参考format_accessory_or_rod函数
             bonus_y = y + 85
             if rod.get('bonus_fish_quality_modifier', 1.0) != 1.0 and rod.get('bonus_fish_quality_modifier', 1) != 1 and rod.get('bonus_fish_quality_modifier', 1) > 0:
-                bonus_text = f"✨ 鱼类质量加成: {to_percentage(rod['bonus_fish_quality_modifier'])}"
+                bonus_text = f"鱼类质量加成: {to_percentage(rod['bonus_fish_quality_modifier'])}"
                 draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
                 bonus_y += 18
             if rod.get('bonus_fish_quantity_modifier', 1.0) != 1.0 and rod.get('bonus_fish_quantity_modifier', 1) != 1 and rod.get('bonus_fish_quantity_modifier', 1) > 0:
-                bonus_text = f"📊 鱼类数量加成: {to_percentage(rod['bonus_fish_quantity_modifier'])}"
+                bonus_text = f"鱼类数量加成: {to_percentage(rod['bonus_fish_quantity_modifier'])}"
                 draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
                 bonus_y += 18
             if rod.get('bonus_rare_fish_chance', 1.0) != 1.0 and rod.get('bonus_rare_fish_chance', 1) != 1 and rod.get('bonus_rare_fish_chance', 1) > 0:
-                bonus_text = f"🎣 钓鱼几率加成: {to_percentage(rod['bonus_rare_fish_chance'])}"
+                bonus_text = f"钓鱼几率加成: {to_percentage(rod['bonus_rare_fish_chance'])}"
                 draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
                 bonus_y += 18
             
             # 描述 - 支持换行且不超出卡片
             if rod.get('description'):
-                desc_text = f"📋 {rod['description']}"
+                desc_text = f"描述: {rod['description']}"
                 available_width = card_width - 30
                 lines = wrap_text_by_width(desc_text, tiny_font, available_width)
                 # 计算可绘制的最大行数，避免超出卡片底部
@@ -414,7 +423,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
 
     # 饰品区域
     accessories = user_data.get('accessories', [])
-    draw.text((30, current_y), "💍 饰品", font=subtitle_font, fill=primary_medium)
+    draw.text((30, current_y), "饰品", font=subtitle_font, fill=primary_medium)
     current_y += 35
 
     if accessories:
@@ -453,32 +462,32 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             # 装备状态
             is_equipped = accessory.get('is_equipped', False)
             if is_equipped:
-                draw.text((x + 15, y + 60), "✅ 已装备", font=small_font, fill=success_color)
+                draw.text((x + 15, y + 60), "已装备", font=small_font, fill=success_color)
             else:
-                draw.text((x + 15, y + 60), "⭕ 未装备", font=small_font, fill=text_muted)
+                draw.text((x + 15, y + 60), "未装备", font=small_font, fill=text_muted)
             
             # 属性加成 - 参考format_accessory_or_rod函数
             bonus_y = y + 85
             if accessory.get('bonus_fish_quality_modifier', 1.0) != 1.0 and accessory.get('bonus_fish_quality_modifier', 1) != 1 and accessory.get('bonus_fish_quality_modifier', 1) > 0:
-                bonus_text = f"✨ 鱼类质量加成: {to_percentage(accessory['bonus_fish_quality_modifier'])}"
+                bonus_text = f"鱼类质量加成: {to_percentage(accessory['bonus_fish_quality_modifier'])}"
                 draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
                 bonus_y += 18
             if accessory.get('bonus_fish_quantity_modifier', 1.0) != 1.0 and accessory.get('bonus_fish_quantity_modifier', 1) != 1 and accessory.get('bonus_fish_quantity_modifier', 1) > 0:
-                bonus_text = f"📊 鱼类数量加成: {to_percentage(accessory['bonus_fish_quantity_modifier'])}"
+                bonus_text = f"鱼类数量加成: {to_percentage(accessory['bonus_fish_quantity_modifier'])}"
                 draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
                 bonus_y += 18
             if accessory.get('bonus_rare_fish_chance', 1.0) != 1.0 and accessory.get('bonus_rare_fish_chance', 1) != 1 and accessory.get('bonus_rare_fish_chance', 1) > 0:
-                bonus_text = f"🎣 钓鱼几率加成: {to_percentage(accessory['bonus_rare_fish_chance'])}"
+                bonus_text = f"钓鱼几率加成: {to_percentage(accessory['bonus_rare_fish_chance'])}"
                 draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
                 bonus_y += 18
             if accessory.get('bonus_coin_modifier', 1.0) != 1.0 and accessory.get('bonus_coin_modifier', 1) != 1 and accessory.get('bonus_coin_modifier', 1) > 0:
-                bonus_text = f"💰 金币加成: {to_percentage(accessory['bonus_coin_modifier'])}"
+                bonus_text = f"金币加成: {to_percentage(accessory['bonus_coin_modifier'])}"
                 draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=gold_color)
                 bonus_y += 18
             
             # 描述 - 支持换行且不超出卡片
             if accessory.get('description'):
-                desc_text = f"📋 {accessory['description']}"
+                desc_text = f"描述: {accessory['description']}"
                 available_width = card_width - 30
                 lines = wrap_text_by_width(desc_text, tiny_font, available_width)
                 line_h = get_text_size("测", tiny_font)[1] + 2
@@ -498,7 +507,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
 
     # 鱼饵区域
     baits = user_data.get('baits', [])
-    draw.text((30, current_y), "🐟 鱼饵", font=subtitle_font, fill=primary_medium)
+    draw.text((30, current_y), "鱼饵", font=subtitle_font, fill=primary_medium)
     current_y += 35
 
     if baits:
