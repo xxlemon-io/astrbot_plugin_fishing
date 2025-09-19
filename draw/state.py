@@ -6,6 +6,13 @@ import requests
 from io import BytesIO
 import time
 
+def format_rarity_display(rarity: int) -> str:
+    """格式化稀有度显示，支持显示到10星，10星以上显示为★★★★★★★★★★+"""
+    if rarity <= 10:
+        return '★' * rarity
+    else:
+        return '★★★★★★★★★★+'
+
 def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     """
     绘制用户状态图像
@@ -178,7 +185,14 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     # 金币
     coins = user_data.get('coins', 0)
     coins_text = f"金币: {coins:,}"
-    draw.text((col1_x, row2_y), coins_text, font=small_font, fill=gold_color)
+    draw.text((col1_x, row2_y - 12), coins_text, font=small_font, fill=gold_color)
+    
+    # 高级货币（另起一行，避免与右侧“钓鱼次数”重叠）
+    if 'premium_currency' in user_data:
+        premium = user_data.get('premium_currency', 0)
+        premium_text = f"高级货币: {premium:,}"
+        # 另起新行显示并整体上移，避免超出白色卡片底部
+        draw.text((col1_x, row2_y + 8), premium_text, font=small_font, fill=primary_light)
     
     # 钓鱼次数 - 调整列位置以均分
     total_fishing = user_data.get('total_fishing_count', 0)
@@ -228,7 +242,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         rarity = current_rod.get('rarity', 1)
         refined_level = current_rod.get('refine_level', 1)
         star_color = rare_color if (rarity > 4 and refined_level > 4) else warning_color if rarity > 3 else text_secondary
-        draw.text((left_col_x, equipment_row3_y), f"{'★' * min(rarity, 5)} Lv.{refined_level}", font=tiny_font, fill=star_color)
+        draw.text((left_col_x, equipment_row3_y), f"{format_rarity_display(rarity)} Lv.{refined_level}", font=tiny_font, fill=star_color)
     else:
         draw.text((left_col_x, equipment_row2_y), "未装备", font=content_font, fill=text_muted)
 
@@ -243,7 +257,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         rarity = current_accessory.get('rarity', 1)
         refined_level = current_accessory.get('refine_level', 1)
         star_color = rare_color if (rarity > 4 and refined_level > 4) else warning_color if rarity > 3 else text_secondary
-        draw.text((left_col_x, equipment_row6_y), f"{'★' * min(rarity, 5)} Lv.{refined_level}", font=tiny_font, fill=star_color)
+        draw.text((left_col_x, equipment_row6_y), f"{format_rarity_display(rarity)} Lv.{refined_level}", font=tiny_font, fill=star_color)
     else:
         draw.text((left_col_x, equipment_row5_y), "未装备", font=content_font, fill=text_muted)
 
@@ -266,7 +280,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         draw.text((right_col_x, equipment_row2_y), bait_name, font=content_font, fill=text_primary)
         rarity = current_bait.get('rarity', 1)
         star_color = rare_color if rarity > 4 else warning_color if rarity >= 3 else text_secondary
-        bait_detail = f"{'★' * min(rarity, 5)} 剩余：{current_bait.get('quantity', 0)}"
+        bait_detail = f"{format_rarity_display(rarity)} 剩余：{current_bait.get('quantity', 0)}"
         draw.text((right_col_x, equipment_row3_y), bait_detail, font=tiny_font, fill=star_color)
     else:
         draw.text((right_col_x, equipment_row2_y), "未使用", font=content_font, fill=text_muted)
@@ -549,6 +563,7 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
         'user_id': user.user_id,
         'nickname': user.nickname or user.user_id,
         'coins': user.coins,
+        'premium_currency': getattr(user, 'premium_currency', 0),
         'current_rod': current_rod,
         'current_accessory': current_accessory,
         'current_bait': current_bait,

@@ -313,7 +313,7 @@ class FishingPlugin(Star):
             for rarity in sorted(fished_by_rarity.keys(), reverse=True):
                 fish_list = fished_by_rarity[rarity]
                 if fish_list:
-                    message += f"\n {'⭐' * rarity } 稀有度 {rarity}：\n"
+                    message += f"\n {format_rarity_display(rarity)} 稀有度 {rarity}：\n"
                     for fish in fish_list:
                         message += f"  - {fish['name']} x  {fish['quantity']} （{fish['base_value']}金币 / 个） \n"
             message += f"\n🐟 总鱼数：{pond_fish['stats']['total_count']} 条\n"
@@ -394,7 +394,7 @@ class FishingPlugin(Star):
             # 构造输出信息,附带emoji
             message = "【🐟 鱼饵】：\n"
             for bait in bait_info["baits"]:
-                message += f" - {bait['name']} x {bait['quantity']} (稀有度: {'⭐' * bait['rarity']})\n"
+                message += f" - {bait['name']} x {bait['quantity']} (稀有度: {format_rarity_display(bait['rarity'])})\n"
                 message += f"   - ID: {bait['bait_id']}\n"
                 if bait["duration_minutes"] > 0:
                     message += f"   - 持续时间: {bait['duration_minutes']} 分钟\n"
@@ -531,9 +531,19 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
 
+    @filter.command("高级货币", alias={"钻石", "星石"})
+    async def premium(self, event: AstrMessageEvent):
+        """查看用户高级货币信息"""
+        user_id = event.get_sender_id()
+        user = self.user_repo.get_by_id(user_id)
+        if user:
+            yield event.plain_result(f"💎 您的高级货币余额：{user.premium_currency}")
+        else:
+            yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
+
     # ===========商店与市场==========
 
-    @filter.command("全部卖出")
+    @filter.command("全部卖出", alias={"全部出售", "卖出全部", "出售全部", "卖光", "清空鱼", "一键卖出"})
     async def sell_all(self, event: AstrMessageEvent):
         """卖出用户所有鱼"""
         user_id = event.get_sender_id()
@@ -543,7 +553,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("保留卖出")
+    @filter.command("保留卖出", alias={"保留出售", "卖出保留", "出售保留", "留一卖出", "卖鱼留一"})
     async def sell_keep(self, event: AstrMessageEvent):
         """卖出用户鱼，但保留每种鱼一条"""
         user_id = event.get_sender_id()
@@ -553,7 +563,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("出售稀有度")
+    @filter.command("出售稀有度", alias={"按稀有度出售", "稀有度出售", "卖稀有度", "出售星级", "按星级出售"})
     async def sell_by_rarity(self, event: AstrMessageEvent):
         """按稀有度出售鱼"""
         user_id = event.get_sender_id()
@@ -571,7 +581,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("出售鱼竿")
+    @filter.command("出售鱼竿", alias={"卖出鱼竿", "卖鱼竿", "卖掉鱼竿"})
     async def sell_rod(self, event: AstrMessageEvent):
         """出售鱼竿"""
         user_id = event.get_sender_id()
@@ -593,7 +603,7 @@ class FishingPlugin(Star):
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     # 批量删除用户鱼竿
-    @filter.command("出售所有鱼竿", alias={ "出售全部鱼竿" })
+    @filter.command("出售所有鱼竿", alias={"出售全部鱼竿", "卖出所有鱼竿", "卖出全部鱼竿", "卖光鱼竿", "清空鱼竿", "一键卖鱼竿"})
     async def sell_all_rods(self, event: AstrMessageEvent):
         """出售用户所有鱼竿"""
         user_id = event.get_sender_id()
@@ -603,7 +613,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("出售饰品")
+    @filter.command("出售饰品", alias={"卖出饰品", "卖饰品", "卖掉饰品"})
     async def sell_accessories(self, event: AstrMessageEvent):
         """出售饰品"""
         user_id = event.get_sender_id()
@@ -624,7 +634,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("出售所有饰品", alias={ "出售全部饰品" })
+    @filter.command("出售所有饰品", alias={"出售全部饰品", "卖出所有饰品", "卖出全部饰品", "卖光饰品", "清空饰品", "一键卖饰品"})
     async def sell_all_accessories(self, event: AstrMessageEvent):
         """出售用户所有饰品"""
         user_id = event.get_sender_id()
@@ -821,7 +831,10 @@ class FishingPlugin(Star):
                 return
             message = "【🎰 抽奖池列表】\n\n"
             for pool in pools.get("pools", []):
-                message += f"ID: {pool['gacha_pool_id']} - {pool['name']} - {pool['description']}\n 💰 花费：{pool['cost_coins']} 金币 / 次\n\n"
+                cost_text = f"💰 金币 {pool['cost_coins']} / 次"
+                if pool['cost_premium_currency']:
+                    cost_text = f"💎 高级货币 {pool['cost_premium_currency']} / 次"
+                message += f"ID: {pool['gacha_pool_id']} - {pool['name']} - {pool['description']}\n {cost_text}\n\n"
             # 添加卡池详细信息
             message += "【📋 卡池详情】使用「查看卡池 ID」命令查看详细物品概率\n"
             message += "【🎲 抽卡命令】使用「抽卡 ID」命令选择抽卡池进行单次抽卡\n"
@@ -901,7 +914,10 @@ class FishingPlugin(Star):
                 message = "【🎰 卡池详情】\n\n"
                 message += f"ID: {pool['gacha_pool_id']} - {pool['name']}\n"
                 message += f"描述: {pool['description']}\n"
-                message += f"花费: {pool['cost_coins']} 金币 / 次\n\n"
+                if pool['cost_premium_currency']:
+                    message += f"花费: {pool['cost_premium_currency']} 高级货币 / 次\n\n"
+                else:
+                    message += f"花费: {pool['cost_coins']} 金币 / 次\n\n"
                 message += "【📋 物品概率】\n"
 
                 if result["probabilities"]:
@@ -1265,6 +1281,202 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("修改高级货币")
+    async def modify_premium(self, event: AstrMessageEvent):
+        """修改用户高级货币"""
+        args = event.message_str.split(" ")
+        if len(args) < 3:
+            yield event.plain_result("❌ 请指定用户 ID 和高级货币数量，例如：/修改高级货币 123456789 100")
+            return
+        target_user_id = args[1]
+        if not target_user_id.isdigit():
+            yield event.plain_result("❌ 用户 ID 必须是数字，请检查后重试。")
+            return
+        premium = args[2]
+        if not premium.isdigit():
+            yield event.plain_result("❌ 高级货币数量必须是数字，请检查后重试。")
+            return
+        user = self.user_repo.get_by_id(target_user_id)
+        if not user:
+            yield event.plain_result("❌ 用户不存在或未注册，请检查后重试。")
+            return
+        user.premium_currency = int(premium)
+        self.user_repo.update(user)
+        yield event.plain_result(f"✅ 成功修改用户 {target_user_id} 的高级货币为 {premium}")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("奖励高级货币")
+    async def reward_premium(self, event: AstrMessageEvent):
+        """奖励用户高级货币"""
+        args = event.message_str.split(" ")
+        if len(args) < 3:
+            yield event.plain_result("❌ 请指定用户 ID 和高级货币数量，例如：/奖励高级货币 123456789 100")
+            return
+        target_user_id = args[1]
+        if not target_user_id.isdigit():
+            yield event.plain_result("❌ 用户 ID 必须是数字，请检查后重试。")
+            return
+        premium = args[2]
+        if not premium.isdigit():
+            yield event.plain_result("❌ 高级货币数量必须是数字，请检查后重试。")
+            return
+        user = self.user_repo.get_by_id(target_user_id)
+        if not user:
+            yield event.plain_result("❌ 用户不存在或未注册，请检查后重试。")
+            return
+        user.premium_currency += int(premium)
+        self.user_repo.update(user)
+        yield event.plain_result(f"✅ 成功给用户 {target_user_id} 奖励 {premium} 高级货币")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("扣除高级货币")
+    async def deduct_premium(self, event: AstrMessageEvent):
+        """扣除用户高级货币"""
+        args = event.message_str.split(" ")
+        if len(args) < 3:
+            yield event.plain_result("❌ 请指定用户 ID 和高级货币数量，例如：/扣除高级货币 123456789 100")
+            return
+        target_user_id = args[1]
+        if not target_user_id.isdigit():
+            yield event.plain_result("❌ 用户 ID 必须是数字，请检查后重试。")
+            return
+        premium = args[2]
+        if not premium.isdigit():
+            yield event.plain_result("❌ 高级货币数量必须是数字，请检查后重试。")
+            return
+        user = self.user_repo.get_by_id(target_user_id)
+        if not user:
+            yield event.plain_result("❌ 用户不存在或未注册，请检查后重试。")
+            return
+        if int(premium) > user.premium_currency:
+            yield event.plain_result("❌ 扣除的高级货币不能超过用户当前拥有数量")
+            return
+        user.premium_currency -= int(premium)
+        self.user_repo.update(user)
+        yield event.plain_result(f"✅ 成功扣除用户 {target_user_id} 的 {premium} 高级货币")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("全体奖励金币")
+    async def reward_all_coins(self, event: AstrMessageEvent):
+        """给所有注册用户发放金币"""
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定奖励的金币数量，例如：/全体奖励金币 1000")
+            return
+        amount = args[1]
+        if not amount.isdigit() or int(amount) <= 0:
+            yield event.plain_result("❌ 奖励数量必须是正整数，请检查后重试。")
+            return
+        amount_int = int(amount)
+        user_ids = self.user_repo.get_all_user_ids()
+        if not user_ids:
+            yield event.plain_result("❌ 当前没有注册用户。")
+            return
+        updated = 0
+        for uid in user_ids:
+            user = self.user_repo.get_by_id(uid)
+            if not user:
+                continue
+            user.coins += amount_int
+            self.user_repo.update(user)
+            updated += 1
+        yield event.plain_result(f"✅ 已向 {updated} 位用户每人发放 {amount_int} 金币")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("全体奖励高级货币")
+    async def reward_all_premium(self, event: AstrMessageEvent):
+        """给所有注册用户发放高级货币"""
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定奖励的高级货币数量，例如：/全体奖励高级货币 100")
+            return
+        amount = args[1]
+        if not amount.isdigit() or int(amount) <= 0:
+            yield event.plain_result("❌ 奖励数量必须是正整数，请检查后重试。")
+            return
+        amount_int = int(amount)
+        user_ids = self.user_repo.get_all_user_ids()
+        if not user_ids:
+            yield event.plain_result("❌ 当前没有注册用户。")
+            return
+        updated = 0
+        for uid in user_ids:
+            user = self.user_repo.get_by_id(uid)
+            if not user:
+                continue
+            user.premium_currency += amount_int
+            self.user_repo.update(user)
+            updated += 1
+        yield event.plain_result(f"✅ 已向 {updated} 位用户每人发放 {amount_int} 高级货币")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("全体扣除金币")
+    async def deduct_all_coins(self, event: AstrMessageEvent):
+        """从所有注册用户扣除金币（不低于0）"""
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定扣除的金币数量，例如：/全体扣除金币 1000")
+            return
+        amount = args[1]
+        if not amount.isdigit() or int(amount) <= 0:
+            yield event.plain_result("❌ 扣除数量必须是正整数，请检查后重试。")
+            return
+        amount_int = int(amount)
+        user_ids = self.user_repo.get_all_user_ids()
+        if not user_ids:
+            yield event.plain_result("❌ 当前没有注册用户。")
+            return
+        affected = 0
+        total_deducted = 0
+        for uid in user_ids:
+            user = self.user_repo.get_by_id(uid)
+            if not user:
+                continue
+            if user.coins <= 0:
+                continue
+            deduct = amount_int if user.coins >= amount_int else user.coins
+            if deduct <= 0:
+                continue
+            user.coins -= deduct
+            self.user_repo.update(user)
+            affected += 1
+            total_deducted += deduct
+        yield event.plain_result(f"✅ 已从 {affected} 位用户总计扣除 {total_deducted} 金币（每人至多 {amount_int}）")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("全体扣除高级货币")
+    async def deduct_all_premium(self, event: AstrMessageEvent):
+        """从所有注册用户扣除高级货币（不低于0）"""
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定扣除的高级货币数量，例如：/全体扣除高级货币 100")
+            return
+        amount = args[1]
+        if not amount.isdigit() or int(amount) <= 0:
+            yield event.plain_result("❌ 扣除数量必须是正整数，请检查后重试。")
+            return
+        amount_int = int(amount)
+        user_ids = self.user_repo.get_all_user_ids()
+        if not user_ids:
+            yield event.plain_result("❌ 当前没有注册用户。")
+            return
+        affected = 0
+        total_deducted = 0
+        for uid in user_ids:
+            user = self.user_repo.get_by_id(uid)
+            if not user:
+                continue
+            if user.premium_currency <= 0:
+                continue
+            deduct = amount_int if user.premium_currency >= amount_int else user.premium_currency
+            if deduct <= 0:
+                continue
+            user.premium_currency -= deduct
+            self.user_repo.update(user)
+            affected += 1
+            total_deducted += deduct
+        yield event.plain_result(f"✅ 已从 {affected} 位用户总计扣除 {total_deducted} 高级货币（每人至多 {amount_int}）")
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("奖励金币")
     async def reward_coins(self, event: AstrMessageEvent):
