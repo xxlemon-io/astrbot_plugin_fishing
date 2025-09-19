@@ -52,17 +52,10 @@ def to_percentage(value: float) -> str:
     else:
         return f"{(value - 1) * 100:.2f}%"
 
-def format_rarity_display(rarity: int) -> str:
-    """格式化稀有度显示，支持显示到10星，10星以上显示为⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐+"""
-    if rarity <= 10:
-        return '⭐' * rarity
-    else:
-        return '⭐⭐⭐⭐⭐⭐⭐⭐⭐⭐+'
-
 def format_accessory_or_rod(accessory_or_rod: dict) -> str:
     """格式化配件信息"""
     message =  f" - ID: {accessory_or_rod['instance_id']}\n"
-    message += f" - {accessory_or_rod['name']} (稀有度: {format_rarity_display(accessory_or_rod['rarity'])})\n"
+    message += f" - {accessory_or_rod['name']} (稀有度: {'⭐' * accessory_or_rod['rarity']})\n"
     if accessory_or_rod.get("is_equipped", False):
         message += f"   - {'✅ 已装备'}\n"
     if accessory_or_rod.get("bonus_fish_quality_modifier", 1.0) != 1.0 and accessory_or_rod.get("bonus_fish_quality_modifier", 1) != 1 and accessory_or_rod.get("bonus_fish_quality_modifier", 1) > 0:
