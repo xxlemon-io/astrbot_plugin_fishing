@@ -106,13 +106,15 @@ class SqliteGachaRepository(AbstractGachaRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO gacha_pools (name, description, cost_coins, cost_premium_currency)
-                VALUES (:name, :description, :cost_coins, :cost_premium_currency)
+                INSERT INTO gacha_pools (name, description, cost_coins, cost_premium_currency, is_limited_time, open_until)
+                VALUES (:name, :description, :cost_coins, :cost_premium_currency, :is_limited_time, :open_until)
             """, {
                 "name": data.get("name"),
                 "description": data.get("description"),
                 "cost_coins": data.get("cost_coins", 0),
-                "cost_premium_currency": data.get("cost_premium_currency", 0)
+                "cost_premium_currency": data.get("cost_premium_currency", 0),
+                "is_limited_time": 1 if data.get("is_limited_time") in (True, "1", 1, "on") else 0,
+                "open_until": data.get("open_until")
             })
             conn.commit()
 
@@ -126,14 +128,18 @@ class SqliteGachaRepository(AbstractGachaRepository):
                     name = :name,
                     description = :description,
                     cost_coins = :cost_coins,
-                    cost_premium_currency = :cost_premium_currency
+                    cost_premium_currency = :cost_premium_currency,
+                    is_limited_time = :is_limited_time,
+                    open_until = :open_until
                 WHERE gacha_pool_id = :gacha_pool_id
             """, {
                 "gacha_pool_id": pool_id,
                 "name": data.get("name"),
                 "description": data.get("description"),
                 "cost_coins": data.get("cost_coins", 0),
-                "cost_premium_currency": data.get("cost_premium_currency", 0)
+                "cost_premium_currency": data.get("cost_premium_currency", 0),
+                "is_limited_time": 1 if data.get("is_limited_time") in (True, "1", 1, "on") else 0,
+                "open_until": data.get("open_until")
             })
             conn.commit()
 
@@ -157,13 +163,15 @@ class SqliteGachaRepository(AbstractGachaRepository):
             
             # 创建新卡池，名称加上"(副本)"
             cursor.execute("""
-                INSERT INTO gacha_pools (name, description, cost_coins, cost_premium_currency)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO gacha_pools (name, description, cost_coins, cost_premium_currency, is_limited_time, open_until)
+                VALUES (?, ?, ?, ?, ?, ?)
             """, (
                 f"{original_pool['name']} (副本)",
                 original_pool['description'],
                 original_pool['cost_coins'],
-                original_pool['cost_premium_currency']
+                original_pool['cost_premium_currency'],
+                original_pool['is_limited_time'] if 'is_limited_time' in original_pool.keys() else 0,
+                original_pool['open_until'] if 'open_until' in original_pool.keys() else None
             ))
             
             # 获取新卡池ID

@@ -110,6 +110,9 @@ class GachaPool:
     description: Optional[str] = None
     cost_coins: int = 0
     cost_premium_currency: int = 0
+    # 限时开放控制
+    is_limited_time: int = 0  # 0/1 存储于数据库，前端按布尔使用
+    open_until: Optional[str] = None  # 以文本存储的ISO时间（SQLite）
     # 这个字段让模型更丰富，可以在服务层组装，存放该池的所有奖品
     items: List[GachaPoolItem] = field(default_factory=list)
 
