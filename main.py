@@ -38,7 +38,7 @@ from .core.utils import get_now
 from .draw.rank import draw_fishing_ranking
 from .draw.help import draw_help_image
 from .manager.server import create_app
-from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_datetime_handler, _is_port_available, format_rarity_display
+from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_datetime_handler, _is_port_available, format_rarity_display, kill_processes_on_port
 
 
 class FishingPlugin(Star):
@@ -1650,21 +1650,36 @@ class FishingPlugin(Star):
     @filter.command("关闭钓鱼后台管理")
     async def stop_admin(self, event: AstrMessageEvent):
         """关闭钓鱼后台管理"""
-        if not hasattr(self, "web_admin_task") or not self.web_admin_task or self.web_admin_task.done():
-            yield event.plain_result("❌ 钓鱼后台管理没有在运行中")
-            return
+        # 即使任务不存在，也继续检查端口占用并尝试释放
+        task_exists_and_running = hasattr(self, "web_admin_task") and self.web_admin_task and not self.web_admin_task.done()
 
         try:
-            # 1. 请求取消任务
-            self.web_admin_task.cancel()
-            # 2. 等待任务实际被取消
-            await self.web_admin_task
-        except asyncio.CancelledError:
-            # 3. 捕获CancelledError，这是成功关闭的标志
-            logger.info("钓鱼插件Web管理后台已成功关闭。")
-            yield event.plain_result("✅ 钓鱼后台已关闭。")
+            if task_exists_and_running:
+                self.web_admin_task.cancel()
+                try:
+                    await self.web_admin_task
+                except asyncio.CancelledError:
+                    pass
+
+            # 如果端口仍被占用，尝试杀死占用进程
+            if not await _is_port_available(self.port):
+                logger.info(f"端口 {self.port} 仍被占用，尝试清理...")
+                ok, killed = kill_processes_on_port(self.port)
+                
+                if ok and killed:
+                    logger.info(f"成功清理端口 {self.port}，终止进程: {killed}")
+                    yield event.plain_result(f"✅ 钓鱼后台已关闭，已清理 {len(killed)} 个占用端口的进程。")
+                elif ok and not killed:
+                    yield event.plain_result("✅ 钓鱼后台已关闭，端口已释放。")
+                elif killed:
+                    logger.warning(f"部分清理端口 {self.port}，终止进程: {killed}，但端口可能仍被占用")
+                    yield event.plain_result(f"⚠️ 已终止 {len(killed)} 个进程，但端口可能仍被占用。在容器环境中这可能是正常的。")
+                else:
+                    logger.error(f"无法清理端口 {self.port}，可能是权限不足或工具缺失")
+                    yield event.plain_result(f"⚠️ 无法清理端口 {self.port}。可能原因：\n- 容器环境缺少必要工具\n- 权限不足\n- 请手动重启容器或检查端口占用")
+            else:
+                yield event.plain_result("✅ 钓鱼后台已关闭。")
         except Exception as e:
-            # 4. 捕获其他可能的意外错误
             logger.error(f"关闭钓鱼后台管理时发生意外错误: {e}", exc_info=True)
             yield event.plain_result(f"❌ 关闭钓鱼后台管理失败: {e}")
 
