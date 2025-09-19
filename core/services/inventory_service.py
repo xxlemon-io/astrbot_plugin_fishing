@@ -474,12 +474,19 @@ class InventoryService:
 
         # 解包配置
         instance = config["instance"]
+        template = config["template"]
         item_name = config["item_name"]
         id_field = config["id_field"]
 
         # 检查精炼等级
         if instance.refine_level > 10:
             return {"success": False, "message": "已达到最高精炼等级"}
+
+        # 获取装备稀有度
+        rarity = template.rarity if hasattr(template, 'rarity') else 5
+
+        # 根据稀有度调整精炼费用和成功率
+        refine_costs, success_rates = self._get_refine_config_by_rarity(rarity, refine_costs)
 
         # 获取同类型物品列表
         same_items = config["same_items"]
@@ -488,10 +495,14 @@ class InventoryService:
 
         # 查找合适的消耗品进行精炼
         refine_result = self._find_refinement_candidate(
-            user, instance, same_items, refine_costs, id_field, item_type
+            user, instance, same_items, refine_costs, id_field, item_type, success_rates
         )
 
         if not refine_result["success"]:
+            # 如果是成功率失败，直接返回
+            if refine_result.get("failed", False):
+                return refine_result
+            # 其他失败情况（如金币不足）
             return refine_result
 
         # 检查是否发生毁坏（6级开始50%概率）
@@ -533,6 +544,48 @@ class InventoryService:
             "new_refine_level": instance.refine_level
         }
 
+    def _get_refine_config_by_rarity(self, rarity: int, base_costs: dict) -> tuple:
+        """
+        根据装备稀有度获取精炼费用和成功率
+        
+        Args:
+            rarity: 装备稀有度 (1-10星)
+            base_costs: 基础费用表
+            
+        Returns:
+            tuple: (调整后的费用表, 成功率表)
+        """
+        # 1-4星装备更容易精炼，按梯度设计
+        if rarity <= 4:
+            # 费用按稀有度梯度递减：1星最便宜，4星稍贵
+            cost_multiplier = 0.2 + (rarity - 1) * 0.1  # 1星20%, 2星30%, 3星40%, 4星50%
+            adjusted_costs = {level: int(cost * cost_multiplier) for level, cost in base_costs.items()}
+            
+            # 成功率按稀有度梯度递减：1星最高，4星稍低
+            base_success_rate = 0.95 - (rarity - 1) * 0.05  # 1星95%, 2星90%, 3星85%, 4星80%
+            success_rates = {}
+            for level in range(1, 11):
+                if level <= 4:
+                    success_rates[level] = base_success_rate  # 1-4级保持基础成功率
+                elif level <= 6:
+                    success_rates[level] = base_success_rate - 0.1  # 5-6级降低10%
+                elif level <= 8:
+                    success_rates[level] = base_success_rate - 0.2  # 7-8级降低20%
+                else:
+                    success_rates[level] = base_success_rate - 0.3  # 9-10级降低30%
+            
+        # 5星及以上装备保持现有逻辑
+        else:
+            adjusted_costs = base_costs.copy()
+            # 5星及以上装备成功率较低
+            success_rates = {
+                1: 0.8, 2: 0.8, 3: 0.8, 4: 0.8,
+                5: 0.7, 6: 0.6, 7: 0.5, 8: 0.4,
+                9: 0.3, 10: 0.2
+            }
+        
+        return adjusted_costs, success_rates
+
     def _get_item_config(self, item_type, instance_id, user_id) -> Dict[str, Any]:
         """获取物品配置信息"""
         if item_type == "rod":
@@ -571,7 +624,7 @@ class InventoryService:
                 "id_field": "accessory_instance_id"
             }
 
-    def _find_refinement_candidate(self, user, instance, same_items, refine_costs, id_field, item_type):
+    def _find_refinement_candidate(self, user, instance, same_items, refine_costs, id_field, item_type, success_rates=None):
         """查找可用于精炼的候选物品"""
         refine_level_from = instance.refine_level
         min_cost = None
@@ -597,6 +650,20 @@ class InventoryService:
             # 检查用户是否有足够的金币
             if not user.can_afford(total_cost):
                 continue
+
+            # 检查成功率（如果提供了成功率表）
+            if success_rates:
+                target_level = new_refine_level
+                success_rate = success_rates.get(target_level, 1.0)
+                
+                import random
+                if random.random() > success_rate:
+                    # 精炼失败，返回失败消息
+                    return {
+                        "success": False, 
+                        "message": f"精炼失败！运气不佳，{item_type}未能成功精炼。",
+                        "failed": True
+                    }
 
             # 执行精炼操作
             self._perform_refinement(user, instance, candidate, new_refine_level, total_cost, item_type)
