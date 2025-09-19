@@ -477,7 +477,16 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             # 稀有度和精炼等级
             rarity = rod.get('rarity', 1)
             refine_level = rod.get('refine_level', 1)
-            star_color = rare_color if (rarity > 4 and refine_level > 4) else warning_color if rarity > 3 else text_secondary
+            if refine_level >= 10:
+                star_color = (255, 0, 0)  # 红色 - 10级
+            elif refine_level >= 6:
+                star_color = (255, 165, 0)  # 橙色 - 6-9级
+            elif rarity > 4 and refine_level > 4:
+                star_color = rare_color
+            elif rarity > 3:
+                star_color = warning_color
+            else:
+                star_color = text_secondary
             draw.text((x + 15, y + 40), f"{format_rarity_display(rarity)} Lv.{refine_level}", font=small_font, fill=star_color)
             
             # 装备状态
@@ -576,7 +585,16 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             # 稀有度和精炼等级
             rarity = accessory.get('rarity', 1)
             refine_level = accessory.get('refine_level', 1)
-            star_color = rare_color if (rarity > 4 and refine_level > 4) else warning_color if rarity > 3 else text_secondary
+            if refine_level >= 10:
+                star_color = (255, 0, 0)  # 红色 - 10级
+            elif refine_level >= 6:
+                star_color = (255, 165, 0)  # 橙色 - 6-9级
+            elif rarity > 4 and refine_level > 4:
+                star_color = rare_color
+            elif rarity > 3:
+                star_color = warning_color
+            else:
+                star_color = text_secondary
             draw.text((x + 15, y + 40), f"{format_rarity_display(rarity)} Lv.{refine_level}", font=small_font, fill=star_color)
             
             # 装备状态

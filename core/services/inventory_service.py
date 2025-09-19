@@ -457,8 +457,12 @@ class InventoryService:
         if not user:
             return {"success": False, "message": "用户不存在"}
 
-        # 精炼费用表
-        refine_costs = {1: 10000, 2: 30000, 3: 50000, 4: 100000}
+        # 精炼费用表 (1-10级)
+        refine_costs = {
+            1: 10000, 2: 30000, 3: 50000, 4: 100000,
+            5: 200000, 6: 500000, 7: 1000000, 8: 2000000,
+            9: 5000000, 10: 10000000
+        }
 
         # 根据物品类型设置相关配置
         if item_type not in ["rod", "accessory"]:
@@ -474,7 +478,7 @@ class InventoryService:
         id_field = config["id_field"]
 
         # 检查精炼等级
-        if instance.refine_level > 4:
+        if instance.refine_level > 10:
             return {"success": False, "message": "已达到最高精炼等级"}
 
         # 获取同类型物品列表
@@ -489,6 +493,22 @@ class InventoryService:
 
         if not refine_result["success"]:
             return refine_result
+
+        # 检查是否发生毁坏（6级开始50%概率）
+        if instance.refine_level >= 6:
+            import random
+            if random.random() < 0.5:  # 50%概率毁坏
+                # 删除装备
+                if item_type == "rod":
+                    self.inventory_repo.delete_rod_instance(instance.rod_instance_id)
+                else:  # accessory
+                    self.inventory_repo.delete_accessory_instance(instance.accessory_instance_id)
+                
+                return {
+                    "success": False,
+                    "message": f"💥 精炼失败！{item_name}在精炼过程中毁坏了！",
+                    "destroyed": True
+                }
 
         return {
             "success": True,
@@ -546,7 +566,7 @@ class InventoryService:
                 continue
 
             # 计算精炼后的等级上限
-            new_refine_level = min(candidate.refine_level + instance.refine_level, 5)
+            new_refine_level = min(candidate.refine_level + instance.refine_level, 10)
 
             # 计算精炼成本
             total_cost = 0
