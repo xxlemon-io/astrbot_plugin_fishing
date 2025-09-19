@@ -279,8 +279,8 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         
         # 检查是否有耐久度信息，如果有则增加高度
         durability_height = 0
-        if rod.get('current_durability') is not None and rod.get('max_durability') is not None:
-            durability_height = 20  # 耐久度显示的额外高度
+        if rod.get('max_durability') is not None or rod.get('current_durability') is None:
+            durability_height = 20  # 耐久度显示的额外高度（包括无限耐久）
         
         header_height = 85 + durability_height
         bottom_pad = 20
@@ -506,7 +506,8 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                 draw.text((x + 15, y + 60), "未装备", font=small_font, fill=text_muted)
             
             # 显示耐久度
-            if current_dur is not None and max_dur is not None:
+            if max_dur is not None:
+                # 有限耐久装备
                 durability_text = f"耐久: {current_dur}/{max_dur}"
                 # 根据耐久度设置颜色
                 durability_ratio = current_dur / max_dur if max_dur > 0 else 0
@@ -516,6 +517,12 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                     dur_color = (255, 165, 0)  # 橙色
                 else:
                     dur_color = (255, 0, 0)  # 红色
+                draw.text((x + 15, y + 80), durability_text, font=tiny_font, fill=dur_color)
+                bonus_y = y + 105  # 调整后续内容位置
+            elif current_dur is None:
+                # 无限耐久装备
+                durability_text = "耐久: ∞"
+                dur_color = (0, 255, 255)  # 青色表示无限
                 draw.text((x + 15, y + 80), durability_text, font=tiny_font, fill=dur_color)
                 bonus_y = y + 105  # 调整后续内容位置
             else:
