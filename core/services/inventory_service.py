@@ -345,13 +345,19 @@ class InventoryService:
         equip_item_id = None
         # 验证物品归属
         if item_type == "rod":
-            instances = self.inventory_repo.get_user_rod_instances(user_id)
-            for instance in instances:
-                if instance.rod_instance_id == instance_id:
-                    equip_item_id = instance.rod_id
-                    break
-            if instance_id not in [i.rod_instance_id for i in instances]:
+            # 获取目标实例并校验归属
+            target_instance = self.inventory_repo.get_user_rod_instance_by_id(user_id, instance_id)
+            if not target_instance:
                 return {"success": False, "message": "❌ 鱼竿不存在或不属于你"}
+            equip_item_id = target_instance.rod_id
+
+            # 阻止装备 0 耐久（非无限）鱼竿
+            if target_instance.current_durability is not None and target_instance.current_durability <= 0:
+                return {
+                    "success": False,
+                    "message": "❌ 该鱼竿已损坏（耐久为 0），无法装备。请精炼成功以恢复耐久或更换鱼竿。"
+                }
+
             user.equipped_rod_instance_id = instance_id
             equip_item_name = self.item_template_repo.get_rod_by_id(equip_item_id).name
 
