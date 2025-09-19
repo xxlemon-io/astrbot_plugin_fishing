@@ -256,7 +256,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
                 dur_color = error_color    # 使用错误色 - 温和红
         elif current_dur is None:
             # 无限耐久装备
-            durability_text = " (永久)"
+            durability_text = " (无限耐久)"
             dur_color = primary_light     # 使用主色调 - 淡雅蓝，与UI风格一致
         else:
             durability_text = ""

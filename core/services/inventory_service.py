@@ -817,7 +817,7 @@ class InventoryService:
             if hasattr(instance, 'current_durability'):
                 if instance.current_durability is None and is_first_infinite:
                     # 首次获得无限耐久的特殊庆祝消息
-                    success_message += f" 🎉✨ 装备已达到完美状态，获得永久耐久！这是真正的神器！ ✨🎉"
+                    success_message += f" 🎉✨ 装备已达到完美状态，获得无限耐久！这是真正的神器！ ✨🎉"
                 elif instance.current_durability is not None:
                     # 普通耐久度恢复消息
                     success_message += f" 耐久度已恢复并提升至 {instance.current_durability}！"
