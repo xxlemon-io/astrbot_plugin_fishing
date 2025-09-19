@@ -277,57 +277,8 @@ async def delete_accessory(accessory_id):
 async def manage_gacha():
     item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
     pools = item_template_service.get_all_gacha_pools()
-    
-    # 为每个卡池添加物品详情信息（包含星级）
-    enriched_pools = []
-    for pool in pools:
-        pool_dict = pool.__dict__.copy()
-        
-        # 获取卡池物品并添加详细信息
-        enriched_items = []
-        for item in pool.items:
-            item_dict = item.__dict__.copy()
-            item_name = "未知物品"
-            item_rarity = None
-            item_type = item.item_type
-            item_id = item.item_id
-
-            # 根据类型获取名称和星级
-            if item_type == "rod":
-                template = item_template_service.item_template_repo.get_rod_by_id(item_id)
-                if template:
-                    item_name = template.name
-                    item_rarity = template.rarity
-            elif item_type == "accessory":
-                template = item_template_service.item_template_repo.get_accessory_by_id(item_id)
-                if template:
-                    item_name = template.name
-                    item_rarity = template.rarity
-            elif item_type == "bait":
-                template = item_template_service.item_template_repo.get_bait_by_id(item_id)
-                if template:
-                    item_name = template.name
-                    item_rarity = template.rarity
-            elif item_type == "fish":
-                template = item_template_service.item_template_repo.get_fish_by_id(item_id)
-                if template:
-                    item_name = template.name
-                    item_rarity = template.rarity
-            elif item_type == "titles":
-                template = item_template_service.item_template_repo.get_title_by_id(item_id)
-                if template:
-                    item_name = template.name
-            elif item_type == "coins":
-                item_name = f"{item.quantity} 金币"
-
-            item_dict["item_name"] = item_name
-            item_dict["rarity"] = item_rarity
-            enriched_items.append(item_dict)
-        
-        pool_dict["items"] = enriched_items
-        enriched_pools.append(pool_dict)
-    
-    return await render_template("gacha.html", pools=enriched_pools)
+    # 直接渲染，不再拼装包含物品的展示数据
+    return await render_template("gacha.html", pools=pools)
 
 
 @admin_bp.route("/gacha/add", methods=["POST"])

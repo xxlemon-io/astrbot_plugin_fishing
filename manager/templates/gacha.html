@@ -15,24 +15,7 @@
             <div class="card-body">
                 <h5 class="card-title">{{ pool.name }} (ID: {{ pool.gacha_pool_id }})</h5>
                 <p class="card-text">{{ pool.description or '无描述' }}</p>
-                <div class="mb-2">
-                    <h6 class="text-muted mb-1">包含物品：</h6>
-                    {% if pool.items %}
-                        {% for item in pool.items[:3] %}
-                            <span class="badge bg-light text-dark me-1">
-                                {{ item.item_name }}
-                                {% if item.rarity %}
-                                    <span class="text-warning">{{ '★' * item.rarity }}</span>
-                                {% endif %}
-                            </span>
-                        {% endfor %}
-                        {% if pool.items|length > 3 %}
-                            <span class="badge bg-secondary">+{{ pool.items|length - 3 }}更多</span>
-                        {% endif %}
-                    {% else %}
-                        <span class="text-muted">暂无物品</span>
-                    {% endif %}
-                </div>
+                
                 <p>
                     {% if pool.cost_premium_currency and pool.cost_premium_currency > 0 %}
                         <span class="badge bg-warning text-dark">花费：高级货币 {{ pool.cost_premium_currency }}</span>
