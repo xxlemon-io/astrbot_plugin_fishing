@@ -184,6 +184,72 @@ class MarketService:
 
         return {"success": True, "message": f"✅ 购买成功，花费 {listing.price} 金币！"}
 
+    def delist_item(self, user_id: str, market_id: int) -> Dict[str, Any]:
+        """
+        用户下架自己的商品
+        """
+        # 检查用户是否存在
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        # 获取商品信息
+        listing = self.market_repo.get_listing_by_id(market_id)
+        if not listing:
+            return {"success": False, "message": "该商品不存在或已被下架"}
+
+        # 检查是否为物品所有者
+        if listing.user_id != user_id:
+            return {"success": False, "message": "你只能下架自己的商品"}
+
+        # 将物品返还给用户
+        try:
+            if listing.item_type == "rod":
+                # 返还鱼竿
+                rod_template = self.item_template_repo.get_rod_by_id(listing.item_id)
+                self.inventory_repo.add_rod_instance(
+                    user_id=user_id,
+                    rod_id=listing.item_id,
+                    durability=rod_template.durability if rod_template else None,
+                    refine_level=listing.refine_level
+                )
+            elif listing.item_type == "accessory":
+                # 返还饰品
+                self.inventory_repo.add_accessory_instance(
+                    user_id=user_id,
+                    accessory_id=listing.item_id,
+                    refine_level=listing.refine_level
+                )
+            else:
+                return {"success": False, "message": "不支持的物品类型"}
+
+            # 从市场移除商品
+            self.market_repo.remove_listing(market_id)
+
+            return {"success": True, "message": f"✅ 成功下架 {listing.item_name}，物品已返还到背包"}
+
+        except Exception as e:
+            logger.error(f"下架物品时发生错误: {e}")
+            return {"success": False, "message": f"下架失败: {str(e)}"}
+
+    def get_user_listings(self, user_id: str) -> Dict[str, Any]:
+        """
+        获取用户在市场上架的所有商品
+        """
+        try:
+            # 获取用户所有商品列表
+            all_listings, _ = self.market_repo.get_all_listings()
+            user_listings = [listing for listing in all_listings if listing.user_id == user_id]
+            
+            return {
+                "success": True,
+                "listings": user_listings,
+                "count": len(user_listings)
+            }
+        except Exception as e:
+            logger.error(f"获取用户商品列表时发生错误: {e}")
+            return {"success": False, "message": f"获取商品列表失败: {str(e)}"}
+
     # --- 管理员功能 ---
 
     def get_all_market_listings_for_admin(self, page: int = 1, per_page: int = 20, 

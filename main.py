@@ -841,6 +841,52 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
+    @filter.command("我的上架", alias={"上架列表", "我的商品"})
+    async def my_listings(self, event: AstrMessageEvent):
+        """查看我在市场上架的商品"""
+        user_id = event.get_sender_id()
+        result = self.market_service.get_user_listings(user_id)
+        if result["success"]:
+            listings = result["listings"]
+            if not listings:
+                yield event.plain_result("📦 您还没有在市场上架任何商品。")
+                return
+            
+            message = f"【🛒 我的上架商品】共 {result['count']} 件\n\n"
+            for listing in listings:
+                message += f"🆔 ID: {listing.market_id}\n"
+                message += f"📦 {listing.item_name}"
+                if listing.refine_level > 1:
+                    message += f" 精{listing.refine_level}"
+                message += f"\n💰 价格: {listing.price} 金币\n"
+                message += f"📅 上架时间: {listing.listed_at.strftime('%Y-%m-%d %H:%M')}\n\n"
+            message += "💡 使用「下架 ID」命令下架指定商品"
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result(f"❌ 查询失败：{result['message']}")
+
+    @filter.command("下架")
+    async def delist_item(self, event: AstrMessageEvent):
+        """下架市场上的商品"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要下架的商品 ID，例如：/下架 12\n💡 使用「我的上架」命令查看您的商品列表")
+            return
+        market_id = args[1]
+        if not market_id.isdigit():
+            yield event.plain_result("❌ 商品 ID 必须是数字，请检查后重试。")
+            return
+        market_id = int(market_id)
+        result = self.market_service.delist_item(user_id, market_id)
+        if result:
+            if result["success"]:
+                yield event.plain_result(result["message"])
+            else:
+                yield event.plain_result(f"❌ 下架失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
     # ===========抽卡与概率玩法==========
     @filter.command("抽卡", alias={"抽奖"})
     async def gacha(self, event: AstrMessageEvent):
