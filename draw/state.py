@@ -238,10 +238,19 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     if current_rod:
         rod_name = current_rod['name'][:15] + "..." if len(current_rod['name']) > 15 else current_rod['name']
         draw.text((left_col_x, equipment_row2_y), rod_name, font=content_font, fill=text_primary)
-        # 根据稀有度选择颜色
+        # 根据稀有度和精炼等级选择颜色
         rarity = current_rod.get('rarity', 1)
         refined_level = current_rod.get('refine_level', 1)
-        star_color = rare_color if (rarity > 4 and refined_level > 4) else warning_color if rarity > 3 else text_secondary
+        if refined_level >= 10:
+            star_color = (255, 0, 0)  # 红色 - 10级
+        elif refined_level >= 6:
+            star_color = (255, 165, 0)  # 橙色 - 6-9级
+        elif rarity > 4 and refined_level > 4:
+            star_color = rare_color
+        elif rarity > 3:
+            star_color = warning_color
+        else:
+            star_color = text_secondary
         draw.text((left_col_x, equipment_row3_y), f"{format_rarity_display(rarity)} Lv.{refined_level}", font=tiny_font, fill=star_color)
     else:
         draw.text((left_col_x, equipment_row2_y), "未装备", font=content_font, fill=text_muted)
@@ -256,7 +265,16 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         draw.text((left_col_x, equipment_row5_y), acc_name, font=content_font, fill=text_primary)
         rarity = current_accessory.get('rarity', 1)
         refined_level = current_accessory.get('refine_level', 1)
-        star_color = rare_color if (rarity > 4 and refined_level > 4) else warning_color if rarity > 3 else text_secondary
+        if refined_level >= 10:
+            star_color = (255, 0, 0)  # 红色 - 10级
+        elif refined_level >= 6:
+            star_color = (255, 165, 0)  # 橙色 - 6-9级
+        elif rarity > 4 and refined_level > 4:
+            star_color = rare_color
+        elif rarity > 3:
+            star_color = warning_color
+        else:
+            star_color = text_secondary
         draw.text((left_col_x, equipment_row6_y), f"{format_rarity_display(rarity)} Lv.{refined_level}", font=tiny_font, fill=star_color)
     else:
         draw.text((left_col_x, equipment_row5_y), "未装备", font=content_font, fill=text_muted)

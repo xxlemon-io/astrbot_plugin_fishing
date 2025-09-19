@@ -170,7 +170,13 @@
                         </td>
                         <td>
                             {% if listing.refine_level is not none %}
-                                <span class="badge bg-info">+{{ listing.refine_level }}</span>
+                                {% if listing.refine_level >= 10 %}
+                                    <span class="badge" style="background-color: #dc3545;">+{{ listing.refine_level }}</span>
+                                {% elif listing.refine_level >= 6 %}
+                                    <span class="badge" style="background-color: #fd7e14;">+{{ listing.refine_level }}</span>
+                                {% else %}
+                                    <span class="badge bg-info">+{{ listing.refine_level }}</span>
+                                {% endif %}
                             {% else %}
                                 <span class="badge bg-secondary">未知</span>
                             {% endif %}
