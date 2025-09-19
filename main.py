@@ -313,7 +313,7 @@ class FishingPlugin(Star):
             for rarity in sorted(fished_by_rarity.keys(), reverse=True):
                 fish_list = fished_by_rarity[rarity]
                 if fish_list:
-                    message += f"\n {'⭐' * rarity } 稀有度 {rarity}：\n"
+                    message += f"\n {format_rarity_display(rarity)} 稀有度 {rarity}：\n"
                     for fish in fish_list:
                         message += f"  - {fish['name']} x  {fish['quantity']} （{fish['base_value']}金币 / 个） \n"
             message += f"\n🐟 总鱼数：{pond_fish['stats']['total_count']} 条\n"
@@ -394,7 +394,7 @@ class FishingPlugin(Star):
             # 构造输出信息,附带emoji
             message = "【🐟 鱼饵】：\n"
             for bait in bait_info["baits"]:
-                message += f" - {bait['name']} x {bait['quantity']} (稀有度: {'⭐' * bait['rarity']})\n"
+                message += f" - {bait['name']} x {bait['quantity']} (稀有度: {format_rarity_display(bait['rarity'])})\n"
                 message += f"   - ID: {bait['bait_id']}\n"
                 if bait["duration_minutes"] > 0:
                     message += f"   - 持续时间: {bait['duration_minutes']} 分钟\n"
