@@ -271,13 +271,30 @@ class FishingService:
         user.total_weight_caught += weight
         user.total_coins_earned += value
         user.last_fishing_time = get_now()
-        self.user_repo.update(user)
-
-        # 判断用户的鱼竿和饰品是否真实存在
+        
+        # 处理装备耐久度消耗
+        equipment_broken_messages = []
+        
+        # 判断用户的鱼竿是否存在并处理耐久度
         if user.equipped_rod_instance_id:
             rod_instance = self.inventory_repo.get_user_rod_instance_by_id(user.user_id, user.equipped_rod_instance_id)
             if not rod_instance:
                 user.equipped_rod_instance_id = None
+            else:
+                # 减少鱼竿耐久度
+                if rod_instance.current_durability is not None and rod_instance.current_durability > 0:
+                    rod_instance.current_durability -= 1
+                    self.inventory_repo.update_rod_instance(rod_instance)
+                    
+                    # 检查鱼竿是否损坏
+                    if rod_instance.current_durability <= 0:
+                        # 鱼竿损坏，自动卸下
+                        user.equipped_rod_instance_id = None
+                        rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
+                        rod_name = rod_template.name if rod_template else "鱼竿"
+                        equipment_broken_messages.append(f"⚠️ 您的{rod_name}已损坏，自动卸下！")
+        
+        # 判断用户的饰品是否存在（饰品暂时不消耗耐久度）
         if user.equipped_accessory_instance_id:
             accessory_instance = self.inventory_repo.get_user_accessory_instance_by_id(user.user_id, user.equipped_accessory_instance_id)
             if not accessory_instance:
@@ -301,7 +318,7 @@ class FishingService:
         self.log_repo.add_fishing_record(record)
 
         # 6. 构建成功返回结果
-        return {
+        result = {
             "success": True,
             "fish": {
                 "name": fish_template.name,
@@ -310,6 +327,12 @@ class FishingService:
                 "value": value
             }
         }
+        
+        # 添加装备损坏消息
+        if equipment_broken_messages:
+            result["equipment_broken_messages"] = equipment_broken_messages
+        
+        return result
 
     def get_user_pokedex(self, user_id: str) -> Dict[str, Any]:
         """获取用户的图鉴信息。"""

@@ -212,8 +212,14 @@ class FishingPlugin(Star):
         result = self.fishing_service.go_fish(user_id)
         if result:
             if result["success"]:
-                yield event.plain_result(
-                    f"🎣 恭喜你钓到了：{result['fish']['name']}\n✨品质：{'★' * result['fish']['rarity']} \n⚖️重量：{result['fish']['weight']} 克\n💰价值：{result['fish']['value']} 金币")
+                message = f"🎣 恭喜你钓到了：{result['fish']['name']}\n✨品质：{'★' * result['fish']['rarity']} \n⚖️重量：{result['fish']['weight']} 克\n💰价值：{result['fish']['value']} 金币"
+                
+                # 添加装备损坏消息
+                if "equipment_broken_messages" in result:
+                    for broken_msg in result["equipment_broken_messages"]:
+                        message += f"\n{broken_msg}"
+                
+                yield event.plain_result(message)
             else:
                 yield event.plain_result(result["message"])
         else:

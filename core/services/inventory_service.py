@@ -72,6 +72,8 @@ class InventoryService:
                     "bonus_fish_quantity_modifier": calculate_after_refine(rod_template.bonus_fish_quantity_modifier, refine_level= rod_instance.refine_level),
                     "bonus_rare_fish_chance": calculate_after_refine(rod_template.bonus_rare_fish_chance, refine_level= rod_instance.refine_level),
                     "refine_level": rod_instance.refine_level,
+                    "current_durability": rod_instance.current_durability,
+                    "max_durability": rod_template.durability,
                 })
         return {
             "success": True,

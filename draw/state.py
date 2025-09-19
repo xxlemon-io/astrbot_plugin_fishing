@@ -252,6 +252,26 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
         else:
             star_color = text_secondary
         draw.text((left_col_x, equipment_row3_y), f"{format_rarity_display(rarity)} Lv.{refined_level}", font=tiny_font, fill=star_color)
+        
+        # 显示耐久度信息
+        if current_rod.get('current_durability') is not None:
+            current_dur = current_rod['current_durability']
+            max_dur = current_rod.get('max_durability')
+            if max_dur:
+                durability_text = f"耐久: {current_dur}/{max_dur}"
+                # 根据耐久度设置颜色
+                durability_ratio = current_dur / max_dur
+                if durability_ratio > 0.6:
+                    dur_color = (0, 255, 0)  # 绿色
+                elif durability_ratio > 0.3:
+                    dur_color = (255, 165, 0)  # 橙色
+                else:
+                    dur_color = (255, 0, 0)  # 红色
+            else:
+                durability_text = f"耐久: {current_dur}"
+                dur_color = text_secondary
+            
+            draw.text((left_col_x, equipment_row3_y + 15), durability_text, font=tiny_font, fill=dur_color)
     else:
         draw.text((left_col_x, equipment_row2_y), "未装备", font=content_font, fill=text_muted)
 
@@ -449,7 +469,9 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
             current_rod = {
                 'name': rod_template.name,
                 'rarity': rod_template.rarity,
-                'refine_level': rod_instance.refine_level
+                'refine_level': rod_instance.refine_level,
+                'current_durability': rod_instance.current_durability,
+                'max_durability': rod_template.durability
             }
     
     # 获取当前装备的饰品
