@@ -509,20 +509,20 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             if max_dur is not None and current_dur is not None:
                 # 有限耐久装备
                 durability_text = f"耐久: {current_dur}/{max_dur}"
-                # 根据耐久度设置颜色
+                # 根据耐久度设置颜色 - 使用与整体设计一致的颜色系统
                 durability_ratio = current_dur / max_dur if max_dur > 0 else 0
                 if durability_ratio > 0.6:
-                    dur_color = (0, 255, 0)  # 绿色
+                    dur_color = success_color  # 使用成功色 - 温和绿
                 elif durability_ratio > 0.3:
-                    dur_color = (255, 165, 0)  # 橙色
+                    dur_color = warning_color  # 使用警告色 - 柔和橙
                 else:
-                    dur_color = (255, 0, 0)  # 红色
+                    dur_color = error_color    # 使用错误色 - 温和红
                 draw.text((x + 15, y + 80), durability_text, font=tiny_font, fill=dur_color)
                 bonus_y = y + 105  # 调整后续内容位置
             elif current_dur is None:
                 # 无限耐久装备
                 durability_text = "耐久: ∞"
-                dur_color = (0, 255, 255)  # 青色表示无限
+                dur_color = primary_light     # 使用主色调 - 淡雅蓝，与UI风格一致
                 draw.text((x + 15, y + 80), durability_text, font=tiny_font, fill=dur_color)
                 bonus_y = y + 105  # 调整后续内容位置
             else:

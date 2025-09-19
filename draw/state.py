@@ -237,7 +237,40 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     current_rod = user_data.get('current_rod')
     if current_rod:
         rod_name = current_rod['name'][:15] + "..." if len(current_rod['name']) > 15 else current_rod['name']
+        
+        # 先获取耐久度信息用于显示
+        current_dur = current_rod.get('current_durability')
+        max_dur = current_rod.get('max_durability')
+        
+         # 在鱼竿名称右边显示耐久度
+         if max_dur is not None and current_dur is not None:
+             # 有限耐久装备
+             durability_text = f" (耐久: {current_dur}/{max_dur})"
+             # 根据耐久度设置颜色 - 使用与整体设计一致的颜色系统
+             durability_ratio = current_dur / max_dur if max_dur > 0 else 0
+             if durability_ratio > 0.6:
+                 dur_color = success_color  # 使用成功色 - 温和绿
+             elif durability_ratio > 0.3:
+                 dur_color = warning_color  # 使用警告色 - 柔和橙
+             else:
+                 dur_color = error_color    # 使用错误色 - 温和红
+         elif current_dur is None:
+             # 无限耐久装备
+             durability_text = " (永久)"
+             dur_color = primary_light     # 使用主色调 - 淡雅蓝，与UI风格一致
+         else:
+             durability_text = ""
+             dur_color = text_primary
+        
+        # 显示鱼竿名称
         draw.text((left_col_x, equipment_row2_y), rod_name, font=content_font, fill=text_primary)
+        
+        # 在鱼竿名称右边显示耐久度
+        if durability_text:
+            rod_name_width = get_text_size(rod_name, content_font)[0]
+            durability_x = left_col_x + rod_name_width + 5  # 5像素间隔
+            draw.text((durability_x, equipment_row2_y), durability_text, font=tiny_font, fill=dur_color)
+        
         # 根据稀有度和精炼等级选择颜色
         rarity = current_rod.get('rarity', 1)
         refined_level = current_rod.get('refine_level', 1)
@@ -251,40 +284,10 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
             star_color = warning_color
         else:
             star_color = text_secondary
+        
         # 稀有度和精炼等级显示
         rarity_refine_text = f"{format_rarity_display(rarity)} Lv.{refined_level}"
         draw.text((left_col_x, equipment_row3_y), rarity_refine_text, font=tiny_font, fill=star_color)
-        
-        # 显示耐久度信息在右边
-        current_dur = current_rod.get('current_durability')
-        max_dur = current_rod.get('max_durability')
-        
-        if max_dur is not None and current_dur is not None:
-            # 有限耐久装备
-            durability_text = f"耐久: {current_dur}/{max_dur}"
-            # 根据耐久度设置颜色
-            durability_ratio = current_dur / max_dur if max_dur > 0 else 0
-            if durability_ratio > 0.6:
-                dur_color = (0, 255, 0)  # 绿色
-            elif durability_ratio > 0.3:
-                dur_color = (255, 165, 0)  # 橙色
-            else:
-                dur_color = (255, 0, 0)  # 红色
-            
-            # 计算稀有度文本宽度，在其右边显示耐久度
-            rarity_text_width = get_text_size(rarity_refine_text, tiny_font)[0]
-            durability_x = left_col_x + rarity_text_width + 15  # 15像素间隔
-            draw.text((durability_x, equipment_row3_y), durability_text, font=tiny_font, fill=dur_color)
-            
-        elif current_dur is None:
-            # 无限耐久装备
-            durability_text = "耐久: ∞"
-            dur_color = (0, 255, 255)  # 青色表示无限
-            
-            # 计算稀有度文本宽度，在其右边显示耐久度
-            rarity_text_width = get_text_size(rarity_refine_text, tiny_font)[0]
-            durability_x = left_col_x + rarity_text_width + 15  # 15像素间隔
-            draw.text((durability_x, equipment_row3_y), durability_text, font=tiny_font, fill=dur_color)
     else:
         draw.text((left_col_x, equipment_row2_y), "未装备", font=content_font, fill=text_muted)
 
