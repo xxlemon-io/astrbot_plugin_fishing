@@ -197,17 +197,19 @@ class SqliteUserRepository(AbstractUserRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             try:
-                # 删除用户相关的所有数据
+                # 显式清理关联数据（即使大多设置了 ON DELETE CASCADE，也做防御性删除）
                 cursor.execute("DELETE FROM user_rods WHERE user_id = ?", (user_id,))
                 cursor.execute("DELETE FROM user_accessories WHERE user_id = ?", (user_id,))
                 cursor.execute("DELETE FROM user_fish_inventory WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM user_bait_inventory WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM user_titles WHERE user_id = ?", (user_id,))
                 cursor.execute("DELETE FROM fishing_records WHERE user_id = ?", (user_id,))
                 cursor.execute("DELETE FROM gacha_records WHERE user_id = ?", (user_id,))
-                cursor.execute("DELETE FROM wipe_bomb_logs WHERE user_id = ?", (user_id,))
-                cursor.execute("DELETE FROM market_listings WHERE user_id = ?", (user_id,))
-                cursor.execute("DELETE FROM tax_records WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM wipe_bomb_log WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM market WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM taxes WHERE user_id = ?", (user_id,))
                 cursor.execute("DELETE FROM user_achievement_progress WHERE user_id = ?", (user_id,))
-                cursor.execute("DELETE FROM check_in_logs WHERE user_id = ?", (user_id,))
+                cursor.execute("DELETE FROM check_ins WHERE user_id = ?", (user_id,))
                 # 最后删除用户
                 cursor.execute("DELETE FROM users WHERE user_id = ?", (user_id,))
                 conn.commit()

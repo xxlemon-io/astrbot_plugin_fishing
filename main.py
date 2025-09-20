@@ -135,6 +135,7 @@ class FishingPlugin(Star):
                                                       self.item_template_repo, self.log_repo)
         self.fishing_service = FishingService(self.user_repo, self.inventory_repo, self.item_template_repo,
                                               self.log_repo, self.game_config)
+        # 取消主动通知注册（按需求不推送用户）
 
         self.item_template_service = ItemTemplateService(self.item_template_repo, self.gacha_repo)
 
@@ -212,8 +213,14 @@ class FishingPlugin(Star):
         result = self.fishing_service.go_fish(user_id)
         if result:
             if result["success"]:
-                yield event.plain_result(
-                    f"🎣 恭喜你钓到了：{result['fish']['name']}\n✨品质：{'★' * result['fish']['rarity']} \n⚖️重量：{result['fish']['weight']} 克\n💰价值：{result['fish']['value']} 金币")
+                message = f"🎣 恭喜你钓到了：{result['fish']['name']}\n✨品质：{'★' * result['fish']['rarity']} \n⚖️重量：{result['fish']['weight']} 克\n💰价值：{result['fish']['value']} 金币"
+                
+                # 添加装备损坏消息
+                if "equipment_broken_messages" in result:
+                    for broken_msg in result["equipment_broken_messages"]:
+                        message += f"\n{broken_msg}"
+                
+                yield event.plain_result(message)
             else:
                 yield event.plain_result(result["message"])
         else:
@@ -468,6 +475,72 @@ class FishingPlugin(Star):
                 yield event.plain_result(f"❌ 精炼饰品失败：{result['message']}")
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("精炼帮助", alias={"精炼说明", "精炼"})
+    async def refine_help(self, event: AstrMessageEvent):
+        """精炼系统帮助（当前版本）"""
+        help_message = """🔨 精炼系统指南（当前版本）
+
+═══════════════════════════════════
+📖 核心规则
+═══════════════════════════════════
+
+• 精炼对象：鱼竿、饰品（同模板之间精炼）
+• 等级范围：1级 → 10级（目前的满级）
+• 消耗条件：同模板材料 + 金币
+• 每次只升1级：精N → 精N+1
+• 材料选择：优先使用“未装备、精炼等级最低”的同模板实例；永不使用正在装备的作为材料
+
+成功：
+• 目标等级+1，消耗1件材料与对应金币
+
+失败：
+• 不消耗材料与金币（装备完好无损，可立即重试）
+
+═══════════════════════════════════
+🌟 稀有度与费用/成功率
+═══════════════════════════════════
+
+🎲 成功率（关键档位）：
+• 1-4星：前期成功率高，后期逐步下降（更易满精）
+• 5星：6→10级约为 60%、50%、45%、40%、35%
+• 6星：6→10级约为 50%、45%、40%、35%、30%
+• 7星及以上：挑战性高，6→10级约为 40%、35%、30%、20%、15%-20%
+
+提示：成功率按“目标新等级”计算（例如精2→精3，用精3的成功率）。
+
+═══════════════════════════════════
+⚡ 属性成长与加成
+═══════════════════════════════════
+
+• 1-3星：≈+15%/级
+• 4星：≈+12%/级
+• 5星：≈+8%/级
+• 6星：≈+5%/级
+• 7星+：≈+3%/级
+
+═══════════════════════════════════
+🏆 耐久度（仅鱼竿）
+═══════════════════════════════════
+
+• 每次钓鱼：鱼竿耐久 -1，降至0自动卸下
+• 精炼成功：耐久恢复至当前最大值
+• 每升1级：最大耐久度 ×1.5（累计）
+• 神器奖励：5星及以上鱼竿精炼到10级 → 获得“无限耐久”（∞）
+• 饰品无耐久度，不受上述规则影响
+
+═══════════════════════════════════
+📝 命令用法
+═══════════════════════════════════
+
+• /精炼鱼竿 [鱼竿实例ID]
+• /精炼饰品 [饰品实例ID]
+• 需要至少两件同模板装备（目标 + 材料）
+• 查看背包以确认实例ID：/背包、/鱼竿、/饰品
+
+"""
+
+        yield event.plain_result(help_message)
 
     @filter.command("使用鱼竿")
     async def use_rod(self, event: AstrMessageEvent):
@@ -1662,36 +1735,21 @@ class FishingPlugin(Star):
     @filter.command("关闭钓鱼后台管理")
     async def stop_admin(self, event: AstrMessageEvent):
         """关闭钓鱼后台管理"""
-        # 即使任务不存在，也继续检查端口占用并尝试释放
-        task_exists_and_running = hasattr(self, "web_admin_task") and self.web_admin_task and not self.web_admin_task.done()
+        if not hasattr(self, "web_admin_task") or not self.web_admin_task or self.web_admin_task.done():
+            yield event.plain_result("❌ 钓鱼后台管理没有在运行中")
+            return
 
         try:
-            if task_exists_and_running:
-                self.web_admin_task.cancel()
-                try:
-                    await self.web_admin_task
-                except asyncio.CancelledError:
-                    pass
-
-            # 如果端口仍被占用，尝试杀死占用进程
-            if not await _is_port_available(self.port):
-                logger.info(f"端口 {self.port} 仍被占用，尝试清理...")
-                ok, killed = kill_processes_on_port(self.port)
-                
-                if ok and killed:
-                    logger.info(f"成功清理端口 {self.port}，终止进程: {killed}")
-                    yield event.plain_result(f"✅ 钓鱼后台已关闭，已清理 {len(killed)} 个占用端口的进程。")
-                elif ok and not killed:
-                    yield event.plain_result("✅ 钓鱼后台已关闭，端口已释放。")
-                elif killed:
-                    logger.warning(f"部分清理端口 {self.port}，终止进程: {killed}，但端口可能仍被占用")
-                    yield event.plain_result(f"⚠️ 已终止 {len(killed)} 个进程，但端口可能仍被占用。在容器环境中这可能是正常的。")
-                else:
-                    logger.error(f"无法清理端口 {self.port}，可能是权限不足或工具缺失")
-                    yield event.plain_result(f"⚠️ 无法清理端口 {self.port}。可能原因：\n- 容器环境缺少必要工具\n- 权限不足\n- 请手动重启容器或检查端口占用")
-            else:
-                yield event.plain_result("✅ 钓鱼后台已关闭。")
+            # 1. 请求取消任务
+            self.web_admin_task.cancel()
+            # 2. 等待任务实际被取消
+            await self.web_admin_task
+        except asyncio.CancelledError:
+            # 3. 捕获CancelledError，这是成功关闭的标志
+            logger.info("钓鱼插件Web管理后台已成功关闭")
+            yield event.plain_result("✅ 钓鱼后台已关闭")
         except Exception as e:
+            # 4. 捕获其他可能的意外错误
             logger.error(f"关闭钓鱼后台管理时发生意外错误: {e}", exc_info=True)
             yield event.plain_result(f"❌ 关闭钓鱼后台管理失败: {e}")
 

@@ -48,7 +48,7 @@ async def _is_port_available(port):
         return False
 
 def _get_pids_listening_on_port(port: int):
-    """返回正在监听指定端口的进程PID列表（Docker容器友好）。"""
+    """返回正在监听指定端口的进程PID列表。"""
     pids = set()
     system_name = platform.system().lower()
 
@@ -90,7 +90,6 @@ def _get_pids_listening_on_port(port: int):
                         for line in result.splitlines():
                             if f":{port} " in line or line.strip().endswith(f":{port}"):
                                 # 查找 pid=XXXX 或 users:(("进程名",pid=XXXX,fd=X))
-                                import re
                                 pid_match = re.search(r'pid=(\d+)', line)
                                 if pid_match:
                                     pids.add(int(pid_match.group(1)))
@@ -107,12 +106,6 @@ def _get_pids_listening_on_port(port: int):
                 except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError):
                     continue
             
-            # 如果所有方法都失败，尝试从 /proc 读取（仅限Linux容器）
-            if not pids:
-                try:
-                    _get_pids_from_proc(port, pids)
-                except Exception:
-                    pass
 
     except Exception as e:
         logger.warning(f"获取端口 {port} 占用进程时出错: {e}")
@@ -123,49 +116,8 @@ def _get_pids_listening_on_port(port: int):
         pids.discard(current_pid)
     return list(pids)
 
-def _get_pids_from_proc(port: int, pids: set):
-    """从 /proc 文件系统获取监听端口的进程（仅Linux）"""
-    try:
-        # 读取 /proc/net/tcp 和 /proc/net/tcp6
-        for tcp_file in ["/proc/net/tcp", "/proc/net/tcp6"]:
-            if not os.path.exists(tcp_file):
-                continue
-            with open(tcp_file, 'r') as f:
-                for line in f:
-                    parts = line.split()
-                    if len(parts) < 10:
-                        continue
-                    local_addr = parts[1]
-                    state = parts[3]
-                    # 状态 0A 表示 LISTEN
-                    if state == "0A":
-                        # 地址格式: IP:PORT (十六进制)
-                        if ":" in local_addr:
-                            hex_port = local_addr.split(":")[1]
-                            if int(hex_port, 16) == port:
-                                inode = parts[9]
-                                # 从 /proc/*/fd/* 找到使用此 inode 的进程
-                                for proc_dir in os.listdir("/proc"):
-                                    if not proc_dir.isdigit():
-                                        continue
-                                    try:
-                                        fd_dir = f"/proc/{proc_dir}/fd"
-                                        if os.path.exists(fd_dir):
-                                            for fd in os.listdir(fd_dir):
-                                                try:
-                                                    link = os.readlink(f"{fd_dir}/{fd}")
-                                                    if f"socket:[{inode}]" == link:
-                                                        pids.add(int(proc_dir))
-                                                        break
-                                                except (OSError, ValueError):
-                                                    continue
-                                    except (OSError, PermissionError):
-                                        continue
-    except Exception:
-        pass
-
 def kill_processes_on_port(port: int):
-    """尝试终止监听指定端口的进程（Docker容器友好）。返回 (success, killed_pids)。"""
+    """尝试终止监听指定端口的进程。返回 (success, killed_pids)。"""
     pids = _get_pids_listening_on_port(port)
     if not pids:
         return True, []
@@ -183,7 +135,7 @@ def kill_processes_on_port(port: int):
                     killed.append(pid)
                 except (subprocess.TimeoutExpired, FileNotFoundError):
                     logger.warning(f"taskkill 不可用或超时，尝试直接终止进程 {pid}")
-                    # 在某些Windows容器中可能需要其他方法
+                    # 必要时可尝试其他方法
                     pass
             else:
                 # Unix-like: 优雅终止 -> 强制终止
@@ -214,8 +166,8 @@ def kill_processes_on_port(port: int):
         except Exception as e:
             logger.warning(f"处理进程 {pid} 时出错: {e}")
 
-    # 等待端口释放（更长时间，适应容器环境）
-    deadline = time.time() + 5
+    # 等待端口释放
+    deadline = time.time() + 3
     while time.time() < deadline:
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -224,7 +176,7 @@ def kill_processes_on_port(port: int):
             sock.close()
             return True, killed
         except Exception:
-            time.sleep(0.3)
+            time.sleep(0.2)
             continue
 
     return len(killed) > 0, killed  # 即使端口未释放，如果杀死了进程也算部分成功

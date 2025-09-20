@@ -2,6 +2,8 @@ import functools
 import os
 import traceback
 from typing import Dict, Any
+import csv
+import io
 
 from quart import (
     Quart, render_template, request, redirect, url_for, session, flash,
@@ -195,6 +197,111 @@ async def delete_rod(rod_id):
     return redirect(url_for("admin_bp.manage_rods"))
 
 
+# --- Rods CSV 模板下载与导入 ---
+@admin_bp.route("/rods/csv/template")
+@login_required
+async def rods_csv_template():
+    header = [
+        "name",
+        "description",
+        "rarity",
+        "source",
+        "purchase_cost",
+        "bonus_fish_quality_modifier",
+        "bonus_fish_quantity_modifier",
+        "bonus_rare_fish_chance",
+        "durability",
+        "icon_url",
+    ]
+    sample = [
+        "示例鱼竿",
+        "这是一个示例描述",
+        "3",
+        "shop",
+        "1000",
+        "1.1",
+        "1.0",
+        "0.05",
+        "",
+        "",
+    ]
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(header)
+    writer.writerow(sample)
+    csv_data = output.getvalue()
+
+    from quart import Response
+    return Response(
+        csv_data,
+        headers={
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": "attachment; filename=rods_template.csv",
+        },
+    )
+
+
+@admin_bp.route("/rods/csv/import", methods=["POST"])
+@login_required
+async def import_rods_csv():
+    try:
+        files = await request.files
+        file = files.get("file")
+        if not file:
+            await flash("未选择文件", "danger")
+            return redirect(url_for("admin_bp.manage_rods"))
+
+        content = file.read().decode("utf-8-sig")
+        reader = csv.DictReader(io.StringIO(content))
+        required_cols = {
+            "name",
+            "rarity",
+            "source",
+            "bonus_fish_quality_modifier",
+            "bonus_fish_quantity_modifier",
+            "bonus_rare_fish_chance",
+        }
+        if not required_cols.issubset(set([c.strip() for c in reader.fieldnames or []])):
+            await flash("CSV列缺失，至少需要: name, rarity, source, 三个加成字段", "danger")
+            return redirect(url_for("admin_bp.manage_rods"))
+
+        item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
+        success_count = 0
+        fail_count = 0
+        for idx, row in enumerate(reader, start=2):  # 从第2行开始（跳过表头）
+            try:
+                data = {
+                    "name": (row.get("name") or "").strip(),
+                    "description": (row.get("description") or "").strip() or None,
+                    "rarity": int(row.get("rarity") or 1),
+                    "source": (row.get("source") or "shop").strip(),
+                    "purchase_cost": int(row["purchase_cost"]) if (row.get("purchase_cost") or "").strip() != "" else None,
+                    "bonus_fish_quality_modifier": float(row.get("bonus_fish_quality_modifier") or 1.0),
+                    "bonus_fish_quantity_modifier": float(row.get("bonus_fish_quantity_modifier") or 1.0),
+                    "bonus_rare_fish_chance": float(row.get("bonus_rare_fish_chance") or 0.0),
+                    "durability": int(row["durability"]) if (row.get("durability") or "").strip() != "" else None,
+                    "icon_url": (row.get("icon_url") or "").strip() or None,
+                }
+                if not data["name"]:
+                    raise ValueError("缺少名称")
+                item_template_service.add_rod_template(data)
+                success_count += 1
+            except Exception as e:
+                logger.error(f"导入鱼竿第{idx}行失败: {e}")
+                fail_count += 1
+
+        if success_count:
+            await flash(f"成功导入 {success_count} 条鱼竿记录" + (f"，失败 {fail_count} 条" if fail_count else ""), "success")
+        else:
+            await flash("未成功导入任何鱼竿记录", "warning")
+    except Exception as e:
+        logger.error(f"导入鱼竿CSV出错: {e}")
+        logger.error(traceback.format_exc())
+        await flash(f"导入失败: {str(e)}", "danger")
+    return redirect(url_for("admin_bp.manage_rods"))
+
+
 # --- 鱼饵管理 (Baits) ---
 @admin_bp.route("/baits")
 @login_required
@@ -268,6 +375,112 @@ async def delete_accessory(accessory_id):
     item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
     item_template_service.delete_accessory_template(accessory_id)
     await flash(f"饰品ID {accessory_id} 已删除！", "warning")
+    return redirect(url_for("admin_bp.manage_accessories"))
+
+
+# --- Accessories CSV 模板下载与导入 ---
+@admin_bp.route("/accessories/csv/template")
+@login_required
+async def accessories_csv_template():
+    header = [
+        "name",
+        "description",
+        "rarity",
+        "slot_type",
+        "bonus_fish_quality_modifier",
+        "bonus_fish_quantity_modifier",
+        "bonus_rare_fish_chance",
+        "bonus_coin_modifier",
+        "other_bonus_description",
+        "icon_url",
+    ]
+    sample = [
+        "示例饰品",
+        "这是一个示例描述",
+        "2",
+        "general",
+        "1.05",
+        "1.0",
+        "0.02",
+        "1.10",
+        "额外描述",
+        "",
+    ]
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(header)
+    writer.writerow(sample)
+    csv_data = output.getvalue()
+
+    from quart import Response
+    return Response(
+        csv_data,
+        headers={
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": "attachment; filename=accessories_template.csv",
+        },
+    )
+
+
+@admin_bp.route("/accessories/csv/import", methods=["POST"])
+@login_required
+async def import_accessories_csv():
+    try:
+        files = await request.files
+        file = files.get("file")
+        if not file:
+            await flash("未选择文件", "danger")
+            return redirect(url_for("admin_bp.manage_accessories"))
+
+        content = file.read().decode("utf-8-sig")
+        reader = csv.DictReader(io.StringIO(content))
+        required_cols = {
+            "name",
+            "rarity",
+            "slot_type",
+            "bonus_fish_quality_modifier",
+            "bonus_fish_quantity_modifier",
+            "bonus_rare_fish_chance",
+            "bonus_coin_modifier",
+        }
+        if not required_cols.issubset(set([c.strip() for c in reader.fieldnames or []])):
+            await flash("CSV列缺失，至少需要: name, rarity, slot_type, 四个加成字段", "danger")
+            return redirect(url_for("admin_bp.manage_accessories"))
+
+        item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
+        success_count = 0
+        fail_count = 0
+        for idx, row in enumerate(reader, start=2):
+            try:
+                data = {
+                    "name": (row.get("name") or "").strip(),
+                    "description": (row.get("description") or "").strip() or None,
+                    "rarity": int(row.get("rarity") or 1),
+                    "slot_type": (row.get("slot_type") or "general").strip(),
+                    "bonus_fish_quality_modifier": float(row.get("bonus_fish_quality_modifier") or 1.0),
+                    "bonus_fish_quantity_modifier": float(row.get("bonus_fish_quantity_modifier") or 1.0),
+                    "bonus_rare_fish_chance": float(row.get("bonus_rare_fish_chance") or 0.0),
+                    "bonus_coin_modifier": float(row.get("bonus_coin_modifier") or 1.0),
+                    "other_bonus_description": (row.get("other_bonus_description") or "").strip() or None,
+                    "icon_url": (row.get("icon_url") or "").strip() or None,
+                }
+                if not data["name"]:
+                    raise ValueError("缺少名称")
+                item_template_service.add_accessory_template(data)
+                success_count += 1
+            except Exception as e:
+                logger.error(f"导入饰品第{idx}行失败: {e}")
+                fail_count += 1
+
+        if success_count:
+            await flash(f"成功导入 {success_count} 条饰品记录" + (f"，失败 {fail_count} 条" if fail_count else ""), "success")
+        else:
+            await flash("未成功导入任何饰品记录", "warning")
+    except Exception as e:
+        logger.error(f"导入饰品CSV出错: {e}")
+        logger.error(traceback.format_exc())
+        await flash(f"导入失败: {str(e)}", "danger")
     return redirect(url_for("admin_bp.manage_accessories"))
 
 
@@ -716,3 +929,30 @@ async def remove_item_from_user_inventory(user_id):
         return result
     except Exception as e:
         return {"success": False, "message": f"移除物品时发生错误: {str(e)}"}, 500
+
+# --- 用户物品实例属性编辑（精炼等级/耐久度） ---
+@admin_bp.route("/users/<user_id>/inventory/rod/<int:instance_id>/update", methods=["POST"])
+@login_required
+@admin_required
+async def update_rod_instance(user_id, instance_id):
+    user_service = current_app.config["USER_SERVICE"]
+    try:
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        return user_service.update_user_rod_instance_for_admin(user_id, instance_id, data)
+    except Exception as e:
+        return {"success": False, "message": f"更新鱼竿实例时发生错误: {str(e)}"}, 500
+
+@admin_bp.route("/users/<user_id>/inventory/accessory/<int:instance_id>/update", methods=["POST"])
+@login_required
+@admin_required
+async def update_accessory_instance(user_id, instance_id):
+    user_service = current_app.config["USER_SERVICE"]
+    try:
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        return user_service.update_user_accessory_instance_for_admin(user_id, instance_id, data)
+    except Exception as e:
+        return {"success": False, "message": f"更新饰品实例时发生错误: {str(e)}"}, 500

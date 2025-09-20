@@ -62,16 +62,26 @@ class InventoryService:
         for rod_instance in rod_instances:
             rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
             if rod_template:
+                # 计算精炼后的最大耐久度
+                if rod_template.durability is not None:
+                    # 每级精炼增加前一级50%的耐久上限
+                    refine_bonus_multiplier = (1.5 ** (rod_instance.refine_level - 1))
+                    refined_max_durability = int(rod_template.durability * refine_bonus_multiplier)
+                else:
+                    refined_max_durability = None
+                
                 enriched_rods.append({
                     "name": rod_template.name,
                     "rarity": rod_template.rarity,
                     "instance_id": rod_instance.rod_instance_id,
                     "description": rod_template.description,
                     "is_equipped": rod_instance.is_equipped,
-                    "bonus_fish_quality_modifier": calculate_after_refine(rod_template.bonus_fish_quality_modifier, refine_level= rod_instance.refine_level),
-                    "bonus_fish_quantity_modifier": calculate_after_refine(rod_template.bonus_fish_quantity_modifier, refine_level= rod_instance.refine_level),
-                    "bonus_rare_fish_chance": calculate_after_refine(rod_template.bonus_rare_fish_chance, refine_level= rod_instance.refine_level),
+                    "bonus_fish_quality_modifier": calculate_after_refine(rod_template.bonus_fish_quality_modifier, refine_level= rod_instance.refine_level, rarity=rod_template.rarity),
+                    "bonus_fish_quantity_modifier": calculate_after_refine(rod_template.bonus_fish_quantity_modifier, refine_level= rod_instance.refine_level, rarity=rod_template.rarity),
+                    "bonus_rare_fish_chance": calculate_after_refine(rod_template.bonus_rare_fish_chance, refine_level= rod_instance.refine_level, rarity=rod_template.rarity),
                     "refine_level": rod_instance.refine_level,
+                    "current_durability": rod_instance.current_durability,
+                    "max_durability": refined_max_durability,
                 })
         return {
             "success": True,
@@ -118,10 +128,10 @@ class InventoryService:
                     "instance_id": accessory_instance.accessory_instance_id,
                     "description": accessory_template.description,
                     "is_equipped": accessory_instance.is_equipped,
-                    "bonus_fish_quality_modifier": calculate_after_refine(accessory_template.bonus_fish_quality_modifier, refine_level=accessory_instance.refine_level),
-                    "bonus_fish_quantity_modifier": calculate_after_refine(accessory_template.bonus_fish_quantity_modifier, refine_level=accessory_instance.refine_level),
-                    "bonus_rare_fish_chance": calculate_after_refine(accessory_template.bonus_rare_fish_chance, refine_level=accessory_instance.refine_level),
-                    "bonus_coin_modifier": calculate_after_refine(accessory_template.bonus_coin_modifier, refine_level=accessory_instance.refine_level),
+                    "bonus_fish_quality_modifier": calculate_after_refine(accessory_template.bonus_fish_quality_modifier, refine_level=accessory_instance.refine_level, rarity=accessory_template.rarity),
+                    "bonus_fish_quantity_modifier": calculate_after_refine(accessory_template.bonus_fish_quantity_modifier, refine_level=accessory_instance.refine_level, rarity=accessory_template.rarity),
+                    "bonus_rare_fish_chance": calculate_after_refine(accessory_template.bonus_rare_fish_chance, refine_level=accessory_instance.refine_level, rarity=accessory_template.rarity),
+                    "bonus_coin_modifier": calculate_after_refine(accessory_template.bonus_coin_modifier, refine_level=accessory_instance.refine_level, rarity=accessory_template.rarity),
                     "refine_level": accessory_instance.refine_level,
                 })
 
@@ -335,13 +345,19 @@ class InventoryService:
         equip_item_id = None
         # 验证物品归属
         if item_type == "rod":
-            instances = self.inventory_repo.get_user_rod_instances(user_id)
-            for instance in instances:
-                if instance.rod_instance_id == instance_id:
-                    equip_item_id = instance.rod_id
-                    break
-            if instance_id not in [i.rod_instance_id for i in instances]:
+            # 获取目标实例并校验归属
+            target_instance = self.inventory_repo.get_user_rod_instance_by_id(user_id, instance_id)
+            if not target_instance:
                 return {"success": False, "message": "❌ 鱼竿不存在或不属于你"}
+            equip_item_id = target_instance.rod_id
+
+            # 阻止装备 0 耐久（非无限）鱼竿
+            if target_instance.current_durability is not None and target_instance.current_durability <= 0:
+                return {
+                    "success": False,
+                    "message": "❌ 该鱼竿已损坏（耐久为 0），无法装备。请精炼成功以恢复耐久或更换鱼竿。"
+                }
+
             user.equipped_rod_instance_id = instance_id
             equip_item_name = self.item_template_repo.get_rod_by_id(equip_item_id).name
 
@@ -474,32 +490,66 @@ class InventoryService:
 
         # 解包配置
         instance = config["instance"]
+        template = config["template"]
         item_name = config["item_name"]
         id_field = config["id_field"]
 
         # 检查精炼等级
-        if instance.refine_level > 10:
+        if instance.refine_level >= 10:
             return {"success": False, "message": "已达到最高精炼等级"}
+
+        # 获取装备稀有度
+        rarity = template.rarity if hasattr(template, 'rarity') else 5
+
+        # 根据稀有度调整精炼费用和成功率
+        refine_costs, success_rates = self._get_refine_config_by_rarity(rarity, refine_costs)
 
         # 获取同类型物品列表
         same_items = config["same_items"]
         if len(same_items) < 2:
-            return {"success": False, "message": f"需要至少两个同类型{item_name}进行精炼"}
+            return {"success": False, "message": f"需要至少两个同类型{item_name}进行精炼。当前拥有：{len(same_items)}个"}
 
         # 查找合适的消耗品进行精炼
         refine_result = self._find_refinement_candidate(
-            user, instance, same_items, refine_costs, id_field, item_type
+            user, instance, same_items, refine_costs, id_field, item_type, success_rates
         )
 
         if not refine_result["success"]:
+            # 如果是成功率失败，直接返回
+            if refine_result.get("failed", False):
+                return refine_result
+            # 其他失败情况（如金币不足）
             return refine_result
 
-        # 检查是否发生毁坏（6级开始50%概率）
+        # 成功路径：直接返回结果，避免落入后续错误分支
+        return refine_result
+
+        # 重构毁坏机制：根据稀有度调整毁坏概率
         if instance.refine_level >= 6:
+            # 获取装备稀有度
+            rarity = template.rarity if hasattr(template, 'rarity') else 5
+            
+            # 根据稀有度设置毁坏概率：低星装备毁坏概率更低
+            if rarity <= 2:
+                destruction_chance = 0.1  # 1-2星：10%毁坏概率
+            elif rarity <= 4:
+                destruction_chance = 0.2  # 3-4星：20%毁坏概率
+            elif rarity <= 6:
+                destruction_chance = 0.25  # 5-6星：25%毁坏概率（降低了10%）
+            else:
+                destruction_chance = 0.4   # 7星+：40%毁坏概率（降低了10%）
+            
             import random
-            if random.random() < 0.5:  # 50%概率毁坏
-                # 小概率保留等级（10%概率）
-                if random.random() < 0.1:  # 10%概率保留等级
+            if random.random() < destruction_chance:
+                # 根据稀有度设置保留概率：低星装备更容易保留
+                if rarity <= 2:
+                    survival_chance = 0.5  # 1-2星：50%概率保留
+                elif rarity <= 4:
+                    survival_chance = 0.3  # 3-4星：30%概率保留
+                else:
+                    survival_chance = 0.1  # 5星+：10%概率保留
+                
+                if random.random() < survival_chance:
                     # 等级降1级，但保留装备
                     instance.refine_level = max(1, instance.refine_level - 1)
                     if item_type == "rod":
@@ -527,22 +577,89 @@ class InventoryService:
                         "destroyed": True
                     }
 
-        return {
-            "success": True,
-            "message": f"成功精炼{item_name}，新精炼等级为 {instance.refine_level}。",
-            "new_refine_level": instance.refine_level
-        }
+
+    def _get_refine_config_by_rarity(self, rarity: int, base_costs: dict) -> tuple:
+        """
+        根据装备稀有度获取精炼费用和成功率
+        重构设计：让低星装备更容易精炼到高等级，以追上高星装备的基础属性
+        
+        Args:
+            rarity: 装备稀有度 (1-10星)
+            base_costs: 基础费用表
+            
+        Returns:
+            tuple: (调整后的费用表, 成功率表)
+        """
+        # 1-4星装备：逐级递减成功率，让高等级精炼有挑战性
+        if rarity <= 4:
+            # 费用大幅减少，让低星装备精炼更便宜
+            cost_multiplier = 0.1 + (rarity - 1) * 0.05  # 1星10%, 2星15%, 3星20%, 4星25%
+            adjusted_costs = {level: int(cost * cost_multiplier) for level, cost in base_costs.items()}
+            
+            # 重新设计成功率：低等级高成功率，高等级逐渐降低
+            if rarity <= 2:  # 1-2星：保持较高成功率
+                success_rates = {
+                    1: 0.95, 2: 0.95, 3: 0.90, 4: 0.90,
+                    5: 0.85, 6: 0.80, 7: 0.75, 8: 0.70,
+                    9: 0.60, 10: 0.50
+                }
+            elif rarity == 3:  # 3星：中等成功率
+                success_rates = {
+                    1: 0.90, 2: 0.90, 3: 0.85, 4: 0.85,
+                    5: 0.80, 6: 0.75, 7: 0.65, 8: 0.55,
+                    9: 0.45, 10: 0.35
+                }
+            else:  # 4星：更有挑战性
+                success_rates = {
+                    1: 0.85, 2: 0.85, 3: 0.80, 4: 0.80,
+                    5: 0.75, 6: 0.70, 7: 0.60, 8: 0.50,
+                    9: 0.40, 10: 0.30
+                }
+            
+        # 5-6星装备：中等费用；成功率按设计在6级附近≈50%，越往后越难
+        elif rarity <= 6:
+            # 费用适中
+            cost_multiplier = 0.5 + (rarity - 5) * 0.2  # 5星50%, 6星70%
+            adjusted_costs = {level: int(cost * cost_multiplier) for level, cost in base_costs.items()}
+
+            # 区分5星与6星的成功率曲线
+            if rarity == 5:
+                success_rates = {
+                    1: 0.90, 2: 0.90, 3: 0.90, 4: 0.90,
+                    5: 0.75, 6: 0.60, 7: 0.50, 8: 0.45,
+                    9: 0.40, 10: 0.35
+                }
+            else:  # rarity == 6
+                success_rates = {
+                    1: 0.85, 2: 0.85, 3: 0.85, 4: 0.85,
+                    5: 0.70, 6: 0.50, 7: 0.45, 8: 0.40,
+                    9: 0.35, 10: 0.30
+                }
+            
+        # 7星及以上装备：保持挑战性
+        else:
+            adjusted_costs = base_costs.copy()
+            success_rates = {
+                1: 0.8, 2: 0.8, 3: 0.8, 4: 0.8,
+                5: 0.7, 6: 0.6, 7: 0.5, 8: 0.4,
+                9: 0.3, 10: 0.2
+            }
+        
+        return adjusted_costs, success_rates
 
     def _get_item_config(self, item_type, instance_id, user_id) -> Dict[str, Any]:
         """获取物品配置信息"""
+        # 确保用户ID为整数类型（数据库层面需要）
+        user_id_int = int(user_id) if isinstance(user_id, str) else user_id
+        
         if item_type == "rod":
-            instances = self.inventory_repo.get_user_rod_instances(user_id)
+            instances = self.inventory_repo.get_user_rod_instances(user_id_int)
             instance = next((i for i in instances if i.rod_instance_id == instance_id), None)
             if not instance:
                 return {"success": False, "message": "鱼竿不存在或不属于你"}
 
             template = self.item_template_repo.get_rod_by_id(instance.rod_id)
-            same_items = self.inventory_repo.get_same_rod_instances(user_id, instance.rod_id)
+            same_items = self.inventory_repo.get_same_rod_instances(user_id_int, instance.rod_id)
 
             return {
                 "success": True,
@@ -554,13 +671,13 @@ class InventoryService:
             }
 
         else:  # accessory
-            instances = self.inventory_repo.get_user_accessory_instances(user_id)
+            instances = self.inventory_repo.get_user_accessory_instances(user_id_int)
             instance = next((i for i in instances if i.accessory_instance_id == instance_id), None)
             if not instance:
                 return {"success": False, "message": "饰品不存在或不属于你"}
 
             template = self.item_template_repo.get_accessory_by_id(instance.accessory_id)
-            same_items = self.inventory_repo.get_same_accessory_instances(user_id, instance.accessory_id)
+            same_items = self.inventory_repo.get_same_accessory_instances(user_id_int, instance.accessory_id)
 
             return {
                 "success": True,
@@ -571,19 +688,32 @@ class InventoryService:
                 "id_field": "accessory_instance_id"
             }
 
-    def _find_refinement_candidate(self, user, instance, same_items, refine_costs, id_field, item_type):
+    def _find_refinement_candidate(self, user, instance, same_items, refine_costs, id_field, item_type, success_rates=None):
         """查找可用于精炼的候选物品"""
         refine_level_from = instance.refine_level
         min_cost = None
 
-        # 遍历所有可能的消耗品
-        for candidate in same_items:
+        # 优先使用未装备且精炼等级最低的材料，避免误用高精材料
+        sorted_candidates = sorted(
+            same_items,
+            key=lambda i: (getattr(i, 'is_equipped', False), getattr(i, 'refine_level', 1))
+        )
+
+        # 遍历所有可能的消耗品（已排序）
+        for candidate in sorted_candidates:
             # 跳过自身
             if getattr(candidate, id_field) == getattr(instance, id_field):
                 continue
+            # 跳过正在装备的材料
+            if getattr(candidate, 'is_equipped', False):
+                continue
 
-            # 计算精炼后的等级上限
-            new_refine_level = min(candidate.refine_level + instance.refine_level, 10)
+            # 计算精炼后的等级：一次只提升1级，杜绝一口吃成胖子
+            new_refine_level = min(refine_level_from + 1, 10)
+            
+            # 如果新等级和当前等级相同，跳过这个候选（已经达到上限）
+            if new_refine_level == refine_level_from:
+                continue
 
             # 计算精炼成本
             total_cost = 0
@@ -598,20 +728,164 @@ class InventoryService:
             if not user.can_afford(total_cost):
                 continue
 
+            # 检查成功率（如果提供了成功率表）
+            if success_rates:
+                target_level = new_refine_level
+                success_rate = success_rates.get(target_level, 1.0)
+                
+                import random
+                if random.random() > success_rate:
+                    # 精炼失败：在高等级（>=6）启用毁坏/降级机制
+                    # 获取模板与名称
+                    if item_type == "rod":
+                        template = self.item_template_repo.get_rod_by_id(instance.rod_id)
+                        item_name_display = template.name if template else "鱼竿"
+                    else:
+                        template = self.item_template_repo.get_accessory_by_id(instance.accessory_id)
+                        item_name_display = template.name if template else "饰品"
+
+                    # 基础失败返回（默认完好无损）
+                    base_fail = {
+                        "success": False,
+                        "message": f"💔 精炼失败！{item_name_display}精炼到{target_level}级失败，但装备完好无损。成功率为{success_rate:.0%}，再试一次吧！",
+                        "failed": True,
+                        "success_rate": success_rate,
+                        "target_level": target_level
+                    }
+
+                    # 仅在6级及以上且有稀有度信息时，判定毁坏机制
+                    if instance.refine_level >= 6 and template and hasattr(template, 'rarity'):
+                        rarity = template.rarity
+                        # 按稀有度设定毁坏概率
+                        if rarity <= 2:
+                            destruction_chance = 0.10
+                            survival_chance = 0.50
+                        elif rarity <= 4:
+                            destruction_chance = 0.20
+                            survival_chance = 0.30
+                        elif rarity <= 6:
+                            destruction_chance = 0.25
+                            survival_chance = 0.10
+                        else:
+                            destruction_chance = 0.40
+                            survival_chance = 0.10
+
+                        if random.random() < destruction_chance:
+                            # 有机会保留（降级1级），否则毁坏
+                            if random.random() < survival_chance:
+                                # 降级并保留
+                                instance.refine_level = max(1, instance.refine_level - 1)
+                                if item_type == "rod":
+                                    self.inventory_repo.update_rod_instance(instance)
+                                else:
+                                    self.inventory_repo.update_accessory_instance(instance)
+                                return {
+                                    "success": False,
+                                    "message": f"💥 精炼失败！{item_name_display}等级降为 {instance.refine_level}，但装备得以保留！",
+                                    "destroyed": False,
+                                    "level_reduced": True,
+                                    "new_refine_level": instance.refine_level
+                                }
+                            else:
+                                # 彻底毁坏
+                                if item_type == "rod":
+                                    self.inventory_repo.delete_rod_instance(instance.rod_instance_id)
+                                else:
+                                    self.inventory_repo.delete_accessory_instance(instance.accessory_instance_id)
+                                return {
+                                    "success": False,
+                                    "message": f"💥 精炼失败！{item_name_display}在精炼过程中毁坏了！",
+                                    "destroyed": True
+                                }
+
+                    # 默认：完好无损
+                    return base_fail
+
             # 执行精炼操作
-            self._perform_refinement(user, instance, candidate, new_refine_level, total_cost, item_type)
-            return {"success": True}
+            is_first_infinite = self._perform_refinement(user, instance, candidate, new_refine_level, total_cost, item_type)
+            
+            # 构建成功消息，包含耐久度信息
+            if item_type == "rod":
+                template = self.item_template_repo.get_rod_by_id(instance.rod_id)
+            else:
+                template = self.item_template_repo.get_accessory_by_id(instance.accessory_id)
+            
+            item_name = template.name if template else "装备"
+            success_message = f"成功精炼{item_name}，新精炼等级为 {instance.refine_level}。"
+            
+            # 检查是否达到了无限耐久的条件（只有支持耐久度的装备才处理）
+            if hasattr(instance, 'current_durability'):
+                if instance.current_durability is None and is_first_infinite:
+                    # 首次获得无限耐久的特殊庆祝消息
+                    success_message += f" 🎉✨ 装备已达到完美状态，获得无限耐久！这是真正的神器！ ✨🎉"
+                elif instance.current_durability is not None:
+                    # 普通耐久度恢复消息
+                    success_message += f" 耐久度已恢复并提升至 {instance.current_durability}！"
+                # 已经是无限耐久的装备再次精炼：不添加特殊消息，保持简洁
+            # 对于没有耐久度的装备（如配饰），不添加耐久度相关消息
+            
+            return {
+                "success": True,
+                "message": success_message,
+                "new_refine_level": instance.refine_level
+            }
 
         # 如果没找到合适的候选品，返回错误
         return {"success": False, "message": f"至少需要 {min_cost} 金币才能精炼，当前金币不足"}
 
     def _perform_refinement(self, user, instance, candidate, new_refine_level, cost, item_type):
-        """执行精炼操作"""
+        """执行精炼操作，返回是否首次获得无限耐久"""
         # 扣除金币
         user.coins -= cost
 
+        # 获取原始最大耐久度（用于计算精炼加成）
+        if item_type == "rod":
+            template = self.item_template_repo.get_rod_by_id(instance.rod_id)
+        else:
+            template = self.item_template_repo.get_accessory_by_id(instance.accessory_id)
+        
+        # 检查模板是否存在durability属性（配饰可能没有耐久度）
+        original_max_durability = None
+        if template and hasattr(template, 'durability') and template.durability is not None:
+            original_max_durability = template.durability
+
         # 提升精炼等级
+        old_refine_level = instance.refine_level
         instance.refine_level = new_refine_level
+
+        # 检查精炼前是否已经是无限耐久（配饰可能没有耐久度属性）
+        was_infinite_before = (hasattr(instance, 'current_durability') and 
+                              instance.current_durability is None)
+
+        # 处理耐久度恢复和上限提升
+        is_first_infinite = False
+        
+        # 获取装备稀有度（对于所有装备类型）
+        rarity = template.rarity if template and hasattr(template, 'rarity') else 1
+        
+        # 检查是否符合无限耐久条件（5星以上10级）
+        if new_refine_level >= 10 and rarity >= 5:
+            # 只有装备实例支持耐久度时才设置无限耐久
+            if hasattr(instance, 'current_durability'):
+                instance.current_durability = None  # 无限耐久
+                # 标记是否首次获得无限耐久
+                is_first_infinite = not was_infinite_before
+            # 更新最大耐久度为None（如果装备实例有这个字段）
+            if hasattr(instance, 'max_durability'):
+                instance.max_durability = None
+        elif original_max_durability is not None:
+            # 普通精炼：计算新的最大耐久度（仅适用于有耐久度的装备）
+            # 公式：新上限 = 原始上限 * (1.5)^精炼等级
+            refine_bonus_multiplier = (1.5 ** (new_refine_level - 1))
+            new_max_durability = int(original_max_durability * refine_bonus_multiplier)
+            
+            # 精炼成功时恢复全部耐久度到新的最大值（仅对支持耐久度的装备）
+            if hasattr(instance, 'current_durability'):
+                instance.current_durability = new_max_durability
+            
+            # 更新最大耐久度（如果装备实例有这个字段）
+            if hasattr(instance, 'max_durability'):
+                instance.max_durability = new_max_durability
 
         # 根据物品类型执行相应操作
         if item_type == "rod":
@@ -623,3 +897,5 @@ class InventoryService:
 
         # 更新用户信息
         self.user_repo.update(user)
+        
+        return is_first_infinite

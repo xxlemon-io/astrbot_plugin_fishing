@@ -198,8 +198,10 @@ class GachaService:
         template = None
 
         if item.item_type == "rod":
-            self.inventory_repo.add_rod_instance(user_id, item.item_id, None) # 假设新获得的鱼竿耐久度是满的
+            # 新获得的鱼竿应使用模板耐久度（允许为0；None代表无上限/未定义）
             template = self.item_template_repo.get_rod_by_id(item.item_id)
+            durability = template.durability if template else None
+            self.inventory_repo.add_rod_instance(user_id, item.item_id, durability)
         elif item.item_type == "accessory":
             self.inventory_repo.add_accessory_instance(user_id, item.item_id)
             template = self.item_template_repo.get_accessory_by_id(item.item_id)
