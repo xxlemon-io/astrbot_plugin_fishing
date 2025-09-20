@@ -1,7 +1,7 @@
 import requests
 import random
 import json
-from typing import Dict, Any
+from typing import Dict, Any, TYPE_CHECKING
 from concurrent.futures import ThreadPoolExecutor
 from astrbot.api import logger
 
@@ -14,10 +14,42 @@ from ..repositories.abstract_repository import (
     AbstractUserBuffRepository,
 )
 from ..domain.models import WipeBombLog
-from ..utils import get_now
+from ...core.utils import get_now
+
+if TYPE_CHECKING:
+    from ..repositories.sqlite_user_repo import SqliteUserRepository
+
+def weighted_random_choice(choices: list[tuple[any, any, float]]) -> tuple[any, any, float]:
+    """
+    带权重的随机选择。
+    :param choices: 一个列表，每个元素是一个元组 (min_val, max_val, weight)。
+    :return: 选中的元组。
+    """
+    total_weight = sum(w for _, _, w in choices)
+    if total_weight == 0:
+        raise ValueError("Total weight cannot be zero")
+    rand_val = random.uniform(0, total_weight)
+    
+    current_weight = 0
+    for choice in choices:
+        current_weight += choice[2] # weight is the 3rd element
+        if rand_val <= current_weight:
+            return choice
+    
+    # Fallback in case of floating point inaccuracies
+    return choices[-1]
 
 class GameMechanicsService:
     """封装特殊或独立的游戏机制"""
+
+    FORTUNE_TIERS = {
+        "daikichi": {"min": 15.0, "max": 1000.0, "label": "大吉", "message": "🔮 沙漏中降下璀璨的星辉，预示着一笔泼天的横财即将到来。莫失良机！"},
+        "chukichi": {"min": 5.0, "max": 15.0, "label": "中吉", "message": "🔮 金色的流沙汇成满月之形，预示着时运亨通，机遇就在眼前。"},
+        "kichi":    {"min": 2.0, "max": 5.0, "label": "吉", "message": "🔮 沙漏中的光芒温暖而和煦，预示着前路顺遂，稳中有进。"},
+        "shokichi": {"min": 1.0, "max": 2.0, "label": "小吉", "message": "🔮 流沙平稳，波澜不惊。预示着平安喜乐，凡事皆顺。"},
+        "kyo":      {"min": 0.1, "max": 1.0, "label": "凶", "message": "🔮 沙漏中泛起一丝阴霾，预示着运势不佳，行事务必三思。"},
+        "daikyo":   {"min": 0.0, "max": 0.1, "label": "大凶", "message": "🔮 暗色的流沙汇成不祥之兆，警示着灾祸将至，请务必谨慎避让！"},
+    }
 
     def __init__(
         self,
@@ -35,6 +67,62 @@ class GameMechanicsService:
         self.buff_repo = buff_repo
         self.config = config
         self.thread_pool = ThreadPoolExecutor(max_workers=5)
+
+    def _get_fortune_tier_for_multiplier(self, multiplier: float) -> str:
+        if multiplier >= 15.0: return "daikichi"
+        if multiplier >= 5.0: return "chukichi"
+        if multiplier >= 2.0: return "kichi"
+        if multiplier >= 1.0: return "shokichi"
+        if multiplier >= 0.1: return "kyo"
+        return "daikyo"
+
+    def forecast_wipe_bomb(self, user_id: str) -> Dict[str, Any]:
+        """
+        预知下一次擦弹的结果是“吉”还是“凶”。
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        # 检查是否已有预测结果
+        if user.wipe_bomb_forecast:
+            return {"success": False, "message": "你已经预知过一次了，请先去擦弹吧！"}
+
+        # 模拟一次随机过程来决定结果
+        wipe_bomb_config = self.config.get("wipe_bomb", {})
+        # 使用 perform_wipe_bomb 的默认概率表以确保一致性
+        ranges = wipe_bomb_config.get(
+            "reward_ranges",
+            [
+                (0.0, 0.1, 5),      # 灾难性亏损
+                (0.1, 1.0, 55),     # 普通亏损
+                (1.0, 2.0, 23),
+                (2.0, 3.0, 11),
+                (3.0, 4.0, 4),
+                (4.0, 5.0, 4),
+                (5.0, 15.0, 5),     # 高倍率
+                (15.0, 1000.0, 0.1),# 超级头奖
+            ],
+        )
+        
+        # 模拟一次抽奖来决定运势
+        try:
+            chosen_range = weighted_random_choice(ranges)
+            simulated_multiplier = random.uniform(chosen_range[0], chosen_range[1])
+        except (ValueError, IndexError) as e:
+            logger.error(f"擦弹预测时随机选择出错: {e}", exc_info=True)
+            return {"success": False, "message": "占卜失败，似乎天机不可泄露..."}
+
+        # 根据模拟结果确定运势等级
+        tier_key = self._get_fortune_tier_for_multiplier(simulated_multiplier)
+        
+        # 保存预测结果
+        user.wipe_bomb_forecast = tier_key
+        self.user_repo.update(user)
+        
+        # 返回对应的占卜信息
+        message = self.FORTUNE_TIERS[tier_key]["message"]
+        return {"success": True, "message": message}
 
     def perform_wipe_bomb(self, user_id: str, contribution_amount: int) -> Dict[str, Any]:
         """
@@ -72,24 +160,44 @@ class GameMechanicsService:
             return {"success": False, "message": f"你今天的擦弹次数已用完({attempts_today}/{total_max_attempts})，明天再来吧！"}
 
         # 3. 计算随机奖励倍数 (使用加权随机)
+        # 默认奖励范围和权重: (min_multiplier, max_multiplier, weight)
         default_ranges = [
-            (0, 0.5, 50),
-            (0.5, 1, 30),
-            (1, 2, 15),
-            (2, 5, 4),
-            (5, 10, 1)
+            (0.0, 0.1, 5),      # 灾难性亏损
+            (0.1, 1.0, 55),     # 普通亏损
+            (1.0, 2.0, 23),
+            (2.0, 3.0, 11),
+            (3.0, 4.0, 4),
+            (4.0, 5.0, 4),
+            (5.0, 15.0, 5),     # 高倍率
+            (15.0, 1000.0, 0.1),# 超级头奖
         ]
         ranges = wipe_bomb_config.get("reward_ranges", default_ranges)
-        total_weight = sum(w for _, _, w in ranges)
-        rand_val = random.uniform(0, total_weight)
 
-        reward_multiplier = 0.0
-        current_weight = 0
-        for r_min, r_max, weight in ranges:
-            current_weight += weight
-            if rand_val <= current_weight:
-                reward_multiplier = random.uniform(r_min, r_max)
-                break
+        # 如果有预测结果，则强制使用对应区间的随机
+        if user.wipe_bomb_forecast:
+            forecast_key = user.wipe_bomb_forecast
+            if forecast_key in self.FORTUNE_TIERS:
+                tier_info = self.FORTUNE_TIERS[forecast_key]
+                min_val, max_val = tier_info["min"], tier_info["max"]
+                
+                # 筛选出所有与预测结果区间有重叠的原始概率区间
+                # 例如，如果预测是吉(2-5)，则需要包括原始的(2-3), (3-4), (4-5)区间
+                constrained_ranges = [
+                    r for r in default_ranges if max(r[0], min_val) < min(r[1], max_val)
+                ]
+                if constrained_ranges:
+                    ranges = constrained_ranges
+
+            # 使用后清空预测
+            user.wipe_bomb_forecast = None
+
+        # 3. 计算随机奖励倍数 (使用加权随机)
+        try:
+            chosen_range = weighted_random_choice(ranges)
+            reward_multiplier = random.uniform(chosen_range[0], chosen_range[1])
+        except (ValueError, IndexError) as e:
+            logger.error(f"擦弹预测时随机选择出错: {e}", exc_info=True)
+            return {"success": False, "message": "占卜失败，似乎天机不可泄露..."}
 
         # 4. 计算最终金额并执行事务
         reward_amount = int(contribution_amount * reward_multiplier)
@@ -172,6 +280,13 @@ class GameMechanicsService:
         victim = self.user_repo.get_by_id(victim_id)
         if not victim:
             return {"success": False, "message": "目标用户不存在"}
+
+        # 0. 检查受害者是否受保护
+        protection_buff = self.buff_repo.get_active_by_user_and_type(
+            victim_id, "STEAL_PROTECTION_BUFF"
+        )
+        if protection_buff:
+            return {"success": False, "message": f"❌ 无法偷窃，【{victim.nickname}】的鱼塘似乎被神秘力量守护着！"}
 
         # 1. 检查偷窃CD
         cooldown_seconds = self.config.get("steal", {}).get("cooldown_seconds", 14400) # 默认4小时

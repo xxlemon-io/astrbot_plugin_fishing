@@ -611,7 +611,9 @@ class FishingService:
 
                     # 检查CD
                     now_ts = get_now().timestamp()
-                    last_ts = user.last_fishing_time.timestamp() if user.last_fishing_time else 0
+                    last_ts = 0
+                    if user.last_fishing_time and user.last_fishing_time.year > 1:
+                        last_ts = user.last_fishing_time.timestamp()
                     # 检查用户是否装备了海洋之心
                     _cooldown = cooldown
                     equipped_accessory = self.inventory_repo.get_user_equipped_accessory(user_id)

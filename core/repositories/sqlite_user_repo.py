@@ -67,6 +67,8 @@ class SqliteUserRepository(AbstractUserRepository):
             last_wipe_bomb_time=parse_datetime(row["last_wipe_bomb_time"]),
             last_steal_time=parse_datetime(row["last_steal_time"]),
             last_login_time=parse_datetime(row["last_login_time"]),
+            last_stolen_at=parse_datetime(row["last_stolen_at"]),
+            wipe_bomb_forecast=row["wipe_bomb_forecast"],
             fishing_zone_id=row["fishing_zone_id"],
         )
 
@@ -104,7 +106,7 @@ class SqliteUserRepository(AbstractUserRepository):
                     equipped_rod_instance_id = ?, equipped_accessory_instance_id = ?,
                     current_title_id = ?, current_bait_id = ?, bait_start_time = ?,
                     auto_fishing_enabled = ?, last_fishing_time = ?, last_wipe_bomb_time = ?,
-                    last_steal_time = ?, last_login_time = ?, last_stolen_at = ?, fishing_zone_id = ?
+                    last_steal_time = ?, last_login_time = ?, last_stolen_at = ?, wipe_bomb_forecast = ?, fishing_zone_id = ?
                 WHERE user_id = ?
             """, (
                 user.nickname, user.coins, user.premium_currency,
@@ -114,7 +116,7 @@ class SqliteUserRepository(AbstractUserRepository):
                 user.current_title_id, user.current_bait_id, user.bait_start_time,
                 user.auto_fishing_enabled, user.last_fishing_time, user.last_wipe_bomb_time,
                 user.last_steal_time, user.last_login_time, user.last_stolen_at,
-                user.fishing_zone_id,
+                user.wipe_bomb_forecast, user.fishing_zone_id,
                 user.user_id
             ))
             conn.commit()

@@ -36,11 +36,8 @@ class EffectManager:
                         issubclass(attribute, AbstractItemEffect) and
                         attribute is not AbstractItemEffect
                     ):
-                        # 实例化效果类，并注入依赖
-                        effect_instance = attribute(
-                            user_repo=dependencies.get("user_repo"),
-                            buff_repo=dependencies.get("buff_repo")
-                        )
+                        # 实例化效果类，并动态注入所有可用的依赖
+                        effect_instance = attribute(**dependencies)
 
                         effect_type = getattr(effect_instance, "effect_type", None)
                         if effect_type:

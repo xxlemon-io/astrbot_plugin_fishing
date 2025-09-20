@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from ....core.repositories.abstract_repository import (
     AbstractUserRepository,
@@ -9,11 +9,22 @@ from ....core.domain.models import User, Item
 
 
 class AbstractItemEffect(ABC):
+    """
+    道具效果的抽象基类。
+    所有具体的效果都应继承此类并实现 apply 方法。
+    """
+
+    effect_type: str = "ABSTRACT_EFFECT"
+
     def __init__(
         self,
-        user_repo: AbstractUserRepository = None,
-        buff_repo: AbstractUserBuffRepository = None,
+        user_repo: Optional[AbstractUserRepository] = None,
+        buff_repo: Optional[AbstractUserBuffRepository] = None,
+        **kwargs,
     ):
+        """
+        构造函数，用于依赖注入。
+        """
         self.user_repo = user_repo
         self.buff_repo = buff_repo
 

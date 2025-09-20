@@ -77,7 +77,7 @@ class FishingPlugin(Star):
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         
         self.game_config = {
-            "fishing": {"cost": config.get("fish_cost", 10), "cooldown_seconds": config.get("fish_cooldown", 5)},
+            "fishing": {"cost": config.get("fish_cost", 10), "cooldown_seconds": config.get("fish_cooldown_seconds", 180)},
             "steal": {"cooldown_seconds": config.get("steal_cooldown", 1800)},
             "wipe_bomb": {"attempts_per_day": config.get("wipe_bomb_attempts", 5)},
             "pond_upgrades": [
@@ -112,20 +112,26 @@ class FishingPlugin(Star):
         self.buff_repo = SqliteUserBuffRepository(db_path)
 
         # --- 3. 组合根：实例化所有服务层，并注入依赖 ---
-        # 3.1 实例化效果管理器并自动注册所有效果
+        # 3.1 核心服务必须在效果管理器之前实例化，以解决依赖问题
+        self.game_mechanics_service = GameMechanicsService(self.user_repo, self.log_repo, self.inventory_repo,
+                                                           self.item_template_repo, self.buff_repo, self.game_config)
+
+        # 3.2 实例化效果管理器并自动注册所有效果
         self.effect_manager = EffectManager()
         self.effect_manager.discover_and_register(
             effects_package_path="data.plugins.astrbot_plugin_fishing.core.services.item_effects",
-            dependencies={"user_repo": self.user_repo, "buff_repo": self.buff_repo},
+            dependencies={
+                "user_repo": self.user_repo, 
+                "buff_repo": self.buff_repo,
+                "game_mechanics_service": self.game_mechanics_service
+            },
         )
 
-        # 3.2 实例化核心服务
+        # 3.3 实例化其他核心服务
         self.gacha_service = GachaService(self.gacha_repo, self.user_repo, self.inventory_repo, self.item_template_repo,
                                           self.log_repo, self.achievement_repo)
         # UserService 依赖 GachaService，因此在 GachaService 之后实例化
         self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.gacha_service, self.game_config)
-        self.game_mechanics_service = GameMechanicsService(self.user_repo, self.log_repo, self.inventory_repo,
-                                                           self.item_template_repo, self.buff_repo, self.game_config)
         self.inventory_service = InventoryService(
             self.inventory_repo,
             self.user_repo,
@@ -1898,18 +1904,18 @@ class FishingPlugin(Star):
     #         logger.error(f"执行 add_missing_items 命令时出错: {e}", exc_info=True)
     #         yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
 
-    # @filter.permission_type(PermissionType.ADMIN)
-    # @filter.command("管理员 同步道具", alias={"同步道具"})
-    # async def sync_items_from_initial_data(self, event: AstrMessageEvent):
-    #     """从 initial_data.py 同步道具数据到数据库。"""
-    #     try:
-    #         self.data_setup_service.create_initial_items()
-    #         yield event.plain_result(
-    #             '✅ 成功执行初始道具同步操作。\n请检查后台或使用 /道具 命令确认数据。'
-    #         )
-    #     except Exception as e:
-    #         logger.error(f"执行 sync_items_from_initial_data 命令时出错: {e}", exc_info=True)
-    #         yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("同步道具", alias={"管理员 同步道具"})
+    async def sync_items_from_initial_data(self, event: AstrMessageEvent):
+        """从 initial_data.py 同步道具数据到数据库。"""
+        try:
+            self.data_setup_service.create_initial_items()
+            yield event.plain_result(
+                '✅ 成功执行初始道具同步操作。\n请检查后台或使用 /道具 命令确认数据。'
+            )
+        except Exception as e:
+            logger.error(f"执行 sync_items_from_initial_data 命令时出错: {e}", exc_info=True)
+            yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("代理上线")
