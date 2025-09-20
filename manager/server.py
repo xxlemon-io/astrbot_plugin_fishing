@@ -978,10 +978,9 @@ async def add_item():
         data = {k: v for k, v in form_data.items()}
         data['rarity'] = int(data.get('rarity', 1))
         data['cost'] = int(data.get('cost', 0))
-        # 根据 is_consumable 复选框设置 item_type
-        data['item_type'] = 'consumable' if 'is_consumable' in data else 'tool'
-        if 'is_consumable' in data:
-            del data['is_consumable'] # 从数据中移除，避免混淆
+        # 使用布尔值保存是否消耗品
+        is_flag = 'is_consumable' in data
+        data['is_consumable'] = is_flag
         item_template_service.add_item_template(data)
         await flash("道具模板已添加", "success")
     except Exception as e:
@@ -998,10 +997,9 @@ async def edit_item(item_id):
         data = {k: v for k, v in form_data.items()}
         data['rarity'] = int(data.get('rarity', 1))
         data['cost'] = int(data.get('cost', 0))
-        # 根据 is_consumable 复选框设置 item_type
-        data['item_type'] = 'consumable' if 'is_consumable' in data else 'tool'
-        if 'is_consumable' in data:
-            del data['is_consumable'] # 从数据中移除，避免混淆
+        # 使用布尔值保存是否消耗品
+        is_flag = 'is_consumable' in data
+        data['is_consumable'] = is_flag
         item_template_service.update_item_template(item_id, data)
         await flash("道具模板已更新", "success")
     except Exception as e:

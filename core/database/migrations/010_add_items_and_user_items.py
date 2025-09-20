@@ -19,7 +19,6 @@ def up(cursor: sqlite3.Cursor):
             description TEXT,
             rarity INTEGER NOT NULL DEFAULT 1,
             effect_description TEXT,
-            item_type TEXT DEFAULT 'consumable',
             cost INTEGER DEFAULT 0,
             is_consumable INTEGER DEFAULT 1,
             icon_url TEXT

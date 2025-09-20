@@ -19,7 +19,7 @@
                 <th>ID</th>
                 <th>名称</th>
                 <th>稀有度</th>
-                <th>类型</th>
+                <th>消耗品</th>
                 <th>价格</th>
                 <th class="text-end">操作</th>
             </tr>
@@ -30,10 +30,18 @@
                 <td>{{ item.item_id }}</td>
                 <td>{{ item.name }}</td>
                 <td>{{ '★' * item.rarity }}</td>
-                <td>{{ item.item_type }}</td>
+                <td>{{ '是' if item.is_consumable else '否' }}</td>
                 <td>{{ item.cost }}</td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-outline-primary" onclick="openEditModal({{ item | tojson }})">
+                    <button class="btn btn-sm btn-outline-primary"
+                            onclick="openEditModal(this.dataset)"
+                            data-item-id="{{ item.item_id }}"
+                            data-name="{{ item.name }}"
+                            data-description="{{ item.description or '' }}"
+                            data-effect-description="{{ item.effect_description or '' }}"
+                            data-rarity="{{ item.rarity }}"
+                            data-cost="{{ item.cost }}"
+                            data-is-consumable="{{ 1 if item.is_consumable else 0 }}">
                         <i class="fas fa-edit"></i> 编辑
                     </button>
                     <form action="{{ url_for('admin_bp.delete_item', item_id=item.item_id) }}" method="POST" class="d-inline" onsubmit="return confirm('确定要删除吗？');">
@@ -93,7 +101,7 @@
                     <div class="form-check mb-3">
                         <input class="form-check-input" type="checkbox" id="isConsumable" name="is_consumable">
                         <label class="form-check-label" for="isConsumable">
-                            是否是消耗品？ (勾选后类型将变为 consumable)
+                            是否是消耗品？
                         </label>
                     </div>
                     
@@ -108,7 +116,7 @@
 </div>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 <script>
     const itemModal = new bootstrap.Modal(document.getElementById('itemModal'));
     const itemForm = document.getElementById('itemForm');
@@ -120,19 +128,28 @@
         modalLabel.textContent = '添加新道具';
         itemForm.reset();
         itemIdInput.value = '';
+        document.getElementById('isConsumable').checked = false; // 确保默认不勾选
         itemModal.show();
     }
 
-    function openEditModal(item) {
-        itemForm.action = `/admin/items/edit/${item.item_id}`;
+    function openEditModal(data) {
+        const itemId = Number(data.item_id || data.itemId);
+        const name = data.name || '';
+        const description = data.description || '';
+        const effectDescription = data.effect_description || data.effectDescription || '';
+        const rarity = Number(data.rarity || 1);
+        const cost = Number(data.cost || 0);
+        const isConsumable = (data.isConsumable === '1' || data.isConsumable === 'true' || data.isConsumable === 'on');
+
+        itemForm.action = `/admin/items/edit/${itemId}`;
         modalLabel.textContent = '编辑道具';
-        itemIdInput.value = item.item_id;
-        document.getElementById('itemName').value = item.name;
-        document.getElementById('itemDescription').value = item.description || '';
-        document.getElementById('itemEffectDescription').value = item.effect_description || '';
-        document.getElementById('itemRarity').value = item.rarity;
-        document.getElementById('itemCost').value = item.cost;
-        document.getElementById('isConsumable').checked = item.item_type === 'consumable';
+        itemIdInput.value = itemId;
+        document.getElementById('itemName').value = name;
+        document.getElementById('itemDescription').value = description;
+        document.getElementById('itemEffectDescription').value = effectDescription;
+        document.getElementById('itemRarity').value = rarity;
+        document.getElementById('itemCost').value = cost;
+        document.getElementById('isConsumable').checked = isConsumable;
         itemModal.show();
     }
 </script>

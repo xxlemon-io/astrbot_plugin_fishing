@@ -156,7 +156,7 @@ class InventoryService:
                     "rarity": item_template.rarity,
                     "quantity": quantity,
                     "effect_description": item_template.effect_description,
-                    "item_type": item_template.item_type,
+                    "is_consumable": getattr(item_template, "is_consumable", False),
                 })
 
         return {
@@ -941,8 +941,8 @@ class InventoryService:
         if not item_template:
             return {"success": False, "message": "道具信息不存在"}
 
-        # 检查道具类型
-        if item_template.item_type == "consumable":
+        # 检查是否为可消耗道具
+        if getattr(item_template, "is_consumable", False):
             # 消耗品，减少数量
             self.inventory_repo.decrease_item_quantity(user_id, item_id, 1)
             return {
@@ -952,7 +952,7 @@ class InventoryService:
                     "item_id": item_id,
                     "name": item_template.name,
                     "effect_description": item_template.effect_description,
-                    "item_type": item_template.item_type,
+                    "is_consumable": True,
                 }
                 
             }

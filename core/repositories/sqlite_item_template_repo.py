@@ -333,8 +333,8 @@ class SqliteItemTemplateRepository(AbstractItemTemplateRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO items (name, description, rarity, effect_description, item_type, cost, is_consumable, icon_url)
-                VALUES (:name, :description, :rarity, :effect_description, :item_type, :cost, :is_consumable, :icon_url)
+                INSERT INTO items (name, description, rarity, effect_description, cost, is_consumable, icon_url)
+                VALUES (:name, :description, :rarity, :effect_description, :cost, :is_consumable, :icon_url)
             """, {
                 **data,
                 "is_consumable": 1 if "is_consumable" in data and data["is_consumable"] else 0,
@@ -349,7 +349,7 @@ class SqliteItemTemplateRepository(AbstractItemTemplateRepository):
             cursor.execute("""
                 UPDATE items SET
                     name = :name, description = :description, rarity = :rarity,
-                    effect_description = :effect_description, item_type = :item_type,
+                    effect_description = :effect_description,
                     cost = :cost, is_consumable = :is_consumable, icon_url = :icon_url
                 WHERE item_id = :item_id
             """, {
