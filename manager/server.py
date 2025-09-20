@@ -7,7 +7,7 @@ import io
 
 from quart import (
     Quart, render_template, request, redirect, url_for, session, flash,
-    Blueprint, current_app
+    Blueprint, current_app, jsonify
 )
 from astrbot.api import logger
 
@@ -667,6 +667,33 @@ async def delete_pool_item(item_id):
     item_template_service.delete_pool_item(item_id)
     await flash(f"奖池物品ID {item_id} 已删除！", "warning")
     return redirect(url_for("admin_bp.manage_gacha_pool_details", pool_id=pool_id))
+
+
+@admin_bp.route("/gacha/pool/update_weight/<int:item_id>", methods=["POST"])
+@login_required
+async def update_pool_item_weight(item_id):
+    """快速更新奖池物品权重"""
+    try:
+        data = await request.get_json()
+        weight = data.get("weight")
+        
+        if not weight or not isinstance(weight, (int, float)) or weight < 1:
+            return jsonify({"success": False, "message": "权重必须是大于0的数字"}), 400
+        
+        item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
+        
+        # 获取当前物品信息
+        pool_items = item_template_service.get_pool_items(item_id)
+        if not pool_items:
+            return jsonify({"success": False, "message": "物品不存在"}), 404
+        
+        # 更新权重
+        item_template_service.update_pool_item(item_id, {"weight": int(weight)})
+        
+        return jsonify({"success": True, "message": "权重更新成功"})
+        
+    except Exception as e:
+        return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
 
 
 # --- 用户管理 ---
