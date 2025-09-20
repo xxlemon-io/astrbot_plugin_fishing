@@ -677,6 +677,9 @@ async def update_pool_item_weight(item_id):
         data = await request.get_json()
         weight = data.get("weight")
         
+        # 调试信息
+        logger.info(f"更新权重请求 - item_id: {item_id}, data: {data}, weight: {weight}")
+        
         if not weight or not isinstance(weight, (int, float)) or weight < 1:
             return jsonify({"success": False, "message": "权重必须是大于0的数字"}), 400
         
@@ -685,9 +688,11 @@ async def update_pool_item_weight(item_id):
         # 直接更新权重，update_pool_item方法会处理验证
         item_template_service.update_pool_item(item_id, {"weight": int(weight)})
         
+        logger.info(f"权重更新成功 - item_id: {item_id}, weight: {weight}")
         return jsonify({"success": True, "message": "权重更新成功"})
         
     except Exception as e:
+        logger.error(f"权重更新失败 - item_id: {item_id}, error: {str(e)}")
         return jsonify({"success": False, "message": f"更新失败: {str(e)}"}), 500
 
 
