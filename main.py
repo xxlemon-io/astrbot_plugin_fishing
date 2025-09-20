@@ -274,10 +274,7 @@ class FishingPlugin(Star):
         user_id = self._get_effective_user_id(event)
         result = self.user_service.daily_sign_in(user_id)
         if result["success"]:
-            message = f"✅ 签到成功！获得 {result['coins_reward']} 金币。"
-            if result["bonus_coins"] > 0:
-                message += f"\n🎉 连续签到 {result['consecutive_days']} 天，额外奖励 {result['bonus_coins']} 金币！"
-            yield event.plain_result(message)
+            yield event.plain_result(result["message"])
         else:
             yield event.plain_result(f"❌ 签到失败：{result['message']}")
 
