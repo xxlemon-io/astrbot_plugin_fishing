@@ -36,6 +36,56 @@ class GameMechanicsService:
         self.config = config
         self.thread_pool = ThreadPoolExecutor(max_workers=5)
 
+    def forecast_wipe_bomb(self, user_id: str) -> Dict[str, Any]:
+        """
+        预知下一次擦弹的结果是“吉”还是“凶”。
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        # 检查是否已有预测结果
+        if user.wipe_bomb_forecast:
+            return {"success": False, "message": "你已经预知过一次了，请先去擦弹吧！"}
+
+        # 模拟一次随机过程来决定结果
+        wipe_bomb_config = self.config.get("wipe_bomb", {})
+        # 使用 perform_wipe_bomb 的默认概率表以确保一致性
+        ranges = wipe_bomb_config.get(
+            "reward_ranges",
+            [
+                (0, 0.5, 50),
+                (0.5, 1, 30),
+                (1, 2, 15),
+                (2, 5, 4),
+                (5, 10, 1)
+            ],
+        )
+        
+        # 筛选出吉凶区间 (修正临界点判断)
+        good_ranges = [r for r in ranges if r[0] >= 1 or (r[0] < 1 and r[1] > 1)]
+        bad_ranges = [r for r in ranges if r[1] <= 1]
+
+        # 计算吉凶总权重
+        total_good_weight = sum(w for _, _, w in good_ranges)
+        total_bad_weight = sum(w for _, _, w in bad_ranges)
+        total_weight = total_good_weight + total_bad_weight
+
+        rand_val = random.uniform(0, total_weight)
+
+        if rand_val <= total_bad_weight:
+            forecast = "bad"
+            message = "🔮 沙漏中的流沙汇聚成一个骷髅的形状...看起来下次擦弹的运气不太好。（凶）"
+        else:
+            forecast = "good"
+            message = "✨ 沙漏中闪耀着金色的光芒！预示着一次不错的收获。（吉）"
+            
+        # 存储预测结果
+        user.wipe_bomb_forecast = forecast
+        self.user_repo.update(user)
+
+        return {"success": True, "message": message}
+
     def perform_wipe_bomb(self, user_id: str, contribution_amount: int) -> Dict[str, Any]:
         """
         处理“擦弹”的完整逻辑。
@@ -80,6 +130,23 @@ class GameMechanicsService:
             (5, 10, 1)
         ]
         ranges = wipe_bomb_config.get("reward_ranges", default_ranges)
+
+        # 如果有预测结果，则强制使用对应区间的随机
+        if user.wipe_bomb_forecast:
+            if user.wipe_bomb_forecast == "good":
+                # 强制吉 (修正临界点判断)
+                good_ranges = [r for r in ranges if r[0] >= 1 or (r[0] < 1 and r[1] > 1)]
+                if good_ranges:
+                    ranges = good_ranges
+            elif user.wipe_bomb_forecast == "bad":
+                # 强制凶
+                bad_ranges = [r for r in ranges if r[1] <= 1]
+                if bad_ranges:
+                    ranges = bad_ranges
+            
+            # 使用后清空预测
+            user.wipe_bomb_forecast = None
+
         total_weight = sum(w for _, _, w in ranges)
         rand_val = random.uniform(0, total_weight)
 
@@ -172,6 +239,13 @@ class GameMechanicsService:
         victim = self.user_repo.get_by_id(victim_id)
         if not victim:
             return {"success": False, "message": "目标用户不存在"}
+
+        # 0. 检查受害者是否受保护
+        protection_buff = self.buff_repo.get_active_by_user_and_type(
+            victim_id, "STEAL_PROTECTION_BUFF"
+        )
+        if protection_buff:
+            return {"success": False, "message": f"❌ 无法偷窃，【{victim.nickname}】的鱼塘似乎被神秘力量守护着！"}
 
         # 1. 检查偷窃CD
         cooldown_seconds = self.config.get("steal", {}).get("cooldown_seconds", 14400) # 默认4小时

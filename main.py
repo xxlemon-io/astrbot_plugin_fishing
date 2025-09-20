@@ -1293,6 +1293,36 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
+    @filter.command("占卜擦弹")
+    async def forecast_wipe_bomb_cmd(self, event: AstrMessageEvent):
+        """使用「时运沙漏」预知下一次擦弹结果。"""
+        user_id = self._get_effective_user_id(event)
+        
+        # 查找名为"时运沙漏"的道具ID
+        try:
+            all_items = self.item_template_repo.get_all_items()
+            hourglass_item = next((item for item in all_items if item.name == "时运沙漏"), None)
+        except Exception:
+            hourglass_item = None
+
+        if not hourglass_item:
+            yield event.plain_result("❌ 道具「时运沙漏」不存在，请先同步道具。")
+            return
+            
+        hourglass_id = hourglass_item.item_id
+
+        # 检查用户是否有该道具
+        user_inventory = self.inventory_repo.get_user_item_inventory(user_id)
+        if user_inventory.get(hourglass_id, 0) <= 0:
+            yield event.plain_result("❌ 你没有「时运沙漏」，无法进行占卜。")
+            return
+
+        # 消耗道具并执行预测
+        self.inventory_repo.decrease_item_quantity(user_id, hourglass_id, 1)
+        result = self.game_mechanics_service.forecast_wipe_bomb(user_id)
+        
+        yield event.plain_result(result["message"])
+
     # ===========社交==========
     @filter.command("排行榜", alias={"phb"})
     async def ranking(self, event: AstrMessageEvent):

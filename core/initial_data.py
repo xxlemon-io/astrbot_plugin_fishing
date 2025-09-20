@@ -362,4 +362,28 @@ ITEM_DATA = [
         "REFINE_DESTRUCTION_SHIELD",
         '{"mode": "keep"}',
     ),
+    (
+        0,
+        "守护海灵",
+        "召唤一个温和的海灵守护你的鱼塘。",
+        3,
+        "使用：8小时内你的鱼塘不会被其他玩家偷窃。",
+        0,
+        True,
+        None,
+        "STEAL_PROTECTION_BUFF",
+        '{"duration_hours": 8}',
+    ),
+    (
+        0,
+        "时运沙漏",
+        "一个能窥见未来片刻的奇妙沙漏。",
+        4,
+        "使用：预知下一次擦弹的奖励倍率是大于1（吉）还是小于等于1（凶）。",
+        0,
+        True,
+        None,
+        None, # 无需效果处理器，由主命令直接调用service
+        None,
+    ),
 ]

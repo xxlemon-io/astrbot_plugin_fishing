@@ -192,6 +192,7 @@ class User:
     last_steal_time: Optional[datetime] = None
     last_login_time: Optional[datetime] = None
     last_stolen_at: Optional[datetime] = None
+    wipe_bomb_forecast: Optional[str] = None  # 'good' or 'bad'
 
     def can_afford(self, cost: int) -> bool:
         """判断用户金币是否足够"""
