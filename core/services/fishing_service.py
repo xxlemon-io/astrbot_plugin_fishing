@@ -264,19 +264,31 @@ class FishingService:
                 zone.rare_fish_caught_today += 1
                 self.inventory_repo.update_fishing_zone(zone)
 
-        # 4.2
-        extra = random.random() <= (quality_modifier - 1)
-        if extra:
+        # 4.2 按品质加成给予额外质量（重量/价值）奖励
+        quality_bonus = False
+        if quality_modifier > 1.0:
+            quality_bonus = random.random() <= (quality_modifier - 1.0)
+        if quality_bonus:
             extra_weight = random.randint(fish_template.min_weight, fish_template.max_weight)
             extra_value = fish_template.base_value
             weight += extra_weight
             value += extra_value
 
+        # 4.3 按数量加成决定额外渔获数量
+        total_catches = 1
+        if quantity_modifier > 1.0:
+            # 整数部分-1 为保证的额外数量；小数部分为额外+1的概率
+            guaranteed_extra = max(0, int(quantity_modifier) - 1)
+            total_catches += guaranteed_extra
+            fractional = quantity_modifier - int(quantity_modifier)
+            if fractional > 0 and random.random() < fractional:
+                total_catches += 1
+
         # 5. 更新数据库
-        self.inventory_repo.add_fish_to_inventory(user.user_id, fish_template.fish_id, quantity= 1 + extra)
+        self.inventory_repo.add_fish_to_inventory(user.user_id, fish_template.fish_id, quantity= total_catches)
 
         # 更新用户统计数据
-        user.total_fishing_count += 1 + extra
+        user.total_fishing_count += total_catches
         user.total_weight_caught += weight
         user.total_coins_earned += value
         user.last_fishing_time = get_now()
