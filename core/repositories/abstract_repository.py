@@ -7,7 +7,7 @@ from ..domain.models import (
     User, Fish, Rod, Bait, Accessory, Title, Achievement, Item,
     UserRodInstance, UserAccessoryInstance, UserFishInventoryItem,
     FishingRecord, GachaRecord, WipeBombLog, MarketListing, TaxRecord,
-    GachaPool, GachaPoolItem, FishingZone
+    GachaPool, GachaPoolItem, FishingZone, UserBuff
 )
 
 # 定义用户成就进度的数据结构
@@ -383,17 +383,17 @@ class AbstractAchievementRepository(ABC):
 
 class AbstractUserBuffRepository(ABC):
     @abstractmethod
-    def add(self, buff: UserBuff):
+    def add(self, buff: "UserBuff"):
         pass
 
     @abstractmethod
     def get_active_by_user_and_type(
         self, user_id: str, buff_type: str
-    ) -> Optional[UserBuff]:
+    ) -> Optional["UserBuff"]:
         pass
 
     @abstractmethod
-    def get_all_active_by_user(self, user_id: str) -> List[UserBuff]:
+    def get_all_active_by_user(self, user_id: str) -> List["UserBuff"]:
         pass
 
     @abstractmethod
