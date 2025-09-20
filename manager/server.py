@@ -252,7 +252,7 @@ async def import_rods_csv():
             await flash("未选择文件", "danger")
             return redirect(url_for("admin_bp.manage_rods"))
 
-        content = (await file.read()).decode("utf-8-sig")
+        content = file.read().decode("utf-8-sig")
         reader = csv.DictReader(io.StringIO(content))
         required_cols = {
             "name",
@@ -433,7 +433,7 @@ async def import_accessories_csv():
             await flash("未选择文件", "danger")
             return redirect(url_for("admin_bp.manage_accessories"))
 
-        content = (await file.read()).decode("utf-8-sig")
+        content = file.read().decode("utf-8-sig")
         reader = csv.DictReader(io.StringIO(content))
         required_cols = {
             "name",
