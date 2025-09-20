@@ -959,3 +959,39 @@ class InventoryService:
         else:
             # 非消耗品，提示无法使用
             return {"success": False, "message": f"【{item_template.name}】无法直接使用。"}
+
+    def sell_item(self, user_id: str, item_id: int, quantity: int = 1) -> Dict[str, Any]:
+        """出售指定数量的道具，按照模板 cost 的一半计价（至少 1）。"""
+        if quantity <= 0:
+            return {"success": False, "message": "数量必须大于0"}
+
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        inv = self.inventory_repo.get_user_item_inventory(user_id)
+        owned_qty = inv.get(item_id, 0)
+        if owned_qty <= 0:
+            return {"success": False, "message": "❌ 你没有这个道具"}
+        if quantity > owned_qty:
+            return {"success": False, "message": f"❌ 数量不足，当前仅有 {owned_qty} 个"}
+
+        tpl = self.item_template_repo.get_item_by_id(item_id)
+        if not tpl:
+            return {"success": False, "message": "道具信息不存在"}
+
+        # 定价：模板 cost 的 50%，至少 1
+        single_price = max(1, int((tpl.cost or 0) * 0.5))
+        total = single_price * quantity
+
+        # 扣减库存，增加金币
+        self.inventory_repo.decrease_item_quantity(user_id, item_id, quantity)
+        user.coins += total
+        self.user_repo.update(user)
+
+        return {
+            "success": True,
+            "message": f"💰 成功卖出【{tpl.name}】x{quantity}，获得 {total} 金币",
+            "gained": total,
+            "remaining": owned_qty - quantity
+        }

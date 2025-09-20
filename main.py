@@ -444,7 +444,8 @@ class FishingPlugin(Star):
         if item_info and item_info.get("items"):
             message = "【📦 道具】：\n"
             for it in item_info["items"]:
-                message += f" - {it['name']} x {it['quantity']} (稀有度: {format_rarity_display(it['rarity'])})\n"
+                consumable_text = "消耗品" if it.get("is_consumable") else "非消耗"
+                message += f" - {it['name']} x {it['quantity']} (稀有度: {format_rarity_display(it['rarity'])}，{consumable_text})\n"
                 message += f"   - ID: {it['item_id']}\n"
                 if it.get("effect_description"):
                     message += f"   - 效果: {it['effect_description']}\n"
@@ -476,6 +477,27 @@ class FishingPlugin(Star):
             yield event.plain_result(f"✅ {result['message']}")
         else:
             yield event.plain_result(f"❌ {result['message']}")
+
+    @filter.command("卖道具", alias={"出售道具", "卖出道具"})
+    async def sell_item(self, event: AstrMessageEvent):
+        """卖出道具：/卖道具 <ID> [数量]，数量缺省为1"""
+        user_id = event.get_sender_id()
+        parts = event.message_str.strip().split()
+        if len(parts) < 2:
+            yield event.plain_result("❌ 用法：/卖道具 <道具ID> [数量]")
+            return
+        if not parts[1].isdigit():
+            yield event.plain_result("❌ 道具ID必须是数字")
+            return
+        item_id = int(parts[1])
+        qty = 1
+        if len(parts) >= 3 and parts[2].isdigit():
+            qty = int(parts[2])
+        result = self.inventory_service.sell_item(user_id, item_id, qty)
+        if result.get("success"):
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result(result.get("message", "操作失败"))
 
     @filter.command("饰品")
     async def accessories(self, event: AstrMessageEvent):

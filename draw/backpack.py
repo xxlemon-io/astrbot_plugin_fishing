@@ -829,6 +829,10 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             draw.text((x + 15, y + 10), item_name, font=small_font, fill=text_primary)
             item_id = item.get('item_id', 'N/A')
             draw.text((x + 15 + name_w + 10, y + 12), f"ID: {item_id}", font=tiny_font, fill=primary_light)
+            # 消耗品标识（右上角）
+            label_text = "消耗" if item.get('is_consumable') else "非消耗"
+            lw, lh = get_text_size(label_text, tiny_font)
+            draw.text((x + card_width - 15 - lw, y + 12), label_text, font=tiny_font, fill=success_color if item.get('is_consumable') else text_muted)
 
             rarity = item.get('rarity', 1)
             star_color = rare_color if rarity > 4 else warning_color if rarity >= 3 else text_secondary
