@@ -81,7 +81,7 @@ class GameMechanicsService:
         for r_min, r_max, weight in ranges:
             current_weight += weight
             if rand_val <= current_weight:
-                reward_multiplier = round(random.uniform(r_min, r_max), 1)
+                reward_multiplier = random.uniform(r_min, r_max)
                 break
 
         # 4. 计算最终金额并执行事务
