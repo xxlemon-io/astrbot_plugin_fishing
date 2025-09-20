@@ -143,10 +143,19 @@ def calculate_dynamic_height(user_data: Dict[str, Any]) -> int:
     else:
         bait_height = 35 + 50
     
-    # 区域间距
-    section_spacing = 20 * 3  # 3个区域间距
+    # 道具区域高度 - 保守估算
+    items = user_data.get('items', [])
+    if items:
+        rows = (len(items) + 1) // 2
+        avg_height = 130
+        item_height = 35 + rows * avg_height + (rows - 1) * 15
+    else:
+        item_height = 35 + 50
     
-    total_height = base_height + rod_height + accessory_height + bait_height + section_spacing
+    # 区域间距
+    section_spacing = 20 * 4  # 4个区域间距
+    
+    total_height = base_height + rod_height + accessory_height + bait_height + item_height + section_spacing
     return max(total_height, 600)  # 最小高度600
 
 def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
@@ -160,6 +169,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
             - rods: 鱼竿列表
             - accessories: 饰品列表
             - baits: 鱼饵列表
+            - items: 道具列表
     
     Returns:
         PIL.Image.Image: 生成的背包图像
@@ -328,6 +338,16 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         # 移除最小高度限制，让卡片根据实际内容调整
         return card_h
 
+    def measure_item_card_height(item, card_width: int) -> int:
+        line_h = get_text_size("测", tiny_font)[1] + 2
+        desc_lines = 0
+        if item.get('effect_description'):
+            lines = wrap_text_by_width(f"效果: {item['effect_description']}", tiny_font, card_width - 30)
+            desc_lines = len(lines)
+        header_height = 70
+        bottom_pad = 15 if desc_lines > 0 else 10
+        return header_height + desc_lines * line_h + bottom_pad
+
     # 5. 绘制圆角矩形
     def draw_rounded_rectangle(draw, bbox, radius, fill=None, outline=None, width=1):
         x1, y1, x2, y2 = bbox
@@ -386,6 +406,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     rods_count = len(user_data.get('rods', []))
     accessories_count = len(user_data.get('accessories', []))
     baits_count = len(user_data.get('baits', []))
+    items_count = len(user_data.get('items', []))
     
     # 计算总价值（简化估算）
     total_value = 0
@@ -406,8 +427,13 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         quantity = bait.get('quantity', 0)
         base_value = rarity * 100
         total_value += base_value * quantity
+    for item in user_data.get('items', []):
+        rarity = item.get('rarity', 1)
+        quantity = item.get('quantity', 0)
+        base_value = rarity * 100
+        total_value += base_value * quantity
     
-    stats_text = f"鱼竿: {rods_count} | 饰品: {accessories_count} | 鱼饵: {baits_count}"
+    stats_text = f"鱼竿: {rods_count} | 饰品: {accessories_count} | 鱼饵: {baits_count} | 道具: {items_count}"
     value_text = f"装备总价值: {int(total_value):,} 金币"
     stats_w, stats_h = get_text_size(stats_text, small_font)
     value_w, value_h = get_text_size(value_text, small_font)
@@ -756,8 +782,74 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         draw.text((30, current_y), "🐟 您还没有鱼饵，快去商店购买或抽奖获得吧！", font=content_font, fill=text_muted)
         current_y += 50
 
-    # 底部信息 - 确保不被截断
-    current_y += 30
+    current_y += 20
+
+    # 道具区域
+    items = user_data.get('items', [])
+    draw.text((30, current_y), "道具", font=subtitle_font, fill=primary_medium)
+    current_y += 35
+
+    if items:
+        card_width = (width - 90) // 2
+        card_margin = 15
+        row_start_y = current_y
+        next_row_start_y = current_y
+
+        for i, item in enumerate(items):
+            row = i // 2
+            col = i % 2
+            x = 30 + col * (card_width + card_margin)
+
+            if col == 0:
+                row_start_y = next_row_start_y
+                left_h = measure_item_card_height(item, card_width)
+                right_index = i + 1
+                if right_index < len(items):
+                    right_h = measure_item_card_height(items[right_index], card_width)
+                else:
+                    right_h = 0
+                row_h = max(left_h, right_h)
+                y = row_start_y
+                next_row_start_y = row_start_y + row_h + card_margin
+                card_height = row_h
+            else:
+                y = row_start_y
+                card_height = row_h
+            ensure_height(y + card_height + 40)
+
+            draw_rounded_rectangle(draw, (x, y, x + card_width, y + card_height), 6, fill=card_bg)
+
+            item_name = item['name'][:12] + "..." if len(item['name']) > 12 else item['name']
+            name_w, _ = get_text_size(item_name, small_font)
+            draw.text((x + 15, y + 10), item_name, font=small_font, fill=text_primary)
+            item_id = item.get('item_id', 'N/A')
+            draw.text((x + 15 + name_w + 10, y + 12), f"ID: {item_id}", font=tiny_font, fill=primary_light)
+
+            rarity = item.get('rarity', 1)
+            star_color = rare_color if rarity > 4 else warning_color if rarity >= 3 else text_secondary
+            draw.text((x + 15, y + 30), format_rarity_display(rarity), font=tiny_font, fill=star_color)
+
+            quantity = item.get('quantity', 0)
+            draw.text((x + 15, y + 50), f"数量: {quantity}", font=tiny_font, fill=text_secondary)
+
+            next_y = y + 70
+            if effect_desc := item.get('effect_description'):
+                available_width = card_width - 30
+                lines = wrap_text_by_width(f"效果: {effect_desc}", tiny_font, available_width)
+                line_h = get_text_size("测", tiny_font)[1] + 2
+                max_lines = max((y + card_height - 15) - next_y, 0) // line_h
+                if max_lines > 0:
+                    for i, line in enumerate(lines[:max_lines]):
+                        draw.text((x + 15, next_y + i * line_h), line, font=tiny_font, fill=text_secondary)
+        current_y = next_row_start_y
+    else:
+        draw.text((30, current_y), "📦 您还没有道具。", font=content_font, fill=text_muted)
+        current_y += 50
+
+    current_y += 20
+
+    # 6. 底部信息 - 显示生成时间
+    ensure_height(height - 10)
     footer_text = f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     footer_w, footer_h = get_text_size(footer_text, small_font)
     footer_x = (width - footer_w) // 2
@@ -771,11 +863,6 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
         new_image.paste(bg, (0, 0))
         new_image.paste(image, (0, 0))
         image = new_image
-        draw = ImageDraw.Draw(image)
-        height = needed_height
-    elif needed_height < height:
-        # 裁剪画布，移除多余空白
-        image = image.crop((0, 0, width, needed_height))
         draw = ImageDraw.Draw(image)
         height = needed_height
     draw.text((footer_x, current_y), footer_text, font=small_font, fill=text_secondary)
@@ -816,10 +903,15 @@ def get_user_backpack_data(inventory_service, user_id: str) -> Dict[str, Any]:
     bait_result = inventory_service.get_user_bait_inventory(user_id)
     baits = bait_result.get('baits', []) if bait_result.get('success') else []
     
+    # 获取道具库存
+    item_result = inventory_service.get_user_item_inventory(user_id)
+    items = item_result.get('items', []) if item_result.get('success') else []
+
     return {
         'user_id': user_id,
         'nickname': user_id,  # 这里可以后续从用户服务获取昵称
         'rods': rods,
         'accessories': accessories,
-        'baits': baits
+        'baits': baits,
+        'items': items
     }

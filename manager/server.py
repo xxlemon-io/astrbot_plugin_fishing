@@ -871,6 +871,7 @@ async def manage_user_inventory(user_id):
         all_rods = item_template_service.get_all_rods()
         all_accessories = item_template_service.get_all_accessories()
         all_baits = item_template_service.get_all_baits()
+        all_items = item_template_service.get_all_items()
         
         return await render_template(
             "users_inventory.html",
@@ -880,7 +881,8 @@ async def manage_user_inventory(user_id):
             all_fish=all_fish,
             all_rods=all_rods,
             all_accessories=all_accessories,
-            all_baits=all_baits
+            all_baits=all_baits,
+            all_items=all_items
         )
     except Exception as e:
         await flash(f"页面加载失败: {str(e)}", "danger")

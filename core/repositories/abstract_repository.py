@@ -4,7 +4,7 @@ from datetime import date, datetime
 
 # 从领域模型导入所有需要的实体
 from ..domain.models import (
-    User, Fish, Rod, Bait, Accessory, Title, Achievement,
+    User, Fish, Rod, Bait, Accessory, Title, Achievement, Item,
     UserRodInstance, UserAccessoryInstance, UserFishInventoryItem,
     FishingRecord, GachaRecord, WipeBombLog, MarketListing, TaxRecord,
     GachaPool, GachaPoolItem, FishingZone
@@ -87,6 +87,12 @@ class AbstractItemTemplateRepository(ABC):
     # 获取所有称号模板
     @abstractmethod
     def get_all_titles(self) -> List[Title]: pass
+    # 获取道具模板
+    @abstractmethod
+    def get_item_by_id(self, item_id: int) -> Optional[Item]: pass
+    # 获取所有道具模板
+    @abstractmethod
+    def get_all_items(self) -> List[Item]: pass
     # 随机获取一条鱼的模板
     @abstractmethod
     def get_random_fish(self, rarity: Optional[int] = None) -> Optional[Fish]: pass
@@ -156,6 +162,12 @@ class AbstractInventoryRepository(ABC):
     # 更新用户的鱼饵数量
     @abstractmethod
     def update_bait_quantity(self, user_id: str, bait_id: int, delta: int) -> None: pass
+    # 获取用户的道具库存
+    @abstractmethod
+    def get_user_item_inventory(self, user_id: str) -> Dict[int, int]: pass
+    # 更新用户的道具数量
+    @abstractmethod
+    def update_item_quantity(self, user_id: str, item_id: int, delta: int) -> None: pass
     # 获取用户的所有鱼竿实例
     @abstractmethod
     def get_user_rod_instances(self, user_id: str) -> List[UserRodInstance]: pass

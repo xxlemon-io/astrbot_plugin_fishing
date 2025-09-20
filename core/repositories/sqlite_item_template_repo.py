@@ -4,7 +4,7 @@ from typing import Optional, List, Dict, Any
 
 # 导入抽象基类和领域模型
 from .abstract_repository import AbstractItemTemplateRepository
-from ..domain.models import Fish, Rod, Bait, Accessory, Title
+from ..domain.models import Fish, Rod, Bait, Accessory, Title, Item
 
 class SqliteItemTemplateRepository(AbstractItemTemplateRepository):
     """物品模板仓储的SQLite实现"""
@@ -47,6 +47,11 @@ class SqliteItemTemplateRepository(AbstractItemTemplateRepository):
         if not row:
             return None
         return Title(**row)
+
+    def _row_to_item(self, row: sqlite3.Row) -> Optional[Item]:
+        if not row:
+            return None
+        return Item(**row)
 
     # --- Fish Read Methods ---
     def get_fish_by_id(self, fish_id: int) -> Optional[Fish]:
@@ -125,6 +130,19 @@ class SqliteItemTemplateRepository(AbstractItemTemplateRepository):
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM titles ORDER BY rarity DESC")
             return [self._row_to_title(row) for row in cursor.fetchall()]
+
+    # --- Item Read Methods ---
+    def get_item_by_id(self, item_id: int) -> Optional[Item]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM items WHERE item_id = ?", (item_id,))
+            return self._row_to_item(cursor.fetchone())
+
+    def get_all_items(self) -> List[Item]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM items ORDER BY rarity DESC, cost DESC")
+            return [self._row_to_item(row) for row in cursor.fetchall()]
 
     # ==========================================================
     # Admin Panel CRUD Methods

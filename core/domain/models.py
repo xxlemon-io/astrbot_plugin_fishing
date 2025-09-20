@@ -70,6 +70,19 @@ class Accessory:
     icon_url: Optional[str] = None
 
 @dataclass
+class Item:
+    """代表一种通用道具的模板信息（背包道具栏）"""
+    item_id: int
+    name: str
+    rarity: int
+    description: Optional[str] = None
+    effect_description: Optional[str] = None
+    item_type: str = "consumable"  # consumable, tool, key 等
+    cost: int = 0
+    is_consumable: bool = True
+    icon_url: Optional[str] = None
+
+@dataclass
 class Title:
     """代表一种称号的模板信息"""
     title_id: int

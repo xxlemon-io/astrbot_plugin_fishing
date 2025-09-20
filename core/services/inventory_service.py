@@ -140,6 +140,30 @@ class InventoryService:
             "accessories": enriched_accessories
         }
 
+    def get_user_item_inventory(self, user_id: str) -> Dict[str, Any]:
+        """
+        获取用户的道具库存。
+        """
+        item_inventory = self.inventory_repo.get_user_item_inventory(user_id)
+        enriched_items = []
+
+        for item_id, quantity in item_inventory.items():
+            item_template = self.item_template_repo.get_item_by_id(item_id)
+            if item_template:
+                enriched_items.append({
+                    "item_id": item_id,
+                    "name": item_template.name,
+                    "rarity": item_template.rarity,
+                    "quantity": quantity,
+                    "effect_description": item_template.effect_description,
+                    "item_type": item_template.item_type,
+                })
+
+        return {
+            "success": True,
+            "items": enriched_items
+        }
+
     def sell_all_fish(self, user_id: str, keep_one: bool = False) -> Dict[str, Any]:
         """
         向系统出售鱼。

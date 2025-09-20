@@ -517,10 +517,27 @@ class UserService:
                         "cost": bait_template.cost,
                         "total_value": bait_template.cost * quantity
                     })
+
+            # 获取道具库存
+            item_inventory = self.inventory_repo.get_user_item_inventory(user_id)
+            items_data = []
+            for item_id, quantity in item_inventory.items():
+                item_template = self.item_template_repo.get_item_by_id(item_id)
+                if item_template and quantity > 0:
+                    items_data.append({
+                        "item_id": item_id,
+                        "name": item_template.name,
+                        "rarity": item_template.rarity,
+                        "item_type": item_template.item_type,
+                        "quantity": quantity,
+                        "cost": item_template.cost,
+                        "total_value": (item_template.cost or 0) * quantity
+                    })
             
             # 计算总价值
             fish_total_value = sum(item["total_value"] for item in fish_data)
             bait_total_value = sum(item["total_value"] for item in bait_data)
+            item_total_value = sum(item["total_value"] for item in items_data)
             
             return {
                 "success": True,
@@ -530,14 +547,17 @@ class UserService:
                 "rod_inventory": rod_data,
                 "accessory_inventory": accessory_data,
                 "bait_inventory": bait_data,
+                "item_inventory": items_data,
                 "stats": {
                     "fish_count": len(fish_data),
                     "rod_count": len(rod_data),
                     "accessory_count": len(accessory_data),
                     "bait_count": len(bait_data),
+                    "item_count": len(items_data),
                     "fish_total_value": fish_total_value,
                     "bait_total_value": bait_total_value,
-                    "total_inventory_value": fish_total_value + bait_total_value
+                    "item_total_value": item_total_value,
+                    "total_inventory_value": fish_total_value + bait_total_value + item_total_value
                 }
             }
         except Exception as e:
@@ -549,7 +569,7 @@ class UserService:
         
         Args:
             user_id: 用户ID
-            item_type: 物品类型 (fish, rod, accessory, bait)
+            item_type: 物品类型 (fish, rod, accessory, bait, item)
             item_id: 物品ID
             quantity: 数量
             
@@ -590,6 +610,13 @@ class UserService:
                     return {"success": False, "message": "鱼饵不存在"}
                 self.inventory_repo.update_bait_quantity(user_id, item_id, quantity)
                 return {"success": True, "message": f"成功添加 {bait_template.name} x{quantity}"}
+            
+            elif item_type == "item":
+                item_template = self.item_template_repo.get_item_by_id(item_id)
+                if not item_template:
+                    return {"success": False, "message": "道具不存在"}
+                self.inventory_repo.update_item_quantity(user_id, item_id, quantity)
+                return {"success": True, "message": f"成功添加 {item_template.name} x{quantity}"}
                 
             else:
                 return {"success": False, "message": "不支持的物品类型"}
@@ -603,7 +630,7 @@ class UserService:
         
         Args:
             user_id: 用户ID
-            item_type: 物品类型 (fish, rod, accessory, bait)
+            item_type: 物品类型 (fish, rod, accessory, bait, item)
             item_id: 物品ID
             quantity: 数量
             
@@ -702,6 +729,17 @@ class UserService:
                 # 减少数量
                 self.inventory_repo.update_bait_quantity(user_id, item_id, -quantity)
                 return {"success": True, "message": f"成功移除 {bait_template.name} x{quantity}"}
+            
+            elif item_type == "item":
+                item_template = self.item_template_repo.get_item_by_id(item_id)
+                if not item_template:
+                    return {"success": False, "message": "道具不存在"}
+                item_inventory = self.inventory_repo.get_user_item_inventory(user_id)
+                current_quantity = item_inventory.get(item_id, 0)
+                if current_quantity < quantity:
+                    return {"success": False, "message": f"库存不足，当前只有 {current_quantity} 个"}
+                self.inventory_repo.update_item_quantity(user_id, item_id, -quantity)
+                return {"success": True, "message": f"成功移除 {item_template.name} x{quantity}"}
                 
             else:
                 return {"success": False, "message": "不支持的物品类型"}
