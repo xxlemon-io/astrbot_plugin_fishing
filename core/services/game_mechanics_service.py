@@ -105,28 +105,23 @@ class GameMechanicsService:
             ],
         )
         
-        # 筛选出吉凶区间 (修正临界点判断)
-        good_ranges = [r for r in ranges if r[0] >= 1 or (r[0] < 1 and r[1] > 1)]
-        bad_ranges = [r for r in ranges if r[1] <= 1]
+        # 模拟一次抽奖来决定运势
+        try:
+            chosen_range = weighted_random_choice(ranges)
+            simulated_multiplier = random.uniform(chosen_range[0], chosen_range[1])
+        except (ValueError, IndexError) as e:
+            logger.error(f"擦弹预测时随机选择出错: {e}", exc_info=True)
+            return {"success": False, "message": "占卜失败，似乎天机不可泄露..."}
 
-        # 计算吉凶总权重
-        total_good_weight = sum(w for _, _, w in good_ranges)
-        total_bad_weight = sum(w for _, _, w in bad_ranges)
-        total_weight = total_good_weight + total_bad_weight
-
-        rand_val = random.uniform(0, total_weight)
-
-        if rand_val <= total_bad_weight:
-            forecast = "bad"
-            message = "🔮 沙漏中的流沙汇聚成一个骷髅的形状...看起来下次擦弹的运气不太好。（凶）"
-        else:
-            forecast = "good"
-            message = "✨ 沙漏中闪耀着金色的光芒！预示着一次不错的收获。（吉）"
-            
-        # 存储预测结果
-        user.wipe_bomb_forecast = forecast
+        # 根据模拟结果确定运势等级
+        tier_key = self._get_fortune_tier_for_multiplier(simulated_multiplier)
+        
+        # 保存预测结果
+        user.wipe_bomb_forecast = tier_key
         self.user_repo.update(user)
-
+        
+        # 返回对应的占卜信息
+        message = self.FORTUNE_TIERS[tier_key]["message"]
         return {"success": True, "message": message}
 
     def perform_wipe_bomb(self, user_id: str, contribution_amount: int) -> Dict[str, Any]:
