@@ -394,7 +394,11 @@ class AbstractAchievementRepository(ABC):
 
 class AbstractUserBuffRepository(ABC):
     @abstractmethod
-    def add(self, buff: "UserBuff"):
+    def add(self, buff: UserBuff):
+        pass
+
+    @abstractmethod
+    def update(self, buff: UserBuff):
         pass
 
     @abstractmethod

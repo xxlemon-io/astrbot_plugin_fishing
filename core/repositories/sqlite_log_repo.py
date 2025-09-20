@@ -127,8 +127,6 @@ class SqliteLogRepository(AbstractLogRepository):
         # 如果 timestamp 是 naive datetime，附加 UTC+8 时区
         if timestamp.tzinfo is None:
             timestamp = timestamp.replace(tzinfo=self.UTC8)
-        # 确保存储为 UTC 时间字符串
-        utc_timestamp = timestamp.astimezone(timezone.utc).replace(tzinfo=None)
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
@@ -136,25 +134,21 @@ class SqliteLogRepository(AbstractLogRepository):
                 (user_id, contribution_amount, reward_multiplier, reward_amount, timestamp)
                 VALUES (?, ?, ?, ?, ?)
             """, (log.user_id, log.contribution_amount, log.reward_multiplier,
-                  log.reward_amount, utc_timestamp))
+                  log.reward_amount, timestamp))
             conn.commit()
 
     # 查询时考虑时区
     def get_wipe_bomb_log_count_today(self, user_id: str) -> int:
-        # 获取 UTC+8 的今天的开始和结束时间点（转为 UTC）
+        # 获取 UTC+8 的今天的开始和结束时间点
         today_start = datetime.now(self.UTC8).replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = today_start + timedelta(days=1)
-
-        # 转为 UTC 时间，移除时区信息
-        utc_start = today_start.astimezone(timezone.utc).replace(tzinfo=None)
-        utc_end = today_end.astimezone(timezone.utc).replace(tzinfo=None)
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT COUNT(*) FROM wipe_bomb_log
                 WHERE user_id = ? AND timestamp >= ? AND timestamp < ?
-            """, (user_id, utc_start, utc_end))
+            """, (user_id, today_start, today_end))
             result = cursor.fetchone()
             return result[0] if result else 0
 
@@ -223,15 +217,18 @@ class SqliteLogRepository(AbstractLogRepository):
     def get_gacha_records_count_today(
         self, user_id: str, gacha_pool_id: int
     ) -> int:
-        today_str = datetime.now(self.UTC8).strftime("%Y-%m-%d")
+        # 获取 UTC+8 的今天的开始和结束时间点
+        today_start_utc8 = datetime.now(self.UTC8).replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end_utc8 = today_start_utc8 + timedelta(days=1)
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
                 SELECT COUNT(*) FROM gacha_records
-                WHERE user_id = ? AND gacha_pool_id = ? AND DATE(timestamp) = ?
+                WHERE user_id = ? AND gacha_pool_id = ? AND timestamp >= ? AND timestamp < ?
                 """,
-                (user_id, gacha_pool_id, today_str),
+                (user_id, gacha_pool_id, today_start_utc8, today_end_utc8),
             )
             result = cursor.fetchone()
             return result[0] if result else 0

@@ -163,6 +163,10 @@ class UserService:
                 if reward.get("type") == "coins":
                     reward_name = f"{reward.get('quantity', 0)} 金币"
                 free_gacha_reward_msg = f"\n🎁 每日补给: 你获得了 {reward_name}！"
+            else:
+                # 如果抽奖失败（例如已经抽过），也给出提示
+                fail_reason = gacha_result.get("message", "未能领取每日补给")
+                free_gacha_reward_msg = f"\nℹ️ {fail_reason}"
 
         return {
             "success": True,

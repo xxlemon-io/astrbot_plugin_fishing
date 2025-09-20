@@ -39,6 +39,7 @@ from .core.database.migration import run_migrations
 from .core.utils import get_now
 from .draw.rank import draw_fishing_ranking
 from .draw.help import draw_help_image
+from .draw.state import draw_state_image, get_user_state_data
 from .manager.server import create_app
 from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_datetime_handler, _is_port_available, format_rarity_display, kill_processes_on_port
 
@@ -183,6 +184,18 @@ class FishingPlugin(Star):
         self.secret_key = config.get("secret_key", "default_secret_key")
         self.port = config.get("port", 7777)
 
+        # 管理员扮演功能
+        self.impersonation_map = {}
+
+    def _get_effective_user_id(self, event: AstrMessageEvent):
+        """获取在当前上下文中应当作为指令执行者的用户ID。
+        - 默认返回消息发送者ID
+        - 若发送者是管理员且已开启代理，则返回被代理用户ID
+        注意：仅在非管理员指令中调用该方法；管理员指令应使用真实管理员ID。
+        """
+        admin_id = event.get_sender_id()
+        return self.impersonation_map.get(admin_id, admin_id)
+
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
         logger.info("""
@@ -199,8 +212,8 @@ class FishingPlugin(Star):
     @filter.command("注册")
     async def register_user(self, event: AstrMessageEvent):
         """注册用户命令"""
-        user_id = event.get_sender_id()
-        nickname = event.get_sender_name() if event.get_sender_name() is not None else event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
+        nickname = event.get_sender_name() if event.get_sender_name() is not None else user_id
         result = self.user_service.register(user_id, nickname)
         if result:
             yield event.plain_result(result["message"])
@@ -210,7 +223,7 @@ class FishingPlugin(Star):
     @filter.command("钓鱼")
     async def fish(self, event: AstrMessageEvent):
         """钓鱼"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         user = self.user_repo.get_by_id(user_id)
         if not user:
             yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
@@ -259,27 +272,24 @@ class FishingPlugin(Star):
     @filter.command("签到")
     async def sign_in(self, event: AstrMessageEvent):
         """签到"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         result = self.user_service.daily_sign_in(user_id)
         if result["success"]:
-            message = f"✅ 签到成功！获得 {result['coins_reward']} 金币。"
-            if result["bonus_coins"] > 0:
-                message += f"\n🎉 连续签到 {result['consecutive_days']} 天，额外奖励 {result['bonus_coins']} 金币！"
-            yield event.plain_result(message)
+            yield event.plain_result(result["message"])
         else:
             yield event.plain_result(f"❌ 签到失败：{result['message']}")
 
     @filter.command("自动钓鱼")
     async def auto_fish(self, event: AstrMessageEvent):
         """自动钓鱼"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         result = self.fishing_service.toggle_auto_fishing(user_id)
         yield event.plain_result(result["message"])
 
     @filter.command("钓鱼记录", alias={"钓鱼日志", "钓鱼历史"})
     async def fishing_log(self, event: AstrMessageEvent):
         """查看钓鱼记录"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         result = self.fishing_service.get_user_fish_log(user_id)
         if result:
             if result["success"]:
@@ -301,41 +311,28 @@ class FishingPlugin(Star):
 
     # ===========背包与资产管理==========
 
-    @filter.command("状态", alias={"用户状态", "查看状态"})
-    async def user_status(self, event: AstrMessageEvent):
+    @filter.command("状态", alias={"我的状态"})
+    async def state(self, event: AstrMessageEvent):
         """查看用户状态"""
-        user_id = event.get_sender_id()
-        user = self.user_repo.get_by_id(user_id)
-        if user:
-            # 导入绘制函数
-            from .draw.state import draw_state_image, get_user_state_data
-            
-            # 获取用户状态数据
-            user_data = get_user_state_data(
-                self.user_repo,
-                self.inventory_repo,
-                self.item_template_repo,
-                self.log_repo,
-                self.game_config,
-                user_id
-            )
-            
-            if user_data:
-                # 生成状态图像
-                image = draw_state_image(user_data)
-                # 保存图像到临时文件
-                image_path = "user_status.png"
-                image.save(image_path)
-                yield event.image_result(image_path)
-            else:
-                yield event.plain_result("❌ 获取用户状态数据失败。")
-        else:
-            yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
+        user_id = self._get_effective_user_id(event)
+        
+        # 调用新的数据获取函数
+        user_data = get_user_state_data(self.user_repo, self.inventory_repo, self.item_template_repo, self.log_repo, self.buff_repo, self.game_config, user_id)
+        
+        if not user_data:
+            yield event.plain_result('❌ 用户不存在，请先发送"注册"来开始游戏')
+            return
+        # 生成状态图像
+        image = draw_state_image(user_data)
+        # 保存图像到临时文件
+        image_path = "user_status.png"
+        image.save(image_path)
+        yield event.image_result(image_path)
 
     @filter.command("背包", alias={"查看背包", "我的背包"})
     async def user_backpack(self, event: AstrMessageEvent):
         """查看用户背包"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         user = self.user_repo.get_by_id(user_id)
         if user:
             # 导入绘制函数
@@ -358,7 +355,7 @@ class FishingPlugin(Star):
     @filter.command("鱼塘")
     async def pond(self, event: AstrMessageEvent):
         """查看用户鱼塘内的鱼"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         pond_fish = self.inventory_service.get_user_fish_pond(user_id)
         if pond_fish:
             fishes = pond_fish["fishes"]
@@ -386,7 +383,7 @@ class FishingPlugin(Star):
     @filter.command("鱼塘容量")
     async def pond_capacity(self, event: AstrMessageEvent):
         """查看用户鱼塘容量"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         pond_capacity = self.inventory_service.get_user_fish_pond_capacity(user_id)
         if pond_capacity["success"]:
             message = f"🐠 您的鱼塘容量为 {pond_capacity['current_fish_count']} / {pond_capacity['fish_pond_capacity']} 条鱼。"
@@ -397,7 +394,7 @@ class FishingPlugin(Star):
     @filter.command("升级鱼塘", alias={"鱼塘升级"})
     async def upgrade_pond(self, event: AstrMessageEvent):
         """升级鱼塘容量"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         result = self.inventory_service.upgrade_fish_pond(user_id)
         if result["success"]:
             yield event.plain_result(f"🐠 鱼塘升级成功！新容量为 {result['new_capacity']} 条鱼。")
@@ -407,7 +404,7 @@ class FishingPlugin(Star):
     @filter.command("鱼竿")
     async def rod(self, event: AstrMessageEvent):
         """查看用户鱼竿信息"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         rod_info = self.inventory_service.get_user_rod_inventory(user_id)
         if rod_info and rod_info["rods"]:
             # 构造输出信息,附带emoji
@@ -424,7 +421,7 @@ class FishingPlugin(Star):
     @filter.command("精炼鱼竿", alias={"鱼竿精炼"})
     async def refine_rod(self, event: AstrMessageEvent):
         """精炼鱼竿"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         rod_info = self.inventory_service.get_user_rod_inventory(user_id)
         if not rod_info or not rod_info["rods"]:
             yield event.plain_result("❌ 您还没有鱼竿，请先购买或抽奖获得。")
@@ -449,7 +446,7 @@ class FishingPlugin(Star):
     @filter.command("鱼饵")
     async def bait(self, event: AstrMessageEvent):
         """查看用户鱼饵信息"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         bait_info = self.inventory_service.get_user_bait_inventory(user_id)
         if bait_info and bait_info["baits"]:
             # 构造输出信息,附带emoji
@@ -469,7 +466,7 @@ class FishingPlugin(Star):
     @filter.command("道具", alias={"我的道具", "查看道具"})
     async def items(self, event: AstrMessageEvent):
         """查看用户道具信息（文本版）"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         item_info = self.inventory_service.get_user_item_inventory(user_id)
         if item_info and item_info.get("items"):
             message = "【📦 道具】：\n"
@@ -487,7 +484,7 @@ class FishingPlugin(Star):
     @filter.command("使用道具", alias={"使用"})
     async def use_item(self, event: AstrMessageEvent):
         """使用一个道具"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要使用的道具 ID，例如：/使用道具 1")
@@ -511,7 +508,7 @@ class FishingPlugin(Star):
     @filter.command("卖道具", alias={"出售道具", "卖出道具"})
     async def sell_item(self, event: AstrMessageEvent):
         """卖出道具：/卖道具 <ID> [数量]，数量缺省为1"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         parts = event.message_str.strip().split()
         if len(parts) < 2:
             yield event.plain_result("❌ 用法：/卖道具 <道具ID> [数量]")
@@ -532,7 +529,7 @@ class FishingPlugin(Star):
     @filter.command("饰品")
     async def accessories(self, event: AstrMessageEvent):
         """查看用户饰品信息"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         accessories_info = self.inventory_service.get_user_accessory_inventory(user_id)
         if accessories_info and accessories_info["accessories"]:
             # 构造输出信息,附带emoji
@@ -547,7 +544,7 @@ class FishingPlugin(Star):
     @filter.command("精炼饰品", alias={"饰品精炼"})
     async def refine_accessory(self, event: AstrMessageEvent):
         """精炼饰品"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         accessories_info = self.inventory_service.get_user_accessory_inventory(user_id)
         if not accessories_info or not accessories_info["accessories"]:
             yield event.plain_result("❌ 您还没有饰品，请先购买或抽奖获得。")
@@ -638,7 +635,7 @@ class FishingPlugin(Star):
     @filter.command("使用鱼竿")
     async def use_rod(self, event: AstrMessageEvent):
         """使用鱼竿"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         rod_info = self.inventory_service.get_user_rod_inventory(user_id)
         if not rod_info or not rod_info["rods"]:
             yield event.plain_result("❌ 您还没有鱼竿，请先购买或抽奖获得。")
@@ -664,7 +661,7 @@ class FishingPlugin(Star):
     @filter.command("使用鱼饵")
     async def use_bait(self, event: AstrMessageEvent):
         """使用鱼饵"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         bait_info = self.inventory_service.get_user_bait_inventory(user_id)
         if not bait_info or not bait_info["baits"]:
             yield event.plain_result("❌ 您还没有鱼饵，请先购买或抽奖获得。")
@@ -689,7 +686,7 @@ class FishingPlugin(Star):
     @filter.command("使用饰品")
     async def use_accessories(self, event: AstrMessageEvent):
         """使用饰品"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         accessories_info = self.inventory_service.get_user_accessory_inventory(user_id)
         if not accessories_info or not accessories_info["accessories"]:
             yield event.plain_result("❌ 您还没有饰品，请先购买或抽奖获得。")
@@ -714,7 +711,7 @@ class FishingPlugin(Star):
     @filter.command("金币")
     async def coins(self, event: AstrMessageEvent):
         """查看用户金币信息"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         user = self.user_repo.get_by_id(user_id)
         if user:
             yield event.plain_result(f"💰 您的金币余额：{user.coins} 金币")
@@ -724,7 +721,7 @@ class FishingPlugin(Star):
     @filter.command("高级货币", alias={"钻石", "星石"})
     async def premium(self, event: AstrMessageEvent):
         """查看用户高级货币信息"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         user = self.user_repo.get_by_id(user_id)
         if user:
             yield event.plain_result(f"💎 您的高级货币余额：{user.premium_currency}")
@@ -736,7 +733,7 @@ class FishingPlugin(Star):
     @filter.command("全部卖出", alias={"全部出售", "卖出全部", "出售全部", "卖光", "清空鱼", "一键卖出"})
     async def sell_all(self, event: AstrMessageEvent):
         """卖出用户所有鱼"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         result = self.inventory_service.sell_all_fish(user_id)
         if result:
             yield event.plain_result(result["message"])
@@ -746,7 +743,7 @@ class FishingPlugin(Star):
     @filter.command("保留卖出", alias={"保留出售", "卖出保留", "出售保留", "留一卖出", "卖鱼留一"})
     async def sell_keep(self, event: AstrMessageEvent):
         """卖出用户鱼，但保留每种鱼一条"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         result = self.inventory_service.sell_all_fish(user_id, keep_one=True)
         if result:
             yield event.plain_result(result["message"])
@@ -756,7 +753,7 @@ class FishingPlugin(Star):
     @filter.command("出售稀有度", alias={"按稀有度出售", "稀有度出售", "卖稀有度", "出售星级", "按星级出售"})
     async def sell_by_rarity(self, event: AstrMessageEvent):
         """按稀有度出售鱼"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要出售的稀有度，例如：/出售稀有度 3")
@@ -774,7 +771,7 @@ class FishingPlugin(Star):
     @filter.command("出售鱼竿", alias={"卖出鱼竿", "卖鱼竿", "卖掉鱼竿"})
     async def sell_rod(self, event: AstrMessageEvent):
         """出售鱼竿"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要出售的鱼竿 ID，例如：/出售鱼竿 12")
@@ -796,7 +793,7 @@ class FishingPlugin(Star):
     @filter.command("出售所有鱼竿", alias={"出售全部鱼竿", "卖出所有鱼竿", "卖出全部鱼竿", "卖光鱼竿", "清空鱼竿", "一键卖鱼竿"})
     async def sell_all_rods(self, event: AstrMessageEvent):
         """出售用户所有鱼竿"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         result = self.inventory_service.sell_all_rods(user_id)
         if result:
             yield event.plain_result(result["message"])
@@ -806,7 +803,7 @@ class FishingPlugin(Star):
     @filter.command("出售饰品", alias={"卖出饰品", "卖饰品", "卖掉饰品"})
     async def sell_accessories(self, event: AstrMessageEvent):
         """出售饰品"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要出售的饰品 ID，例如：/出售饰品 15")
@@ -827,7 +824,7 @@ class FishingPlugin(Star):
     @filter.command("出售所有饰品", alias={"出售全部饰品", "卖出所有饰品", "卖出全部饰品", "卖光饰品", "清空饰品", "一键卖饰品"})
     async def sell_all_accessories(self, event: AstrMessageEvent):
         """出售用户所有饰品"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         result = self.inventory_service.sell_all_accessories(user_id)
         if result:
             yield event.plain_result(result["message"])
@@ -866,7 +863,7 @@ class FishingPlugin(Star):
     @filter.command("购买鱼竿")
     async def buy_rod(self, event: AstrMessageEvent):
         """购买鱼竿"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要购买的鱼竿 ID，例如：/购买鱼竿 12")
@@ -887,7 +884,7 @@ class FishingPlugin(Star):
     @filter.command("购买鱼饵")
     async def buy_bait(self, event: AstrMessageEvent):
         """购买鱼饵"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要购买的鱼饵 ID，例如：/购买鱼饵 13")
@@ -939,7 +936,7 @@ class FishingPlugin(Star):
     @filter.command("上架鱼竿")
     async def list_rod(self, event: AstrMessageEvent):
         """上架鱼竿到市场"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 3:
             yield event.plain_result("❌ 请指定要上架的鱼竿 ID和价格，例如：/上架鱼竿 12 1000")
@@ -964,7 +961,7 @@ class FishingPlugin(Star):
     @filter.command("上架饰品")
     async def list_accessories(self, event: AstrMessageEvent):
         """上架饰品到市场"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 3:
             yield event.plain_result("❌ 请指定要上架的饰品 ID和价格，例如：/上架饰品 15 1000")
@@ -989,7 +986,7 @@ class FishingPlugin(Star):
     @filter.command("购买")
     async def buy_item(self, event: AstrMessageEvent):
         """购买市场上的物品"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要购买的物品 ID，例如：/购买 12")
@@ -1010,7 +1007,7 @@ class FishingPlugin(Star):
     @filter.command("我的上架", alias={"上架列表", "我的商品"})
     async def my_listings(self, event: AstrMessageEvent):
         """查看我在市场上架的商品"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         result = self.market_service.get_user_listings(user_id)
         if result["success"]:
             listings = result["listings"]
@@ -1034,7 +1031,7 @@ class FishingPlugin(Star):
     @filter.command("下架")
     async def delist_item(self, event: AstrMessageEvent):
         """下架市场上的商品"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要下架的商品 ID，例如：/下架 12\n💡 使用「我的上架」命令查看您的商品列表")
@@ -1057,7 +1054,7 @@ class FishingPlugin(Star):
     @filter.command("抽卡", alias={"抽奖"})
     async def gacha(self, event: AstrMessageEvent):
         """抽卡"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             # 展示所有的抽奖池信息并显示帮助
@@ -1103,7 +1100,7 @@ class FishingPlugin(Star):
     @filter.command("十连")
     async def ten_gacha(self, event: AstrMessageEvent):
         """十连抽卡"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要进行十连抽卡的抽奖池 ID，例如：/十连 1")
@@ -1180,7 +1177,7 @@ class FishingPlugin(Star):
     @filter.command("抽卡记录")
     async def gacha_history(self, event: AstrMessageEvent):
         """查看抽卡记录"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         result = self.gacha_service.get_user_gacha_history(user_id)
         if result:
             if result["success"]:
@@ -1201,7 +1198,7 @@ class FishingPlugin(Star):
     @filter.command("擦弹")
     async def wipe_bomb(self, event: AstrMessageEvent):
         """擦弹功能"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("💸 请指定要擦弹的数量 ID，例如：/擦弹 123456789")
@@ -1249,7 +1246,7 @@ class FishingPlugin(Star):
     @filter.command("擦弹记录", alias={"擦弹历史"})
     async def wipe_bomb_history(self, event: AstrMessageEvent):
         """查看擦弹记录"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         result = self.game_mechanics_service.get_wipe_bomb_history(user_id)
         if result:
             if result["success"]:
@@ -1301,7 +1298,7 @@ class FishingPlugin(Star):
     @filter.command("偷鱼")
     async def steal_fish(self, event: AstrMessageEvent):
         """偷鱼功能"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         message_obj = event.message_obj
         target_id = None
         if hasattr(message_obj, "message"):
@@ -1328,7 +1325,7 @@ class FishingPlugin(Star):
     @filter.command("查看称号", alias={"称号"})
     async def view_titles(self, event: AstrMessageEvent):
         """查看用户称号"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         titles = self.user_service.get_user_titles(user_id).get("titles", [])
         if titles:
             message = "【🏅 您的称号】\n"
@@ -1342,7 +1339,7 @@ class FishingPlugin(Star):
     @filter.command("使用称号")
     async def use_title(self, event: AstrMessageEvent):
         """使用称号"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要使用的称号 ID，例如：/使用称号 1")
@@ -1363,7 +1360,7 @@ class FishingPlugin(Star):
     @filter.command("查看成就", alias={ "成就" })
     async def view_achievements(self, event: AstrMessageEvent):
         """查看用户成就"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         achievements = self.achievement_service.get_user_achievements(user_id).get("achievements", [])
         if achievements:
             message = "【🏆 您的成就】\n"
@@ -1382,7 +1379,7 @@ class FishingPlugin(Star):
     @filter.command("税收记录")
     async def tax_record(self, event: AstrMessageEvent):
         """查看税收记录"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         result = self.user_service.get_tax_record(user_id)
         if result:
             if result["success"]:
@@ -1404,7 +1401,7 @@ class FishingPlugin(Star):
     @filter.command("钓鱼区域", alias={"区域"})
     async def fishing_area(self, event: AstrMessageEvent):
         """查看当前钓鱼区域"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             result = self.fishing_service.get_user_fishing_zones(user_id)
@@ -1445,7 +1442,7 @@ class FishingPlugin(Star):
     @filter.command("鱼类图鉴")
     async def fish_pokedex(self, event: AstrMessageEvent):
         """查看鱼类图鉴"""
-        user_id = event.get_sender_id()
+        user_id = self._get_effective_user_id(event)
         result = self.fishing_service.get_user_pokedex(user_id)
 
         if result:
@@ -1892,3 +1889,45 @@ class FishingPlugin(Star):
     #     except Exception as e:
     #         logger.error(f"执行 sync_items_from_initial_data 命令时出错: {e}", exc_info=True)
     #         yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("代理上线")
+    async def impersonate_start(self, event: AstrMessageEvent):
+        """管理员开始扮演一名用户。"""
+        admin_id = event.get_sender_id()
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            # 如果已经在线，则显示当前状态
+            if admin_id in self.impersonation_map:
+                target_user_id = self.impersonation_map[admin_id]
+                target_user = self.user_repo.get_by_id(target_user_id)
+                nickname = target_user.nickname if target_user else '未知用户'
+                yield event.plain_result(f"您当前正在代理用户: {nickname} ({target_user_id})")
+            else:
+                yield event.plain_result("用法: /代理上线 <目标用户ID>")
+            return
+
+        target_user_id = args[1]
+        if not target_user_id.isdigit():
+            yield event.plain_result("❌ 目标用户ID必须是数字。")
+            return
+
+        target_user = self.user_repo.get_by_id(target_user_id)
+        if not target_user:
+            yield event.plain_result("❌ 目标用户不存在。")
+            return
+
+        self.impersonation_map[admin_id] = target_user_id
+        nickname = target_user.nickname
+        yield event.plain_result(f"✅ 您已成功代理用户: {nickname} ({target_user_id})。\n现在您发送的所有游戏指令都将以该用户的身份执行。\n使用 /代理下线 结束代理。")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("代理下线")
+    async def impersonate_stop(self, event: AstrMessageEvent):
+        """管理员结束扮演用户。"""
+        admin_id = event.get_sender_id()
+        if admin_id in self.impersonation_map:
+            del self.impersonation_map[admin_id]
+            yield event.plain_result("✅ 您已成功结束代理。")
+        else:
+            yield event.plain_result("❌ 您当前没有在代理任何用户。")
