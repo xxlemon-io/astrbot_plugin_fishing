@@ -962,7 +962,14 @@ class FishingPlugin(Star):
                     message += f" - {accessory['item_name']} 精{accessory['refine_level']} (ID: {accessory['market_id']}) - 价格: {accessory['price']} 金币\n"
                     message += f" - 售卖人： {accessory['seller_nickname']}\n\n"
             else:
-                message += "💍 市场中没有饰品可供购买。\n"
+                message += "💍 市场中没有饰品可供购买。\n\n"
+            if result["items"]:
+                message += "【🎁 道具】:\n"
+                for item in result["items"]:
+                    message += f" - {item['item_name']} (ID: {item['market_id']}) - 价格: {item['price']} 金币\n"
+                    message += f" - 售卖人： {item['seller_nickname']}\n\n"
+            else:
+                message += "🎁 市场中没有道具可供购买。\n"
             yield event.plain_result(message)
         else:
             yield event.plain_result(f"❌ 出错啦！{result['message']}")
@@ -1015,6 +1022,31 @@ class FishingPlugin(Star):
                 yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 上架饰品失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("上架道具")
+    async def list_item(self, event: AstrMessageEvent):
+        """上架道具到市场"""
+        user_id = self._get_effective_user_id(event)
+        args = event.message_str.split(" ")
+        if len(args) < 3:
+            yield event.plain_result("❌ 请指定要上架的道具 ID和价格，例如：/上架道具 1 1000")
+            return
+        item_id = args[1]
+        if not item_id.isdigit():
+            yield event.plain_result("❌ 道具 ID 必须是数字，请检查后重试。")
+            return
+        price = args[2]
+        if not price.isdigit() or int(price) <= 0:
+            yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
+            return
+        result = self.market_service.put_item_on_sale(user_id, "item", int(item_id), int(price))
+        if result:
+            if result["success"]:
+                yield event.plain_result(result["message"])
+            else:
+                yield event.plain_result(f"❌ 上架道具失败：{result['message']}")
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 

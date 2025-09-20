@@ -41,10 +41,12 @@ class MarketService:
             # 按物品类型分组，便于前端展示
             rods = [item for item in listings if item.item_type == "rod"]
             accessories = [item for item in listings if item.item_type == "accessory"]
+            items = [item for item in listings if item.item_type == "item"]
             return {
                 "success": True,
                 "rods": rods,
-                "accessories": accessories
+                "accessories": accessories,
+                "items": items
             }
         except Exception as e:
             return {"success": False, "message": f"获取市场列表失败: {e}"}
@@ -95,6 +97,22 @@ class MarketService:
             item_name = accessory_template.name if accessory_template else None
             item_description = accessory_template.description if accessory_template else None
             item_refine_level = item_to_list.refine_level
+        elif item_type == "item":
+            # 道具上架逻辑
+            user_item_inventory = self.inventory_repo.get_user_item_inventory(user_id)
+            if item_instance_id not in user_item_inventory or user_item_inventory[item_instance_id] <= 0:
+                return {"success": False, "message": "道具不存在或数量不足"}
+            
+            # 检查道具数量
+            current_quantity = user_item_inventory[item_instance_id]
+            if current_quantity < 1:
+                return {"success": False, "message": "道具数量不足，无法上架"}
+            
+            item_template_id = item_instance_id  # 对于道具，instance_id就是template_id
+            item_template = self.item_template_repo.get_item_by_id(item_template_id)
+            item_name = item_template.name if item_template else None
+            item_description = item_template.description if item_template else None
+            item_refine_level = 1  # 道具没有精炼等级
         else:
             return {"success": False, "message": "该类型的物品无法上架"}
 
@@ -104,6 +122,9 @@ class MarketService:
             self.inventory_repo.delete_rod_instance(item_instance_id)
         elif item_type == "accessory":
             self.inventory_repo.delete_accessory_instance(item_instance_id)
+        elif item_type == "item":
+            # 减少道具数量
+            self.inventory_repo.update_item_quantity(user_id, item_instance_id, -1)
 
         # 2. 扣除税费
         seller.coins -= tax_cost
@@ -178,6 +199,9 @@ class MarketService:
                 accessory_id=listing.item_id,
                 refine_level=listing.refine_level
             )
+        elif listing.item_type == "item":
+            # 给买家添加道具
+            self.inventory_repo.update_item_quantity(buyer_id, listing.item_id, 1)
 
         # 4. 从市场移除该商品
         self.market_repo.remove_listing(market_id)
@@ -220,6 +244,9 @@ class MarketService:
                     accessory_id=listing.item_id,
                     refine_level=listing.refine_level
                 )
+            elif listing.item_type == "item":
+                # 返还道具
+                self.inventory_repo.update_item_quantity(user_id, listing.item_id, 1)
             else:
                 return {"success": False, "message": "不支持的物品类型"}
 
@@ -298,7 +325,8 @@ class MarketService:
                 "filtered_listings": total_items,
                 "total_value": sum(item.price for item in listings),
                 "rod_count": len([item for item in all_listings if item.item_type == "rod"]),
-                "accessory_count": len([item for item in all_listings if item.item_type == "accessory"])
+                "accessory_count": len([item for item in all_listings if item.item_type == "accessory"]),
+                "item_count": len([item for item in all_listings if item.item_type == "item"])
             }
             
             return {
@@ -370,6 +398,9 @@ class MarketService:
                     accessory_id=listing.item_id,
                     refine_level=listing.refine_level
                 )
+            elif listing.item_type == "item":
+                # 返还道具给卖家
+                self.inventory_repo.update_item_quantity(listing.user_id, listing.item_id, 1)
             
             # 从市场移除
             self.market_repo.remove_listing(market_id)
