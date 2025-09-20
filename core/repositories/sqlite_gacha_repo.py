@@ -106,7 +106,7 @@ class SqliteGachaRepository(AbstractGachaRepository):
             cursor.execute(
                 "SELECT * FROM gacha_pools WHERE cost_coins = 0 AND cost_premium_currency = 0"
             )
-            return [self._to_domain_pool(row) for row in cursor.fetchall()]
+            return [self._row_to_gacha_pool(row) for row in cursor.fetchall()]
 
     # --- Admin Panel CRUD Methods ---
 
