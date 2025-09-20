@@ -478,14 +478,25 @@ class FishingPlugin(Star):
             return
         
         item_id = int(item_id_str)
-        result = self.inventory_service.use_item(user_id, item_id)
         
-        if result["success"]:
-            # 可以在这里根据 item 的效果触发不同逻辑
-            # 目前只返回成功信息
-            yield event.plain_result(f"✅ {result['message']}")
-        else:
-            yield event.plain_result(f"❌ {result['message']}")
+        quantity = 1
+        if len(args) > 2 and args[2].isdigit():
+            quantity = int(args[2])
+            if quantity <= 0:
+                yield event.plain_result("❌ 数量必须是正整数。")
+                return
+
+        for _ in range(quantity):
+            result = self.inventory_service.use_item(user_id, item_id)
+            
+            if result["success"]:
+                # 可以在这里根据 item 的效果触发不同逻辑
+                # 目前只返回成功信息
+                yield event.plain_result(f"✅ {result['message']}")
+            else:
+                yield event.plain_result(f"❌ {result['message']}")
+                # 如果失败，则停止使用后续的道具
+                break
 
     @filter.command("卖道具", alias={"出售道具", "卖出道具"})
     async def sell_item(self, event: AstrMessageEvent):
