@@ -253,9 +253,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const itemId = input.dataset.itemId;
         const weight = parseInt(input.value);
         
-        // 调试信息
-        console.log('保存权重 - itemId:', itemId, 'weight:', weight);
-        
         if (!itemId) {
             showToast('错误：无法获取物品ID', 'error');
             return;
