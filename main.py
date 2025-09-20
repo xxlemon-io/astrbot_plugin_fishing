@@ -33,8 +33,6 @@ from .core.services.gacha_service import GachaService
 from .core.services.achievement_service import AchievementService
 from .core.services.game_mechanics_service import GameMechanicsService
 from .core.services.effect_manager import EffectManager
-from .core.services.item_effects.add_coins_effect import AddCoinsEffect
-from .core.services.item_effects.rare_fish_boost_effect import RareFishBoostEffect
 # 其他
 
 from .core.database.migration import run_migrations
@@ -126,14 +124,11 @@ class FishingPlugin(Star):
         self.buff_repo = SqliteUserBuffRepository(db_path)
 
         # --- 3. 组合根：实例化所有服务层，并注入依赖 ---
-        # 3.1 实例化效果管理器并注册所有效果
+        # 3.1 实例化效果管理器并自动注册所有效果
         self.effect_manager = EffectManager()
-        self.effect_manager.register(
-            "ADD_COINS", AddCoinsEffect(user_repo=self.user_repo)
-        )
-        self.effect_manager.register(
-            "RARE_FISH_BOOST",
-            RareFishBoostEffect(user_repo=self.user_repo, buff_repo=self.buff_repo),
+        self.effect_manager.discover_and_register(
+            effects_package_path="data.plugins.astrbot_plugin_fishing.core.services.item_effects",
+            dependencies={"user_repo": self.user_repo, "buff_repo": self.buff_repo},
         )
 
         # 3.2 实例化核心服务
@@ -151,7 +146,7 @@ class FishingPlugin(Star):
         self.gacha_service = GachaService(self.gacha_repo, self.user_repo, self.inventory_repo, self.item_template_repo,
                                           self.log_repo, self.achievement_repo)
         self.game_mechanics_service = GameMechanicsService(self.user_repo, self.log_repo, self.inventory_repo,
-                                                           self.item_template_repo, self.game_config)
+                                                           self.item_template_repo, self.buff_repo, self.game_config)
         self.achievement_service = AchievementService(self.achievement_repo, self.user_repo, self.inventory_repo,
                                                       self.item_template_repo, self.log_repo)
         self.fishing_service = FishingService(
@@ -1883,4 +1878,17 @@ class FishingPlugin(Star):
             )
         except Exception as e:
             logger.error(f"执行 add_missing_items 命令时出错: {e}", exc_info=True)
+            yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("管理员 同步道具", alias={"同步道具"})
+    async def sync_items_from_initial_data(self, event: AstrMessageEvent):
+        """从 initial_data.py 同步道具数据到数据库。"""
+        try:
+            self.data_setup_service.create_initial_items()
+            yield event.plain_result(
+                '✅ 成功执行初始道具同步操作。\n请检查后台或使用 /道具 命令确认数据。'
+            )
+        except Exception as e:
+            logger.error(f"执行 sync_items_from_initial_data 命令时出错: {e}", exc_info=True)
             yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")

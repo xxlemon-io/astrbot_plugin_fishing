@@ -1,5 +1,6 @@
 import requests
 import random
+import json
 from typing import Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from astrbot.api import logger
@@ -9,7 +10,8 @@ from ..repositories.abstract_repository import (
     AbstractUserRepository,
     AbstractLogRepository,
     AbstractInventoryRepository,
-    AbstractItemTemplateRepository
+    AbstractItemTemplateRepository,
+    AbstractUserBuffRepository,
 )
 from ..domain.models import WipeBombLog
 from ..utils import get_now
@@ -23,12 +25,14 @@ class GameMechanicsService:
         log_repo: AbstractLogRepository,
         inventory_repo: AbstractInventoryRepository,
         item_template_repo: AbstractItemTemplateRepository,
+        buff_repo: AbstractUserBuffRepository,
         config: Dict[str, Any]
     ):
         self.user_repo = user_repo
         self.log_repo = log_repo
         self.inventory_repo = inventory_repo
         self.item_template_repo = item_template_repo
+        self.buff_repo = buff_repo
         self.config = config
         self.thread_pool = ThreadPoolExecutor(max_workers=5)
 
@@ -48,10 +52,24 @@ class GameMechanicsService:
 
         # 2. 检查每日次数限制
         wipe_bomb_config = self.config.get("wipe_bomb", {})
-        max_attempts = wipe_bomb_config.get("max_attempts_per_day", 3)
+        base_max_attempts = wipe_bomb_config.get("max_attempts_per_day", 3)
+
+        # 检查是否有增加次数的 buff
+        extra_attempts = 0
+        boost_buff = self.buff_repo.get_active_by_user_and_type(
+            user_id, "WIPE_BOMB_ATTEMPTS_BOOST"
+        )
+        if boost_buff and boost_buff.payload:
+            try:
+                payload = json.loads(boost_buff.payload)
+                extra_attempts = payload.get("amount", 0)
+            except json.JSONDecodeError:
+                logger.warning(f"解析擦弹buff载荷失败: user_id={user_id}")
+
+        total_max_attempts = base_max_attempts + extra_attempts
         attempts_today = self.log_repo.get_wipe_bomb_log_count_today(user_id)
-        if attempts_today >= max_attempts:
-            return {"success": False, "message": f"你今天已经使用了{max_attempts}次擦弹，明天再来吧！"}
+        if attempts_today >= total_max_attempts:
+            return {"success": False, "message": f"你今天的擦弹次数已用完({attempts_today}/{total_max_attempts})，明天再来吧！"}
 
         # 3. 计算随机奖励倍数 (使用加权随机)
         ranges = wipe_bomb_config.get("reward_ranges", [])
@@ -113,7 +131,7 @@ class GameMechanicsService:
             "multiplier": reward_multiplier,
             "reward": reward_amount,
             "profit": profit,
-            "remaining_today": max_attempts - (attempts_today + 1)
+            "remaining_today": total_max_attempts - (attempts_today + 1)
         }
 
     def get_wipe_bomb_history(self, user_id: str, limit: int = 10) -> Dict[str, Any]:

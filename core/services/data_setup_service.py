@@ -9,6 +9,7 @@ from ..initial_data import (
     ACCESSORY_DATA,
     TITLE_DATA,
     GACHA_POOL,
+    ITEM_DATA,
 )
 from ..domain.models import Item
 from astrbot.api import logger
@@ -125,36 +126,32 @@ class DataSetupService:
 
     def create_initial_items(self):
         """创建初始的通用道具"""
-        items_to_create = [
-            Item(
-                item_id=0,
-                name="小钱袋",
-                description="一个不起眼的小钱袋，里面装着一些金币。",
-                rarity=2,
-                effect_description="使用后立即获得 1000 金币。",
-                cost=0,
-                is_consumable=True,
-                icon_url=None,
-                effect_type="ADD_COINS",
-                effect_payload='{"amount": 1000}',
-            ),
-            Item(
-                item_id=0,
-                name="幸运药水",
-                description="一瓶冒着气泡的神秘药水，散发着幸运的气息。",
-                rarity=3,
-                effect_description="使用后10分钟内，钓到稀有鱼的概率提升5%!",
-                cost=2000,
-                is_consumable=True,
-                icon_url=None,
-                effect_type="RARE_FISH_BOOST",
-                effect_payload='{"duration_seconds": 600, "multiplier": 0.05}',
-            ),
-        ]
+        existing_items = self.item_template_repo.get_all()
+        existing_item_names = {item.name for item in existing_items}
 
-        for item in items_to_create:
-            # 检查道具是否已存在
-            existing_item = self.item_template_repo.get_by_name(item.name)
-            if not existing_item:
+        items_to_create = []
+        for item_data in ITEM_DATA:
+            if item_data[1] not in existing_item_names:
+                items_to_create.append(
+                    Item(
+                        item_id=0,  # ID is auto-incrementing
+                        name=item_data[1],
+                        description=item_data[2],
+                        rarity=item_data[3],
+                        effect_description=item_data[4],
+                        cost=item_data[5],
+                        is_consumable=item_data[6],
+                        icon_url=item_data[7],
+                        effect_type=item_data[8],
+                        effect_payload=item_data[9],
+                    )
+                )
+
+        if items_to_create:
+            logger.info(f"发现 {len(items_to_create)} 个新的通用道具，正在添加到数据库...")
+            for item in items_to_create:
                 self.item_template_repo.add(item)
+            logger.info("新通用道具添加完成。")
+        else:
+            logger.info("没有发现新的通用道具需要添加。")
 

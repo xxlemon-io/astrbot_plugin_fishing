@@ -7,6 +7,8 @@ from ....core.domain.models import User, Item, UserBuff
 
 
 class RareFishBoostEffect(AbstractItemEffect):
+    effect_type = "RARE_FISH_BOOST"
+
     def apply(
         self, user: User, item_template: Item, payload: Dict[str, Any]
     ) -> Dict[str, Any]:
