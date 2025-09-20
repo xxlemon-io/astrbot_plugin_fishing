@@ -1454,9 +1454,15 @@ class FishingPlugin(Star):
             yield event.plain_result("❌ 钓鱼区域 ID 必须是数字，请检查后重试。")
             return
         zone_id = int(zone_id)
-        if zone_id not in [1, 2, 3]:
-            yield event.plain_result("❌ 钓鱼区域 ID 必须是 1、2 或 3，请检查后重试。")
+        
+        # 动态获取所有有效的区域ID
+        all_zones = self.fishing_zone_service.get_all_zones()
+        valid_zone_ids = [zone['id'] for zone in all_zones]
+        
+        if zone_id not in valid_zone_ids:
+            yield event.plain_result(f"❌ 无效的钓鱼区域 ID。有效ID为: {', '.join(map(str, valid_zone_ids))}")
             return
+        
         # 切换用户的钓鱼区域
         result = self.fishing_service.set_user_fishing_zone(user_id, zone_id)
         yield event.plain_result(result["message"] if result else "❌ 出错啦！请稍后再试。")
