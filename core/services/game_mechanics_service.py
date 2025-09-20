@@ -14,10 +14,20 @@ from ..repositories.abstract_repository import (
     AbstractUserBuffRepository,
 )
 from ..domain.models import WipeBombLog
-from ..utils import get_now
+from ..utils import get_now, weighted_random_choice
+
 
 class GameMechanicsService:
     """封装特殊或独立的游戏机制"""
+
+    FORTUNE_TIERS = {
+        "daikichi": {"min": 15.0, "max": 1000.0, "label": "大吉", "message": "🔮 占卜结果：【大吉】\n神启降临！鸿运当头，是收获泼天富贵的最佳时机！"},
+        "chukichi": {"min": 5.0, "max": 15.0, "label": "中吉", "message": "🔮 占卜结果：【中吉】\n时运亨通！有不错的机会获得远超预期的回报。"},
+        "kichi":    {"min": 2.0, "max": 5.0, "label": "吉", "message": "🔮 占卜结果：【吉】\n顺风顺水，稳中有进，可以期待一笔可观的盈利。"},
+        "shokichi": {"min": 1.0, "max": 2.0, "label": "小吉", "message": "🔮 占卜结果：【小吉】\n平安是福。虽无大喜，但亦无大忧，至少能小有盈余。"},
+        "kyo":      {"min": 0.1, "max": 1.0, "label": "凶", "message": "🔮 占卜结果：【凶】\n运势不佳... 行事务必谨慎，否则可能招致损失。"},
+        "daikyo":   {"min": 0.0, "max": 0.1, "label": "大凶", "message": "🔮 占卜结果：【大凶】\n灾祸之兆！此刻出手极可能血本无归，请务必避让！"},
+    }
 
     def __init__(
         self,
@@ -35,6 +45,14 @@ class GameMechanicsService:
         self.buff_repo = buff_repo
         self.config = config
         self.thread_pool = ThreadPoolExecutor(max_workers=5)
+
+    def _get_fortune_tier_for_multiplier(self, multiplier: float) -> str:
+        if multiplier >= 15.0: return "daikichi"
+        if multiplier >= 5.0: return "chukichi"
+        if multiplier >= 2.0: return "kichi"
+        if multiplier >= 1.0: return "shokichi"
+        if multiplier >= 0.1: return "kyo"
+        return "daikyo"
 
     def forecast_wipe_bomb(self, user_id: str) -> Dict[str, Any]:
         """
@@ -54,11 +72,14 @@ class GameMechanicsService:
         ranges = wipe_bomb_config.get(
             "reward_ranges",
             [
-                (0, 0.5, 50),
-                (0.5, 1, 30),
-                (1, 2, 15),
-                (2, 5, 4),
-                (5, 10, 1)
+                (0.0, 0.1, 5),      # 灾难性亏损
+                (0.1, 1.0, 55),     # 普通亏损
+                (1.0, 2.0, 23),
+                (2.0, 3.0, 11),
+                (3.0, 4.0, 4),
+                (4.0, 5.0, 4),
+                (5.0, 15.0, 5),     # 高倍率
+                (15.0, 1000.0, 0.1),# 超级头奖
             ],
         )
         
@@ -122,41 +143,44 @@ class GameMechanicsService:
             return {"success": False, "message": f"你今天的擦弹次数已用完({attempts_today}/{total_max_attempts})，明天再来吧！"}
 
         # 3. 计算随机奖励倍数 (使用加权随机)
+        # 默认奖励范围和权重: (min_multiplier, max_multiplier, weight)
         default_ranges = [
-            (0, 0.5, 50),
-            (0.5, 1, 30),
-            (1, 2, 15),
-            (2, 5, 4),
-            (5, 10, 1)
+            (0.0, 0.1, 5),      # 灾难性亏损
+            (0.1, 1.0, 55),     # 普通亏损
+            (1.0, 2.0, 23),
+            (2.0, 3.0, 11),
+            (3.0, 4.0, 4),
+            (4.0, 5.0, 4),
+            (5.0, 15.0, 5),     # 高倍率
+            (15.0, 1000.0, 0.1),# 超级头奖
         ]
         ranges = wipe_bomb_config.get("reward_ranges", default_ranges)
 
         # 如果有预测结果，则强制使用对应区间的随机
         if user.wipe_bomb_forecast:
-            if user.wipe_bomb_forecast == "good":
-                # 强制吉 (修正临界点判断)
-                good_ranges = [r for r in ranges if r[0] >= 1 or (r[0] < 1 and r[1] > 1)]
-                if good_ranges:
-                    ranges = good_ranges
-            elif user.wipe_bomb_forecast == "bad":
-                # 强制凶
-                bad_ranges = [r for r in ranges if r[1] <= 1]
-                if bad_ranges:
-                    ranges = bad_ranges
-            
+            forecast_key = user.wipe_bomb_forecast
+            if forecast_key in self.FORTUNE_TIERS:
+                tier_info = self.FORTUNE_TIERS[forecast_key]
+                min_val, max_val = tier_info["min"], tier_info["max"]
+                
+                # 筛选出所有与预测结果区间有重叠的原始概率区间
+                # 例如，如果预测是吉(2-5)，则需要包括原始的(2-3), (3-4), (4-5)区间
+                constrained_ranges = [
+                    r for r in default_ranges if max(r[0], min_val) < min(r[1], max_val)
+                ]
+                if constrained_ranges:
+                    ranges = constrained_ranges
+
             # 使用后清空预测
             user.wipe_bomb_forecast = None
 
-        total_weight = sum(w for _, _, w in ranges)
-        rand_val = random.uniform(0, total_weight)
-
-        reward_multiplier = 0.0
-        current_weight = 0
-        for r_min, r_max, weight in ranges:
-            current_weight += weight
-            if rand_val <= current_weight:
-                reward_multiplier = random.uniform(r_min, r_max)
-                break
+        # 3. 计算随机奖励倍数 (使用加权随机)
+        try:
+            chosen_range = weighted_random_choice(ranges)
+            reward_multiplier = random.uniform(chosen_range[0], chosen_range[1])
+        except (ValueError, IndexError) as e:
+            logger.error(f"擦弹预测时随机选择出错: {e}", exc_info=True)
+            return {"success": False, "message": "占卜失败，似乎天机不可泄露..."}
 
         # 4. 计算最终金额并执行事务
         reward_amount = int(contribution_amount * reward_multiplier)
