@@ -10,6 +10,7 @@ from ..repositories.abstract_repository import (
 )
 from .effect_manager import EffectManager
 from ..utils import calculate_after_refine
+from .game_mechanics_service import GameMechanicsService
 
 
 class InventoryService:
@@ -21,12 +22,14 @@ class InventoryService:
         user_repo: AbstractUserRepository,
         item_template_repo: AbstractItemTemplateRepository,
         effect_manager: EffectManager,
+        game_mechanics_service: GameMechanicsService,
         config: Dict[str, Any],
     ):
         self.inventory_repo = inventory_repo
         self.user_repo = user_repo
         self.item_template_repo = item_template_repo
         self.effect_manager = effect_manager
+        self.game_mechanics_service = game_mechanics_service
         self.config = config
 
     def get_user_fish_pond(self, user_id: str) -> Dict[str, Any]:
@@ -251,8 +254,11 @@ class InventoryService:
              return {"success": False, "message": "找不到鱼竿的基础信息"}
 
         # 3. 计算售价
-        sell_prices = self.config.get("sell_prices", {}).get("by_rarity", {})
-        sell_price = sell_prices.get(str(rod_template.rarity), 30) # 默认价格30
+        sell_price = self.game_mechanics_service.calculate_sell_price(
+            item_type="rod",
+            rarity=rod_template.rarity,
+            refine_level=rod_to_sell.refine_level,
+        )
 
         # 4. 执行操作
         # 如果卖出的是当前装备的鱼竿，需要先卸下
@@ -283,9 +289,12 @@ class InventoryService:
             if rod_instance.is_equipped:
                 continue
             rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
-            if rod_template and rod_template.rarity < 5:
-                sell_prices = self.config.get("sell_prices", {}).get("by_rarity", {})
-                sell_price = sell_prices.get(str(rod_template.rarity), 30)
+            if rod_template:
+                sell_price = self.game_mechanics_service.calculate_sell_price(
+                    item_type="rod",
+                    rarity=rod_template.rarity,
+                    refine_level=rod_instance.refine_level,
+                )
                 total_value += sell_price
         if total_value == 0:
             return {"success": False, "message": "❌ 没有可以卖出的鱼竿"}
@@ -317,8 +326,11 @@ class InventoryService:
             return {"success": False, "message": "找不到饰品的基础信息"}
 
         # 3. 计算售价
-        sell_prices = self.config.get("sell_prices", {}).get("by_rarity", {})
-        sell_price = sell_prices.get(str(accessory_template.rarity), 30)
+        sell_price = self.game_mechanics_service.calculate_sell_price(
+            item_type="accessory",
+            rarity=accessory_template.rarity,
+            refine_level=accessory_to_sell.refine_level,
+        )
 
         # 4. 执行操作
         # 如果卖出的是当前装备的饰品，需要先卸下
@@ -347,9 +359,12 @@ class InventoryService:
             if accessory_instance.is_equipped:
                 continue
             accessory_template = self.item_template_repo.get_accessory_by_id(accessory_instance.accessory_id)
-            if accessory_template and accessory_template.rarity < 5:
-                sell_prices = self.config.get("sell_prices", {}).get("by_rarity", {})
-                sell_price = sell_prices.get(str(accessory_template.rarity), 30)
+            if accessory_template:
+                sell_price = self.game_mechanics_service.calculate_sell_price(
+                    item_type="accessory",
+                    rarity=accessory_template.rarity,
+                    refine_level=accessory_instance.refine_level,
+                )
                 total_value += sell_price
 
         if total_value == 0:

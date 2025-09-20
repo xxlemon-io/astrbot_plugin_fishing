@@ -214,3 +214,38 @@ class GameMechanicsService:
             "success": True,
             "message": f"✅ 成功从【{victim.nickname}】的鱼塘里偷到了一条{stolen_fish_template.rarity}★【{stolen_fish_template.name}】！基础价值 {stolen_fish_template.base_value} 金币",
         }
+
+    def calculate_sell_price(self, item_type: str, rarity: int, refine_level: int) -> int:
+        """
+        计算物品的系统售价。
+
+        Args:
+            item_type: 物品类型 ('rod', 'accessory')
+            rarity: 物品稀有度
+            refine_level: 物品精炼等级
+
+        Returns:
+            计算出的售价。
+        """
+        # 1. 从配置中获取售价信息
+        sell_price_config = self.config.get("sell_prices", {})
+        
+        # 2. 获取该物品类型的基础售价
+        base_prices = sell_price_config.get(item_type, {})
+        base_price = base_prices.get(str(rarity), 0)
+
+        # 3. 获取精炼等级的售价乘数
+        refine_multipliers = sell_price_config.get("refine_multiplier", {})
+        
+        # 确保乘数存在，如果不存在则默认为1
+        refine_multiplier = refine_multipliers.get(str(refine_level), 1.0)
+
+        # 4. 计算最终价格
+        # 最终价格 = 基础价格 * 精炼乘数
+        final_price = int(base_price * refine_multiplier)
+
+        # 5. 如果没有找到任何配置，则提供一个最低默认价
+        if final_price <= 0:
+            return 30  # 默认最低价格
+
+        return final_price

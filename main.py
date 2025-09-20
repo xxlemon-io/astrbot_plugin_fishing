@@ -85,7 +85,15 @@ class FishingPlugin(Star):
                 { "from": 999, "to": 9999, "cost": 500000 },
                 { "from": 9999, "to": 99999, "cost": 50000000 },
                 { "from": 99999, "to": 999999, "cost": 5000000000 },
-            ]
+            ],
+            "sell_prices": {
+                "rod": { "1": 100, "2": 500, "3": 2000, "4": 5000, "5": 10000 },
+                "accessory": { "1": 100, "2": 500, "3": 2000, "4": 5000, "5": 10000 },
+                "refine_multiplier": {
+                    "1": 1.0, "2": 1.6, "3": 3.0, "4": 6.0, "5": 12.0,
+                    "6": 25.0, "7": 55.0, "8": 125.0, "9": 280.0, "10": 660.0
+                }
+            }
         }
         
         # 初始化数据库模式
@@ -116,18 +124,19 @@ class FishingPlugin(Star):
                                           self.log_repo, self.achievement_repo)
         # UserService 依赖 GachaService，因此在 GachaService 之后实例化
         self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.gacha_service, self.game_config)
+        self.game_mechanics_service = GameMechanicsService(self.user_repo, self.log_repo, self.inventory_repo,
+                                                           self.item_template_repo, self.buff_repo, self.game_config)
         self.inventory_service = InventoryService(
             self.inventory_repo,
             self.user_repo,
             self.item_template_repo,
             self.effect_manager,
+            self.game_mechanics_service,
             self.game_config,
         )
         self.shop_service = ShopService(self.item_template_repo, self.inventory_repo, self.user_repo)
         self.market_service = MarketService(self.market_repo, self.inventory_repo, self.user_repo, self.log_repo,
                                             self.item_template_repo, self.game_config)
-        self.game_mechanics_service = GameMechanicsService(self.user_repo, self.log_repo, self.inventory_repo,
-                                                           self.item_template_repo, self.buff_repo, self.game_config)
         self.achievement_service = AchievementService(self.achievement_repo, self.user_repo, self.inventory_repo,
                                                       self.item_template_repo, self.log_repo)
         self.fishing_service = FishingService(
