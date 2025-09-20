@@ -111,8 +111,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (enabled) {
             openUntilContainer.style.display = '';
         } else {
-            // 清空并隐藏
-            if (openUntilInput) openUntilInput.value = '';
+            // 仅隐藏，不清空，避免来回切换需要重复选择日期
             openUntilContainer.style.display = 'none';
         }
     }

@@ -1,5 +1,6 @@
 import random
 from typing import Dict, Any
+from datetime import datetime, timezone, timedelta
 
 from astrbot.core.utils.pip_installer import logger
 # 导入仓储接口和领域模型
@@ -117,6 +118,30 @@ class GachaService:
         pool = self.gacha_repo.get_pool_by_id(pool_id)
         if not pool or not pool.items:
             return {"success": False, "message": "卡池不存在或卡池为空"}
+
+        # 限时卡池过期校验
+        try:
+            is_limited = bool(getattr(pool, "is_limited_time", 0))
+            open_until_raw = getattr(pool, "open_until", None)
+            if is_limited and open_until_raw:
+                # 解析为本地(UTC+8)时间
+                normalized = open_until_raw.replace("T", " ")
+                dt = None
+                for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+                    try:
+                        dt = datetime.strptime(normalized, fmt)
+                        break
+                    except ValueError:
+                        continue
+                if dt is not None:
+                    dt = dt.replace(tzinfo=timezone(timedelta(hours=8)))
+                    now = get_now()
+                    if now > dt:
+                        display_time = f"{dt.year}/{dt.month:02d}/{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}"
+                        return {"success": False, "message": f"该卡池已结束开放（截止: {display_time}），无法抽卡"}
+        except Exception:
+            # 解析失败时不中断抽卡流程
+            pass
 
         # 计算费用：若配置了高级货币费用，则优先使用高级货币；否则使用金币
         use_premium_currency = (getattr(pool, "cost_premium_currency", 0) or 0) > 0
