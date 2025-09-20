@@ -4,6 +4,7 @@ from .abstract_effect import AbstractItemEffect
 from ....core.domain.models import User, Item
 from ....core.services.game_mechanics_service import GameMechanicsService
 
+
 class ForecastWipeBombEffect(AbstractItemEffect):
     """
     使用时运沙漏来预知下一次擦弹结果的效果。
@@ -13,6 +14,8 @@ class ForecastWipeBombEffect(AbstractItemEffect):
     def __init__(self, game_mechanics_service: GameMechanicsService, **kwargs):
         super().__init__(**kwargs)
         # 效果处理器需要依赖 GameMechanicsService 来执行预测逻辑
+        if not game_mechanics_service:
+            raise ValueError("GameMechanicsService 实例是必需的。")
         self.game_mechanics_service = game_mechanics_service
 
     def apply(
