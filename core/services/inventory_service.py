@@ -736,6 +736,7 @@ class InventoryService:
         """查找可用于精炼的候选物品"""
         refine_level_from = instance.refine_level
         min_cost = None
+        available_candidates = 0
 
         # 优先使用未装备且精炼等级最低的材料，避免误用高精材料
         sorted_candidates = sorted(
@@ -752,6 +753,8 @@ class InventoryService:
             if getattr(candidate, 'is_equipped', False):
                 continue
 
+            available_candidates += 1
+
             # 计算精炼后的等级：一次只提升1级，杜绝一口吃成胖子
             new_refine_level = min(refine_level_from + 1, 10)
             
@@ -764,7 +767,7 @@ class InventoryService:
             for level in range(refine_level_from, new_refine_level):
                 total_cost += refine_costs.get(level, 0)
 
-            # 记录最低成本
+            # 记录最低成本（通常每次只升1级，成本恒定，这里做稳健处理）
             if min_cost is None or total_cost < min_cost:
                 min_cost = total_cost
 
@@ -874,7 +877,13 @@ class InventoryService:
                 "new_refine_level": instance.refine_level
             }
 
-        # 如果没找到合适的候选品，返回错误
+        # 如果没有任何可用材料
+        if available_candidates == 0:
+            return {"success": False, "message": "❌ 没有可用于精炼的材料（需要至少1个未装备的同模板装备）"}
+
+        # 如果没找到合适的候选品（通常是金币不足），返回更友好的错误
+        if min_cost is None:
+            min_cost = refine_costs.get(refine_level_from, 0)
         return {"success": False, "message": f"至少需要 {min_cost} 金币才能精炼，当前金币不足"}
 
     def _perform_refinement(
