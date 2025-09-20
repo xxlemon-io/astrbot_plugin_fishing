@@ -1,11 +1,15 @@
 {% extends "layout.html" %}
 
+{% block title %}道具管理{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h2><i class="fas fa-box-open"></i> 道具管理</h2>
-    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addItemModal">
-        <i class="fas fa-plus"></i> 添加新道具
-    </button>
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">道具模板管理</h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button class="btn btn-primary" onclick="openAddModal()">
+            <i class="fas fa-plus"></i> 添加新道具
+        </button>
+    </div>
 </div>
 
 <div class="table-responsive">
@@ -17,7 +21,6 @@
                 <th>稀有度</th>
                 <th>类型</th>
                 <th>价格</th>
-                <th>消耗品</th>
                 <th class="text-end">操作</th>
             </tr>
         </thead>
@@ -29,7 +32,6 @@
                 <td>{{ '★' * item.rarity }}</td>
                 <td>{{ item.item_type }}</td>
                 <td>{{ item.cost }}</td>
-                <td>{{ '是' if item.is_consumable else '否' }}</td>
                 <td class="text-end">
                     <button class="btn btn-sm btn-outline-primary" onclick="openEditModal({{ item | tojson }})">
                         <i class="fas fa-edit"></i> 编辑
@@ -46,53 +48,55 @@
     </table>
 </div>
 
-<!-- Add/Edit Modal -->
-<div class="modal fade" id="addItemModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<!-- Modal for Add/Edit Item -->
+<div class="modal fade" id="itemModal" tabindex="-1" aria-labelledby="itemModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
         <div class="modal-content">
-            <form id="itemForm" action="{{ url_for('admin_bp.add_item') }}" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="modalTitle">添加新道具</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
+            <div class="modal-header">
+                <h5 class="modal-title" id="itemModalLabel">添加/编辑道具</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="itemForm" method="POST">
                 <div class="modal-body">
-                    <input type="hidden" id="itemId" name="item_id">
-                    <div class="row g-3">
+                    <input type="hidden" name="item_id" id="itemId">
+                    
+                    <div class="mb-3">
+                        <label for="itemName" class="form-label">名称</label>
+                        <input type="text" class="form-control" id="itemName" name="name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="itemDescription" class="form-label">描述</label>
+                        <textarea class="form-control" id="itemDescription" name="description"></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="itemEffectDescription" class="form-label">效果描述</label>
+                        <textarea class="form-control" id="itemEffectDescription" name="effect_description"></textarea>
+                    </div>
+                    
+                    <div class="row">
                         <div class="col-md-6">
-                            <label class="form-label">名称</label>
-                            <input type="text" class="form-control" name="name" required>
+                            <div class="mb-3">
+                                <label for="itemRarity" class="form-label">稀有度 (1-10)</label>
+                                <input type="number" class="form-control" id="itemRarity" name="rarity" min="1" max="10" value="1" required>
+                            </div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">稀有度</label>
-                            <input type="number" class="form-control" name="rarity" min="1" value="1" required>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">描述</label>
-                            <textarea class="form-control" name="description" rows="2"></textarea>
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">效果描述</label>
-                            <textarea class="form-control" name="effect_description" rows="2"></textarea>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">道具类型</label>
-                            <input type="text" class="form-control" name="item_type" value="consumable">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">价格</label>
-                            <input type="number" class="form-control" name="cost" min="0" value="0">
-                        </div>
-                         <div class="col-md-6">
-                            <label class="form-label">图标URL</label>
-                            <input type="text" class="form-control" name="icon_url">
-                        </div>
-                        <div class="col-md-6 d-flex align-items-end">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="is_consumable" value="1" checked>
-                                <label class="form-check-label">是否为消耗品</label>
+                            <div class="mb-3">
+                                <label for="itemCost" class="form-label">价格</label>
+                                <input type="number" class="form-control" id="itemCost" name="cost" value="0">
                             </div>
                         </div>
                     </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="isConsumable" name="is_consumable">
+                        <label class="form-check-label" for="isConsumable">
+                            是否是消耗品？ (勾选后类型将变为 consumable)
+                        </label>
+                    </div>
+                    
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
@@ -104,35 +108,32 @@
 </div>
 {% endblock %}
 
-{% block extra_js %}
+{% block scripts %}
 <script>
-    const itemModal = new bootstrap.Modal(document.getElementById('addItemModal'));
+    const itemModal = new bootstrap.Modal(document.getElementById('itemModal'));
     const itemForm = document.getElementById('itemForm');
-    const modalTitle = document.getElementById('modalTitle');
-
-    function openEditModal(item) {
-        itemForm.action = `/admin/items/edit/${item.item_id}`;
-        modalTitle.textContent = '编辑道具';
-        
-        // Populate form
-        for (const key in item) {
-            const el = itemForm.elements[key];
-            if (el) {
-                if (el.type === 'checkbox') {
-                    el.checked = item[key];
-                } else {
-                    el.value = item[key];
-                }
-            }
-        }
+    const modalLabel = document.getElementById('itemModalLabel');
+    const itemIdInput = document.getElementById('itemId');
+    
+    function openAddModal() {
+        itemForm.action = "{{ url_for('admin_bp.add_item') }}";
+        modalLabel.textContent = '添加新道具';
+        itemForm.reset();
+        itemIdInput.value = '';
         itemModal.show();
     }
 
-    // Reset form on modal close
-    document.getElementById('addItemModal').addEventListener('hidden.bs.modal', () => {
-        itemForm.reset();
-        itemForm.action = "{{ url_for('admin_bp.add_item') }}";
-        modalTitle.textContent = '添加新道具';
-    });
+    function openEditModal(item) {
+        itemForm.action = `/admin/items/edit/${item.item_id}`;
+        modalLabel.textContent = '编辑道具';
+        itemIdInput.value = item.item_id;
+        document.getElementById('itemName').value = item.name;
+        document.getElementById('itemDescription').value = item.description || '';
+        document.getElementById('itemEffectDescription').value = item.effect_description || '';
+        document.getElementById('itemRarity').value = item.rarity;
+        document.getElementById('itemCost').value = item.cost;
+        document.getElementById('isConsumable').checked = item.item_type === 'consumable';
+        itemModal.show();
+    }
 </script>
 {% endblock %}
