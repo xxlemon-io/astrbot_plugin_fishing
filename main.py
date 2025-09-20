@@ -20,6 +20,7 @@ from .core.repositories.sqlite_gacha_repo import SqliteGachaRepository
 from .core.repositories.sqlite_market_repo import SqliteMarketRepository
 from .core.repositories.sqlite_log_repo import SqliteLogRepository
 from .core.repositories.sqlite_achievement_repo import SqliteAchievementRepository
+from .core.repositories.sqlite_user_buff_repo import SqliteUserBuffRepository
 from .core.services.data_setup_service import DataSetupService
 from .core.services.item_template_service import ItemTemplateService
 # 服务
@@ -31,6 +32,9 @@ from .core.services.market_service import MarketService
 from .core.services.gacha_service import GachaService
 from .core.services.achievement_service import AchievementService
 from .core.services.game_mechanics_service import GameMechanicsService
+from .core.services.effect_manager import EffectManager
+from .core.services.item_effects.add_coins_effect import AddCoinsEffect
+from .core.services.item_effects.rare_fish_boost_effect import RareFishBoostEffect
 # 其他
 
 from .core.database.migration import run_migrations
@@ -119,11 +123,28 @@ class FishingPlugin(Star):
         self.market_repo = SqliteMarketRepository(db_path)
         self.log_repo = SqliteLogRepository(db_path)
         self.achievement_repo = SqliteAchievementRepository(db_path)
+        self.buff_repo = SqliteUserBuffRepository(db_path)
 
         # --- 3. 组合根：实例化所有服务层，并注入依赖 ---
+        # 3.1 实例化效果管理器并注册所有效果
+        self.effect_manager = EffectManager()
+        self.effect_manager.register(
+            "ADD_COINS", AddCoinsEffect(user_repo=self.user_repo)
+        )
+        self.effect_manager.register(
+            "RARE_FISH_BOOST",
+            RareFishBoostEffect(user_repo=self.user_repo, buff_repo=self.buff_repo),
+        )
+
+        # 3.2 实例化核心服务
         self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.game_config)
-        self.inventory_service = InventoryService(self.inventory_repo, self.user_repo, self.item_template_repo,
-                                                  self.game_config)
+        self.inventory_service = InventoryService(
+            self.inventory_repo,
+            self.user_repo,
+            self.item_template_repo,
+            self.effect_manager,
+            self.game_config,
+        )
         self.shop_service = ShopService(self.item_template_repo, self.inventory_repo, self.user_repo)
         self.market_service = MarketService(self.market_repo, self.inventory_repo, self.user_repo, self.log_repo,
                                             self.item_template_repo, self.game_config)
@@ -133,8 +154,14 @@ class FishingPlugin(Star):
                                                            self.item_template_repo, self.game_config)
         self.achievement_service = AchievementService(self.achievement_repo, self.user_repo, self.inventory_repo,
                                                       self.item_template_repo, self.log_repo)
-        self.fishing_service = FishingService(self.user_repo, self.inventory_repo, self.item_template_repo,
-                                              self.log_repo, self.game_config)
+        self.fishing_service = FishingService(
+            self.user_repo,
+            self.inventory_repo,
+            self.item_template_repo,
+            self.log_repo,
+            self.buff_repo,
+            self.game_config,
+        )
         # 取消主动通知注册（按需求不推送用户）
 
         self.item_template_service = ItemTemplateService(self.item_template_repo, self.gacha_repo)

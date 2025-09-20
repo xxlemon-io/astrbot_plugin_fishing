@@ -53,6 +53,115 @@ class SqliteItemTemplateRepository(AbstractItemTemplateRepository):
             return None
         return Item(**row)
 
+    def _to_domain(self, row: sqlite3.Row) -> Item:
+        return Item(
+            item_id=row[0],
+            name=row[1],
+            description=row[2],
+            rarity=row[3],
+            effect_description=row[4],
+            cost=row[5],
+            is_consumable=bool(row[6]),
+            icon_url=row[7],
+            effect_type=row[8] if len(row) > 8 else None,
+            effect_payload=row[9] if len(row) > 9 else None,
+        )
+
+    def add(self, item: Item):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO items (name, description, rarity, effect_description, cost, is_consumable, icon_url, effect_type, effect_payload)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    item.name,
+                    item.description,
+                    item.rarity,
+                    item.effect_description,
+                    item.cost,
+                    item.is_consumable,
+                    item.icon_url,
+                    item.effect_type,
+                    item.effect_payload,
+                ),
+            )
+            conn.commit()
+
+    def get_by_id(self, item_id: int) -> Optional[Item]:
+        with self._get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT item_id, name, description, rarity, effect_description, cost, is_consumable, icon_url, effect_type, effect_payload FROM items WHERE item_id = ?",
+                (item_id,),
+            )
+            row = cursor.fetchone()
+            return self._to_domain(row) if row else None
+
+    def get_all(self) -> List[Item]:
+        with self._get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT item_id, name, description, rarity, effect_description, cost, is_consumable, icon_url, effect_type, effect_payload FROM items"
+            )
+            rows = cursor.fetchall()
+            return [self._to_domain(row) for row in rows] if rows else []
+
+    def get_by_name(self, name: str) -> Optional[Item]:
+        with self._get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT item_id, name, description, rarity, effect_description, cost, is_consumable, icon_url, effect_type, effect_payload FROM items WHERE name = ?",
+                (name,),
+            )
+            row = cursor.fetchone()
+            return self._to_domain(row) if row else None
+
+    def update(self, item: Item):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE items
+                SET name = ?, description = ?, rarity = ?, effect_description = ?, cost = ?, is_consumable = ?, icon_url = ?, effect_type = ?, effect_payload = ?
+                WHERE item_id = ?
+                """,
+                (
+                    item.name,
+                    item.description,
+                    item.rarity,
+                    item.effect_description,
+                    item.cost,
+                    item.is_consumable,
+                    item.icon_url,
+                    item.effect_type,
+                    item.effect_payload,
+                    item.item_id,
+                ),
+            )
+            conn.commit()
+
+    def _to_domain_from_row(self, row: sqlite3.Row) -> Item:
+        """从 sqlite3.Row 对象转换到领域模型"""
+        return Item(
+            item_id=row["item_id"],
+            name=row["name"],
+            description=row["description"],
+            rarity=row["rarity"],
+            effect_description=row["effect_description"],
+            cost=row["cost"],
+            is_consumable=bool(row["is_consumable"]),
+            icon_url=row["icon_url"],
+            effect_type=row["effect_type"] if "effect_type" in row.keys() else None,
+            effect_payload=(
+                row["effect_payload"] if "effect_payload" in row.keys() else None
+            ),
+        )
+
     # --- Fish Read Methods ---
     def get_fish_by_id(self, fish_id: int) -> Optional[Fish]:
         with self._get_connection() as conn:

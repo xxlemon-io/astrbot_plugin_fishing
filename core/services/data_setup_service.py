@@ -1,6 +1,18 @@
-from ..repositories.abstract_repository import AbstractItemTemplateRepository, AbstractGachaRepository
-from ..initial_data import FISH_DATA, BAIT_DATA, ROD_DATA, ACCESSORY_DATA, TITLE_DATA, GACHA_POOL
+from ..repositories.abstract_repository import (
+    AbstractItemTemplateRepository,
+    AbstractGachaRepository,
+)
+from ..initial_data import (
+    FISH_DATA,
+    BAIT_DATA,
+    ROD_DATA,
+    ACCESSORY_DATA,
+    TITLE_DATA,
+    GACHA_POOL,
+)
+from ..domain.models import Item
 from astrbot.api import logger
+
 
 class DataSetupService:
     """负责在首次启动时初始化游戏基础数据。"""
@@ -96,13 +108,53 @@ class DataSetupService:
                 })
 
         for pool in GACHA_POOL:
-            self.gacha_repo.add_pool_template({
-                "pool_id": pool[0],
-                "name": pool[1],
-                "description": pool[2],
-                "cost_coins": pool[3],
-                "cost_premium_currency": pool[4]
-            })
+            self.gacha_repo.add_pool_template(
+                {
+                    "pool_id": pool[0],
+                    "name": pool[1],
+                    "description": pool[2],
+                    "cost_coins": pool[3],
+                    "cost_premium_currency": pool[4],
+                }
+            )
+
+        # 填充通用道具数据
+        self.create_initial_items()
 
         logger.info("核心游戏数据初始化完成。")
+
+    def create_initial_items(self):
+        """创建初始的通用道具"""
+        items_to_create = [
+            Item(
+                item_id=0,
+                name="小钱袋",
+                description="一个不起眼的小钱袋，里面装着一些金币。",
+                rarity=2,
+                effect_description="使用后立即获得 1000 金币。",
+                cost=0,
+                is_consumable=True,
+                icon_url=None,
+                effect_type="ADD_COINS",
+                effect_payload='{"amount": 1000}',
+            ),
+            Item(
+                item_id=0,
+                name="幸运药水",
+                description="一瓶冒着气泡的神秘药水，散发着幸运的气息。",
+                rarity=3,
+                effect_description="使用后10分钟内，钓到稀有鱼的概率提升5%!",
+                cost=2000,
+                is_consumable=True,
+                icon_url=None,
+                effect_type="RARE_FISH_BOOST",
+                effect_payload='{"duration_seconds": 600, "multiplier": 0.05}',
+            ),
+        ]
+
+        for item in items_to_create:
+            # 检查道具是否已存在
+            existing_item = self.item_template_repo.get_item_by_name(item.name)
+            if not existing_item:
+                self.item_template_repo.add_item(item)
 

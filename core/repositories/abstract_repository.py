@@ -380,3 +380,26 @@ class AbstractAchievementRepository(ABC):
     # 检查用户是否拥有特定稀有度的物品
     @abstractmethod
     def has_item_of_rarity(self, user_id: str, item_type: str, rarity: int) -> bool: pass
+
+class AbstractUserBuffRepository(ABC):
+    @abstractmethod
+    def add(self, buff: UserBuff):
+        pass
+
+    @abstractmethod
+    def get_active_by_user_and_type(
+        self, user_id: str, buff_type: str
+    ) -> Optional[UserBuff]:
+        pass
+
+    @abstractmethod
+    def get_all_active_by_user(self, user_id: str) -> List[UserBuff]:
+        pass
+
+    @abstractmethod
+    def delete_expired(self):
+        pass
+
+    @abstractmethod
+    def delete(self, buff_id: int):
+        pass

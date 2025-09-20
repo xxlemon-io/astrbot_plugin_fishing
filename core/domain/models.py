@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 # ---------------------------------
@@ -81,6 +81,8 @@ class Item:
     cost: int = 0
     is_consumable: bool = True
     icon_url: Optional[str] = None
+    effect_type: Optional[str] = None
+    effect_payload: Optional[str] = None
 
 @dataclass
 class Title:
@@ -293,3 +295,17 @@ class FishingZone:
     def __getitem__(self, item):
         """允许通过属性名访问字段"""
         return getattr(self, item)
+
+@dataclass
+class UserBuff:
+    id: int
+    user_id: str
+    buff_type: str
+    payload: Optional[str]
+    started_at: datetime
+    expires_at: Optional[datetime]
+
+
+@dataclass
+class UserItem:
+    user_id: str
