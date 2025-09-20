@@ -508,6 +508,8 @@ async def add_gacha_pool():
         "description": data.get("description"),
         "cost_coins": amount if currency_type == "coins" else 0,
         "cost_premium_currency": amount if currency_type == "premium" else 0,
+        "is_limited_time": data.get("is_limited_time"),
+        "open_until": data.get("open_until")
     }
     item_template_service.add_pool_template(payload)
     await flash("奖池添加成功！", "success")
@@ -527,6 +529,8 @@ async def edit_gacha_pool(pool_id):
         "description": data.get("description"),
         "cost_coins": amount if currency_type == "coins" else 0,
         "cost_premium_currency": amount if currency_type == "premium" else 0,
+        "is_limited_time": data.get("is_limited_time"),
+        "open_until": data.get("open_until")
     }
     item_template_service.update_pool_template(pool_id, payload)
     await flash(f"奖池ID {pool_id} 更新成功！", "success")
