@@ -70,7 +70,7 @@ def format_large_number(number):
     else:
         return f"{number/1000000000:.1f}B".replace(".0B", "B")
 
-def draw_fishing_ranking(user_data: List[Dict], output_path: str = "fishing_ranking.png"):
+def draw_fishing_ranking(user_data: List[Dict], output_path: str):
     """
     绘制钓鱼排行榜图片
 

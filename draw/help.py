@@ -282,6 +282,4 @@ def draw_help_image():
     final_height = footer_y + 30
     image = image.crop((0, 0, width, final_height))
 
-    output_path = "fishing_commands_beautiful.png"
-    image.save(output_path, quality=95)
-    return output_path
+    return image

@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from .utils import get_user_avatar
 
 def format_rarity_display(rarity: int) -> str:
     """格式化稀有度显示，支持显示到10星，10星以上显示为★★★★★★★★★★+"""
@@ -18,87 +19,6 @@ def to_percentage(value: float) -> str:
         return f"{value * 100:.2f}%"
     else:
         return f"{(value - 1) * 100:.2f}%"
-
-def get_user_avatar(user_id: str, avatar_size: int = 50) -> Optional[Image.Image]:
-    """
-    获取用户头像并处理为圆形
-    
-    Args:
-        user_id: 用户ID
-        avatar_size: 头像尺寸
-    
-    Returns:
-        处理后的头像图像，如果失败返回None
-    """
-    try:
-        import requests
-        from io import BytesIO
-        import time
-        
-        # 创建头像缓存目录
-        cache_dir = os.path.join("data/plugin_data/astrbot_plugin_fishing", "avatar_cache")
-        os.makedirs(cache_dir, exist_ok=True)
-        
-        avatar_cache_path = os.path.join(cache_dir, f"{user_id}_avatar.png")
-        
-        # 检查是否有缓存的头像（24小时刷新）
-        avatar_image = None
-        if os.path.exists(avatar_cache_path):
-            try:
-                file_age = time.time() - os.path.getmtime(avatar_cache_path)
-                if file_age < 86400:  # 24小时
-                    avatar_image = Image.open(avatar_cache_path).convert('RGBA')
-            except:
-                pass
-        
-        # 如果没有缓存或缓存过期，重新下载
-        if avatar_image is None:
-            avatar_url = f"https://q4.qlogo.cn/headimg_dl?dst_uin={user_id}&spec=640"
-            response = requests.get(avatar_url, timeout=2) # 2s超时
-            if response.status_code == 200:
-                avatar_image = Image.open(BytesIO(response.content)).convert('RGBA')
-                # 保存到缓存
-                avatar_image.save(avatar_cache_path, 'PNG')
-        
-        if avatar_image:
-            return avatar_postprocess(avatar_image, avatar_size)
-        
-    except Exception as e:
-        pass
-    
-    return None
-
-def avatar_postprocess(avatar_image: Image.Image, size: int) -> Image.Image:
-    """
-    将头像处理为指定大小的圆角头像，抗锯齿效果
-    """
-    # 调整头像大小
-    avatar_image = avatar_image.resize((size, size), Image.Resampling.LANCZOS)
-    
-    # 使用更合适的圆角半径
-    corner_radius = size // 8  # 稍微减小圆角，看起来更自然
-    
-    # 抗锯齿处理
-    scale_factor = 4
-    large_size = size * scale_factor
-    large_radius = corner_radius * scale_factor
-    
-    # 创建高质量遮罩
-    large_mask = Image.new('L', (large_size, large_size), 0)
-    large_draw = ImageDraw.Draw(large_mask)
-    
-    # 绘制圆角矩形
-    large_draw.rounded_rectangle(
-        [0, 0, large_size, large_size], 
-        radius=large_radius, 
-        fill=255
-    )
-    
-    # 高质量缩放
-    mask = large_mask.resize((size, size), Image.Resampling.LANCZOS)
-    avatar_image.putalpha(mask)
-    
-    return avatar_image
 
 def calculate_dynamic_height(user_data: Dict[str, Any]) -> int:
     """
@@ -159,7 +79,7 @@ def calculate_dynamic_height(user_data: Dict[str, Any]) -> int:
     total_height = base_height + rod_height + accessory_height + bait_height + item_height + section_spacing
     return max(total_height, 600)  # 最小高度600
 
-def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
+async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image.Image:
     """
     绘制用户背包图像
     
@@ -393,7 +313,7 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
 
     # 绘制用户头像 - 如有
     if user_id := user_data.get('user_id'):
-        if avatar_image := get_user_avatar(user_id, avatar_size):
+        if avatar_image := await get_user_avatar(user_id, data_dir, avatar_size):
             image.paste(avatar_image, (col1_x, row1_y), avatar_image)
             col1_x = col1_x_with_avatar # 更新 col1_x 以适应头像位置
             col2_x = col1_x + 300  # 头像存在时，第二列起点随之右移
