@@ -71,7 +71,7 @@ class Accessory:
 
 @dataclass
 class Item:
-    """代表一种通用道具的模板信息（背包道具栏）"""
+    """代表一道具的模板信息（背包道具栏）"""
     item_id: int
     name: str
     rarity: int

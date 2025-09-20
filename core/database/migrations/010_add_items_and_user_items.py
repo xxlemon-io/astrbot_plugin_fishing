@@ -4,7 +4,7 @@ from astrbot.api import logger
 
 def up(cursor: sqlite3.Cursor):
     """
-    新增通用道具模板表 items 与用户道具表 user_items。
+    新增道具模板表 items 与用户道具表 user_items。
     - items: 存放可在背包“道具栏”展示的道具模板（如消耗品、功能道具等）
     - user_items: 存放用户持有的道具数量
     """

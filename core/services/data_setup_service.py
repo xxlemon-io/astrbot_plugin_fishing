@@ -119,7 +119,7 @@ class DataSetupService:
                 }
             )
 
-        # 填充通用道具数据
+        # 填充道具数据
         self.create_initial_items()
 
         # --- 填充抽卡池具体物品 ---
@@ -135,29 +135,10 @@ class DataSetupService:
             self.gacha_repo.add_pool_item(2, {"item_type": "accessory", "item_id": 3, "quantity": 1, "weight": 15}) # 丰收号角
             self.gacha_repo.add_pool_item(2, {"item_type": "coins", "item_id": 0, "quantity": 20000, "weight": 80})
 
-        # # 新增道具补给池 (暂时注释掉，等待后台手动填充)
-        # if not self.gacha_repo.get_pool_items(3):
-        #     # 通过名字查找道具ID，更稳健
-        #     lucky_potion = self.item_template_repo.get_by_name("幸运药水")
-        #     sonar = self.item_template_repo.get_by_name("便携式声呐")
-        #     rune = self.item_template_repo.get_by_name("侠盗的符文")
-        #     license_item = self.item_template_repo.get_by_name("擦弹许可证")
-        #
-        #     if lucky_potion:
-        #         self.gacha_repo.add_pool_item(3, {"item_type": "item", "item_id": lucky_potion.item_id, "quantity": 1, "weight": 15})
-        #     if sonar:
-        #         self.gacha_repo.add_pool_item(3, {"item_type": "item", "item_id": sonar.item_id, "quantity": 1, "weight": 10})
-        #     if rune:
-        #         self.gacha_repo.add_pool_item(3, {"item_type": "item", "item_id": rune.item_id, "quantity": 1, "weight": 10})
-        #     if license_item:
-        #         self.gacha_repo.add_pool_item(3, {"item_type": "item", "item_id": license_item.item_id, "quantity": 2, "weight": 20})
-        #     
-        #     self.gacha_repo.add_pool_item(3, {"item_type": "coins", "item_id": 0, "quantity": 500, "weight": 45})
-
         logger.info("核心游戏数据初始化完成。")
 
     def create_initial_items(self):
-        """创建初始的通用道具"""
+        """创建初始的道具"""
         existing_items = self.item_template_repo.get_all()
         existing_item_names = {item.name for item in existing_items}
 
@@ -180,10 +161,10 @@ class DataSetupService:
                 )
 
         if items_to_create:
-            logger.info(f"发现 {len(items_to_create)} 个新的通用道具，正在添加到数据库...")
+            logger.info(f"发现 {len(items_to_create)} 个新的道具，正在添加到数据库...")
             for item in items_to_create:
                 self.item_template_repo.add(item)
-            logger.info("新通用道具添加完成。")
+            logger.info("新道具添加完成。")
         else:
-            logger.info("没有发现新的通用道具需要添加。")
+            logger.info("没有发现新的道具需要添加。")
 
