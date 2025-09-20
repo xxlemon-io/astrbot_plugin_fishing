@@ -1,8 +1,8 @@
 from typing import Dict, Any
 
 from .abstract_effect import AbstractItemEffect
-from ....core.domain.models import User, Item
-from ....core.services.game_mechanics_service import GameMechanicsService
+from ...domain.models import User, Item
+from ..game_mechanics_service import GameMechanicsService
 
 
 class ForecastWipeBombEffect(AbstractItemEffect):

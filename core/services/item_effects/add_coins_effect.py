@@ -3,7 +3,7 @@ import json
 import random
 
 from .abstract_effect import AbstractItemEffect
-from ....core.domain.models import User, Item
+from ...domain.models import User, Item
 
 
 class AddCoinsEffect(AbstractItemEffect):

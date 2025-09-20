@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 from typing import Dict, Any
 
 from .abstract_effect import AbstractItemEffect
-from ....core.domain.models import User, Item, UserBuff
-from ....core.utils import get_now
+from ...domain.models import User, Item, UserBuff
+from ...utils import get_now
 
 class StealProtectionEffect(AbstractItemEffect):
     effect_type = "STEAL_PROTECTION_BUFF"

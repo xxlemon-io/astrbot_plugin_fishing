@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
-from ....core.repositories.abstract_repository import (
+from ...repositories.abstract_repository import (
     AbstractUserRepository,
     AbstractUserBuffRepository,
 )
-from ....core.domain.models import User, Item
+from ...domain.models import User, Item
 
 
 class AbstractItemEffect(ABC):

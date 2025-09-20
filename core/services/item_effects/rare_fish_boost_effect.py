@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any
 
 from .abstract_effect import AbstractItemEffect
-from ....core.domain.models import User, Item, UserBuff
+from ...domain.models import User, Item, UserBuff
 
 
 class RareFishBoostEffect(AbstractItemEffect):

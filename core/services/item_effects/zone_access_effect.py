@@ -1,6 +1,7 @@
 import json
 from typing import Dict, Any
 from .abstract_effect import AbstractItemEffect
+from ...domain.models import User, Item
 
 
 class ZoneAccessEffect(AbstractItemEffect):
@@ -13,19 +14,19 @@ class ZoneAccessEffect(AbstractItemEffect):
     def get_effect_type(self) -> str:
         return "ZONE_ACCESS"
     
-    def apply_effect(self, user_id: str, effect_payload: str) -> Dict[str, Any]:
+    def apply(self, user: User, item_template: Item, payload: Dict[str, Any]) -> Dict[str, Any]:
         """
         应用区域访问效果 - 使用通行证直接传送到对应区域
         
         Args:
-            user_id: 用户ID
-            effect_payload: 效果载荷，包含zone_id
+            user: 用户对象
+            item_template: 道具模板对象
+            payload: 效果载荷，包含zone_id
             
         Returns:
             应用结果
         """
         try:
-            payload = json.loads(effect_payload)
             zone_id = payload.get("zone_id")
             
             if not zone_id:
@@ -65,29 +66,17 @@ class ZoneAccessEffect(AbstractItemEffect):
                 }
             
             # 直接设置用户区域（绕过道具检查，因为已经使用了通行证）
-            user = self.fishing_service.user_repo.get_by_id(user_id)
-            if not user:
-                return {
-                    "success": False,
-                    "message": "用户不存在"
-                }
-            
             user.fishing_zone_id = zone_id
             self.fishing_service.user_repo.update(user)
             
             # 记录日志
-            self.fishing_service.log_repo.add_log(user_id, "zone_entry", f"使用通行证进入 {zone.name}")
+            self.fishing_service.log_repo.add_log(user.user_id, "zone_entry", f"使用通行证进入 {zone.name}")
             
             return {
                 "success": True,
                 "message": f"🎫 使用通行证成功传送到 {zone.name}！"
             }
                 
-        except json.JSONDecodeError:
-            return {
-                "success": False,
-                "message": "效果配置无效"
-            }
         except Exception as e:
             return {
                 "success": False,
