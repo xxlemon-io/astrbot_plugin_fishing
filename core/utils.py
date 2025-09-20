@@ -1,6 +1,8 @@
 import random
 from datetime import datetime, date, timedelta, timezone
 
+DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+
 # 获取当前的UTC+8时间
 def get_now() -> datetime:
     return datetime.now(timezone(timedelta(hours=8)))
