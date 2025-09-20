@@ -5,7 +5,8 @@ from datetime import datetime
 
 from ..domain.models import UserBuff
 from .abstract_repository import AbstractUserBuffRepository
-from ..utils import DATETIME_FORMAT
+
+DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 class SqliteUserBuffRepository(AbstractUserBuffRepository):
