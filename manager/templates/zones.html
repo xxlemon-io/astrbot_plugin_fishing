@@ -125,9 +125,11 @@
                         <label for="daily_rare_fish_quota" class="form-label">稀有鱼每日配额</label>
                         <input type="number" class="form-control" name="daily_rare_fish_quota" value="${zone?.daily_rare_fish_quota || 0}">
                     </div>
-                    <div class="col-md-6 mb-3 form-check form-switch pt-4">
-                        <input class="form-check-input" type="checkbox" name="is_active" id="is_active" ${zone?.is_active ?? true ? 'checked' : ''}>
-                        <label class="form-check-label" for="is_active">启用区域</label>
+                    <div class="col-md-6 mb-3 d-flex align-items-end">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" name="is_active" id="is_active" ${zone?.is_active ?? true ? 'checked' : ''}>
+                            <label class="form-check-label ms-2" for="is_active">启用区域</label>
+                        </div>
                     </div>
                 </div>
                 <div class="row">
@@ -136,8 +138,14 @@
                         <input type="datetime-local" class="form-control" name="available_from" value="${zone?.available_from || ''}">
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label for="available_until" class="form-label">结束时间 (可选)</label>
-                        <input type="datetime-local" class="form-control" name="available_until" value="${zone?.available_until || ''}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <label for="available_until" class="form-label mb-0">结束时间 (可选)</label>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="limit_time" id="limit_time" ${zone?.available_from || zone?.available_until ? 'checked' : ''}>
+                                <label class="form-check-label" for="limit_time">限定开放时间</label>
+                            </div>
+                        </div>
+                        <input type="datetime-local" class="form-control mt-2" name="available_until" value="${zone?.available_until || ''}">
                     </div>
                 </div>
                 <div class="mb-3">
@@ -169,7 +177,10 @@
     // Populate create form
     document.getElementById('createZoneModal').querySelector('.modal-body').innerHTML = renderForm();
 
-    document.getElementById('create-zone-form').addEventListener('submit', async function(e) {
+    const createFormEl = document.getElementById('create-zone-form');
+    hookLimitedTimeToggle(createFormEl);
+
+    createFormEl.addEventListener('submit', async function(e) {
         e.preventDefault();
         const form = e.target;
         const errorAlert = form.querySelector('#form-error-alert');
@@ -180,6 +191,11 @@
         data.id = parseInt(data.id);
         data.daily_rare_fish_quota = parseInt(data.daily_rare_fish_quota);
         data.is_active = data.is_active === 'on';
+        const limitTime = form.querySelector('input[name="limit_time"]').checked;
+        if (!limitTime) {
+            data.available_from = '';
+            data.available_until = '';
+        }
         // 计算稀有度和
         const rarityDistribution = [...Array(5).keys()].map(i => parseFloat(data[`rarity_${i+1}`]) || 0);
         const sum = rarityDistribution.reduce((a,b)=>a+b,0);
@@ -247,7 +263,10 @@
         document.getElementById('editZoneModalBody').innerHTML = renderForm(zone);
         new bootstrap.Modal(document.getElementById('editZoneModal')).show();
 
-        document.getElementById('edit-zone-form').addEventListener('submit', async function(e) {
+        const editForm = document.getElementById('edit-zone-form');
+        hookLimitedTimeToggle(editForm);
+
+        editForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             const form = e.target;
             const errorAlert = form.querySelector('#form-error-alert');
@@ -258,6 +277,11 @@
             data.id = parseInt(data.id);
             data.daily_rare_fish_quota = parseInt(data.daily_rare_fish_quota);
             data.is_active = data.is_active === 'on';
+            const limitTime = form.querySelector('input[name="limit_time"]').checked;
+            if (!limitTime) {
+                data.available_from = '';
+                data.available_until = '';
+            }
             const rarityDistribution = [...Array(5).keys()].map(i => parseFloat(data[`rarity_${i+1}`]) || 0);
             const sum = rarityDistribution.reduce((a,b)=>a+b,0);
             if (Math.abs(sum - 1.0) > 1e-4) {
@@ -292,6 +316,24 @@
             } else {
                 alert('删除失败: ' + result.message);
             }
+        }
+    }
+
+    function hookLimitedTimeToggle(form) {
+        const toggle = form.querySelector('input[name="limit_time"]');
+        const fromInput = form.querySelector('input[name="available_from"]');
+        const untilInput = form.querySelector('input[name="available_until"]');
+        const applyState = () => {
+            const enabled = toggle && toggle.checked;
+            [fromInput, untilInput].forEach(el => {
+                if (!el) return;
+                el.disabled = !enabled;
+                if (!enabled) el.value = '';
+            });
+        };
+        if (toggle) {
+            applyState();
+            toggle.addEventListener('change', applyState);
         }
     }
 </script>

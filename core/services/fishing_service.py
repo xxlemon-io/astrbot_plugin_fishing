@@ -221,8 +221,8 @@ class FishingService:
         is_rare_fish_available = zone.rare_fish_caught_today < zone.daily_rare_fish_quota
         
         if not is_rare_fish_available:
-            # 如果稀有鱼已达上限，则将4星和5星鱼的权重设为0
-            rarity_distribution[3] = 0.0
+            # 稀有鱼定义：5星
+            # 若达到配额，仅屏蔽5星概率，其它星级不受影响
             rarity_distribution[4] = 0.0
             # 重新归一化概率分布
             total = sum(rarity_distribution)

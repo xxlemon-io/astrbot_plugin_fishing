@@ -4,29 +4,21 @@
 
 {% block content %}
 <div class="container-fluid mt-4">
-    <div class="d-flex justify-content-between align-items-center">
+    <div class="d-flex justify-content-between align-items-center mb-3">
         <h2>鱼类管理</h2>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addFishModal">
-            <i class="fas fa-plus"></i> 添加鱼类
-        </button>
-    </div>
-    
-    <div class="card mt-4">
-        <div class="card-header">
-            CSV 批量操作
-        </div>
-        <div class="card-body">
-            <form id="fishCsvForm" action="{{ url_for('admin_bp.import_fish_csv') }}" method="post" enctype="multipart/form-data" class="row g-3 align-items-center">
-                <div class="col-auto">
-                    <input type="file" class="form-control d-none" id="fishCsvInput" name="file" accept=".csv" required>
-                </div>
-                <div class="col-auto">
-                    <button type="button" id="fishCsvBtn" class="btn btn-info"><i class="fas fa-upload"></i> 导入</button>
-                </div>
-                <div class="col-auto">
-                    <a href="{{ url_for('admin_bp.fish_csv_template') }}" class="btn btn-secondary"><i class="fas fa-download"></i> 下载模板</a>
-                </div>
+        <div class="d-flex gap-2 align-items-center">
+            <a class="btn btn-outline-primary" href="{{ url_for('admin_bp.fish_csv_template') }}">
+                <i class="fas fa-download"></i> 下载CSV模板
+            </a>
+            <form id="fishCsvForm" action="{{ url_for('admin_bp.import_fish_csv') }}" method="post" enctype="multipart/form-data" class="d-inline">
+                <input type="file" class="d-none" id="fishCsvInput" name="file" accept=".csv" required>
+                <button type="button" id="fishCsvBtn" class="btn btn-success">
+                    <i class="fas fa-upload"></i> 导入CSV
+                </button>
             </form>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#fishModal" id="addFishBtn">
+                <i class="fas fa-plus"></i> 添加新鱼
+            </button>
         </div>
     </div>
 
