@@ -528,7 +528,7 @@ class UserService:
                         "item_id": item_id,
                         "name": item_template.name,
                         "rarity": item_template.rarity,
-                        "item_type": item_template.item_type,
+                        "is_consumable": getattr(item_template, "is_consumable", False),
                         "quantity": quantity,
                         "cost": item_template.cost,
                         "total_value": (item_template.cost or 0) * quantity

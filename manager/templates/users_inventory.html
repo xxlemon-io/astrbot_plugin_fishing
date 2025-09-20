@@ -359,7 +359,7 @@
                                 <th>ID</th>
                                 <th>名称</th>
                                 <th>稀有度</th>
-                                <th>类型</th>
+                                <th>消耗品</th>
                                 <th>单价</th>
                                 <th>数量</th>
                                 <th>总价值</th>
@@ -372,7 +372,13 @@
                                 <td>{{ item.item_id }}</td>
                                 <td>{{ item.name }}</td>
                                 <td>{{ '★' * item.rarity }}</td>
-                                <td>{{ item.item_type }}</td>
+                                <td>
+                                    {% if item.is_consumable %}
+                                        <span class="badge bg-success">是</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">否</span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ item.cost }}</td>
                                 <td>{{ item.quantity }}</td>
                                 <td>{{ item.total_value }}</td>
