@@ -169,8 +169,16 @@ class GameMechanicsService:
         # 1. 检查偷窃CD
         cooldown_seconds = self.config.get("steal", {}).get("cooldown_seconds", 14400) # 默认4小时
         now = get_now()
-        if thief.last_steal_time and (now - thief.last_steal_time).total_seconds() < cooldown_seconds:
-            remaining = int(cooldown_seconds - (now - thief.last_steal_time).total_seconds())
+
+        # 修复时区问题
+        last_steal_time = thief.last_steal_time
+        if last_steal_time and last_steal_time.tzinfo is None and now.tzinfo is not None:
+            now = now.replace(tzinfo=None)
+        elif last_steal_time and last_steal_time.tzinfo is not None and now.tzinfo is None:
+            now = now.replace(tzinfo=last_steal_time.tzinfo)
+
+        if last_steal_time and (now - last_steal_time).total_seconds() < cooldown_seconds:
+            remaining = int(cooldown_seconds - (now - last_steal_time).total_seconds())
             return {"success": False, "message": f"偷鱼冷却中，请等待 {remaining // 60} 分钟后再试"}
 
         # 2. 检查受害者是否有鱼可偷

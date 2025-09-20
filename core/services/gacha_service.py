@@ -84,6 +84,10 @@ class GachaService:
                 bait = self.item_template_repo.get_bait_by_id(item.item_id)
                 item_name = bait.name if bait else "未知鱼饵"
                 item_rarity = bait.rarity if bait else 1
+            elif item.item_type == "item":
+                general_item = self.item_template_repo.get_by_id(item.item_id)
+                item_name = general_item.name if general_item else "未知道具"
+                item_rarity = general_item.rarity if general_item else 1
             elif item.item_type == "coins":
                 item_name = f"{item.quantity} 金币"
             elif item.item_type == "titles":
@@ -202,6 +206,15 @@ class GachaService:
                     "rarity": get_bait.rarity,
                     "quantity": item.quantity
                 })
+            elif item.item_type == "item":
+                get_item = self.item_template_repo.get_by_id(item.item_id)
+                granted_rewards.append({
+                    "type": "item",
+                    "id": item.item_id,
+                    "name": get_item.name,
+                    "rarity": get_item.rarity,
+                    "quantity": item.quantity,
+                })
             elif item.item_type == "coins":
                 granted_rewards.append({
                     "type": "coins",
@@ -233,6 +246,11 @@ class GachaService:
         elif item.item_type == "bait":
             self.inventory_repo.update_bait_quantity(user_id, item.item_id, item.quantity)
             template = self.item_template_repo.get_bait_by_id(item.item_id)
+        elif item.item_type == "item":
+            self.inventory_repo.update_item_quantity(
+                user_id, item.item_id, item.quantity
+            )
+            template = self.item_template_repo.get_by_id(item.item_id)
         elif item.item_type == "coins":
             user = self.user_repo.get_by_id(user_id)
             user.coins += item.quantity
