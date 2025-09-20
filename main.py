@@ -132,10 +132,10 @@ class FishingPlugin(Star):
         )
 
         # 3.2 实例化核心服务
-        self._gacha_service = GachaService(self.gacha_repo, self.user_repo, self.inventory_repo, self.item_template_repo,
-                                           self.log_repo, self.achievement_repo)
+        self.gacha_service = GachaService(self.gacha_repo, self.user_repo, self.inventory_repo, self.item_template_repo,
+                                          self.log_repo, self.achievement_repo)
         # UserService 依赖 GachaService，因此在 GachaService 之后实例化
-        self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self._gacha_service, self.game_config)
+        self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.gacha_service, self.game_config)
         self.inventory_service = InventoryService(
             self.inventory_repo,
             self.user_repo,
@@ -1061,7 +1061,7 @@ class FishingPlugin(Star):
         args = event.message_str.split(" ")
         if len(args) < 2:
             # 展示所有的抽奖池信息并显示帮助
-            pools = self._gacha_service.get_all_pools()
+            pools = self.gacha_service.get_all_pools()
             if not pools:
                 yield event.plain_result("❌ 当前没有可用的抽奖池。")
                 return
@@ -1082,7 +1082,7 @@ class FishingPlugin(Star):
             yield event.plain_result("❌ 抽奖池 ID 必须是数字，请检查后重试。")
             return
         pool_id = int(pool_id)
-        result = self._gacha_service.perform_draw(user_id, pool_id, num_draws=1)
+        result = self.gacha_service.perform_draw(user_id, pool_id, num_draws=1)
         if result:
             if result["success"]:
                 items = result.get("results", [])
@@ -1113,7 +1113,7 @@ class FishingPlugin(Star):
             yield event.plain_result("❌ 抽奖池 ID 必须是数字，请检查后重试。")
             return
         pool_id = int(pool_id)
-        result = self._gacha_service.perform_draw(user_id, pool_id, num_draws=10)
+        result = self.gacha_service.perform_draw(user_id, pool_id, num_draws=10)
         if result:
             if result["success"]:
                 items = result.get("results", [])
@@ -1143,7 +1143,7 @@ class FishingPlugin(Star):
             yield event.plain_result("❌ 卡池 ID 必须是数字，请检查后重试。")
             return
         pool_id = int(pool_id)
-        result = self._gacha_service.get_pool_details(pool_id)
+        result = self.gacha_service.get_pool_details(pool_id)
         if result:
             if result["success"]:
                 pool = result.get("pool", {})
@@ -1181,7 +1181,7 @@ class FishingPlugin(Star):
     async def gacha_history(self, event: AstrMessageEvent):
         """查看抽卡记录"""
         user_id = event.get_sender_id()
-        result = self._gacha_service.get_user_gacha_history(user_id)
+        result = self.gacha_service.get_user_gacha_history(user_id)
         if result:
             if result["success"]:
                 history = result.get("records", [])
