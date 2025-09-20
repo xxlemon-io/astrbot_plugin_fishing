@@ -5,6 +5,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import requests
 from io import BytesIO
 import time
+import json
 
 def format_rarity_display(rarity: int) -> str:
     """格式化稀有度显示，支持显示到10星，10星以上显示为★★★★★★★★★★+"""
@@ -454,7 +455,7 @@ def draw_state_image(user_data: Dict[str, Any]) -> Image.Image:
     return image
 
 
-def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo, game_config, user_id: str) -> Optional[Dict[str, Any]]:
+def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo, buff_repo, game_config, user_id: str) -> Optional[Dict[str, Any]]:
     """
     获取用户状态数据
     
@@ -463,6 +464,7 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
         inventory_repo: 库存仓储
         item_template_repo: 物品模板仓储
         log_repo: 日志仓储
+        buff_repo: 用户增益仓储
         game_config: 游戏配置
         user_id: 用户ID
     
@@ -594,14 +596,28 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
     # 计算擦弹剩余次数
     wipe_bomb_remaining = 0
     try:
-        max_attempts_per_day = game_config.get("wipe_bomb", {}).get("max_attempts_per_day", 3)
+        base_max_attempts = game_config.get("wipe_bomb", {}).get("max_attempts_per_day", 3)
+        
+        # 检查是否有增加次数的 buff
+        extra_attempts = 0
+        boost_buff = buff_repo.get_active_by_user_and_type(
+            user_id, "WIPE_BOMB_ATTEMPTS_BOOST"
+        )
+        if boost_buff and boost_buff.payload:
+            try:
+                payload = json.loads(boost_buff.payload)
+                extra_attempts = payload.get("amount", 0)
+            except json.JSONDecodeError:
+                pass  # 在这里忽略解析错误
+
+        total_max_attempts = base_max_attempts + extra_attempts
         
         # 使用与game_mechanics_service相同的方法获取今日已使用次数
         used_attempts_today = log_repo.get_wipe_bomb_log_count_today(user_id)
-        wipe_bomb_remaining = max(0, max_attempts_per_day - used_attempts_today)
+        wipe_bomb_remaining = max(0, total_max_attempts - used_attempts_today)
     except Exception as e:
         # 如果计算失败，默认为最大次数
-        wipe_bomb_remaining = max_attempts_per_day
+        wipe_bomb_remaining = base_max_attempts
     
     # 获取鱼塘信息
     pond_info = None

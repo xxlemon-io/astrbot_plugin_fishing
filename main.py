@@ -39,6 +39,7 @@ from .core.database.migration import run_migrations
 from .core.utils import get_now
 from .draw.rank import draw_fishing_ranking
 from .draw.help import draw_help_image
+from .draw.state import draw_state_image, get_user_state_data
 from .manager.server import create_app
 from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_datetime_handler, _is_port_available, format_rarity_display, kill_processes_on_port
 
@@ -310,36 +311,23 @@ class FishingPlugin(Star):
 
     # ===========背包与资产管理==========
 
-    @filter.command("状态", alias={"用户状态", "查看状态"})
-    async def user_status(self, event: AstrMessageEvent):
+    @filter.command("状态", alias={"我的状态"})
+    async def state(self, event: AstrMessageEvent):
         """查看用户状态"""
         user_id = self._get_effective_user_id(event)
-        user = self.user_repo.get_by_id(user_id)
-        if user:
-            # 导入绘制函数
-            from .draw.state import draw_state_image, get_user_state_data
-            
-            # 获取用户状态数据
-            user_data = get_user_state_data(
-                self.user_repo,
-                self.inventory_repo,
-                self.item_template_repo,
-                self.log_repo,
-                self.game_config,
-                user_id
-            )
-            
-            if user_data:
-                # 生成状态图像
-                image = draw_state_image(user_data)
-                # 保存图像到临时文件
-                image_path = "user_status.png"
-                image.save(image_path)
-                yield event.image_result(image_path)
-            else:
-                yield event.plain_result("❌ 获取用户状态数据失败。")
-        else:
-            yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
+        
+        # 调用新的数据获取函数
+        user_data = get_user_state_data(self.user_repo, self.inventory_repo, self.item_template_repo, self.log_repo, self.buff_repo, self.game_config, user_id)
+        
+        if not user_data:
+            yield event.plain_result('❌ 用户不存在，请先发送"注册"来开始游戏')
+            return
+        # 生成状态图像
+        image = draw_state_image(user_data)
+        # 保存图像到临时文件
+        image_path = "user_status.png"
+        image.save(image_path)
+        yield event.image_result(image_path)
 
     @filter.command("背包", alias={"查看背包", "我的背包"})
     async def user_backpack(self, event: AstrMessageEvent):
