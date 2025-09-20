@@ -5,6 +5,7 @@ from datetime import datetime
 
 from ..domain.models import UserBuff
 from .abstract_repository import AbstractUserBuffRepository
+from ..utils import get_now
 
 DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
@@ -59,7 +60,7 @@ class SqliteUserBuffRepository(AbstractUserBuffRepository):
                 ORDER BY expires_at DESC
                 LIMIT 1
                 """,
-                (user_id, buff_type, datetime.now().strftime(DATETIME_FORMAT)),
+                (user_id, buff_type, get_now().strftime(DATETIME_FORMAT)),
             )
             row = cursor.fetchone()
             return self._to_domain(row) if row else None
@@ -90,7 +91,7 @@ class SqliteUserBuffRepository(AbstractUserBuffRepository):
                 FROM user_buffs
                 WHERE user_id = ? AND (expires_at IS NULL OR expires_at > ?)
                 """,
-                (user_id, datetime.now().strftime(DATETIME_FORMAT)),
+                (user_id, get_now().strftime(DATETIME_FORMAT)),
             )
             rows = cursor.fetchall()
             return [self._to_domain(row) for row in rows]
@@ -100,7 +101,7 @@ class SqliteUserBuffRepository(AbstractUserBuffRepository):
             cursor = conn.cursor()
             cursor.execute(
                 "DELETE FROM user_buffs WHERE expires_at IS NOT NULL AND expires_at <= ?",
-                (datetime.now().strftime(DATETIME_FORMAT),),
+                (get_now().strftime(DATETIME_FORMAT),),
             )
             conn.commit()
 
