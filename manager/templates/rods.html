@@ -7,10 +7,10 @@
         <a class="btn btn-outline-primary" href="{{ url_for('admin_bp.rods_csv_template') }}">
             <i class="fas fa-download"></i> 下载CSV模板
         </a>
-        <form action="{{ url_for('admin_bp.import_rods_csv') }}" method="post" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
-            <input type="file" name="file" accept=".csv" class="form-control form-control-sm" required>
-            <button type="submit" class="btn btn-outline-success">
-                <i class="fas fa-upload"></i> 上传CSV
+        <form id="rodCsvForm" action="{{ url_for('admin_bp.import_rods_csv') }}" method="post" enctype="multipart/form-data" class="d-inline">
+            <input id="rodCsvInput" type="file" name="file" accept=".csv" class="d-none" required>
+            <button type="button" id="rodCsvBtn" class="btn btn-success">
+                <i class="fas fa-upload"></i> 导入CSV
             </button>
         </form>
         <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#itemModal" id="addItemBtn">
@@ -111,6 +111,16 @@
 <script>
     const addUrl = "{{ url_for('admin_bp.add_rod') }}";
     const editUrlBase = "{{ url_for('admin_bp.edit_rod', rod_id=0) }}".slice(0, -1);
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('rodCsvForm');
+        if (!form) return;
+        const input = document.getElementById('rodCsvInput');
+        const btn = document.getElementById('rodCsvBtn');
+        btn.addEventListener('click', function () { input.click(); });
+        input.addEventListener('change', function () {
+            if (input.files && input.files.length > 0) { form.submit(); }
+        });
+    });
 </script>
 <script src="{{ url_for('admin_bp.static', filename='js/rods_manager.js') }}"></script>
 {% endblock %}
