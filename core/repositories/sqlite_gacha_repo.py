@@ -229,25 +229,44 @@ class SqliteGachaRepository(AbstractGachaRepository):
             conn.commit()
 
     def update_pool_item(self, item_pool_id: int, data: Dict[str, Any]) -> None:
-        """后台更新一个抽卡池物品的信息"""
-        item_full_id = data.get("item_full_id", "").split("-")
-        if len(item_full_id) != 2:
+        """后台更新一个抽卡池物品的信息，支持部分更新"""
+        if not data:
             return
-        item_type, item_id = item_full_id
+
+        updates = []
+        params = []
+
+        # 处理 item_full_id
+        if "item_full_id" in data and data["item_full_id"]:
+            item_full_id = data["item_full_id"].split("-")
+            if len(item_full_id) == 2:
+                item_type, item_id = item_full_id
+                updates.append("item_type = ?")
+                updates.append("item_id = ?")
+                params.extend([item_type, item_id])
+
+        # 处理 quantity
+        if "quantity" in data:
+            updates.append("quantity = ?")
+            params.append(data["quantity"])
+
+        # 处理 weight
+        if "weight" in data:
+            updates.append("weight = ?")
+            params.append(data["weight"])
+
+        # 如果没有任何需要更新的字段，则直接返回
+        if not updates:
+            return
+
+        params.append(item_pool_id)
+
+        set_clause = ", ".join(updates)
+        query = f"UPDATE gacha_pool_items SET {set_clause} WHERE gacha_pool_item_id = ?"
 
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE gacha_pool_items SET
-                    item_type = ?, item_id = ?, quantity = ?, weight = ?
-                WHERE gacha_pool_item_id = ?
-            """, (
-                item_type,
-                item_id,
-                data.get("quantity", 1),
-                data.get("weight", 10),
-                item_pool_id
-            ))
+            cursor.execute(query, tuple(params))
             conn.commit()
 
     def delete_pool_item(self, item_pool_id: int) -> None:

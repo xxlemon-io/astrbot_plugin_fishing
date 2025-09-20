@@ -38,7 +38,30 @@
                         </td>
                         <td><span class="badge bg-secondary">{{ item.item_type }}</span></td>
                         <td>{{ item.quantity }}</td>
-                        <td>{{ item.weight }}</td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <input type="number" 
+                                       class="form-control form-control-sm weight-input" 
+                                       value="{{ item.weight }}" 
+                                       data-item-id="{{ item.gacha_pool_item_id }}"
+                                       data-original-value="{{ item.weight }}"
+                                       min="1" 
+                                       max="1000"
+                                       style="width: 80px;">
+                                <div class="ms-2">
+                                    <button class="btn btn-sm btn-success save-weight-btn d-none" 
+                                            data-item-id="{{ item.gacha_pool_item_id }}"
+                                            title="保存">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary cancel-weight-btn d-none" 
+                                            data-item-id="{{ item.gacha_pool_item_id }}"
+                                            title="取消">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </td>
                         <td class="text-end">
                             <button class="btn btn-sm btn-info edit-btn"
                                     data-bs-toggle="modal"
@@ -145,6 +168,165 @@ document.addEventListener('DOMContentLoaded', function () {
                 form.elements['quantity'].value = data.quantity;
                 form.elements['weight'].value = data.weight;
             });
+        });
+    }
+
+    // 权重内联编辑功能
+    const weightInputs = document.querySelectorAll('.weight-input');
+    const saveButtons = document.querySelectorAll('.save-weight-btn');
+    const cancelButtons = document.querySelectorAll('.cancel-weight-btn');
+
+    weightInputs.forEach(input => {
+        let originalValue = input.value;
+        
+        input.addEventListener('focus', function() {
+            originalValue = this.value;
+            this.classList.add('border-primary');
+            showActionButtons(this);
+        });
+
+        input.addEventListener('blur', function() {
+            if (this.value === originalValue) {
+                hideActionButtons(this);
+                this.classList.remove('border-primary');
+            }
+        });
+
+        input.addEventListener('input', function() {
+            if (this.value !== originalValue) {
+                showActionButtons(this);
+            } else {
+                hideActionButtons(this);
+            }
+        });
+
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveWeight(this);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelEdit(this);
+            }
+        });
+    });
+
+    saveButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const input = this.closest('td').querySelector('.weight-input');
+            saveWeight(input);
+        });
+    });
+
+    cancelButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const input = this.closest('td').querySelector('.weight-input');
+            cancelEdit(input);
+        });
+    });
+
+    function showActionButtons(input) {
+        const container = input.closest('td');
+        const saveBtn = container.querySelector('.save-weight-btn');
+        const cancelBtn = container.querySelector('.cancel-weight-btn');
+        
+        saveBtn.classList.remove('d-none');
+        cancelBtn.classList.remove('d-none');
+    }
+
+    function hideActionButtons(input) {
+        const container = input.closest('td');
+        const saveBtn = container.querySelector('.save-weight-btn');
+        const cancelBtn = container.querySelector('.cancel-weight-btn');
+        
+        saveBtn.classList.add('d-none');
+        cancelBtn.classList.add('d-none');
+    }
+
+    function cancelEdit(input) {
+        input.value = input.dataset.originalValue;
+        input.classList.remove('border-primary');
+        hideActionButtons(input);
+    }
+
+    async function saveWeight(input) {
+        const itemId = input.dataset.itemId;
+        const weight = parseInt(input.value);
+        
+        if (!itemId) {
+            showToast('错误：无法获取物品ID', 'error');
+            return;
+        }
+        
+        if (weight < 1 || weight > 1000) {
+            showToast('权重必须在1-1000之间', 'error');
+            input.focus();
+            return;
+        }
+
+        // 显示保存状态
+        const saveBtn = input.closest('td').querySelector('.save-weight-btn');
+        const originalIcon = saveBtn.innerHTML;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        saveBtn.disabled = true;
+
+        try {
+            const response = await fetch(`/admin/gacha/pool/update_weight/${itemId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ weight: weight })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                input.dataset.originalValue = weight.toString();
+                input.classList.remove('border-primary');
+                hideActionButtons(input);
+                showToast('权重更新成功', 'success');
+            } else {
+                showToast(result.message || '更新失败', 'error');
+                input.focus();
+            }
+        } catch (error) {
+            showToast('网络错误，请重试', 'error');
+            input.focus();
+        } finally {
+            saveBtn.innerHTML = originalIcon;
+            saveBtn.disabled = false;
+        }
+    }
+
+    function showToast(message, type) {
+        // 创建toast元素
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0`;
+        toast.setAttribute('role', 'alert');
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        `;
+
+        // 添加到页面
+        let toastContainer = document.querySelector('.toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.className = 'toast-container position-fixed top-0 end-0 p-3';
+            document.body.appendChild(toastContainer);
+        }
+        toastContainer.appendChild(toast);
+
+        // 显示toast
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+
+        // 自动移除
+        toast.addEventListener('hidden.bs.toast', () => {
+            toast.remove();
         });
     }
 });
