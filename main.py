@@ -1964,19 +1964,6 @@ class FishingPlugin(Star):
             self.web_admin_task.cancel()
         logger.info("钓鱼插件已成功终止。")
 
-    # @filter.permission_type(PermissionType.ADMIN)
-    # @filter.command("debug add_items")
-    # async def add_missing_items(self, event: AstrMessageEvent):
-    #     """[临时]手动执行初始道具的创建，用于补充现有数据库。"""
-    #     try:
-    #         self.data_setup_service.create_initial_items()
-    #         yield event.plain_result(
-    #             '✅ 成功执行初始道具检查和补充操作。\n请检查后台或使用 /道具 命令查看新增的"小钱袋"和"幸运药水"。'
-    #         )
-    #     except Exception as e:
-    #         logger.error(f"执行 add_missing_items 命令时出错: {e}", exc_info=True)
-    #         yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
-
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("同步道具", alias={"管理员 同步道具"})
     async def sync_items_from_initial_data(self, event: AstrMessageEvent):
@@ -2032,68 +2019,3 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 您当前没有在代理任何用户。")
 
-    @filter.permission_type(PermissionType.ADMIN)
-    @filter.command("设置区域通行证")
-    async def set_zone_pass_requirement(self, event: AstrMessageEvent):
-        """设置钓鱼区域的通行证要求"""
-        args = event.message_str.split(" ")
-        if len(args) < 3:
-            yield event.plain_result("❌ 用法：/设置区域通行证 <区域ID> <道具ID>")
-            yield event.plain_result("示例：/设置区域通行证 4 10")
-            return
-        
-        try:
-            zone_id = int(args[1])
-            item_id = int(args[2])
-        except ValueError:
-            yield event.plain_result("❌ 参数必须是数字")
-            return
-        
-        # 检查区域是否存在
-        try:
-            zone = self.inventory_repo.get_zone_by_id(zone_id)
-        except ValueError:
-            yield event.plain_result(f"❌ 区域ID {zone_id} 不存在")
-            return
-        
-        # 检查道具是否存在
-        item = self.item_template_repo.get_item_by_id(item_id)
-        if not item:
-            yield event.plain_result(f"❌ 道具ID {item_id} 不存在")
-            return
-        
-        # 更新区域设置
-        zone.required_item_id = item_id
-        zone.requires_pass = True
-        self.inventory_repo.update_fishing_zone(zone)
-        
-        yield event.plain_result(f"✅ 已设置区域 {zone.name} 需要 {item.name}")
-
-    @filter.permission_type(PermissionType.ADMIN)
-    @filter.command("清除区域通行证")
-    async def clear_zone_pass_requirement(self, event: AstrMessageEvent):
-        """清除钓鱼区域的通行证要求"""
-        args = event.message_str.split(" ")
-        if len(args) < 2:
-            yield event.plain_result("❌ 用法：/清除区域通行证 <区域ID>")
-            return
-        
-        try:
-            zone_id = int(args[1])
-        except ValueError:
-            yield event.plain_result("❌ 区域ID必须是数字")
-            return
-        
-        # 检查区域是否存在
-        try:
-            zone = self.inventory_repo.get_zone_by_id(zone_id)
-        except ValueError:
-            yield event.plain_result(f"❌ 区域ID {zone_id} 不存在")
-            return
-        
-        # 清除通行证要求
-        zone.required_item_id = None
-        zone.requires_pass = False
-        self.inventory_repo.update_fishing_zone(zone)
-        
-        yield event.plain_result(f"✅ 已清除区域 {zone.name} 的通行证要求")
