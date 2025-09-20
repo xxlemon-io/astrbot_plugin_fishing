@@ -72,7 +72,14 @@ class GameMechanicsService:
             return {"success": False, "message": f"你今天的擦弹次数已用完({attempts_today}/{total_max_attempts})，明天再来吧！"}
 
         # 3. 计算随机奖励倍数 (使用加权随机)
-        ranges = wipe_bomb_config.get("reward_ranges", [])
+        default_ranges = [
+            (0, 0.5, 50),
+            (0.5, 1, 30),
+            (1, 2, 15),
+            (2, 5, 4),
+            (5, 10, 1)
+        ]
+        ranges = wipe_bomb_config.get("reward_ranges", default_ranges)
         total_weight = sum(w for _, _, w in ranges)
         rand_val = random.uniform(0, total_weight)
 
