@@ -1,7 +1,7 @@
 import requests
 import random
 import json
-from typing import Dict, Any
+from typing import Dict, Any, TYPE_CHECKING
 from concurrent.futures import ThreadPoolExecutor
 from astrbot.api import logger
 
@@ -14,8 +14,30 @@ from ..repositories.abstract_repository import (
     AbstractUserBuffRepository,
 )
 from ..domain.models import WipeBombLog
-from ..utils import get_now, weighted_random_choice
+from ...core.utils import get_now
 
+if TYPE_CHECKING:
+    from ..repositories.sqlite_user_repo import SqliteUserRepository
+
+def weighted_random_choice(choices: list[tuple[any, any, float]]) -> tuple[any, any, float]:
+    """
+    带权重的随机选择。
+    :param choices: 一个列表，每个元素是一个元组 (min_val, max_val, weight)。
+    :return: 选中的元组。
+    """
+    total_weight = sum(w for _, _, w in choices)
+    if total_weight == 0:
+        raise ValueError("Total weight cannot be zero")
+    rand_val = random.uniform(0, total_weight)
+    
+    current_weight = 0
+    for choice in choices:
+        current_weight += choice[2] # weight is the 3rd element
+        if rand_val <= current_weight:
+            return choice
+    
+    # Fallback in case of floating point inaccuracies
+    return choices[-1]
 
 class GameMechanicsService:
     """封装特殊或独立的游戏机制"""
