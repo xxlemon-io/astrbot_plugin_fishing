@@ -1118,7 +1118,7 @@ async def delete_item(item_id):
         await flash(f"删除道具模板失败: {str(e)}", "danger")
     return redirect(url_for("admin_bp.manage_items"))
 
-@admin_bp.route('/admin/zones', methods=['GET'])
+@admin_bp.route('/zones', methods=['GET'])
 @login_required
 async def manage_zones():
     fishing_zone_service = current_app.config["FISHING_ZONE_SERVICE"]
@@ -1127,18 +1127,33 @@ async def manage_zones():
     all_fish = item_template_service.get_all_fish()
     return await render_template('zones.html', zones=zones, all_fish=all_fish)
 
-@admin_bp.route('/api/admin/zones', methods=['POST'])
+@admin_bp.route('/api/zones', methods=['POST'])
 @login_required
 async def create_zone_api():
     try:
         data = await request.get_json()
         fishing_zone_service = current_app.config["FISHING_ZONE_SERVICE"]
         
-        if not data.get('id'):
-            return jsonify({"success": False, "message": "区域 ID 不能为空"}), 400
+        # --- Enhanced Validation ---
+        errors = {}
+        zone_id = data.get('id')
+        if not zone_id or not str(zone_id).isdigit() or int(zone_id) <= 0:
+            errors['id'] = '区域 ID 必须是一个正整数'
+        
+        if not data.get('name'):
+            errors['name'] = '区域名称不能为空'
+            
+        quota = data.get('daily_rare_fish_quota')
+        if quota is None or not str(quota).isdigit() or int(quota) < 0:
+            errors['daily_rare_fish_quota'] = '稀有鱼每日配额必须是一个非负整数'
+        
+        if errors:
+            return jsonify({"success": False, "message": "数据校验失败", "errors": errors}), 400
+        # --- End of Validation ---
 
         new_zone = fishing_zone_service.create_zone(data)
-        return jsonify({"success": True, "message": "钓鱼区域创建成功", "zone": new_zone})
+        # 在返回的数据中，确保 __dict__ 或类似方法将对象转为字典
+        return jsonify({"success": True, "message": "钓鱼区域创建成功", "zone": new_zone.__dict__})
     except ValueError as e:
         return jsonify({"success": False, "message": str(e)}), 409 # 409 Conflict
     except Exception as e:
@@ -1146,20 +1161,35 @@ async def create_zone_api():
         logger.error(traceback.format_exc())
         return jsonify({"success": False, "message": str(e)}), 500
 
-@admin_bp.route('/api/admin/zones/<int:zone_id>', methods=['PUT'])
+@admin_bp.route('/api/zones/<int:zone_id>', methods=['PUT'])
 @login_required
 async def update_zone_api(zone_id):
     try:
         data = await request.get_json()
         fishing_zone_service = current_app.config["FISHING_ZONE_SERVICE"]
+        
+        # --- Enhanced Validation ---
+        errors = {}
+        if not data.get('name'):
+            errors['name'] = '区域名称不能为空'
+            
+        quota = data.get('daily_rare_fish_quota')
+        if quota is None or not str(quota).isdigit() or int(quota) < 0:
+            errors['daily_rare_fish_quota'] = '稀有鱼每日配额必须是一个非负整数'
+
+        if errors:
+            return jsonify({"success": False, "message": "数据校验失败", "errors": errors}), 400
+        # --- End of Validation ---
+
         fishing_zone_service.update_zone(zone_id, data)
-        return jsonify({"success": True, "message": "钓鱼区域更新成功"})
+        updated_zone = fishing_zone_service.get_zone_by_id(zone_id)
+        return jsonify({"success": True, "message": "钓鱼区域更新成功", "zone": updated_zone.__dict__})
     except Exception as e:
         logger.error(f"更新钓鱼区域失败: {e}")
         logger.error(traceback.format_exc())
         return jsonify({"success": False, "message": str(e)}), 500
 
-@admin_bp.route('/api/admin/zones/<int:zone_id>', methods=['DELETE'])
+@admin_bp.route('/api/zones/<int:zone_id>', methods=['DELETE'])
 @login_required
 async def delete_zone_api(zone_id):
     try:

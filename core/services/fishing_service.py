@@ -213,18 +213,13 @@ class FishingService:
             return {"success": False, "message": "💨 什么都没钓到..."}
 
         # 4. 成功，生成渔获
-        # 设置稀有度分布
-        # 应用鱼饵效果
-        base_rarity_distribution = self.config.get(
-            "fish_rarity_distribution", [0.5, 0.3, 0.15, 0.04, 0.01]
-        )
-        rarity_distribution = self._apply_bait_effects_on_rarity(
-            base_rarity_distribution, bait_template
-        )
-        else:
-            # 如果没有鱼饵，则使用默认的稀有度分布
-            strategy = self.fishing_zone_service.get_strategy(user.fishing_zone_id)
-            rarity_distribution = strategy.get_fish_rarity_distribution(user)
+        # 先根据区域策略获取基础分布，再按有无鱼饵进行加成
+        strategy = self.fishing_zone_service.get_strategy(user.fishing_zone_id)
+        rarity_distribution = strategy.get_fish_rarity_distribution(user)
+        if 'bait_template' in locals() and bait_template:
+            rarity_distribution = self._apply_bait_effects_on_rarity(
+                rarity_distribution, bait_template
+            )
         
         zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
         is_rare_fish_available = zone.rare_fish_caught_today < zone.daily_rare_fish_quota
@@ -460,7 +455,7 @@ class FishingService:
         if not user:
             return {"success": False, "message": "用户不存在"}
 
-        fishing_zones = self.inventory_repo.get_all_fishing_zones()
+        fishing_zones = self.inventory_repo.get_all_zones()
         zones_info = []
         for zone in fishing_zones:
             zones_info.append({

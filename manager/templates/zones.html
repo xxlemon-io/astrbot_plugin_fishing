@@ -105,7 +105,7 @@
 
         return `
             <form id="${isEdit ? 'edit' : 'create'}-zone-form">
-                <input type="hidden" name="id" value="${zone?.id || ''}">
+                <div class="alert alert-danger d-none" role="alert" id="form-error-alert"></div>
                 <div class="row">
                     <div class="col-md-3 mb-3">
                         <label for="id" class="form-label">区域 ID</label>
@@ -150,6 +150,7 @@
                             </div>
                         `).join('')}
                     </div>
+                    <div id="rarity-sum-feedback" class="form-text mt-1"></div>
                 </div>
                 <div class="mb-3">
                     <label for="specific_fish_ids" class="form-label">限定鱼类 (可多选，不选则为全局鱼池)</label>
@@ -170,15 +171,26 @@
 
     document.getElementById('create-zone-form').addEventListener('submit', async function(e) {
         e.preventDefault();
+        const form = e.target;
+        const errorAlert = form.querySelector('#form-error-alert');
+        errorAlert.classList.add('d-none'); // Hide previous errors
+        
         const formData = new FormData(this);
         const data = Object.fromEntries(formData.entries());
         data.id = parseInt(data.id);
         data.daily_rare_fish_quota = parseInt(data.daily_rare_fish_quota);
         data.is_active = data.is_active === 'on';
-        data.configs = { rarity_distribution: [...Array(5).keys()].map(i => parseFloat(data[`rarity_${i+1}`])) };
+        // 计算稀有度和
+        const rarityDistribution = [...Array(5).keys()].map(i => parseFloat(data[`rarity_${i+1}`]) || 0);
+        const sum = rarityDistribution.reduce((a,b)=>a+b,0);
+        if (Math.abs(sum - 1.0) > 1e-4) {
+            showFormError(form, '稀有度分布总和必须为 1');
+            return;
+        }
+        data.configs = { rarity_distribution: rarityDistribution };
         data.specific_fish_ids = Array.from(this.querySelector('select[name="specific_fish_ids"]').selectedOptions).map(opt => parseInt(opt.value));
         
-        const response = await fetch('/api/admin/zones', {
+        const response = await fetch('/admin/api/zones', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
@@ -187,9 +199,48 @@
         if (response.ok) {
             location.reload();
         } else {
-            alert('创建失败: ' + result.message);
+            showFormError(form, result.message, result.errors);
         }
     });
+
+    document.body.addEventListener('input', function(e) {
+        if (e.target.classList.contains('rarity-input')) {
+            const form = e.target.closest('form');
+            if (form) {
+                const rarityInputs = form.querySelectorAll('.rarity-input');
+                const sum = Array.from(rarityInputs).reduce((acc, input) => acc + (parseFloat(input.value) || 0), 0);
+                const feedbackEl = form.querySelector('#rarity-sum-feedback');
+                feedbackEl.textContent = `当前总和: ${sum.toFixed(4)}`;
+                if (Math.abs(sum - 1.0) > 1e-4) {
+                    feedbackEl.classList.add('text-danger');
+                } else {
+                    feedbackEl.classList.remove('text-danger');
+                }
+            }
+        }
+    });
+
+    function showFormError(form, message, errors = null) {
+        const errorAlert = form.querySelector('#form-error-alert');
+        let html = `<strong>${message}</strong>`;
+        if (errors) {
+            html += '<ul>';
+            for (const key in errors) {
+                html += `<li>${errors[key]}</li>`;
+                const input = form.querySelector(`[name="${key}"]`);
+                if (input) {
+                    input.classList.add('is-invalid');
+                }
+            }
+            html += '</ul>';
+        }
+        errorAlert.innerHTML = html;
+        errorAlert.classList.remove('d-none');
+        // Remove 'is-invalid' class on input change
+        form.querySelectorAll('.is-invalid').forEach(input => {
+            input.addEventListener('input', () => input.classList.remove('is-invalid'), { once: true });
+        });
+    }
 
     function openEditModal(zoneId) {
         const zone = getZoneById(zoneId);
@@ -198,15 +249,25 @@
 
         document.getElementById('edit-zone-form').addEventListener('submit', async function(e) {
             e.preventDefault();
+            const form = e.target;
+            const errorAlert = form.querySelector('#form-error-alert');
+            errorAlert.classList.add('d-none'); // Hide previous errors
+
             const formData = new FormData(this);
             const data = Object.fromEntries(formData.entries());
             data.id = parseInt(data.id);
             data.daily_rare_fish_quota = parseInt(data.daily_rare_fish_quota);
             data.is_active = data.is_active === 'on';
-            data.configs = { rarity_distribution: [...Array(5).keys()].map(i => parseFloat(data[`rarity_${i+1}`])) };
+            const rarityDistribution = [...Array(5).keys()].map(i => parseFloat(data[`rarity_${i+1}`]) || 0);
+            const sum = rarityDistribution.reduce((a,b)=>a+b,0);
+            if (Math.abs(sum - 1.0) > 1e-4) {
+                showFormError(form, '稀有度分布总和必须为 1');
+                return;
+            }
+            data.configs = { rarity_distribution: rarityDistribution };
             data.specific_fish_ids = Array.from(this.querySelector('select[name="specific_fish_ids"]').selectedOptions).map(opt => parseInt(opt.value));
 
-            const response = await fetch(`/api/admin/zones/${zoneId}`, {
+            const response = await fetch(`/admin/api/zones/${zoneId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data),
@@ -215,14 +276,14 @@
             if (response.ok) {
                 location.reload();
             } else {
-                alert('更新失败: ' + result.message);
+                showFormError(form, result.message, result.errors);
             }
         });
     }
 
     async function deleteZone(zoneId) {
         if (confirm('确定要删除这个区域吗？')) {
-            const response = await fetch(`/api/admin/zones/${zoneId}`, {
+            const response = await fetch(`/admin/api/zones/${zoneId}`, {
                 method: 'DELETE',
             });
             const result = await response.json();

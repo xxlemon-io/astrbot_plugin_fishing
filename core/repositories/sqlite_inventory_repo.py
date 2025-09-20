@@ -412,7 +412,19 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor.execute("SELECT * FROM fishing_zones WHERE id = ?", (zone_id,))
             row = cursor.fetchone()
             if row:
-                return FishingZone(**row)
+                row_dict = dict(row)
+                if 'configs' in row_dict and isinstance(row_dict['configs'], str):
+                    row_dict['configs'] = json.loads(row_dict['configs'])
+                for key in ('available_from', 'available_until'):
+                    val = row_dict.get(key)
+                    if isinstance(val, str) and val:
+                        try:
+                            row_dict[key] = datetime.fromisoformat(val)
+                        except Exception:
+                            row_dict[key] = None
+                zone = FishingZone(**row_dict)
+                zone.specific_fish_ids = self.get_specific_fish_ids_for_zone(zone.id)
+                return zone
             else:
                 raise ValueError(f"钓鱼区域ID {zone_id} 不存在。")
     def update_fishing_zone(self, zone: FishingZone) -> None:
@@ -437,7 +449,18 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                 row_dict = dict(row)
                 if 'configs' in row_dict and isinstance(row_dict['configs'], str):
                     row_dict['configs'] = json.loads(row_dict['configs'])
-                zones.append(FishingZone(**row_dict))
+                # 解析时间字段
+                for key in ('available_from', 'available_until'):
+                    val = row_dict.get(key)
+                    if isinstance(val, str) and val:
+                        try:
+                            row_dict[key] = datetime.fromisoformat(val)
+                        except Exception:
+                            row_dict[key] = None
+                zone = FishingZone(**row_dict)
+                # 加载限定鱼
+                zone.specific_fish_ids = self.get_specific_fish_ids_for_zone(zone.id)
+                zones.append(zone)
             return zones
 
     def update_zone_configs(self, zone_id: int, configs: str) -> None:
