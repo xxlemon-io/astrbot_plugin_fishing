@@ -223,15 +223,18 @@ class SqliteLogRepository(AbstractLogRepository):
     def get_gacha_records_count_today(
         self, user_id: str, gacha_pool_id: int
     ) -> int:
-        today_str = datetime.now(self.UTC8).strftime("%Y-%m-%d")
+        # 获取 UTC+8 的今天的开始和结束时间点
+        today_start_utc8 = datetime.now(self.UTC8).replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end_utc8 = today_start_utc8 + timedelta(days=1)
+
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
                 SELECT COUNT(*) FROM gacha_records
-                WHERE user_id = ? AND gacha_pool_id = ? AND DATE(timestamp) = ?
+                WHERE user_id = ? AND gacha_pool_id = ? AND timestamp >= ? AND timestamp < ?
                 """,
-                (user_id, gacha_pool_id, today_str),
+                (user_id, gacha_pool_id, today_start_utc8, today_end_utc8),
             )
             result = cursor.fetchone()
             return result[0] if result else 0
