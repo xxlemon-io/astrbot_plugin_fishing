@@ -222,8 +222,8 @@ async def rods_csv_template():
         "1.1",
         "1.0",
         "0.05",
-        "100",
-        "https://example.com/icon.png",
+        "",
+        "",
     ]
 
     output = io.StringIO()
@@ -404,7 +404,7 @@ async def accessories_csv_template():
         "0.02",
         "1.10",
         "额外描述",
-        "https://example.com/icon.png",
+        "",
     ]
 
     output = io.StringIO()
