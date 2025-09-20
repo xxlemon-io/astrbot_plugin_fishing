@@ -1223,12 +1223,16 @@ class FishingPlugin(Star):
                 reward = result["reward"]
                 profit = result["profit"]
                 remaining_today = result["remaining_today"]
+                
+                # 格式化倍率，保留两位小数
+                multiplier_formatted = f"{multiplier:.2f}"
+
                 if multiplier >= 3:
-                    message += f"🎰 大成功！你投入 {contribution} 金币，获得了 {multiplier} 倍奖励！\n 💰 奖励金额：{reward} 金币（盈利：+ {profit}）\n"
+                    message += f"🎰 大成功！你投入 {contribution} 金币，获得了 {multiplier_formatted} 倍奖励！\n 💰 奖励金额：{reward} 金币（盈利：+ {profit}）\n"
                 elif multiplier >= 1:
-                    message += f"🎲 你投入 {contribution} 金币，获得了 {multiplier} 倍奖励！\n 💰 奖励金额：{reward} 金币（盈利：+ {profit}）\n"
+                    message += f"🎲 你投入 {contribution} 金币，获得了 {multiplier_formatted} 倍奖励！\n 💰 奖励金额：{reward} 金币（盈利：+ {profit}）\n"
                 else:
-                    message += f"💥 你投入 {contribution} 金币，获得了 {multiplier} 倍奖励！\n 💰 奖励金额：{reward} 金币（亏损：- {abs(profit)})\n"
+                    message += f"💥 你投入 {contribution} 金币，获得了 {multiplier_formatted} 倍奖励！\n 💰 奖励金额：{reward} 金币（亏损：- {abs(profit)})\n"
                 message += f"剩余擦弹次数：{remaining_today} 次\n"
                 yield event.plain_result(message)
             else:
