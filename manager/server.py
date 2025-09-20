@@ -1152,8 +1152,8 @@ async def create_zone_api():
         # --- End of Validation ---
 
         new_zone = fishing_zone_service.create_zone(data)
-        # 在返回的数据中，确保 __dict__ 或类似方法将对象转为字典
-        return jsonify({"success": True, "message": "钓鱼区域创建成功", "zone": new_zone.__dict__})
+        # create_zone 已返回字典，直接返回
+        return jsonify({"success": True, "message": "钓鱼区域创建成功", "zone": new_zone})
     except ValueError as e:
         return jsonify({"success": False, "message": str(e)}), 409 # 409 Conflict
     except Exception as e:
@@ -1182,8 +1182,8 @@ async def update_zone_api(zone_id):
         # --- End of Validation ---
 
         fishing_zone_service.update_zone(zone_id, data)
-        updated_zone = fishing_zone_service.get_zone_by_id(zone_id)
-        return jsonify({"success": True, "message": "钓鱼区域更新成功", "zone": updated_zone.__dict__})
+        # 前端会刷新页面，这里不必返回完整对象
+        return jsonify({"success": True, "message": "钓鱼区域更新成功"})
     except Exception as e:
         logger.error(f"更新钓鱼区域失败: {e}")
         logger.error(traceback.format_exc())
