@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 # ---------------------------------
@@ -70,6 +70,21 @@ class Accessory:
     icon_url: Optional[str] = None
 
 @dataclass
+class Item:
+    """代表一道具的模板信息（背包道具栏）"""
+    item_id: int
+    name: str
+    rarity: int
+    description: Optional[str] = None
+    effect_description: Optional[str] = None
+    item_type: str = "consumable"  # consumable, tool, key 等
+    cost: int = 0
+    is_consumable: bool = True
+    icon_url: Optional[str] = None
+    effect_type: Optional[str] = None
+    effect_payload: Optional[str] = None
+
+@dataclass
 class Title:
     """代表一种称号的模板信息"""
     title_id: int
@@ -110,6 +125,9 @@ class GachaPool:
     description: Optional[str] = None
     cost_coins: int = 0
     cost_premium_currency: int = 0
+    # 限时开放控制
+    is_limited_time: int = 0  # 0/1 存储于数据库，前端按布尔使用
+    open_until: Optional[str] = None  # 以文本存储的ISO时间（SQLite）
     # 这个字段让模型更丰富，可以在服务层组装，存放该池的所有奖品
     items: List[GachaPoolItem] = field(default_factory=list)
 
@@ -277,3 +295,17 @@ class FishingZone:
     def __getitem__(self, item):
         """允许通过属性名访问字段"""
         return getattr(self, item)
+
+@dataclass
+class UserBuff:
+    id: int
+    user_id: str
+    buff_type: str
+    payload: Optional[str]
+    started_at: datetime
+    expires_at: Optional[datetime]
+
+
+@dataclass
+class UserItem:
+    user_id: str

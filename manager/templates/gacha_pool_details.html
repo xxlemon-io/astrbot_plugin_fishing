@@ -83,7 +83,14 @@
                                 {% for bait in all_baits %}<option value="bait-{{ bait.bait_id }}">{{ bait.name }} {{ '★' * bait.rarity }}</option>{% endfor %}
                             </optgroup>
                             <optgroup label="饰品">
-                                {% for acc in all_accessories %}<option value="accessory-{{ acc.accessory_id }}">{{ acc.name }} {{ '★' * acc.rarity }}</option>{% endfor %}
+                                {% for accessory in all_accessories %}
+                                    <option value="accessory-{{ accessory.accessory_id }}">{{ accessory.name }} (稀有度: {{ accessory.rarity }})</option>
+                                {% endfor %}
+                            </optgroup>
+                            <optgroup label="道具">
+                                {% for item in all_items %}
+                                    <option value="item-{{ item.item_id }}">{{ item.name }} (稀有度: {{ item.rarity }})</option>
+                                {% endfor %}
                             </optgroup>
                         </select>
                     </div>

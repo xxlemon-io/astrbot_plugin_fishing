@@ -4,10 +4,10 @@ from datetime import date, datetime
 
 # 从领域模型导入所有需要的实体
 from ..domain.models import (
-    User, Fish, Rod, Bait, Accessory, Title, Achievement,
+    User, Fish, Rod, Bait, Accessory, Title, Achievement, Item,
     UserRodInstance, UserAccessoryInstance, UserFishInventoryItem,
     FishingRecord, GachaRecord, WipeBombLog, MarketListing, TaxRecord,
-    GachaPool, GachaPoolItem, FishingZone
+    GachaPool, GachaPoolItem, FishingZone, UserBuff
 )
 
 # 定义用户成就进度的数据结构
@@ -87,6 +87,21 @@ class AbstractItemTemplateRepository(ABC):
     # 获取所有称号模板
     @abstractmethod
     def get_all_titles(self) -> List[Title]: pass
+    # 获取道具模板
+    @abstractmethod
+    def get_item_by_id(self, item_id: int) -> Optional[Item]: pass
+    # 获取所有道具模板
+    @abstractmethod
+    def get_all_items(self) -> List[Item]: pass
+    # 添加道具模板
+    @abstractmethod
+    def add_item_template(self, item_data: Dict[str, Any]) -> Item: pass
+    # 更新道具模板
+    @abstractmethod
+    def update_item_template(self, item_id: int, item_data: Dict[str, Any]) -> None: pass
+    # 删除道具模板
+    @abstractmethod
+    def delete_item_template(self, item_id: int) -> None: pass
     # 随机获取一条鱼的模板
     @abstractmethod
     def get_random_fish(self, rarity: Optional[int] = None) -> Optional[Fish]: pass
@@ -156,6 +171,12 @@ class AbstractInventoryRepository(ABC):
     # 更新用户的鱼饵数量
     @abstractmethod
     def update_bait_quantity(self, user_id: str, bait_id: int, delta: int) -> None: pass
+    # 获取用户的道具库存
+    @abstractmethod
+    def get_user_item_inventory(self, user_id: str) -> Dict[int, int]: pass
+    # 更新用户的道具数量
+    @abstractmethod
+    def update_item_quantity(self, user_id: str, item_id: int, delta: int) -> None: pass
     # 获取用户的所有鱼竿实例
     @abstractmethod
     def get_user_rod_instances(self, user_id: str) -> List[UserRodInstance]: pass
@@ -226,6 +247,14 @@ class AbstractInventoryRepository(ABC):
     @abstractmethod
     def get_same_accessory_instances(self, user_id, accessory_id) -> List[UserAccessoryInstance]: pass
 
+    @abstractmethod
+    def add_item_to_user(self, user_id: str, item_id: int, quantity: int):
+        pass
+
+    @abstractmethod
+    def decrease_item_quantity(self, user_id: str, item_id: int, quantity: int):
+        pass
+
 
 class AbstractGachaRepository(ABC):
     """抽卡仓储接口"""
@@ -259,6 +288,11 @@ class AbstractGachaRepository(ABC):
     # 删除抽卡池物品
     @abstractmethod
     def delete_pool_item(self, item_pool_id: int) -> None: pass
+
+    @abstractmethod
+    def get_free_pools(self) -> List[GachaPool]:
+        pass
+
 
 class AbstractMarketRepository(ABC):
     """市场仓储接口"""
@@ -322,6 +356,12 @@ class AbstractLogRepository(ABC):
     @abstractmethod
     def get_max_wipe_bomb_multiplier(self, user_id: str) -> float: pass
 
+    @abstractmethod
+    def get_gacha_records_count_today(
+        self, user_id: str, gacha_pool_id: int
+    ) -> int:
+        pass
+
 class AbstractAchievementRepository(ABC):
     """成就数据仓储接口"""
     # 获取所有成就的模板信息
@@ -351,3 +391,26 @@ class AbstractAchievementRepository(ABC):
     # 检查用户是否拥有特定稀有度的物品
     @abstractmethod
     def has_item_of_rarity(self, user_id: str, item_type: str, rarity: int) -> bool: pass
+
+class AbstractUserBuffRepository(ABC):
+    @abstractmethod
+    def add(self, buff: "UserBuff"):
+        pass
+
+    @abstractmethod
+    def get_active_by_user_and_type(
+        self, user_id: str, buff_type: str
+    ) -> Optional["UserBuff"]:
+        pass
+
+    @abstractmethod
+    def get_all_active_by_user(self, user_id: str) -> List["UserBuff"]:
+        pass
+
+    @abstractmethod
+    def delete_expired(self):
+        pass
+
+    @abstractmethod
+    def delete(self, buff_id: int):
+        pass

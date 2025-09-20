@@ -1,13 +1,16 @@
-from datetime import datetime
+import json
+from datetime import datetime, timedelta
 from typing import Dict, Any
 
 # 导入仓储接口和领域模型
 from ..repositories.abstract_repository import (
     AbstractInventoryRepository,
     AbstractUserRepository,
-    AbstractItemTemplateRepository
+    AbstractItemTemplateRepository,
 )
+from .effect_manager import EffectManager
 from ..utils import calculate_after_refine
+
 
 class InventoryService:
     """封装与用户库存相关的业务逻辑"""
@@ -17,11 +20,13 @@ class InventoryService:
         inventory_repo: AbstractInventoryRepository,
         user_repo: AbstractUserRepository,
         item_template_repo: AbstractItemTemplateRepository,
-        config: Dict[str, Any]
+        effect_manager: EffectManager,
+        config: Dict[str, Any],
     ):
         self.inventory_repo = inventory_repo
         self.user_repo = user_repo
         self.item_template_repo = item_template_repo
+        self.effect_manager = effect_manager
         self.config = config
 
     def get_user_fish_pond(self, user_id: str) -> Dict[str, Any]:
@@ -138,6 +143,30 @@ class InventoryService:
         return {
             "success": True,
             "accessories": enriched_accessories
+        }
+
+    def get_user_item_inventory(self, user_id: str) -> Dict[str, Any]:
+        """
+        获取用户的道具库存。
+        """
+        item_inventory = self.inventory_repo.get_user_item_inventory(user_id)
+        enriched_items = []
+
+        for item_id, quantity in item_inventory.items():
+            item_template = self.item_template_repo.get_item_by_id(item_id)
+            if item_template:
+                enriched_items.append({
+                    "item_id": item_id,
+                    "name": item_template.name,
+                    "rarity": item_template.rarity,
+                    "quantity": quantity,
+                    "effect_description": item_template.effect_description,
+                    "is_consumable": getattr(item_template, "is_consumable", False),
+                })
+
+        return {
+            "success": True,
+            "items": enriched_items
         }
 
     def sell_all_fish(self, user_id: str, keep_one: bool = False) -> Dict[str, Any]:
@@ -833,7 +862,9 @@ class InventoryService:
         # 如果没找到合适的候选品，返回错误
         return {"success": False, "message": f"至少需要 {min_cost} 金币才能精炼，当前金币不足"}
 
-    def _perform_refinement(self, user, instance, candidate, new_refine_level, cost, item_type):
+    def _perform_refinement(
+        self, user, instance, candidate, new_refine_level, cost, item_type
+    ):
         """执行精炼操作，返回是否首次获得无限耐久"""
         # 扣除金币
         user.coins -= cost
@@ -899,3 +930,90 @@ class InventoryService:
         self.user_repo.update(user)
         
         return is_first_infinite
+
+    def use_item(self, user_id: str, item_id: int) -> Dict[str, Any]:
+        """
+        使用一个道具，并将效果处理委托给 EffectManager。
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        item_inventory = self.inventory_repo.get_user_item_inventory(user_id)
+        if item_inventory.get(item_id, 0) <= 0:
+            return {"success": False, "message": "你没有这个道具"}
+
+        item_template = self.item_template_repo.get_item_by_id(item_id)
+        if not item_template:
+            return {"success": False, "message": "道具信息不存在"}
+
+        if not getattr(item_template, "is_consumable", False):
+            return {"success": False, "message": f"【{item_template.name}】无法直接使用。"}
+
+        effect_type = item_template.effect_type
+        if not effect_type:
+            return {"success": True, "message": f"成功使用了【{item_template.name}】，但它似乎没什么效果。"}
+
+        effect_handler = self.effect_manager.get_effect(effect_type)
+        if not effect_handler:
+            return {
+                "success": False,
+                "message": f"找不到 {effect_type} 效果的处理器，请检查配置。",
+            }
+
+        # 消耗道具
+        self.inventory_repo.decrease_item_quantity(user_id, item_id, 1)
+
+        try:
+            payload = (
+                json.loads(item_template.effect_payload)
+                if item_template.effect_payload
+                else {}
+            )
+            result = effect_handler.apply(user, item_template, payload)
+
+            # 确保返回的消息包含道具名称
+            final_message = f"成功使用了【{item_template.name}】！{result.get('message', '')}"
+            result["message"] = final_message
+            return result
+
+        except Exception as e:
+            # 异常处理，防止某个效果的bug导致整个流程中断
+            # 在实际生产中，这里应该有更详细的日志记录
+            return {"success": False, "message": f"使用道具时发生未知错误: {e}"}
+
+    def sell_item(self, user_id: str, item_id: int, quantity: int = 1) -> Dict[str, Any]:
+        """出售指定数量的道具，按照模板 cost 的一半计价（至少 1）。"""
+        if quantity <= 0:
+            return {"success": False, "message": "数量必须大于0"}
+
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        inv = self.inventory_repo.get_user_item_inventory(user_id)
+        owned_qty = inv.get(item_id, 0)
+        if owned_qty <= 0:
+            return {"success": False, "message": "❌ 你没有这个道具"}
+        if quantity > owned_qty:
+            return {"success": False, "message": f"❌ 数量不足，当前仅有 {owned_qty} 个"}
+
+        tpl = self.item_template_repo.get_item_by_id(item_id)
+        if not tpl:
+            return {"success": False, "message": "道具信息不存在"}
+
+        # 定价：模板 cost 的 50%，至少 1
+        single_price = max(1, int((tpl.cost or 0) * 0.5))
+        total = single_price * quantity
+
+        # 扣减库存，增加金币
+        self.inventory_repo.decrease_item_quantity(user_id, item_id, quantity)
+        user.coins += total
+        self.user_repo.update(user)
+
+        return {
+            "success": True,
+            "message": f"💰 成功卖出【{tpl.name}】x{quantity}，获得 {total} 金币",
+            "gained": total,
+            "remaining": owned_qty - quantity
+        }

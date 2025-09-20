@@ -1,6 +1,6 @@
 import random
-from typing import Dict, Any
-from datetime import timedelta
+from typing import Dict, Any, Optional
+from datetime import timedelta, datetime, timezone
 
 # 导入仓储接口和领域模型
 from ..repositories.abstract_repository import (
@@ -9,6 +9,7 @@ from ..repositories.abstract_repository import (
     AbstractInventoryRepository,
     AbstractItemTemplateRepository
 )
+from .gacha_service import GachaService
 from ..domain.models import User, TaxRecord
 from ..utils import get_now, get_today
 
@@ -22,12 +23,14 @@ class UserService:
         log_repo: AbstractLogRepository,
         inventory_repo: AbstractInventoryRepository,
         item_template_repo: AbstractItemTemplateRepository,
+        gacha_service: "GachaService",
         config: Dict[str, Any]  # 注入游戏配置
     ):
         self.user_repo = user_repo
         self.log_repo = log_repo
         self.inventory_repo = inventory_repo
         self.item_template_repo = item_template_repo
+        self.gacha_service = gacha_service
         self.config = config
 
     def register(self, user_id: str, nickname: str) -> Dict[str, Any]:
@@ -149,9 +152,21 @@ class UserService:
         if bonus_coins > 0:
             message += f" 连续签到 {user.consecutive_login_days} 天，额外奖励 {bonus_coins} 金币！"
 
+        # 尝试进行每日免费抽奖
+        free_gacha_reward_msg = ""
+        free_pool = self.gacha_service.get_daily_free_pool()
+        if free_pool:
+            gacha_result = self.gacha_service.perform_draw(user.user_id, free_pool.gacha_pool_id, 1)
+            if gacha_result.get("success"):
+                reward = gacha_result.get("results", [])[0]
+                reward_name = reward.get("name", "神秘奖励")
+                if reward.get("type") == "coins":
+                    reward_name = f"{reward.get('quantity', 0)} 金币"
+                free_gacha_reward_msg = f"\n🎁 每日补给: 你获得了 {reward_name}！"
+
         return {
             "success": True,
-            "message": message,
+            "message": message + free_gacha_reward_msg,
             "coins_reward": coins_reward,
             "bonus_coins": bonus_coins,
             "consecutive_days": user.consecutive_login_days
@@ -230,7 +245,7 @@ class UserService:
         title_template = self.item_template_repo.get_title_by_id(title_id)
         return {"success": True, "message": f"✅ 成功装备 {title_template.name}！"}
 
-    def get_user_currency(self, user_id: str) -> Dict[str, Any]:
+    def get_user_currency(self, user_id: str) -> Optional[Dict[str, Any]]:
         """
         获取用户的货币信息。
         """
@@ -517,10 +532,27 @@ class UserService:
                         "cost": bait_template.cost,
                         "total_value": bait_template.cost * quantity
                     })
+
+            # 获取道具库存
+            item_inventory = self.inventory_repo.get_user_item_inventory(user_id)
+            items_data = []
+            for item_id, quantity in item_inventory.items():
+                item_template = self.item_template_repo.get_item_by_id(item_id)
+                if item_template and quantity > 0:
+                    items_data.append({
+                        "item_id": item_id,
+                        "name": item_template.name,
+                        "rarity": item_template.rarity,
+                        "is_consumable": getattr(item_template, "is_consumable", False),
+                        "quantity": quantity,
+                        "cost": item_template.cost,
+                        "total_value": (item_template.cost or 0) * quantity
+                    })
             
             # 计算总价值
             fish_total_value = sum(item["total_value"] for item in fish_data)
             bait_total_value = sum(item["total_value"] for item in bait_data)
+            item_total_value = sum(item["total_value"] for item in items_data)
             
             return {
                 "success": True,
@@ -530,14 +562,17 @@ class UserService:
                 "rod_inventory": rod_data,
                 "accessory_inventory": accessory_data,
                 "bait_inventory": bait_data,
+                "item_inventory": items_data,
                 "stats": {
                     "fish_count": len(fish_data),
                     "rod_count": len(rod_data),
                     "accessory_count": len(accessory_data),
                     "bait_count": len(bait_data),
+                    "item_count": len(items_data),
                     "fish_total_value": fish_total_value,
                     "bait_total_value": bait_total_value,
-                    "total_inventory_value": fish_total_value + bait_total_value
+                    "item_total_value": item_total_value,
+                    "total_inventory_value": fish_total_value + bait_total_value + item_total_value
                 }
             }
         except Exception as e:
@@ -549,7 +584,7 @@ class UserService:
         
         Args:
             user_id: 用户ID
-            item_type: 物品类型 (fish, rod, accessory, bait)
+            item_type: 物品类型 (fish, rod, accessory, bait, item)
             item_id: 物品ID
             quantity: 数量
             
@@ -590,6 +625,13 @@ class UserService:
                     return {"success": False, "message": "鱼饵不存在"}
                 self.inventory_repo.update_bait_quantity(user_id, item_id, quantity)
                 return {"success": True, "message": f"成功添加 {bait_template.name} x{quantity}"}
+            
+            elif item_type == "item":
+                item_template = self.item_template_repo.get_item_by_id(item_id)
+                if not item_template:
+                    return {"success": False, "message": "道具不存在"}
+                self.inventory_repo.update_item_quantity(user_id, item_id, quantity)
+                return {"success": True, "message": f"成功添加 {item_template.name} x{quantity}"}
                 
             else:
                 return {"success": False, "message": "不支持的物品类型"}
@@ -603,7 +645,7 @@ class UserService:
         
         Args:
             user_id: 用户ID
-            item_type: 物品类型 (fish, rod, accessory, bait)
+            item_type: 物品类型 (fish, rod, accessory, bait, item)
             item_id: 物品ID
             quantity: 数量
             
@@ -702,6 +744,17 @@ class UserService:
                 # 减少数量
                 self.inventory_repo.update_bait_quantity(user_id, item_id, -quantity)
                 return {"success": True, "message": f"成功移除 {bait_template.name} x{quantity}"}
+            
+            elif item_type == "item":
+                item_template = self.item_template_repo.get_item_by_id(item_id)
+                if not item_template:
+                    return {"success": False, "message": "道具不存在"}
+                item_inventory = self.inventory_repo.get_user_item_inventory(user_id)
+                current_quantity = item_inventory.get(item_id, 0)
+                if current_quantity < quantity:
+                    return {"success": False, "message": f"库存不足，当前只有 {current_quantity} 个"}
+                self.inventory_repo.update_item_quantity(user_id, item_id, -quantity)
+                return {"success": True, "message": f"成功移除 {item_template.name} x{quantity}"}
                 
             else:
                 return {"success": False, "message": "不支持的物品类型"}

@@ -17,6 +17,9 @@
                 <p class="card-text">{{ pool.description or '无描述' }}</p>
                 
                 <p>
+                    {% if pool.is_limited_time %}
+                        <span class="badge bg-danger me-2">限时开放</span>
+                    {% endif %}
                     {% if pool.cost_premium_currency and pool.cost_premium_currency > 0 %}
                         <span class="badge bg-warning text-dark">花费：高级货币 {{ pool.cost_premium_currency }}</span>
                     {% else %}
@@ -63,6 +66,15 @@
                 <div class="modal-body">
                     <div class="mb-3"><label>名称</label><input type="text" name="name" class="form-control" required></div>
                     <div class="mb-3"><label>描述</label><textarea name="description" class="form-control" rows="2"></textarea></div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="isLimitedTime" name="is_limited_time">
+                        <label class="form-check-label" for="isLimitedTime">限时开放</label>
+                    </div>
+                    <div class="mb-3" id="openUntilContainer">
+                        <label>开放截止时间</label>
+                        <input type="datetime-local" name="open_until" class="form-control">
+                        <div class="form-text">开启限时后，设置开放到什么时候（本地时间）。</div>
+                    </div>
                     <div class="mb-3">
                         <label>消耗货币</label>
                         <select name="currency_type" class="form-select">
@@ -90,6 +102,24 @@ document.addEventListener('DOMContentLoaded', function () {
     const itemModal = document.getElementById('itemModal');
     const modalTitle = itemModal.querySelector('.modal-title');
     const form = itemModal.querySelector('#item-form');
+    const isLimitedInput = form.elements['is_limited_time'];
+    const openUntilInput = form.elements['open_until'];
+    const openUntilContainer = document.getElementById('openUntilContainer');
+
+    function updateOpenUntilVisibility() {
+        const enabled = !!isLimitedInput.checked;
+        if (enabled) {
+            openUntilContainer.style.display = '';
+        } else {
+            // 仅隐藏，不清空，避免来回切换需要重复选择日期
+            openUntilContainer.style.display = 'none';
+        }
+    }
+
+    // 初始化显示状态
+    updateOpenUntilVisibility();
+    // 监听切换
+    isLimitedInput.addEventListener('change', updateOpenUntilVisibility);
 
     document.getElementById('addItemBtn').addEventListener('click', function () {
         modalTitle.textContent = '添加新奖池';
@@ -97,6 +127,9 @@ document.addEventListener('DOMContentLoaded', function () {
         form.reset();
         if (form.elements['currency_type']) form.elements['currency_type'].value = 'coins';
         if (form.elements['cost_amount']) form.elements['cost_amount'].value = 0;
+        if (form.elements['is_limited_time']) form.elements['is_limited_time'].checked = false;
+        if (form.elements['open_until']) form.elements['open_until'].value = '';
+        updateOpenUntilVisibility();
     });
 
     document.querySelectorAll('.edit-btn').forEach(button => {
@@ -112,6 +145,11 @@ document.addEventListener('DOMContentLoaded', function () {
             const isPremium = (data.cost_premium_currency && data.cost_premium_currency > 0);
             if (form.elements['currency_type']) form.elements['currency_type'].value = isPremium ? 'premium' : 'coins';
             if (form.elements['cost_amount']) form.elements['cost_amount'].value = isPremium ? (data.cost_premium_currency || 0) : (data.cost_coins || 0);
+
+            // 限时开放
+            if (form.elements['is_limited_time']) form.elements['is_limited_time'].checked = !!data.is_limited_time;
+            if (form.elements['open_until']) form.elements['open_until'].value = data.open_until ? data.open_until.replace(' ', 'T') : '';
+            updateOpenUntilVisibility();
         });
     });
 });

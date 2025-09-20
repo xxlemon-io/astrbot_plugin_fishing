@@ -1,5 +1,6 @@
 import random
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from datetime import datetime, timezone, timedelta
 
 from astrbot.core.utils.pip_installer import logger
 # 导入仓储接口和领域模型
@@ -56,6 +57,11 @@ class GachaService:
         except Exception as e:
             return {"success": False, "message": f"获取卡池信息失败: {str(e)}"}
 
+    def get_daily_free_pool(self) -> Optional[GachaPool]:
+        """获取每日免费池 (第一个成本为0的池)"""
+        free_pools = self.gacha_repo.get_free_pools()
+        return free_pools[0] if free_pools else None
+
     def get_pool_details(self, pool_id: int) -> Dict[str, Any]:
         """获取单个卡池的详细信息，包括奖品列表和概率。"""
         pool = self.gacha_repo.get_pool_by_id(pool_id)
@@ -83,6 +89,10 @@ class GachaService:
                 bait = self.item_template_repo.get_bait_by_id(item.item_id)
                 item_name = bait.name if bait else "未知鱼饵"
                 item_rarity = bait.rarity if bait else 1
+            elif item.item_type == "item":
+                general_item = self.item_template_repo.get_by_id(item.item_id)
+                item_name = general_item.name if general_item else "未知道具"
+                item_rarity = general_item.rarity if general_item else 1
             elif item.item_type == "coins":
                 item_name = f"{item.quantity} 金币"
             elif item.item_type == "titles":
@@ -117,6 +127,45 @@ class GachaService:
         pool = self.gacha_repo.get_pool_by_id(pool_id)
         if not pool or not pool.items:
             return {"success": False, "message": "卡池不存在或卡池为空"}
+
+        # 每日免费池限制检查
+        free_pool = self.get_daily_free_pool()
+        if free_pool and pool_id == free_pool.gacha_pool_id:
+            if num_draws > 1:
+                return {"success": False, "message": "每日免费补给一次只能抽一张哦！"}
+
+            draws_today = self.log_repo.get_gacha_records_count_today(
+                user_id, free_pool.gacha_pool_id
+            )
+            if draws_today >= 1:
+                return {
+                    "success": False,
+                    "message": "今天的免费补给已经领过啦，明天再来吧！",
+                }
+
+        # 限时卡池过期校验
+        try:
+            is_limited = bool(getattr(pool, "is_limited_time", 0))
+            open_until_raw = getattr(pool, "open_until", None)
+            if is_limited and open_until_raw:
+                # 解析为本地(UTC+8)时间
+                normalized = open_until_raw.replace("T", " ")
+                dt = None
+                for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+                    try:
+                        dt = datetime.strptime(normalized, fmt)
+                        break
+                    except ValueError:
+                        continue
+                if dt is not None:
+                    dt = dt.replace(tzinfo=timezone(timedelta(hours=8)))
+                    now = get_now()
+                    if now > dt:
+                        display_time = f"{dt.year}/{dt.month:02d}/{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}"
+                        return {"success": False, "message": f"该卡池已结束开放（截止: {display_time}），无法抽卡"}
+        except Exception:
+            # 解析失败时不中断抽卡流程
+            pass
 
         # 计算费用：若配置了高级货币费用，则优先使用高级货币；否则使用金币
         use_premium_currency = (getattr(pool, "cost_premium_currency", 0) or 0) > 0
@@ -177,6 +226,15 @@ class GachaService:
                     "rarity": get_bait.rarity,
                     "quantity": item.quantity
                 })
+            elif item.item_type == "item":
+                get_item = self.item_template_repo.get_by_id(item.item_id)
+                granted_rewards.append({
+                    "type": "item",
+                    "id": item.item_id,
+                    "name": get_item.name,
+                    "rarity": get_item.rarity,
+                    "quantity": item.quantity,
+                })
             elif item.item_type == "coins":
                 granted_rewards.append({
                     "type": "coins",
@@ -208,6 +266,11 @@ class GachaService:
         elif item.item_type == "bait":
             self.inventory_repo.update_bait_quantity(user_id, item.item_id, item.quantity)
             template = self.item_template_repo.get_bait_by_id(item.item_id)
+        elif item.item_type == "item":
+            self.inventory_repo.update_item_quantity(
+                user_id, item.item_id, item.quantity
+            )
+            template = self.item_template_repo.get_by_id(item.item_id)
         elif item.item_type == "coins":
             user = self.user_repo.get_by_id(user_id)
             user.coins += item.quantity

@@ -1,6 +1,19 @@
-from ..repositories.abstract_repository import AbstractItemTemplateRepository, AbstractGachaRepository
-from ..initial_data import FISH_DATA, BAIT_DATA, ROD_DATA, ACCESSORY_DATA, TITLE_DATA, GACHA_POOL
+from ..repositories.abstract_repository import (
+    AbstractItemTemplateRepository,
+    AbstractGachaRepository,
+)
+from ..initial_data import (
+    FISH_DATA,
+    BAIT_DATA,
+    ROD_DATA,
+    ACCESSORY_DATA,
+    TITLE_DATA,
+    GACHA_POOL,
+    ITEM_DATA,
+)
+from ..domain.models import Item
 from astrbot.api import logger
+
 
 class DataSetupService:
     """负责在首次启动时初始化游戏基础数据。"""
@@ -96,13 +109,62 @@ class DataSetupService:
                 })
 
         for pool in GACHA_POOL:
-            self.gacha_repo.add_pool_template({
-                "pool_id": pool[0],
-                "name": pool[1],
-                "description": pool[2],
-                "cost_coins": pool[3],
-                "cost_premium_currency": pool[4]
-            })
+            self.gacha_repo.add_pool_template(
+                {
+                    "pool_id": pool[0],
+                    "name": pool[1],
+                    "description": pool[2],
+                    "cost_coins": pool[3],
+                    "cost_premium_currency": pool[4],
+                }
+            )
+
+        # 填充道具数据
+        self.create_initial_items()
+
+        # --- 填充抽卡池具体物品 ---
+        # 检查是否已填充，避免重复
+        if not self.gacha_repo.get_pool_items(1):
+            self.gacha_repo.add_pool_item(1, {"item_type": "rod", "item_id": 4, "quantity": 1, "weight": 10}) # 星辰钓者
+            self.gacha_repo.add_pool_item(1, {"item_type": "rod", "item_id": 5, "quantity": 1, "weight": 3}) # 海神之赐
+            self.gacha_repo.add_pool_item(1, {"item_type": "rod", "item_id": 3, "quantity": 1, "weight": 30}) # 碳素纤维竿
+            self.gacha_repo.add_pool_item(1, {"item_type": "coins", "item_id": 0, "quantity": 10000, "weight": 57})
+
+        if not self.gacha_repo.get_pool_items(2):
+            self.gacha_repo.add_pool_item(2, {"item_type": "accessory", "item_id": 4, "quantity": 1, "weight": 5}) # 海洋之心
+            self.gacha_repo.add_pool_item(2, {"item_type": "accessory", "item_id": 3, "quantity": 1, "weight": 15}) # 丰收号角
+            self.gacha_repo.add_pool_item(2, {"item_type": "coins", "item_id": 0, "quantity": 20000, "weight": 80})
 
         logger.info("核心游戏数据初始化完成。")
+
+    def create_initial_items(self):
+        """创建初始的道具"""
+        existing_items = self.item_template_repo.get_all()
+        existing_item_names = {item.name for item in existing_items}
+
+        items_to_create = []
+        for item_data in ITEM_DATA:
+            if item_data[1] not in existing_item_names:
+                items_to_create.append(
+                    Item(
+                        item_id=0,  # ID is auto-incrementing
+                        name=item_data[1],
+                        description=item_data[2],
+                        rarity=item_data[3],
+                        effect_description=item_data[4],
+                        cost=item_data[5],
+                        is_consumable=item_data[6],
+                        icon_url=item_data[7],
+                        effect_type=item_data[8],
+                        effect_payload=item_data[9],
+                    )
+                )
+
+        if items_to_create:
+            logger.info(f"发现 {len(items_to_create)} 个新的道具，正在添加到数据库...")
+            for item in items_to_create:
+                self.item_template_repo.add(item)
+            logger.info("新道具添加完成。")
+        else:
+            logger.info("没有发现新的道具需要添加。")
 
