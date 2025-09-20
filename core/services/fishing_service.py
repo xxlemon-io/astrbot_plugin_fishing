@@ -14,7 +14,7 @@ from ..repositories.abstract_repository import (
     AbstractLogRepository,
     AbstractUserBuffRepository,
 )
-from ..domain.models import FishingRecord, TaxRecord
+from ..domain.models import FishingRecord, TaxRecord, FishingZone
 from ..services.fishing_zone_service import FishingZoneService
 from ..utils import get_now, get_fish_template, get_today, calculate_after_refine
 
@@ -213,13 +213,9 @@ class FishingService:
             return {"success": False, "message": "💨 什么都没钓到..."}
 
         # 4. 成功，生成渔获
-        # 先根据区域策略获取基础分布，再按有无鱼饵进行加成
+        # 使用区域策略获取基础稀有度分布
         strategy = self.fishing_zone_service.get_strategy(user.fishing_zone_id)
         rarity_distribution = strategy.get_fish_rarity_distribution(user)
-        if 'bait_template' in locals() and bait_template:
-            rarity_distribution = self._apply_bait_effects_on_rarity(
-                rarity_distribution, bait_template
-            )
         
         zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
         is_rare_fish_available = zone.rare_fish_caught_today < zone.daily_rare_fish_quota

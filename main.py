@@ -171,7 +171,7 @@ class FishingPlugin(Star):
             data_setup_service.create_initial_items()
         except Exception:
             pass
-        self.fishing_service.on_load(area2num=self.area2num, area3num=self.area3num)
+        # 已移除按配置文件注入区域配额的旧逻辑（on_load）
 
         # --- 6. (临时) 实例化数据服务，供调试命令使用 ---
         self.data_setup_service = data_setup_service
@@ -1824,6 +1824,7 @@ class FishingPlugin(Star):
                 "item_template_service": self.item_template_service,
                 "user_service": self.user_service,
                 "market_service": self.market_service,
+                "fishing_zone_service": self.fishing_zone_service,
             }
             app = create_app(
                 secret_key=self.secret_key,
