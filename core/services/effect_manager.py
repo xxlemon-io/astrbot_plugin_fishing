@@ -3,7 +3,7 @@ import importlib
 from typing import Dict, Optional
 
 from .item_effects.abstract_effect import AbstractItemEffect
-from ....core.repositories.abstract_repository import (
+from ..repositories.abstract_repository import (
     AbstractUserRepository,
     AbstractUserBuffRepository,
 )
