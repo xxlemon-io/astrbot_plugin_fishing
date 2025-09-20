@@ -1125,7 +1125,8 @@ async def manage_zones():
     item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
     zones = fishing_zone_service.get_all_zones()
     all_fish = item_template_service.get_all_fish()
-    return await render_template('zones.html', zones=zones, all_fish=all_fish)
+    all_items = item_template_service.get_all_items()
+    return await render_template('zones.html', zones=zones, all_fish=all_fish, all_items=all_items)
 
 @admin_bp.route('/api/zones', methods=['POST'])
 @login_required
@@ -1146,6 +1147,10 @@ async def create_zone_api():
         quota = data.get('daily_rare_fish_quota')
         if quota is None or not str(quota).isdigit() or int(quota) < 0:
             errors['daily_rare_fish_quota'] = '稀有鱼每日配额必须是一个非负整数'
+            
+        fishing_cost = data.get('fishing_cost')
+        if fishing_cost is None or not str(fishing_cost).isdigit() or int(fishing_cost) < 1:
+            errors['fishing_cost'] = '钓鱼消耗必须是一个正整数'
         
         if errors:
             return jsonify({"success": False, "message": "数据校验失败", "errors": errors}), 400
@@ -1176,6 +1181,10 @@ async def update_zone_api(zone_id):
         quota = data.get('daily_rare_fish_quota')
         if quota is None or not str(quota).isdigit() or int(quota) < 0:
             errors['daily_rare_fish_quota'] = '稀有鱼每日配额必须是一个非负整数'
+            
+        fishing_cost = data.get('fishing_cost')
+        if fishing_cost is None or not str(fishing_cost).isdigit() or int(fishing_cost) < 1:
+            errors['fishing_cost'] = '钓鱼消耗必须是一个正整数'
 
         if errors:
             return jsonify({"success": False, "message": "数据校验失败", "errors": errors}), 400

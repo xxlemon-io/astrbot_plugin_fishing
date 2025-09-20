@@ -36,6 +36,18 @@
                 </p>
                 {% endif %}
                 <p><strong>稀有鱼每日配额:</strong> {{ zone.daily_rare_fish_quota }}</p>
+                <p><strong>钓鱼消耗:</strong> {{ zone.fishing_cost }} 金币</p>
+                {% if zone.requires_pass and zone.required_item_id %}
+                <p><strong>通行证要求:</strong> 
+                    <span class="badge bg-warning">
+                        {% for item in all_items if item.item_id == zone.required_item_id %}
+                            {{ item.name }}
+                        {% endfor %}
+                    </span>
+                </p>
+                {% else %}
+                <p><strong>通行证要求:</strong> <span class="badge bg-success">无需通行证</span></p>
+                {% endif %}
                 <div><strong>限定鱼类 ({{ zone.specific_fish_ids|length }}):</strong>
                     <ul class="list-group list-group-flush">
                         {% for fish_id in zone.specific_fish_ids %}
@@ -88,6 +100,7 @@
 <script>
     const zonesData = {{ zones|tojson }};
     const allFishData = {{ all_fish|tojson }};
+    const allItemsData = {{ all_items|tojson }};
 
     function getZoneById(zoneId) {
         return zonesData.find(z => z.id === zoneId);
@@ -121,11 +134,15 @@
                     <textarea class="form-control" name="description" rows="2">${zone?.description || ''}</textarea>
                 </div>
                 <div class="row">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label for="daily_rare_fish_quota" class="form-label">稀有鱼每日配额</label>
                         <input type="number" class="form-control" name="daily_rare_fish_quota" value="${zone?.daily_rare_fish_quota || 0}">
                     </div>
-                    <div class="col-md-6 mb-3 d-flex align-items-end">
+                    <div class="col-md-4 mb-3">
+                        <label for="fishing_cost" class="form-label">钓鱼消耗 (金币)</label>
+                        <input type="number" class="form-control" name="fishing_cost" value="${zone?.fishing_cost || 10}" min="1">
+                    </div>
+                    <div class="col-md-4 mb-3 d-flex align-items-end">
                         <div class="form-check form-switch mb-0">
                             <input class="form-check-input" type="checkbox" name="is_active" id="is_active" ${zone?.is_active ?? true ? 'checked' : ''}>
                             <label class="form-check-label ms-2" for="is_active">启用区域</label>
@@ -166,6 +183,28 @@
                         ${fishOptions}
                     </select>
                 </div>
+                <div class="mb-3">
+                    <label class="form-label">通行证要求</label>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="requires_pass" 
+                                       id="requires_pass" ${zone?.requires_pass ? 'checked' : ''}>
+                                <label class="form-check-label" for="requires_pass">需要通行证</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <select class="form-control" name="required_item_id" ${!zone?.requires_pass ? 'disabled' : ''}>
+                                <option value="">选择通行证道具</option>
+                                ${allItemsData.map(item => `
+                                    <option value="${item.item_id}" ${zone?.required_item_id == item.item_id ? 'selected' : ''}>
+                                        ${item.name} (ID: ${item.item_id})
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                    </div>
+                </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
                     <button type="submit" class="btn btn-primary">${isEdit ? '更新' : '创建'}</button>
@@ -190,6 +229,7 @@
         const data = Object.fromEntries(formData.entries());
         data.id = parseInt(data.id);
         data.daily_rare_fish_quota = parseInt(data.daily_rare_fish_quota);
+        data.fishing_cost = parseInt(data.fishing_cost) || 10;
         data.is_active = data.is_active === 'on';
         const limitTime = form.querySelector('input[name="limit_time"]').checked;
         if (!limitTime) {
@@ -205,6 +245,14 @@
         }
         data.configs = { rarity_distribution: rarityDistribution };
         data.specific_fish_ids = Array.from(this.querySelector('select[name="specific_fish_ids"]').selectedOptions).map(opt => parseInt(opt.value));
+        
+        // 处理通行证要求
+        data.requires_pass = data.requires_pass === 'on';
+        if (data.requires_pass && data.required_item_id) {
+            data.required_item_id = parseInt(data.required_item_id);
+        } else {
+            data.required_item_id = null;
+        }
         
         const response = await fetch('/admin/api/zones', {
             method: 'POST',
@@ -232,6 +280,17 @@
                 } else {
                     feedbackEl.classList.remove('text-danger');
                 }
+            }
+        }
+        
+        // 处理通行证选择
+        if (e.target.name === 'requires_pass') {
+            const itemSelect = e.target.closest('form').querySelector('select[name="required_item_id"]');
+            if (e.target.checked) {
+                itemSelect.disabled = false;
+            } else {
+                itemSelect.disabled = true;
+                itemSelect.value = '';
             }
         }
     });
@@ -276,6 +335,7 @@
             const data = Object.fromEntries(formData.entries());
             data.id = parseInt(data.id);
             data.daily_rare_fish_quota = parseInt(data.daily_rare_fish_quota);
+            data.fishing_cost = parseInt(data.fishing_cost) || 10;
             data.is_active = data.is_active === 'on';
             const limitTime = form.querySelector('input[name="limit_time"]').checked;
             if (!limitTime) {
@@ -290,6 +350,14 @@
             }
             data.configs = { rarity_distribution: rarityDistribution };
             data.specific_fish_ids = Array.from(this.querySelector('select[name="specific_fish_ids"]').selectedOptions).map(opt => parseInt(opt.value));
+            
+            // 处理通行证要求
+            data.requires_pass = data.requires_pass === 'on';
+            if (data.requires_pass && data.required_item_id) {
+                data.required_item_id = parseInt(data.required_item_id);
+            } else {
+                data.required_item_id = null;
+            }
 
             const response = await fetch(`/admin/api/zones/${zoneId}`, {
                 method: 'PUT',

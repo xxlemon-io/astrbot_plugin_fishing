@@ -46,6 +46,7 @@ class FishingService:
         self.auto_fishing_running = False
         # 可选的消息通知回调：签名 (user_id: str, message: str) -> None
         self._notifier = None
+        
 
     def register_notifier(self, notifier):
         """
@@ -90,8 +91,12 @@ class FishingService:
         if not user:
             return {"success": False, "message": "用户不存在，无法钓鱼。"}
 
-        # 1. 检查成本
-        fishing_cost = self.config.get("fishing", {}).get("cost", 10) + (user.fishing_zone_id - 1) * 50
+        # 1. 检查成本（从区域配置中读取）
+        zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+        if not zone:
+            return {"success": False, "message": "钓鱼区域不存在"}
+        
+        fishing_cost = zone.fishing_cost
         if not user.can_afford(fishing_cost):
             return {"success": False, "message": f"金币不足，需要 {fishing_cost} 金币。"}
 
@@ -453,6 +458,7 @@ class FishingService:
 
         fishing_zones = self.inventory_repo.get_all_zones()
         zones_info = []
+        
         for zone in fishing_zones:
             zones_info.append({
                 "zone_id": zone.id,
@@ -461,6 +467,9 @@ class FishingService:
                 "daily_rare_fish_quota": zone.daily_rare_fish_quota,
                 "rare_fish_caught_today": zone.rare_fish_caught_today,
                 "whether_in_use": zone.id == user.fishing_zone_id,
+                "is_active": zone.is_active,
+                "requires_pass": zone.requires_pass,
+                "fishing_cost": zone.fishing_cost,
             })
 
         return {
@@ -506,6 +515,33 @@ class FishingService:
         zone = self.inventory_repo.get_zone_by_id(zone_id)
         if not zone:
             return {"success": False, "message": "钓鱼区域不存在"}
+
+        # 检查区域是否激活
+        if not zone.is_active:
+            return {"success": False, "message": "该钓鱼区域暂未开放"}
+
+        # 检查时间限制
+        now = get_now()
+        if zone.available_from and now < zone.available_from:
+            return {"success": False, "message": f"该钓鱼区域将在 {zone.available_from.strftime('%Y-%m-%d %H:%M')} 开放"}
+        
+        if zone.available_until and now > zone.available_until:
+            return {"success": False, "message": f"该钓鱼区域已于 {zone.available_until.strftime('%Y-%m-%d %H:%M')} 关闭"}
+
+        # 检查通行证要求（从数据库读取）
+        if zone.requires_pass and zone.required_item_id:
+            # 获取用户道具库存
+            user_items = self.inventory_repo.get_user_item_inventory(user_id)
+            current_quantity = user_items.get(zone.required_item_id, 0)
+            
+            if current_quantity < 1:
+                # 获取道具名称用于显示
+                item_template = self.item_template_repo.get_item_by_id(zone.required_item_id)
+                item_name = item_template.name if item_template else f"道具ID{zone.required_item_id}"
+                return {
+                    "success": False, 
+                    "message": f"❌ 进入该区域需要 {item_name}，您当前拥有 {current_quantity} 个\n💡 使用「/使用道具 <道具ID>」命令使用通行证传送到该区域"
+                }
 
         user.fishing_zone_id = zone.id
         self.user_repo.update(user)
@@ -615,12 +651,16 @@ class FishingService:
                     if now_ts - last_ts < _cooldown:
                         continue # CD中，跳过
 
-                    # 检查成本
-                    if not user.can_afford(cost):
+                    # 检查成本（从区域配置中读取）
+                    zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+                    if not zone:
+                        continue
+                    fishing_cost = zone.fishing_cost
+                    if not user.can_afford(fishing_cost):
                         # 金币不足，关闭其自动钓鱼
                         user.auto_fishing_enabled = False
                         self.user_repo.update(user)
-                        logger.warning(f"用户 {user_id} 金币不足，已关闭自动钓鱼")
+                        logger.warning(f"用户 {user_id} 金币不足（需要 {fishing_cost} 金币），已关闭自动钓鱼")
                         continue
 
                     # 执行钓鱼
