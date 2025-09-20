@@ -5,7 +5,7 @@ from datetime import datetime
 
 from ..domain.models import UserBuff
 from .abstract_repository import AbstractUserBuffRepository
-from ...utils import get_db_path, DATETIME_FORMAT
+from ..utils import DATETIME_FORMAT
 
 
 class SqliteUserBuffRepository(AbstractUserBuffRepository):
