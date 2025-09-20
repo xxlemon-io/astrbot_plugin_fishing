@@ -104,7 +104,7 @@ class SqliteGachaRepository(AbstractGachaRepository):
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT * FROM gacha_pool_templates WHERE cost_coins = 0 AND cost_premium_currency = 0"
+                "SELECT * FROM gacha_pools WHERE cost_coins = 0 AND cost_premium_currency = 0"
             )
             return [self._to_domain_pool(row) for row in cursor.fetchall()]
 
