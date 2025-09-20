@@ -112,7 +112,11 @@ class FishingPlugin(Star):
         self.buff_repo = SqliteUserBuffRepository(db_path)
 
         # --- 3. 组合根：实例化所有服务层，并注入依赖 ---
-        # 3.1 实例化效果管理器并自动注册所有效果
+        # 3.1 核心服务必须在效果管理器之前实例化，以解决依赖问题
+        self.game_mechanics_service = GameMechanicsService(self.user_repo, self.log_repo, self.inventory_repo,
+                                                           self.item_template_repo, self.buff_repo, self.game_config)
+
+        # 3.2 实例化效果管理器并自动注册所有效果
         self.effect_manager = EffectManager()
         self.effect_manager.discover_and_register(
             effects_package_path="data.plugins.astrbot_plugin_fishing.core.services.item_effects",
@@ -123,13 +127,11 @@ class FishingPlugin(Star):
             },
         )
 
-        # 3.2 实例化核心服务
+        # 3.3 实例化其他核心服务
         self.gacha_service = GachaService(self.gacha_repo, self.user_repo, self.inventory_repo, self.item_template_repo,
                                           self.log_repo, self.achievement_repo)
         # UserService 依赖 GachaService，因此在 GachaService 之后实例化
         self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.gacha_service, self.game_config)
-        self.game_mechanics_service = GameMechanicsService(self.user_repo, self.log_repo, self.inventory_repo,
-                                                           self.item_template_repo, self.buff_repo, self.game_config)
         self.inventory_service = InventoryService(
             self.inventory_repo,
             self.user_repo,
