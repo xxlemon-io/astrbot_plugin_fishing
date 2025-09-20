@@ -1,5 +1,5 @@
 import random
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
 
 from astrbot.core.utils.pip_installer import logger
@@ -56,6 +56,11 @@ class GachaService:
             return {"success": True, "pools": pools}
         except Exception as e:
             return {"success": False, "message": f"获取卡池信息失败: {str(e)}"}
+
+    def get_daily_free_pool(self) -> Optional[GachaPool]:
+        """获取每日免费池 (第一个成本为0的池)"""
+        free_pools = self.gacha_repo.get_free_pools()
+        return free_pools[0] if free_pools else None
 
     def get_pool_details(self, pool_id: int) -> Dict[str, Any]:
         """获取单个卡池的详细信息，包括奖品列表和概率。"""
@@ -122,6 +127,21 @@ class GachaService:
         pool = self.gacha_repo.get_pool_by_id(pool_id)
         if not pool or not pool.items:
             return {"success": False, "message": "卡池不存在或卡池为空"}
+
+        # 每日免费池限制检查
+        free_pool = self.get_daily_free_pool()
+        if free_pool and pool_id == free_pool.gacha_pool_id:
+            if num_draws > 1:
+                return {"success": False, "message": "每日免费补给一次只能抽一张哦！"}
+
+            draws_today = self.log_repo.get_gacha_records_count_today(
+                user_id, free_pool.gacha_pool_id
+            )
+            if draws_today >= 1:
+                return {
+                    "success": False,
+                    "message": "今天的免费补给已经领过啦，明天再来吧！",
+                }
 
         # 限时卡池过期校验
         try:

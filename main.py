@@ -132,7 +132,7 @@ class FishingPlugin(Star):
         )
 
         # 3.2 实例化核心服务
-        self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.game_config)
+        self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.gacha_service, self.game_config)
         self.inventory_service = InventoryService(
             self.inventory_repo,
             self.user_repo,

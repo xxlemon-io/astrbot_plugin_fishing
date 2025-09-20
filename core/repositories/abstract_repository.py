@@ -289,6 +289,11 @@ class AbstractGachaRepository(ABC):
     @abstractmethod
     def delete_pool_item(self, item_pool_id: int) -> None: pass
 
+    @abstractmethod
+    def get_free_pools(self) -> List[GachaPool]:
+        pass
+
+
 class AbstractMarketRepository(ABC):
     """市场仓储接口"""
     # 获取单个市场商品
@@ -350,6 +355,12 @@ class AbstractLogRepository(ABC):
     # 获取用户历史上最大的擦弹倍数
     @abstractmethod
     def get_max_wipe_bomb_multiplier(self, user_id: str) -> float: pass
+
+    @abstractmethod
+    def get_gacha_records_count_today(
+        self, user_id: str, gacha_pool_id: int
+    ) -> int:
+        pass
 
 class AbstractAchievementRepository(ABC):
     """成就数据仓储接口"""

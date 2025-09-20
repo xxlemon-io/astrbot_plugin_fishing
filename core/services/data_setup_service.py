@@ -135,24 +135,24 @@ class DataSetupService:
             self.gacha_repo.add_pool_item(2, {"item_type": "accessory", "item_id": 3, "quantity": 1, "weight": 15}) # 丰收号角
             self.gacha_repo.add_pool_item(2, {"item_type": "coins", "item_id": 0, "quantity": 20000, "weight": 80})
 
-        # 新增道具补给池
-        if not self.gacha_repo.get_pool_items(3):
-            # 通过名字查找道具ID，更稳健
-            lucky_potion = self.item_template_repo.get_by_name("幸运药水")
-            sonar = self.item_template_repo.get_by_name("便携式声呐")
-            rune = self.item_template_repo.get_by_name("侠盗的符文")
-            license_item = self.item_template_repo.get_by_name("擦弹许可证")
-
-            if lucky_potion:
-                self.gacha_repo.add_pool_item(3, {"item_type": "item", "item_id": lucky_potion.item_id, "quantity": 1, "weight": 15})
-            if sonar:
-                self.gacha_repo.add_pool_item(3, {"item_type": "item", "item_id": sonar.item_id, "quantity": 1, "weight": 10})
-            if rune:
-                self.gacha_repo.add_pool_item(3, {"item_type": "item", "item_id": rune.item_id, "quantity": 1, "weight": 10})
-            if license_item:
-                self.gacha_repo.add_pool_item(3, {"item_type": "item", "item_id": license_item.item_id, "quantity": 2, "weight": 20})
-            
-            self.gacha_repo.add_pool_item(3, {"item_type": "coins", "item_id": 0, "quantity": 500, "weight": 45})
+        # # 新增道具补给池 (暂时注释掉，等待后台手动填充)
+        # if not self.gacha_repo.get_pool_items(3):
+        #     # 通过名字查找道具ID，更稳健
+        #     lucky_potion = self.item_template_repo.get_by_name("幸运药水")
+        #     sonar = self.item_template_repo.get_by_name("便携式声呐")
+        #     rune = self.item_template_repo.get_by_name("侠盗的符文")
+        #     license_item = self.item_template_repo.get_by_name("擦弹许可证")
+        #
+        #     if lucky_potion:
+        #         self.gacha_repo.add_pool_item(3, {"item_type": "item", "item_id": lucky_potion.item_id, "quantity": 1, "weight": 15})
+        #     if sonar:
+        #         self.gacha_repo.add_pool_item(3, {"item_type": "item", "item_id": sonar.item_id, "quantity": 1, "weight": 10})
+        #     if rune:
+        #         self.gacha_repo.add_pool_item(3, {"item_type": "item", "item_id": rune.item_id, "quantity": 1, "weight": 10})
+        #     if license_item:
+        #         self.gacha_repo.add_pool_item(3, {"item_type": "item", "item_id": license_item.item_id, "quantity": 2, "weight": 20})
+        #     
+        #     self.gacha_repo.add_pool_item(3, {"item_type": "coins", "item_id": 0, "quantity": 500, "weight": 45})
 
         logger.info("核心游戏数据初始化完成。")
 

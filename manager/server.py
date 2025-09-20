@@ -583,7 +583,7 @@ async def manage_gacha_pool_details(pool_id):
         item_rarity = None  # 添加星级属性
         item_type = item.item_type
         item_id = item.item_id
-
+        
         # 根据类型从 item_template_service 获取名称和星级
         if item_type == "rod":
             template = item_template_service.item_template_repo.get_rod_by_id(item_id)
@@ -597,6 +597,11 @@ async def manage_gacha_pool_details(pool_id):
                 item_rarity = template.rarity
         elif item_type == "bait":
             template = item_template_service.item_template_repo.get_bait_by_id(item_id)
+            if template:
+                item_name = template.name
+                item_rarity = template.rarity
+        elif item_type == "item":
+            template = item_template_service.item_template_repo.get_by_id(item_id)
             if template:
                 item_name = template.name
                 item_rarity = template.rarity
@@ -622,7 +627,8 @@ async def manage_gacha_pool_details(pool_id):
         items=enriched_items,  # 传递丰富化后的物品列表
         all_rods=details["all_rods"],
         all_baits=details["all_baits"],
-        all_accessories=details["all_accessories"]
+        all_accessories=details["all_accessories"],
+        all_items=item_template_service.get_all_items()  # 新增
     )
 
 

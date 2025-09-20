@@ -219,3 +219,19 @@ class SqliteLogRepository(AbstractLogRepository):
             """, (user_id,))
             result = cursor.fetchone()
             return result[0] if result and result[0] is not None else 0.0
+
+    def get_gacha_records_count_today(
+        self, user_id: str, gacha_pool_id: int
+    ) -> int:
+        today_str = datetime.now(self.UTC8).strftime("%Y-%m-%d")
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT COUNT(*) FROM gacha_records
+                WHERE user_id = ? AND gacha_pool_id = ? AND DATE(timestamp) = ?
+                """,
+                (user_id, gacha_pool_id, today_str),
+            )
+            result = cursor.fetchone()
+            return result[0] if result else 0
