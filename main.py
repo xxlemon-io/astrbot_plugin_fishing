@@ -116,7 +116,11 @@ class FishingPlugin(Star):
         self.effect_manager = EffectManager()
         self.effect_manager.discover_and_register(
             effects_package_path="data.plugins.astrbot_plugin_fishing.core.services.item_effects",
-            dependencies={"user_repo": self.user_repo, "buff_repo": self.buff_repo},
+            dependencies={
+                "user_repo": self.user_repo, 
+                "buff_repo": self.buff_repo,
+                "game_mechanics_service": self.game_mechanics_service
+            },
         )
 
         # 3.2 实例化核心服务
