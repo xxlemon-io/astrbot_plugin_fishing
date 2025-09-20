@@ -154,7 +154,7 @@ class DataSetupService:
 
         for item in items_to_create:
             # 检查道具是否已存在
-            existing_item = self.item_template_repo.get_item_by_name(item.name)
+            existing_item = self.item_template_repo.get_by_name(item.name)
             if not existing_item:
-                self.item_template_repo.add_item(item)
+                self.item_template_repo.add(item)
 

@@ -173,7 +173,15 @@ class FishingPlugin(Star):
         # --- 5. 初始化核心游戏数据 ---
         data_setup_service = DataSetupService(self.item_template_repo, self.gacha_repo)
         data_setup_service.setup_initial_data()
+        # 确保初始通用道具存在（在已有数据库上也可幂等执行）
+        try:
+            data_setup_service.create_initial_items()
+        except Exception:
+            pass
         self.fishing_service.on_load(area2num=self.area2num, area3num=self.area3num)
+
+        # --- 6. (临时) 实例化数据服务，供调试命令使用 ---
+        self.data_setup_service = data_setup_service
 
         # --- Web后台配置 ---
         self.web_admin_task = None
@@ -1863,3 +1871,16 @@ class FishingPlugin(Star):
         if self.web_admin_task:
             self.web_admin_task.cancel()
         logger.info("钓鱼插件已成功终止。")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("debug add_items")
+    async def add_missing_items(self, event: AstrMessageEvent):
+        """[临时]手动执行初始道具的创建，用于补充现有数据库。"""
+        try:
+            self.data_setup_service.create_initial_items()
+            yield event.plain_result(
+                '✅ 成功执行初始道具检查和补充操作。\n请检查后台或使用 /道具 命令查看新增的"小钱袋"和"幸运药水"。'
+            )
+        except Exception as e:
+            logger.error(f"执行 add_missing_items 命令时出错: {e}", exc_info=True)
+            yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
