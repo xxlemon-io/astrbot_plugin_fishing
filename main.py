@@ -1867,28 +1867,28 @@ class FishingPlugin(Star):
             self.web_admin_task.cancel()
         logger.info("钓鱼插件已成功终止。")
 
-    @filter.permission_type(PermissionType.ADMIN)
-    @filter.command("debug add_items")
-    async def add_missing_items(self, event: AstrMessageEvent):
-        """[临时]手动执行初始道具的创建，用于补充现有数据库。"""
-        try:
-            self.data_setup_service.create_initial_items()
-            yield event.plain_result(
-                '✅ 成功执行初始道具检查和补充操作。\n请检查后台或使用 /道具 命令查看新增的"小钱袋"和"幸运药水"。'
-            )
-        except Exception as e:
-            logger.error(f"执行 add_missing_items 命令时出错: {e}", exc_info=True)
-            yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
+    # @filter.permission_type(PermissionType.ADMIN)
+    # @filter.command("debug add_items")
+    # async def add_missing_items(self, event: AstrMessageEvent):
+    #     """[临时]手动执行初始道具的创建，用于补充现有数据库。"""
+    #     try:
+    #         self.data_setup_service.create_initial_items()
+    #         yield event.plain_result(
+    #             '✅ 成功执行初始道具检查和补充操作。\n请检查后台或使用 /道具 命令查看新增的"小钱袋"和"幸运药水"。'
+    #         )
+    #     except Exception as e:
+    #         logger.error(f"执行 add_missing_items 命令时出错: {e}", exc_info=True)
+    #         yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
 
-    @filter.permission_type(PermissionType.ADMIN)
-    @filter.command("管理员 同步道具", alias={"同步道具"})
-    async def sync_items_from_initial_data(self, event: AstrMessageEvent):
-        """从 initial_data.py 同步道具数据到数据库。"""
-        try:
-            self.data_setup_service.create_initial_items()
-            yield event.plain_result(
-                '✅ 成功执行初始道具同步操作。\n请检查后台或使用 /道具 命令确认数据。'
-            )
-        except Exception as e:
-            logger.error(f"执行 sync_items_from_initial_data 命令时出错: {e}", exc_info=True)
-            yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
+    # @filter.permission_type(PermissionType.ADMIN)
+    # @filter.command("管理员 同步道具", alias={"同步道具"})
+    # async def sync_items_from_initial_data(self, event: AstrMessageEvent):
+    #     """从 initial_data.py 同步道具数据到数据库。"""
+    #     try:
+    #         self.data_setup_service.create_initial_items()
+    #         yield event.plain_result(
+    #             '✅ 成功执行初始道具同步操作。\n请检查后台或使用 /道具 命令确认数据。'
+    #         )
+    #     except Exception as e:
+    #         logger.error(f"执行 sync_items_from_initial_data 命令时出错: {e}", exc_info=True)
+    #         yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
