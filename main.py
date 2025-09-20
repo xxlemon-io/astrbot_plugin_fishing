@@ -77,7 +77,7 @@ class FishingPlugin(Star):
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         
         self.game_config = {
-            "fishing": {"cost": config.get("fish_cost", 10), "cooldown_seconds": config.get("fish_cooldown", 5)},
+            "fishing": {"cost": config.get("fish_cost", 10), "cooldown_seconds": config.get("fish_cooldown_seconds", 180)},
             "steal": {"cooldown_seconds": config.get("steal_cooldown", 1800)},
             "wipe_bomb": {"attempts_per_day": config.get("wipe_bomb_attempts", 5)},
             "pond_upgrades": [

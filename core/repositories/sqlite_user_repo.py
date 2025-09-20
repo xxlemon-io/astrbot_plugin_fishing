@@ -2,7 +2,6 @@ import sqlite3
 import threading
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from field import field
 
 from ..domain.models import User, TaxRecord
 from .abstract_repository import AbstractUserRepository
