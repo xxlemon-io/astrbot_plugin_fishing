@@ -171,6 +171,16 @@ class SqliteLogRepository(AbstractLogRepository):
             )
             return cursor.fetchone() is not None
 
+    def add_log(self, user_id: str, log_type: str, message: str) -> None:
+        """添加一条通用日志"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO fishing_records (user_id, fish_id, weight, value, timestamp, location_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (user_id, 0, 0, 0, datetime.now(), 0))
+            conn.commit()
+
     # --- Tax Log Methods ---
     def add_tax_record(self, record: TaxRecord) -> None:
         with self._get_connection() as conn:

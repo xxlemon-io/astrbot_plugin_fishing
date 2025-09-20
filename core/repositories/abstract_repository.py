@@ -381,6 +381,11 @@ class AbstractLogRepository(ABC):
     ) -> int:
         pass
 
+    @abstractmethod
+    def add_log(self, user_id: str, log_type: str, message: str) -> None:
+        """添加一条通用日志"""
+        pass
+
 class AbstractAchievementRepository(ABC):
     """成就数据仓储接口"""
     # 获取所有成就的模板信息
