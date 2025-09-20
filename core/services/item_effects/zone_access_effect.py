@@ -7,9 +7,9 @@ from ...domain.models import User, Item
 class ZoneAccessEffect(AbstractItemEffect):
     """区域访问效果 - 直接切换到指定钓鱼区域"""
     
-    def __init__(self, dependencies: Dict[str, Any]):
-        super().__init__(dependencies)
-        self.fishing_service = dependencies.get("fishing_service")
+    def __init__(self, user_repo=None, buff_repo=None, **kwargs):
+        super().__init__(user_repo, buff_repo, **kwargs)
+        self.fishing_service = kwargs.get("fishing_service")
     
     def get_effect_type(self) -> str:
         return "ZONE_ACCESS"
