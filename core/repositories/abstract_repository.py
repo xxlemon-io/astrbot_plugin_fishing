@@ -247,6 +247,14 @@ class AbstractInventoryRepository(ABC):
     @abstractmethod
     def get_same_accessory_instances(self, user_id, accessory_id) -> List[UserAccessoryInstance]: pass
 
+    @abstractmethod
+    def add_item_to_user(self, user_id: str, item_id: int, quantity: int):
+        pass
+
+    @abstractmethod
+    def decrease_item_quantity(self, user_id: str, item_id: int, quantity: int):
+        pass
+
 
 class AbstractGachaRepository(ABC):
     """抽卡仓储接口"""

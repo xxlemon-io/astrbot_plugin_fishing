@@ -954,7 +954,8 @@ class InventoryService:
                     "effect_description": item_template.effect_description,
                     "item_type": item_template.item_type,
                 }
+                
             }
         else:
             # 非消耗品，提示无法使用
-            return {"success": False, "message": f"【{item_template.name}】是{item_template.item_type}类型，无法直接使用。"}
+            return {"success": False, "message": f"【{item_template.name}】无法直接使用。"}
