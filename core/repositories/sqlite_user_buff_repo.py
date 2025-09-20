@@ -64,6 +64,23 @@ class SqliteUserBuffRepository(AbstractUserBuffRepository):
             row = cursor.fetchone()
             return self._to_domain(row) if row else None
 
+    def update(self, buff: UserBuff):
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE user_buffs
+                SET payload = ?, expires_at = ?
+                WHERE id = ?
+                """,
+                (
+                    buff.payload,
+                    buff.expires_at.strftime(DATETIME_FORMAT) if buff.expires_at else None,
+                    buff.id,
+                ),
+            )
+            conn.commit()
+
     def get_all_active_by_user(self, user_id: str) -> List[UserBuff]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
