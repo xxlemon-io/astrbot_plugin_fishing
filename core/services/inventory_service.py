@@ -834,7 +834,134 @@ class InventoryService:
                                     "new_refine_level": instance.refine_level
                                 }
                             else:
-                                # 彻底毁坏
+                                # 彻底毁坏 → 优先检查是否有护符道具可自动消耗
+                                try:
+                                    user_items = self.inventory_repo.get_user_item_inventory(user.user_id)
+                                except Exception:
+                                    user_items = {}
+
+                                chosen_tpl = None
+                                chosen_mode = None
+                                # 从模板中筛选出护符道具
+                                try:
+                                    all_items_tpl = self.item_template_repo.get_all_items()
+                                    shield_templates = []
+                                    for tpl in all_items_tpl:
+                                        if getattr(tpl, "effect_type", None) == "REFINE_DESTRUCTION_SHIELD":
+                                            shield_templates.append(tpl)
+                                    # 构建候选（用户拥有的）
+                                    candidates_keep = []
+                                    candidates_downgrade = []
+                                    for tpl in shield_templates:
+                                        qty = user_items.get(tpl.item_id, 0)
+                                        if qty <= 0:
+                                            continue
+                                        payload = {}
+                                        try:
+                                            payload = json.loads(tpl.effect_payload or "{}")
+                                        except Exception:
+                                            pass
+                                        mode = payload.get("mode", "keep")
+                                        max_rarity = payload.get("max_rarity")
+                                        
+                                        # 检查护符是否对当前装备生效
+                                        if max_rarity is not None and template.rarity > int(max_rarity):
+                                            continue
+
+                                        if mode == "downgrade":
+                                            candidates_downgrade.append((tpl, qty))
+                                        else:
+                                            candidates_keep.append((tpl, qty))
+
+                                    # 消耗优先级: keep(无限制) > keep(有限制) > downgrade
+                                    # 先对keep类护符排序，优先消耗无限制的（天命）
+                                    candidates_keep.sort(key=lambda x: json.loads(x[0].effect_payload or '{}').get('max_rarity', 99), reverse=True)
+
+                                    if candidates_keep:
+                                        chosen_tpl = candidates_keep[0][0]
+                                        chosen_mode = "keep"
+                                    elif candidates_downgrade:
+                                        chosen_tpl = candidates_downgrade[0][0]
+                                        chosen_mode = "downgrade"
+                                except Exception:
+                                    pass
+
+                                if chosen_tpl is not None:
+                                    # 自动消耗一个护符道具
+                                    self.inventory_repo.decrease_item_quantity(user.user_id, chosen_tpl.item_id, 1)
+                                    if chosen_mode == "downgrade":
+                                        # 等级-1并保留
+                                        instance.refine_level = max(1, instance.refine_level - 1)
+                                        if item_type == "rod":
+                                            self.inventory_repo.update_rod_instance(instance)
+                                        else:
+                                            self.inventory_repo.update_accessory_instance(instance)
+                                        return {
+                                            "success": False,
+                                            "message": f"🛡 {chosen_tpl.name} 生效（降级）！等级降为 {instance.refine_level}，本体保留。",
+                                            "failed": True,
+                                            "destroyed": False,
+                                            "level_reduced": True,
+                                            "new_refine_level": instance.refine_level
+                                        }
+                                    else:
+                                        # 保留本体不降级
+                                        return {
+                                            "success": False,
+                                            "message": f"🛡 {chosen_tpl.name} 生效！避免了本体毁坏。",
+                                            "failed": True,
+                                            "destroyed": False
+                                        }
+
+                                # 若无护符道具，检查是否存在旧版Buff护符可抵消
+                                try:
+                                    shield_buff = self.game_mechanics_service.buff_repo.get_active_by_user_and_type(
+                                        user.user_id, "REFINE_DESTRUCTION_SHIELD"
+                                    )
+                                except Exception:
+                                    shield_buff = None
+
+                                if shield_buff and getattr(shield_buff, "payload", None):
+                                    try:
+                                        shield_payload = json.loads(shield_buff.payload or "{}")
+                                    except Exception:
+                                        shield_payload = {}
+                                    charges = int(shield_payload.get("charges", 0))
+                                    mode = shield_payload.get("mode", "keep")
+                                    if charges > 0:
+                                        remaining = charges - 1
+                                        if remaining <= 0:
+                                            self.game_mechanics_service.buff_repo.delete(shield_buff.id)
+                                        else:
+                                            shield_payload.update({"charges": remaining, "mode": mode})
+                                            shield_buff.payload = json.dumps(shield_payload)
+                                            self.game_mechanics_service.buff_repo.update(shield_buff)
+                                        # 根据护符模式处理
+                                        if mode == "downgrade":
+                                            # 等级-1并保留
+                                            instance.refine_level = max(1, instance.refine_level - 1)
+                                            if item_type == "rod":
+                                                self.inventory_repo.update_rod_instance(instance)
+                                            else:
+                                                self.inventory_repo.update_accessory_instance(instance)
+                                            return {
+                                                "success": False,
+                                                "message": f"🛡 精炼护符生效（降级）！等级降为 {instance.refine_level}，本体保留（剩余{remaining}）。",
+                                                "failed": True,
+                                                "destroyed": False,
+                                                "level_reduced": True,
+                                                "new_refine_level": instance.refine_level
+                                            }
+                                        else:
+                                            # 保留本体（不降级）
+                                            return {
+                                                "success": False,
+                                                "message": f"🛡 精炼护符生效！避免了本体毁坏（剩余{remaining}）。",
+                                                "failed": True,
+                                                "destroyed": False
+                                            }
+
+                                # 无护符：执行毁坏
                                 if item_type == "rod":
                                     self.inventory_repo.delete_rod_instance(instance.rod_instance_id)
                                 else:

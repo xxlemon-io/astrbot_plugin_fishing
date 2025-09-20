@@ -1897,18 +1897,18 @@ class FishingPlugin(Star):
     #         logger.error(f"执行 add_missing_items 命令时出错: {e}", exc_info=True)
     #         yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
 
-    # @filter.permission_type(PermissionType.ADMIN)
-    # @filter.command("管理员 同步道具", alias={"同步道具"})
-    # async def sync_items_from_initial_data(self, event: AstrMessageEvent):
-    #     """从 initial_data.py 同步道具数据到数据库。"""
-    #     try:
-    #         self.data_setup_service.create_initial_items()
-    #         yield event.plain_result(
-    #             '✅ 成功执行初始道具同步操作。\n请检查后台或使用 /道具 命令确认数据。'
-    #         )
-    #     except Exception as e:
-    #         logger.error(f"执行 sync_items_from_initial_data 命令时出错: {e}", exc_info=True)
-    #         yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("同步道具", alias={"管理员 同步道具"})
+    async def sync_items_from_initial_data(self, event: AstrMessageEvent):
+        """从 initial_data.py 同步道具数据到数据库。"""
+        try:
+            self.data_setup_service.create_initial_items()
+            yield event.plain_result(
+                '✅ 成功执行初始道具同步操作。\n请检查后台或使用 /道具 命令确认数据。'
+            )
+        except Exception as e:
+            logger.error(f"执行 sync_items_from_initial_data 命令时出错: {e}", exc_info=True)
+            yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("代理上线")
