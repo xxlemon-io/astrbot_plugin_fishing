@@ -93,6 +93,15 @@ class AbstractItemTemplateRepository(ABC):
     # 获取所有道具模板
     @abstractmethod
     def get_all_items(self) -> List[Item]: pass
+    # 添加道具模板
+    @abstractmethod
+    def add_item_template(self, item_data: Dict[str, Any]) -> Item: pass
+    # 更新道具模板
+    @abstractmethod
+    def update_item_template(self, item_id: int, item_data: Dict[str, Any]) -> None: pass
+    # 删除道具模板
+    @abstractmethod
+    def delete_item_template(self, item_id: int) -> None: pass
     # 随机获取一条鱼的模板
     @abstractmethod
     def get_random_fish(self, rarity: Optional[int] = None) -> Optional[Fish]: pass

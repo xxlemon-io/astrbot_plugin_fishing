@@ -328,6 +328,43 @@ class SqliteItemTemplateRepository(AbstractItemTemplateRepository):
             cursor.execute("DELETE FROM accessories WHERE accessory_id = ?", (accessory_id,))
             conn.commit()
 
+    # --- Item Admin CRUD ---
+    def add_item_template(self, data: Dict[str, Any]) -> None:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO items (name, description, rarity, effect_description, item_type, cost, is_consumable, icon_url)
+                VALUES (:name, :description, :rarity, :effect_description, :item_type, :cost, :is_consumable, :icon_url)
+            """, {
+                **data,
+                "is_consumable": 1 if "is_consumable" in data and data["is_consumable"] else 0,
+                "icon_url": data.get("icon_url")
+            })
+            conn.commit()
+
+    def update_item_template(self, item_id: int, data: Dict[str, Any]) -> None:
+        data["item_id"] = item_id
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE items SET
+                    name = :name, description = :description, rarity = :rarity,
+                    effect_description = :effect_description, item_type = :item_type,
+                    cost = :cost, is_consumable = :is_consumable, icon_url = :icon_url
+                WHERE item_id = :item_id
+            """, {
+                **data,
+                "is_consumable": 1 if "is_consumable" in data and data["is_consumable"] else 0,
+                "icon_url": data.get("icon_url")
+            })
+            conn.commit()
+
+    def delete_item_template(self, item_id: int) -> None:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM items WHERE item_id = ?", (item_id,))
+            conn.commit()
+
     def add_title_template(self, data: Dict[str, Any]) -> None:
         with self._get_connection() as conn:
             cursor = conn.cursor()

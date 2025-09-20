@@ -146,7 +146,7 @@ def calculate_dynamic_height(user_data: Dict[str, Any]) -> int:
     # 道具区域高度 - 保守估算
     items = user_data.get('items', [])
     if items:
-        rows = (len(items) + 1) // 2
+        rows = (len(items) + 4) // 5
         avg_height = 130
         item_height = 35 + rows * avg_height + (rows - 1) * 15
     else:
@@ -790,25 +790,27 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     current_y += 35
 
     if items:
-        card_width = (width - 90) // 2
+        card_width = (width - 120) // 5
         card_margin = 15
         row_start_y = current_y
         next_row_start_y = current_y
 
         for i, item in enumerate(items):
-            row = i // 2
-            col = i % 2
+            row = i // 5
+            col = i % 5
             x = 30 + col * (card_width + card_margin)
 
             if col == 0:
                 row_start_y = next_row_start_y
-                left_h = measure_item_card_height(item, card_width)
-                right_index = i + 1
-                if right_index < len(items):
-                    right_h = measure_item_card_height(items[right_index], card_width)
-                else:
-                    right_h = 0
-                row_h = max(left_h, right_h)
+                
+                # Pre-measure card heights for the current row
+                row_heights = []
+                for j in range(5):
+                    idx = i + j
+                    if idx < len(items):
+                        row_heights.append(measure_item_card_height(items[idx], card_width))
+                
+                row_h = max(row_heights) if row_heights else 0
                 y = row_start_y
                 next_row_start_y = row_start_y + row_h + card_margin
                 card_height = row_h
