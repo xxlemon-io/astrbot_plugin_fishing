@@ -233,7 +233,26 @@ class AbstractInventoryRepository(ABC):
     def update_fishing_zone(self, zone: FishingZone) -> None: pass
     # 获取所有钓鱼区域
     @abstractmethod
-    def get_all_fishing_zones(self) -> List[FishingZone]: pass
+    def get_all_zones(self) -> List[FishingZone]: pass
+
+    @abstractmethod
+    def update_zone_configs(self, zone_id: int, configs: str) -> None: pass
+
+    @abstractmethod
+    def create_zone(self, zone_data: Dict[str, Any]) -> FishingZone: pass
+
+    @abstractmethod
+    def update_zone(self, zone_id: int, zone_data: Dict[str, Any]) -> None: pass
+
+    @abstractmethod
+    def delete_zone(self, zone_id: int) -> None: pass
+
+    @abstractmethod
+    def get_specific_fish_ids_for_zone(self, zone_id: int) -> List[int]: pass
+
+    @abstractmethod
+    def update_specific_fish_for_zone(self, zone_id: int, fish_ids: List[int]) -> None: pass
+
     # 获取用户的鱼竿实例
     @abstractmethod
     def update_rod_instance(self, instance): pass

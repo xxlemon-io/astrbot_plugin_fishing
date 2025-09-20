@@ -1,0 +1,237 @@
+{% extends "layout.html" %}
+
+{% block title %}钓鱼区域管理{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>钓鱼区域管理</h2>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createZoneModal">
+            <i class="fas fa-plus"></i> 创建新区域
+        </button>
+    </div>
+    <p>管理游戏中的钓鱼区域。您可以创建、编辑、删除区域，并配置每个区域的详细参数。</p>
+
+    <div id="zones-list">
+        {% for zone in zones %}
+        <div class="card mb-4" id="zone-card-{{ zone.id }}">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>{{ zone.name }} (ID: {{ zone.id }})</h4>
+                <div>
+                    <button class="btn btn-sm btn-primary me-2" onclick="openEditModal({{ zone.id }})"><i class="fas fa-edit"></i> 编辑</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteZone({{ zone.id }})"><i class="fas fa-trash"></i> 删除</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <p><strong>描述:</strong> {{ zone.description }}</p>
+                <p><strong>状态:</strong> 
+                    <span class="badge bg-{{ 'success' if zone.is_active else 'secondary' }}">
+                        {{ '启用' if zone.is_active else '禁用' }}
+                    </span>
+                </p>
+                {% if zone.available_from or zone.available_until %}
+                <p><strong>开放时间:</strong> 
+                    {{ zone.available_from if zone.available_from else '不限' }} - 
+                    {{ zone.available_until if zone.available_until else '不限' }}
+                </p>
+                {% endif %}
+                <p><strong>稀有鱼每日配额:</strong> {{ zone.daily_rare_fish_quota }}</p>
+                <div><strong>限定鱼类 ({{ zone.specific_fish_ids|length }}):</strong>
+                    <ul class="list-group list-group-flush">
+                        {% for fish_id in zone.specific_fish_ids %}
+                            {% for fish in all_fish if fish.fish_id == fish_id %}
+                                <li class="list-group-item">{{ fish.name }} (ID: {{ fish.fish_id }})</li>
+                            {% endfor %}
+                        {% else %}
+                            <li class="list-group-item">无 (使用全局鱼池)</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Create Zone Modal -->
+<div class="modal fade" id="createZoneModal" tabindex="-1" aria-labelledby="createZoneModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createZoneModalLabel">创建新区域</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Form content will be loaded here by JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Zone Modal -->
+<div class="modal fade" id="editZoneModal" tabindex="-1" aria-labelledby="editZoneModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editZoneModalLabel">编辑区域</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editZoneModalBody">
+                <!-- Form content will be loaded here by JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const zonesData = {{ zones|tojson }};
+    const allFishData = {{ all_fish|tojson }};
+
+    function getZoneById(zoneId) {
+        return zonesData.find(z => z.id === zoneId);
+    }
+
+    function renderForm(zone = null) {
+        const isEdit = zone !== null;
+        const rarityDistribution = zone?.configs?.rarity_distribution || [0.5, 0.3, 0.15, 0.04, 0.01];
+        const specificFishIds = zone?.specific_fish_ids || [];
+
+        let fishOptions = allFishData.map(fish => {
+            const selected = specificFishIds.includes(fish.fish_id) ? 'selected' : '';
+            return `<option value="${fish.fish_id}" ${selected}>${fish.name} (ID: ${fish.fish_id})</option>`;
+        }).join('');
+
+        return `
+            <form id="${isEdit ? 'edit' : 'create'}-zone-form">
+                <input type="hidden" name="id" value="${zone?.id || ''}">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label for="id" class="form-label">区域 ID</label>
+                        <input type="number" class="form-control" name="id" value="${zone?.id || ''}" ${isEdit ? 'readonly' : ''} required>
+                    </div>
+                    <div class="col-md-9 mb-3">
+                        <label for="name" class="form-label">区域名称</label>
+                        <input type="text" class="form-control" name="name" value="${zone?.name || ''}" required>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="description" class="form-label">描述</label>
+                    <textarea class="form-control" name="description" rows="2">${zone?.description || ''}</textarea>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="daily_rare_fish_quota" class="form-label">稀有鱼每日配额</label>
+                        <input type="number" class="form-control" name="daily_rare_fish_quota" value="${zone?.daily_rare_fish_quota || 0}">
+                    </div>
+                    <div class="col-md-6 mb-3 form-check form-switch pt-4">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="is_active" ${zone?.is_active ?? true ? 'checked' : ''}>
+                        <label class="form-check-label" for="is_active">启用区域</label>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="available_from" class="form-label">开放时间 (可选)</label>
+                        <input type="datetime-local" class="form-control" name="available_from" value="${zone?.available_from || ''}">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="available_until" class="form-label">结束时间 (可选)</label>
+                        <input type="datetime-local" class="form-control" name="available_until" value="${zone?.available_until || ''}">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label>稀有度分布 (概率总和应为 1)</label>
+                    <div class="row">
+                        ${[...Array(5).keys()].map(i => `
+                            <div class="col">
+                                <label>${i+1} 星</label>
+                                <input type="number" step="0.01" class="form-control rarity-input" name="rarity_${i+1}" value="${rarityDistribution[i]}">
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="specific_fish_ids" class="form-label">限定鱼类 (可多选，不选则为全局鱼池)</label>
+                    <select class="form-control" name="specific_fish_ids" multiple size="8">
+                        ${fishOptions}
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="submit" class="btn btn-primary">${isEdit ? '更新' : '创建'}</button>
+                </div>
+            </form>
+        `;
+    }
+
+    // Populate create form
+    document.getElementById('createZoneModal').querySelector('.modal-body').innerHTML = renderForm();
+
+    document.getElementById('create-zone-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData.entries());
+        data.id = parseInt(data.id);
+        data.daily_rare_fish_quota = parseInt(data.daily_rare_fish_quota);
+        data.is_active = data.is_active === 'on';
+        data.configs = { rarity_distribution: [...Array(5).keys()].map(i => parseFloat(data[`rarity_${i+1}`])) };
+        data.specific_fish_ids = Array.from(this.querySelector('select[name="specific_fish_ids"]').selectedOptions).map(opt => parseInt(opt.value));
+        
+        const response = await fetch('/api/admin/zones', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        const result = await response.json();
+        if (response.ok) {
+            location.reload();
+        } else {
+            alert('创建失败: ' + result.message);
+        }
+    });
+
+    function openEditModal(zoneId) {
+        const zone = getZoneById(zoneId);
+        document.getElementById('editZoneModalBody').innerHTML = renderForm(zone);
+        new bootstrap.Modal(document.getElementById('editZoneModal')).show();
+
+        document.getElementById('edit-zone-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData.entries());
+            data.id = parseInt(data.id);
+            data.daily_rare_fish_quota = parseInt(data.daily_rare_fish_quota);
+            data.is_active = data.is_active === 'on';
+            data.configs = { rarity_distribution: [...Array(5).keys()].map(i => parseFloat(data[`rarity_${i+1}`])) };
+            data.specific_fish_ids = Array.from(this.querySelector('select[name="specific_fish_ids"]').selectedOptions).map(opt => parseInt(opt.value));
+
+            const response = await fetch(`/api/admin/zones/${zoneId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+            const result = await response.json();
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('更新失败: ' + result.message);
+            }
+        });
+    }
+
+    async function deleteZone(zoneId) {
+        if (confirm('确定要删除这个区域吗？')) {
+            const response = await fetch(`/api/admin/zones/${zoneId}`, {
+                method: 'DELETE',
+            });
+            const result = await response.json();
+            if (result.success) {
+                document.getElementById(`zone-card-${zoneId}`).remove();
+            } else {
+                alert('删除失败: ' + result.message);
+            }
+        }
+    }
+</script>
+{% endblock %}

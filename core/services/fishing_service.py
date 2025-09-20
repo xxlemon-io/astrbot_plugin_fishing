@@ -15,6 +15,7 @@ from ..repositories.abstract_repository import (
     AbstractUserBuffRepository,
 )
 from ..domain.models import FishingRecord, TaxRecord
+from ..services.fishing_zone_service import FishingZoneService
 from ..utils import get_now, get_fish_template, get_today, calculate_after_refine
 
 
@@ -28,6 +29,7 @@ class FishingService:
         item_template_repo: AbstractItemTemplateRepository,
         log_repo: AbstractLogRepository,
         buff_repo: AbstractUserBuffRepository,
+        fishing_zone_service: FishingZoneService,
         config: Dict[str, Any],
     ):
         self.user_repo = user_repo
@@ -35,6 +37,7 @@ class FishingService:
         self.item_template_repo = item_template_repo
         self.log_repo = log_repo
         self.buff_repo = buff_repo
+        self.fishing_zone_service = fishing_zone_service
         self.config = config
 
         self.today = get_today()
@@ -211,61 +214,46 @@ class FishingService:
 
         # 4. 成功，生成渔获
         # 设置稀有度分布
-        rarity_weights = {
-            1: [0.65, 0.25, 0.09, 0.01, 0],  # 区域一：4星概率极低，5星为0
-            2: [0.5, 0.3, 0.16, 0.039, 0.001],  # 区域二：提升4星，引入极低概率5星
-            3: [0.5, 0.3, 0.15, 0.045, 0.005]  # 区域三：大幅提升4星和5星
-        }
-        current_weights = rarity_weights.get(user.fishing_zone_id, rarity_weights[1])
-        # 根据权重生成稀有度
-        rarity_distribution = current_weights.copy()
-        # 应用稀有度加成
-        if rare_chance > 0.0:
-            # 增加稀有鱼出现的几率
-            rarity_distribution = [x + rare_chance for x in rarity_distribution]
-            # 归一化概率分布
-            total = sum(rarity_distribution)
-            rarity_distribution = [x / total for x in rarity_distribution]
+        # 应用鱼饵效果
+        base_rarity_distribution = self.config.get(
+            "fish_rarity_distribution", [0.5, 0.3, 0.15, 0.04, 0.01]
+        )
+        rarity_distribution = self._apply_bait_effects_on_rarity(
+            base_rarity_distribution, bait_template
+        )
+        else:
+            # 如果没有鱼饵，则使用默认的稀有度分布
+            strategy = self.fishing_zone_service.get_strategy(user.fishing_zone_id)
+            rarity_distribution = strategy.get_fish_rarity_distribution(user)
+        
         zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
         is_rare_fish_available = zone.rare_fish_caught_today < zone.daily_rare_fish_quota
-        if not is_rare_fish_available or user.fishing_zone_id == 1:
-            # 如果稀有鱼已达上限或者是区域一，则将5星鱼的权重设为0
+        
+        if not is_rare_fish_available:
+            # 如果稀有鱼已达上限，则将4星和5星鱼的权重设为0
+            rarity_distribution[3] = 0.0
             rarity_distribution[4] = 0.0
             # 重新归一化概率分布
             total = sum(rarity_distribution)
             if total > 0:
                 rarity_distribution = [x / total for x in rarity_distribution]
-        rarity = random.choices(
-            [1, 2, 3, 4, 5],
-            weights=rarity_distribution,
-            k=1
-        )[0]
-        fish_list = self.item_template_repo.get_fishes_by_rarity(rarity)
-        # 从指定稀有度的鱼类中随机选择一条，并同时应用金币加成 -> 优先选取金币值高的
-        fish_template = None
-        if fish_list:
-            fish_template = get_fish_template(fish_list, coins_chance)
-        else:
-            # 鱼列表为空的备选方案
-            fish_template = self.item_template_repo.get_random_fish()
+        
+        rarity = random.choices(range(1, len(rarity_distribution) + 1), weights=rarity_distribution, k=1)[0]
+        fish_template = self._get_fish_template(rarity, zone, coins_chance)
 
         if not fish_template:
-             return {"success": False, "message": "错误：鱼类模板库为空！"}
+             return {"success": False, "message": "错误：当前条件下没有可钓的鱼！"}
 
         # 如果有垃圾鱼减少修正，则应用，价值 < 5则被视为垃圾鱼
         if garbage_reduction_modifier is not None and fish_template.base_value < 5:
             # 根据垃圾鱼减少修正值决定是否重新选择一次
             if random.random() < garbage_reduction_modifier:
                 # 重新选择一条鱼
-                new_rarity = random.choices(
-                    [1, 2, 3, 4, 5],
-                    weights=rarity_distribution,
-                    k=1
-                )[0]
-                new_fish_list = self.item_template_repo.get_fishes_by_rarity(new_rarity)
+                new_rarity = random.choices(range(1, len(rarity_distribution) + 1), weights=rarity_distribution, k=1)[0]
+                new_fish_template = self._get_fish_template(new_rarity, zone, coins_chance)
 
-                if new_fish_list:
-                    fish_template = get_fish_template(new_fish_list, coins_chance)
+                if new_fish_template:
+                    fish_template = new_fish_template
 
         # 计算最终属性
         weight = random.randint(fish_template.min_weight, fish_template.max_weight)
@@ -489,6 +477,26 @@ class FishingService:
             "zones": zones_info
         }
 
+    def _get_fish_template(self, rarity: int, zone: FishingZone, coins_chance: float):
+        """根据稀有度和区域配置获取鱼类模板"""
+        
+        # 检查 FishingZone 对象是否有 'specific_fish_ids' 属性
+        specific_fish_ids = getattr(zone, 'specific_fish_ids', [])
+
+        if specific_fish_ids:
+            # 如果是区域限定鱼，那么就在限定的鱼里面抽
+            fish_list = [self.item_template_repo.get_fish_by_id(fish_id) for fish_id in specific_fish_ids]
+            fish_list = [fish for fish in fish_list if fish and fish.rarity == rarity]
+        else:
+            # 否则就在全局鱼里面抽
+            fish_list = self.item_template_repo.get_fishes_by_rarity(rarity)
+
+        if not fish_list:
+            # 如果限定鱼或全局鱼列表为空，则从所有鱼中随机抽取一条
+            return self.item_template_repo.get_random_fish(rarity)
+
+        return get_fish_template(fish_list, coins_chance)
+
     def set_user_fishing_zone(self, user_id: str, zone_id: int) -> Dict[str, Any]:
         """
         设置用户的钓鱼区域。
@@ -512,15 +520,6 @@ class FishingService:
         self.user_repo.update(user)
 
         return {"success": True, "message": f"✅已将钓鱼区域设置为 {zone.name}"}
-
-    def on_load(self, area2num: int, area3num: int):
-        zone2 = self.inventory_repo.get_zone_by_id(2)
-        zone3 = self.inventory_repo.get_zone_by_id(3)
-        zone2.daily_rare_fish_quota = area2num
-        zone3.daily_rare_fish_quota = area3num
-        self.inventory_repo.update_fishing_zone(zone2)
-        self.inventory_repo.update_fishing_zone(zone3)
-        logger.info(f"钓鱼区域2和3的今日稀有鱼捕获数量已加载: {area2num}, {area3num}")
 
     def apply_daily_taxes(self) -> None:
         """对所有高价值用户征收每日税收。"""
