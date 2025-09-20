@@ -102,7 +102,10 @@ class FishingZoneService:
                 "is_active": zone.is_active,
                 "available_from": zone.available_from.isoformat() if zone.available_from else None,
                 "available_until": zone.available_until.isoformat() if zone.available_until else None,
-                "specific_fish_ids": specific_fish_ids
+                "specific_fish_ids": specific_fish_ids,
+                "required_item_id": zone.required_item_id,
+                "requires_pass": zone.requires_pass,
+                "fishing_cost": zone.fishing_cost
             })
         return zones_data
 

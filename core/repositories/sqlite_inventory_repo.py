@@ -477,8 +477,8 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor = conn.cursor()
             try:
                 cursor.execute("""
-                    INSERT INTO fishing_zones (id, name, description, daily_rare_fish_quota, configs, is_active, available_from, available_until)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO fishing_zones (id, name, description, daily_rare_fish_quota, configs, is_active, available_from, available_until, required_item_id, requires_pass, fishing_cost)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     zone_data['id'],
                     zone_data['name'],
@@ -487,7 +487,10 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                     json.dumps(zone_data.get('configs', {})),
                     zone_data.get('is_active', True),
                     zone_data.get('available_from'),
-                    zone_data.get('available_until')
+                    zone_data.get('available_until'),
+                    zone_data.get('required_item_id'),
+                    zone_data.get('requires_pass', False),
+                    zone_data.get('fishing_cost', 10)
                 ))
                 conn.commit()
             except sqlite3.IntegrityError as e:
@@ -503,7 +506,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE fishing_zones
-                SET name = ?, description = ?, daily_rare_fish_quota = ?, configs = ?, is_active = ?, available_from = ?, available_until = ?
+                SET name = ?, description = ?, daily_rare_fish_quota = ?, configs = ?, is_active = ?, available_from = ?, available_until = ?, required_item_id = ?, requires_pass = ?, fishing_cost = ?
                 WHERE id = ?
             """, (
                 zone_data['name'],
@@ -513,6 +516,9 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                 zone_data.get('is_active', True),
                 zone_data.get('available_from'),
                 zone_data.get('available_until'),
+                zone_data.get('required_item_id'),
+                zone_data.get('requires_pass', False),
+                zone_data.get('fishing_cost', 10),
                 zone_id
             ))
             conn.commit()
