@@ -1,7 +1,8 @@
 import sqlite3
 import threading
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from datetime import datetime
+import json
 
 # 导入抽象基类和领域模型
 from .abstract_repository import AbstractInventoryRepository
@@ -411,7 +412,19 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor.execute("SELECT * FROM fishing_zones WHERE id = ?", (zone_id,))
             row = cursor.fetchone()
             if row:
-                return FishingZone(**row)
+                row_dict = dict(row)
+                if 'configs' in row_dict and isinstance(row_dict['configs'], str):
+                    row_dict['configs'] = json.loads(row_dict['configs'])
+                for key in ('available_from', 'available_until'):
+                    val = row_dict.get(key)
+                    if isinstance(val, str) and val:
+                        try:
+                            row_dict[key] = datetime.fromisoformat(val)
+                        except Exception:
+                            row_dict[key] = None
+                zone = FishingZone(**row_dict)
+                zone.specific_fish_ids = self.get_specific_fish_ids_for_zone(zone.id)
+                return zone
             else:
                 raise ValueError(f"钓鱼区域ID {zone_id} 不存在。")
     def update_fishing_zone(self, zone: FishingZone) -> None:
@@ -425,12 +438,111 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             """, (zone.name, zone.description, zone.daily_rare_fish_quota, zone.rare_fish_caught_today, zone.id))
             conn.commit()
 
-    def get_all_fishing_zones(self) -> List[FishingZone]:
+    def get_all_zones(self) -> List[FishingZone]:
         """获取所有钓鱼区域信息"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM fishing_zones")
-            return [FishingZone(**row) for row in cursor.fetchall()]
+            
+            zones = []
+            for row in cursor.fetchall():
+                row_dict = dict(row)
+                if 'configs' in row_dict and isinstance(row_dict['configs'], str):
+                    row_dict['configs'] = json.loads(row_dict['configs'])
+                # 解析时间字段
+                for key in ('available_from', 'available_until'):
+                    val = row_dict.get(key)
+                    if isinstance(val, str) and val:
+                        try:
+                            row_dict[key] = datetime.fromisoformat(val)
+                        except Exception:
+                            row_dict[key] = None
+                zone = FishingZone(**row_dict)
+                # 加载限定鱼
+                zone.specific_fish_ids = self.get_specific_fish_ids_for_zone(zone.id)
+                zones.append(zone)
+            return zones
+
+    def update_zone_configs(self, zone_id: int, configs: str) -> None:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE fishing_zones SET configs = ? WHERE id = ?",
+                (configs, zone_id)
+            )
+            conn.commit()
+
+    def create_zone(self, zone_data: Dict[str, Any]) -> FishingZone:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("""
+                    INSERT INTO fishing_zones (id, name, description, daily_rare_fish_quota, configs, is_active, available_from, available_until, required_item_id, requires_pass, fishing_cost)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    zone_data['id'],
+                    zone_data['name'],
+                    zone_data['description'],
+                    zone_data['daily_rare_fish_quota'],
+                    json.dumps(zone_data.get('configs', {})),
+                    zone_data.get('is_active', True),
+                    zone_data.get('available_from'),
+                    zone_data.get('available_until'),
+                    zone_data.get('required_item_id'),
+                    zone_data.get('requires_pass', False),
+                    zone_data.get('fishing_cost', 10)
+                ))
+                conn.commit()
+            except sqlite3.IntegrityError as e:
+                if "UNIQUE constraint failed: fishing_zones.id" in str(e):
+                    raise ValueError(f"钓鱼区域 ID {zone_data['id']} 已存在。")
+                else:
+                    raise
+            
+            return self.get_zone_by_id(zone_data['id'])
+
+    def update_zone(self, zone_id: int, zone_data: Dict[str, Any]) -> None:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE fishing_zones
+                SET name = ?, description = ?, daily_rare_fish_quota = ?, configs = ?, is_active = ?, available_from = ?, available_until = ?, required_item_id = ?, requires_pass = ?, fishing_cost = ?
+                WHERE id = ?
+            """, (
+                zone_data['name'],
+                zone_data['description'],
+                zone_data['daily_rare_fish_quota'],
+                json.dumps(zone_data.get('configs', {})),
+                zone_data.get('is_active', True),
+                zone_data.get('available_from'),
+                zone_data.get('available_until'),
+                zone_data.get('required_item_id'),
+                zone_data.get('requires_pass', False),
+                zone_data.get('fishing_cost', 10),
+                zone_id
+            ))
+            conn.commit()
+
+    def delete_zone(self, zone_id: int) -> None:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM fishing_zones WHERE id = ?", (zone_id,))
+            conn.commit()
+
+    def get_specific_fish_ids_for_zone(self, zone_id: int) -> List[int]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT fish_id FROM zone_fish_mapping WHERE zone_id = ?", (zone_id,))
+            return [row[0] for row in cursor.fetchall()]
+
+    def update_specific_fish_for_zone(self, zone_id: int, fish_ids: List[int]) -> None:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM zone_fish_mapping WHERE zone_id = ?", (zone_id,))
+            if fish_ids:
+                cursor.executemany("INSERT INTO zone_fish_mapping (zone_id, fish_id) VALUES (?, ?)",
+                                   [(zone_id, fish_id) for fish_id in fish_ids])
+            conn.commit()
 
     def update_rod_instance(self, rod_instance: UserRodInstance):
         """更新钓竿实例信息"""

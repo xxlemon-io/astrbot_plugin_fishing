@@ -292,6 +292,21 @@ class FishingZone:
     daily_rare_fish_quota: int
     # 今天已被钓走的稀有鱼数量
     rare_fish_caught_today: int = 0
+    # 区域的特定配置
+    configs: Dict[str, Any] = field(default_factory=dict)
+    is_active: bool = True
+    available_from: Optional[datetime] = None
+    available_until: Optional[datetime] = None
+    specific_fish_ids: List[int] = field(default_factory=list)
+    # 通行证要求相关字段
+    required_item_id: Optional[int] = None  # 需要的通行证道具ID
+    requires_pass: bool = False  # 是否需要通行证
+    # 钓鱼消耗相关字段
+    fishing_cost: int = 10  # 在该区域钓鱼消耗的金币
+
+    def __post_init__(self):
+        if isinstance(self.is_active, int):
+            self.is_active = bool(self.is_active)
 
     def __getitem__(self, item):
         """允许通过属性名访问字段"""

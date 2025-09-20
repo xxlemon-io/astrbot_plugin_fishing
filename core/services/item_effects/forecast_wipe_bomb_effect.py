@@ -1,8 +1,8 @@
 from typing import Dict, Any
 
 from .abstract_effect import AbstractItemEffect
-from ....core.domain.models import User, Item
-from ....core.services.game_mechanics_service import GameMechanicsService
+from ...domain.models import User, Item
+from ..game_mechanics_service import GameMechanicsService
 
 
 class ForecastWipeBombEffect(AbstractItemEffect):
@@ -11,9 +11,10 @@ class ForecastWipeBombEffect(AbstractItemEffect):
     """
     effect_type = "FORECAST_WIPE_BOMB"
 
-    def __init__(self, game_mechanics_service: GameMechanicsService, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, user_repo=None, buff_repo=None, **kwargs):
+        super().__init__(user_repo, buff_repo, **kwargs)
         # 效果处理器需要依赖 GameMechanicsService 来执行预测逻辑
+        game_mechanics_service = kwargs.get("game_mechanics_service")
         if not game_mechanics_service:
             raise ValueError("GameMechanicsService 实例是必需的。")
         self.game_mechanics_service = game_mechanics_service

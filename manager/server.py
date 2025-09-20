@@ -154,6 +154,77 @@ async def delete_fish(fish_id):
     await flash(f"鱼类ID {fish_id} 已删除！", "warning")
     return redirect(url_for("admin_bp.manage_fish"))
 
+@admin_bp.route("/fish/csv/template")
+@login_required
+async def fish_csv_template():
+    header = ["name", "description", "rarity", "base_value", "min_weight", "max_weight", "icon_url"]
+    sample = ["示例鱼", "一条很普通的示例鱼", "1", "10", "100", "500", ""]
+    
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(header)
+    writer.writerow(sample)
+    csv_data = output.getvalue()
+
+    from quart import Response
+    return Response(
+        csv_data,
+        headers={
+            "Content-Type": "text/csv; charset=utf-8",
+            "Content-Disposition": "attachment; filename=fish_template.csv",
+        },
+    )
+
+@admin_bp.route("/fish/csv/import", methods=["POST"])
+@login_required
+async def import_fish_csv():
+    try:
+        files = await request.files
+        file = files.get("file")
+        if not file:
+            await flash("未选择文件", "danger")
+            return redirect(url_for("admin_bp.manage_fish"))
+
+        content = file.read().decode("utf-8-sig")
+        reader = csv.DictReader(io.StringIO(content))
+        
+        required_cols = {"name", "rarity", "base_value", "min_weight", "max_weight"}
+        if not required_cols.issubset(set([c.strip() for c in reader.fieldnames or []])):
+            await flash("CSV列缺失，至少需要: name, rarity, base_value, min_weight, max_weight", "danger")
+            return redirect(url_for("admin_bp.manage_fish"))
+
+        item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
+        success_count = 0
+        fail_count = 0
+        for idx, row in enumerate(reader, start=2):
+            try:
+                data = {
+                    "name": (row.get("name") or "").strip(),
+                    "description": (row.get("description") or "").strip() or None,
+                    "rarity": int(row.get("rarity") or 1),
+                    "base_value": int(row.get("base_value") or 0),
+                    "min_weight": int(row.get("min_weight") or 1),
+                    "max_weight": int(row.get("max_weight") or 100),
+                    "icon_url": (row.get("icon_url") or "").strip() or None,
+                }
+                if not data["name"]:
+                    raise ValueError("缺少名称")
+                item_template_service.add_fish_template(data)
+                success_count += 1
+            except Exception as e:
+                logger.error(f"导入鱼类第{idx}行失败: {e}")
+                fail_count += 1
+        
+        if success_count:
+            await flash(f"成功导入 {success_count} 条鱼类记录" + (f"，失败 {fail_count} 条" if fail_count else ""), "success")
+        else:
+            await flash("未成功导入任何鱼类记录", "warning")
+    except Exception as e:
+        logger.error(f"导入鱼类CSV出错: {e}")
+        logger.error(traceback.format_exc())
+        await flash(f"导入失败: {str(e)}", "danger")
+    return redirect(url_for("admin_bp.manage_fish"))
+
 # --- 鱼竿管理 (Rods) ---
 @admin_bp.route("/rods")
 @login_required
@@ -1046,3 +1117,95 @@ async def delete_item(item_id):
     except Exception as e:
         await flash(f"删除道具模板失败: {str(e)}", "danger")
     return redirect(url_for("admin_bp.manage_items"))
+
+@admin_bp.route('/zones', methods=['GET'])
+@login_required
+async def manage_zones():
+    fishing_zone_service = current_app.config["FISHING_ZONE_SERVICE"]
+    item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
+    zones = fishing_zone_service.get_all_zones()
+    all_fish = item_template_service.get_all_fish()
+    all_items = item_template_service.get_all_items()
+    return await render_template('zones.html', zones=zones, all_fish=all_fish, all_items=all_items)
+
+@admin_bp.route('/api/zones', methods=['POST'])
+@login_required
+async def create_zone_api():
+    try:
+        data = await request.get_json()
+        fishing_zone_service = current_app.config["FISHING_ZONE_SERVICE"]
+        
+        # --- Enhanced Validation ---
+        errors = {}
+        zone_id = data.get('id')
+        if not zone_id or not str(zone_id).isdigit() or int(zone_id) <= 0:
+            errors['id'] = '区域 ID 必须是一个正整数'
+        
+        if not data.get('name'):
+            errors['name'] = '区域名称不能为空'
+            
+        quota = data.get('daily_rare_fish_quota')
+        if quota is None or not str(quota).isdigit() or int(quota) < 0:
+            errors['daily_rare_fish_quota'] = '稀有鱼每日配额必须是一个非负整数'
+            
+        fishing_cost = data.get('fishing_cost')
+        if fishing_cost is None or not str(fishing_cost).isdigit() or int(fishing_cost) < 1:
+            errors['fishing_cost'] = '钓鱼消耗必须是一个正整数'
+        
+        if errors:
+            return jsonify({"success": False, "message": "数据校验失败", "errors": errors}), 400
+        # --- End of Validation ---
+
+        new_zone = fishing_zone_service.create_zone(data)
+        # create_zone 已返回字典，直接返回
+        return jsonify({"success": True, "message": "钓鱼区域创建成功", "zone": new_zone})
+    except ValueError as e:
+        return jsonify({"success": False, "message": str(e)}), 409 # 409 Conflict
+    except Exception as e:
+        logger.error(f"创建钓鱼区域失败: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@admin_bp.route('/api/zones/<int:zone_id>', methods=['PUT'])
+@login_required
+async def update_zone_api(zone_id):
+    try:
+        data = await request.get_json()
+        fishing_zone_service = current_app.config["FISHING_ZONE_SERVICE"]
+        
+        # --- Enhanced Validation ---
+        errors = {}
+        if not data.get('name'):
+            errors['name'] = '区域名称不能为空'
+            
+        quota = data.get('daily_rare_fish_quota')
+        if quota is None or not str(quota).isdigit() or int(quota) < 0:
+            errors['daily_rare_fish_quota'] = '稀有鱼每日配额必须是一个非负整数'
+            
+        fishing_cost = data.get('fishing_cost')
+        if fishing_cost is None or not str(fishing_cost).isdigit() or int(fishing_cost) < 1:
+            errors['fishing_cost'] = '钓鱼消耗必须是一个正整数'
+
+        if errors:
+            return jsonify({"success": False, "message": "数据校验失败", "errors": errors}), 400
+        # --- End of Validation ---
+
+        fishing_zone_service.update_zone(zone_id, data)
+        # 前端会刷新页面，这里不必返回完整对象
+        return jsonify({"success": True, "message": "钓鱼区域更新成功"})
+    except Exception as e:
+        logger.error(f"更新钓鱼区域失败: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@admin_bp.route('/api/zones/<int:zone_id>', methods=['DELETE'])
+@login_required
+async def delete_zone_api(zone_id):
+    try:
+        fishing_zone_service = current_app.config["FISHING_ZONE_SERVICE"]
+        fishing_zone_service.delete_zone(zone_id)
+        return jsonify({"success": True, "message": "钓鱼区域删除成功"})
+    except Exception as e:
+        logger.error(f"删除钓鱼区域失败: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({"success": False, "message": str(e)}), 500

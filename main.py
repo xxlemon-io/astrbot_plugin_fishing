@@ -33,6 +33,7 @@ from .core.services.gacha_service import GachaService
 from .core.services.achievement_service import AchievementService
 from .core.services.game_mechanics_service import GameMechanicsService
 from .core.services.effect_manager import EffectManager
+from .core.services.fishing_zone_service import FishingZoneService
 # 其他
 
 from .core.database.migration import run_migrations
@@ -113,19 +114,9 @@ class FishingPlugin(Star):
 
         # --- 3. 组合根：实例化所有服务层，并注入依赖 ---
         # 3.1 核心服务必须在效果管理器之前实例化，以解决依赖问题
+        self.fishing_zone_service = FishingZoneService(self.item_template_repo, self.inventory_repo, self.game_config)
         self.game_mechanics_service = GameMechanicsService(self.user_repo, self.log_repo, self.inventory_repo,
                                                            self.item_template_repo, self.buff_repo, self.game_config)
-
-        # 3.2 实例化效果管理器并自动注册所有效果
-        self.effect_manager = EffectManager()
-        self.effect_manager.discover_and_register(
-            effects_package_path="data.plugins.astrbot_plugin_fishing.core.services.item_effects",
-            dependencies={
-                "user_repo": self.user_repo, 
-                "buff_repo": self.buff_repo,
-                "game_mechanics_service": self.game_mechanics_service
-            },
-        )
 
         # 3.3 实例化其他核心服务
         self.gacha_service = GachaService(self.gacha_repo, self.user_repo, self.inventory_repo, self.item_template_repo,
@@ -136,7 +127,7 @@ class FishingPlugin(Star):
             self.inventory_repo,
             self.user_repo,
             self.item_template_repo,
-            self.effect_manager,
+            None,  # 先设为None，稍后设置
             self.game_mechanics_service,
             self.game_config,
         )
@@ -151,8 +142,24 @@ class FishingPlugin(Star):
             self.item_template_repo,
             self.log_repo,
             self.buff_repo,
+            self.fishing_zone_service,
             self.game_config,
         )
+
+        # 3.2 实例化效果管理器并自动注册所有效果（需要在fishing_service之后）
+        self.effect_manager = EffectManager()
+        self.effect_manager.discover_and_register(
+            effects_package_path="data.plugins.astrbot_plugin_fishing.core.services.item_effects",
+            dependencies={
+                "user_repo": self.user_repo, 
+                "buff_repo": self.buff_repo,
+                "game_mechanics_service": self.game_mechanics_service,
+                "fishing_service": self.fishing_service
+            },
+        )
+        
+        # 设置inventory_service的effect_manager
+        self.inventory_service.effect_manager = self.effect_manager
 
         self.item_template_service = ItemTemplateService(self.item_template_repo, self.gacha_repo)
 
@@ -168,7 +175,7 @@ class FishingPlugin(Star):
             data_setup_service.create_initial_items()
         except Exception:
             pass
-        self.fishing_service.on_load(area2num=self.area2num, area3num=self.area3num)
+        # 已移除按配置文件注入区域配额的旧逻辑（on_load）
 
         # --- 6. (临时) 实例化数据服务，供调试命令使用 ---
         self.data_setup_service = data_setup_service
@@ -253,7 +260,11 @@ class FishingPlugin(Star):
         result = self.fishing_service.go_fish(user_id)
         if result:
             if result["success"]:
-                message = f"🎣 恭喜你钓到了：{result['fish']['name']}\n✨品质：{'★' * result['fish']['rarity']} \n⚖️重量：{result['fish']['weight']} 克\n💰价值：{result['fish']['value']} 金币"
+                # 获取当前区域的钓鱼消耗
+                zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+                fishing_cost = zone.fishing_cost if zone else 10
+                
+                message = f"🎣 恭喜你钓到了：{result['fish']['name']}\n✨品质：{'★' * result['fish']['rarity']} \n⚖️重量：{result['fish']['weight']} 克\n💰价值：{result['fish']['value']} 金币\n💸消耗：{fishing_cost} 金币/次"
                 
                 # 添加装备损坏消息
                 if "equipment_broken_messages" in result:
@@ -262,7 +273,11 @@ class FishingPlugin(Star):
                 
                 yield event.plain_result(message)
             else:
-                yield event.plain_result(result["message"])
+                # 即使钓鱼失败，也显示消耗的金币
+                zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+                fishing_cost = zone.fishing_cost if zone else 10
+                message = f"{result['message']}\n💸消耗：{fishing_cost} 金币/次"
+                yield event.plain_result(message)
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
@@ -1435,10 +1450,28 @@ class FishingPlugin(Star):
                     zones = result.get("zones", [])
                     message = f"【🌊 钓鱼区域】\n"
                     for zone in zones:
-                        message += f"区域名称: {zone['name']} (ID: {zone['zone_id']}) {'✅' if zone['whether_in_use'] else ''}\n"
+                        # 区域状态标识
+                        status_icons = []
+                        if zone['whether_in_use']:
+                            status_icons.append("✅")
+                        if not zone['is_active']:
+                            status_icons.append("🚫")
+                        if zone.get('requires_pass'):
+                            status_icons.append("🔑")
+                        
+                        status_text = " ".join(status_icons) if status_icons else ""
+                        
+                        message += f"区域名称: {zone['name']} (ID: {zone['zone_id']}) {status_text}\n"
                         message += f"描述: {zone['description']}\n"
+                        message += f"💰 钓鱼消耗: {zone.get('fishing_cost', 10)} 金币/次\n"
+                        
+                        if zone.get('requires_pass'):
+                            message += f"🔑 需要通行证才能进入\n"
+                        
                         if zone['zone_id'] >= 2:
-                            message += f"剩余稀有鱼类数量: {zone['daily_rare_fish_quota'] - zone['rare_fish_caught_today']}）\n"
+                            message += f"剩余稀有鱼类数量: {zone['daily_rare_fish_quota'] - zone['rare_fish_caught_today']}\n"
+                        message += "\n"
+                    
                     message += "使用「/钓鱼区域 ID」命令切换钓鱼区域。\n"
                     yield event.plain_result(message)
                 else:
@@ -1451,9 +1484,16 @@ class FishingPlugin(Star):
             yield event.plain_result("❌ 钓鱼区域 ID 必须是数字，请检查后重试。")
             return
         zone_id = int(zone_id)
-        if zone_id not in [1, 2, 3]:
-            yield event.plain_result("❌ 钓鱼区域 ID 必须是 1、2 或 3，请检查后重试。")
+        
+        # 动态获取所有有效的区域ID
+        all_zones = self.fishing_zone_service.get_all_zones()
+        valid_zone_ids = [zone['id'] for zone in all_zones]
+        
+        if zone_id not in valid_zone_ids:
+            yield event.plain_result(f"❌ 无效的钓鱼区域 ID。有效ID为: {', '.join(map(str, valid_zone_ids))}")
+            yield event.plain_result("💡 请使用「/钓鱼区域 <ID>」命令指定区域ID")
             return
+        
         # 切换用户的钓鱼区域
         result = self.fishing_service.set_user_fishing_zone(user_id, zone_id)
         yield event.plain_result(result["message"] if result else "❌ 出错啦！请稍后再试。")
@@ -1821,6 +1861,7 @@ class FishingPlugin(Star):
                 "item_template_service": self.item_template_service,
                 "user_service": self.user_service,
                 "market_service": self.market_service,
+                "fishing_zone_service": self.fishing_zone_service,
             }
             app = create_app(
                 secret_key=self.secret_key,
@@ -1958,3 +1999,69 @@ class FishingPlugin(Star):
             yield event.plain_result("✅ 您已成功结束代理。")
         else:
             yield event.plain_result("❌ 您当前没有在代理任何用户。")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("设置区域通行证")
+    async def set_zone_pass_requirement(self, event: AstrMessageEvent):
+        """设置钓鱼区域的通行证要求"""
+        args = event.message_str.split(" ")
+        if len(args) < 3:
+            yield event.plain_result("❌ 用法：/设置区域通行证 <区域ID> <道具ID>")
+            yield event.plain_result("示例：/设置区域通行证 4 10")
+            return
+        
+        try:
+            zone_id = int(args[1])
+            item_id = int(args[2])
+        except ValueError:
+            yield event.plain_result("❌ 参数必须是数字")
+            return
+        
+        # 检查区域是否存在
+        try:
+            zone = self.inventory_repo.get_zone_by_id(zone_id)
+        except ValueError:
+            yield event.plain_result(f"❌ 区域ID {zone_id} 不存在")
+            return
+        
+        # 检查道具是否存在
+        item = self.item_template_repo.get_item_by_id(item_id)
+        if not item:
+            yield event.plain_result(f"❌ 道具ID {item_id} 不存在")
+            return
+        
+        # 更新区域设置
+        zone.required_item_id = item_id
+        zone.requires_pass = True
+        self.inventory_repo.update_fishing_zone(zone)
+        
+        yield event.plain_result(f"✅ 已设置区域 {zone.name} 需要 {item.name}")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("清除区域通行证")
+    async def clear_zone_pass_requirement(self, event: AstrMessageEvent):
+        """清除钓鱼区域的通行证要求"""
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 用法：/清除区域通行证 <区域ID>")
+            return
+        
+        try:
+            zone_id = int(args[1])
+        except ValueError:
+            yield event.plain_result("❌ 区域ID必须是数字")
+            return
+        
+        # 检查区域是否存在
+        try:
+            zone = self.inventory_repo.get_zone_by_id(zone_id)
+        except ValueError:
+            yield event.plain_result(f"❌ 区域ID {zone_id} 不存在")
+            return
+        
+        # 清除通行证要求
+        zone.required_item_id = None
+        zone.requires_pass = False
+        self.inventory_repo.update_fishing_zone(zone)
+        
+        yield event.plain_result(f"✅ 已清除区域 {zone.name} 的通行证要求")

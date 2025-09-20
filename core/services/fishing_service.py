@@ -14,7 +14,8 @@ from ..repositories.abstract_repository import (
     AbstractLogRepository,
     AbstractUserBuffRepository,
 )
-from ..domain.models import FishingRecord, TaxRecord
+from ..domain.models import FishingRecord, TaxRecord, FishingZone
+from ..services.fishing_zone_service import FishingZoneService
 from ..utils import get_now, get_fish_template, get_today, calculate_after_refine
 
 
@@ -28,6 +29,7 @@ class FishingService:
         item_template_repo: AbstractItemTemplateRepository,
         log_repo: AbstractLogRepository,
         buff_repo: AbstractUserBuffRepository,
+        fishing_zone_service: FishingZoneService,
         config: Dict[str, Any],
     ):
         self.user_repo = user_repo
@@ -35,6 +37,7 @@ class FishingService:
         self.item_template_repo = item_template_repo
         self.log_repo = log_repo
         self.buff_repo = buff_repo
+        self.fishing_zone_service = fishing_zone_service
         self.config = config
 
         self.today = get_today()
@@ -43,6 +46,7 @@ class FishingService:
         self.auto_fishing_running = False
         # 可选的消息通知回调：签名 (user_id: str, message: str) -> None
         self._notifier = None
+        
 
     def register_notifier(self, notifier):
         """
@@ -87,8 +91,12 @@ class FishingService:
         if not user:
             return {"success": False, "message": "用户不存在，无法钓鱼。"}
 
-        # 1. 检查成本
-        fishing_cost = self.config.get("fishing", {}).get("cost", 10) + (user.fishing_zone_id - 1) * 50
+        # 1. 检查成本（从区域配置中读取）
+        zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+        if not zone:
+            return {"success": False, "message": "钓鱼区域不存在"}
+        
+        fishing_cost = zone.fishing_cost
         if not user.can_afford(fishing_cost):
             return {"success": False, "message": f"金币不足，需要 {fishing_cost} 金币。"}
 
@@ -210,62 +218,38 @@ class FishingService:
             return {"success": False, "message": "💨 什么都没钓到..."}
 
         # 4. 成功，生成渔获
-        # 设置稀有度分布
-        rarity_weights = {
-            1: [0.65, 0.25, 0.09, 0.01, 0],  # 区域一：4星概率极低，5星为0
-            2: [0.5, 0.3, 0.16, 0.039, 0.001],  # 区域二：提升4星，引入极低概率5星
-            3: [0.5, 0.3, 0.15, 0.045, 0.005]  # 区域三：大幅提升4星和5星
-        }
-        current_weights = rarity_weights.get(user.fishing_zone_id, rarity_weights[1])
-        # 根据权重生成稀有度
-        rarity_distribution = current_weights.copy()
-        # 应用稀有度加成
-        if rare_chance > 0.0:
-            # 增加稀有鱼出现的几率
-            rarity_distribution = [x + rare_chance for x in rarity_distribution]
-            # 归一化概率分布
-            total = sum(rarity_distribution)
-            rarity_distribution = [x / total for x in rarity_distribution]
+        # 使用区域策略获取基础稀有度分布
+        strategy = self.fishing_zone_service.get_strategy(user.fishing_zone_id)
+        rarity_distribution = strategy.get_fish_rarity_distribution(user)
+        
         zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
         is_rare_fish_available = zone.rare_fish_caught_today < zone.daily_rare_fish_quota
-        if not is_rare_fish_available or user.fishing_zone_id == 1:
-            # 如果稀有鱼已达上限或者是区域一，则将5星鱼的权重设为0
+        
+        if not is_rare_fish_available:
+            # 稀有鱼定义：5星
+            # 若达到配额，仅屏蔽5星概率，其它星级不受影响
             rarity_distribution[4] = 0.0
             # 重新归一化概率分布
             total = sum(rarity_distribution)
             if total > 0:
                 rarity_distribution = [x / total for x in rarity_distribution]
-        rarity = random.choices(
-            [1, 2, 3, 4, 5],
-            weights=rarity_distribution,
-            k=1
-        )[0]
-        fish_list = self.item_template_repo.get_fishes_by_rarity(rarity)
-        # 从指定稀有度的鱼类中随机选择一条，并同时应用金币加成 -> 优先选取金币值高的
-        fish_template = None
-        if fish_list:
-            fish_template = get_fish_template(fish_list, coins_chance)
-        else:
-            # 鱼列表为空的备选方案
-            fish_template = self.item_template_repo.get_random_fish()
+        
+        rarity = random.choices(range(1, len(rarity_distribution) + 1), weights=rarity_distribution, k=1)[0]
+        fish_template = self._get_fish_template(rarity, zone, coins_chance)
 
         if not fish_template:
-             return {"success": False, "message": "错误：鱼类模板库为空！"}
+             return {"success": False, "message": "错误：当前条件下没有可钓的鱼！"}
 
         # 如果有垃圾鱼减少修正，则应用，价值 < 5则被视为垃圾鱼
         if garbage_reduction_modifier is not None and fish_template.base_value < 5:
             # 根据垃圾鱼减少修正值决定是否重新选择一次
             if random.random() < garbage_reduction_modifier:
                 # 重新选择一条鱼
-                new_rarity = random.choices(
-                    [1, 2, 3, 4, 5],
-                    weights=rarity_distribution,
-                    k=1
-                )[0]
-                new_fish_list = self.item_template_repo.get_fishes_by_rarity(new_rarity)
+                new_rarity = random.choices(range(1, len(rarity_distribution) + 1), weights=rarity_distribution, k=1)[0]
+                new_fish_template = self._get_fish_template(new_rarity, zone, coins_chance)
 
-                if new_fish_list:
-                    fish_template = get_fish_template(new_fish_list, coins_chance)
+                if new_fish_template:
+                    fish_template = new_fish_template
 
         # 计算最终属性
         weight = random.randint(fish_template.min_weight, fish_template.max_weight)
@@ -472,8 +456,9 @@ class FishingService:
         if not user:
             return {"success": False, "message": "用户不存在"}
 
-        fishing_zones = self.inventory_repo.get_all_fishing_zones()
+        fishing_zones = self.inventory_repo.get_all_zones()
         zones_info = []
+        
         for zone in fishing_zones:
             zones_info.append({
                 "zone_id": zone.id,
@@ -482,12 +467,35 @@ class FishingService:
                 "daily_rare_fish_quota": zone.daily_rare_fish_quota,
                 "rare_fish_caught_today": zone.rare_fish_caught_today,
                 "whether_in_use": zone.id == user.fishing_zone_id,
+                "is_active": zone.is_active,
+                "requires_pass": zone.requires_pass,
+                "fishing_cost": zone.fishing_cost,
             })
 
         return {
             "success": True,
             "zones": zones_info
         }
+
+    def _get_fish_template(self, rarity: int, zone: FishingZone, coins_chance: float):
+        """根据稀有度和区域配置获取鱼类模板"""
+        
+        # 检查 FishingZone 对象是否有 'specific_fish_ids' 属性
+        specific_fish_ids = getattr(zone, 'specific_fish_ids', [])
+
+        if specific_fish_ids:
+            # 如果是区域限定鱼，那么就在限定的鱼里面抽
+            fish_list = [self.item_template_repo.get_fish_by_id(fish_id) for fish_id in specific_fish_ids]
+            fish_list = [fish for fish in fish_list if fish and fish.rarity == rarity]
+        else:
+            # 否则就在全局鱼里面抽
+            fish_list = self.item_template_repo.get_fishes_by_rarity(rarity)
+
+        if not fish_list:
+            # 如果限定鱼或全局鱼列表为空，则从所有鱼中随机抽取一条
+            return self.item_template_repo.get_random_fish(rarity)
+
+        return get_fish_template(fish_list, coins_chance)
 
     def set_user_fishing_zone(self, user_id: str, zone_id: int) -> Dict[str, Any]:
         """
@@ -508,19 +516,43 @@ class FishingService:
         if not zone:
             return {"success": False, "message": "钓鱼区域不存在"}
 
+        # 检查区域是否激活
+        if not zone.is_active:
+            return {"success": False, "message": "该钓鱼区域暂未开放"}
+
+        # 检查时间限制
+        now = get_now()
+        if zone.available_from and now < zone.available_from:
+            return {"success": False, "message": f"该钓鱼区域将在 {zone.available_from.strftime('%Y-%m-%d %H:%M')} 开放"}
+        
+        if zone.available_until and now > zone.available_until:
+            return {"success": False, "message": f"该钓鱼区域已于 {zone.available_until.strftime('%Y-%m-%d %H:%M')} 关闭"}
+
+        # 检查通行证要求（从数据库读取）
+        if zone.requires_pass and zone.required_item_id:
+            # 获取用户道具库存
+            user_items = self.inventory_repo.get_user_item_inventory(user_id)
+            current_quantity = user_items.get(zone.required_item_id, 0)
+            
+            if current_quantity < 1:
+                # 获取道具名称用于显示
+                item_template = self.item_template_repo.get_item_by_id(zone.required_item_id)
+                item_name = item_template.name if item_template else f"道具ID{zone.required_item_id}"
+                return {
+                    "success": False, 
+                    "message": f"❌ 进入该区域需要 {item_name}，您当前拥有 {current_quantity} 个"
+                }
+            
+            # 消耗一个通行证道具
+            self.inventory_repo.decrease_item_quantity(user_id, zone.required_item_id, 1)
+            
+            # 记录日志
+            self.log_repo.add_log(user_id, "zone_entry", f"使用通行证进入 {zone.name}")
+
         user.fishing_zone_id = zone.id
         self.user_repo.update(user)
 
         return {"success": True, "message": f"✅已将钓鱼区域设置为 {zone.name}"}
-
-    def on_load(self, area2num: int, area3num: int):
-        zone2 = self.inventory_repo.get_zone_by_id(2)
-        zone3 = self.inventory_repo.get_zone_by_id(3)
-        zone2.daily_rare_fish_quota = area2num
-        zone3.daily_rare_fish_quota = area3num
-        self.inventory_repo.update_fishing_zone(zone2)
-        self.inventory_repo.update_fishing_zone(zone3)
-        logger.info(f"钓鱼区域2和3的今日稀有鱼捕获数量已加载: {area2num}, {area3num}")
 
     def apply_daily_taxes(self) -> None:
         """对所有高价值用户征收每日税收。"""
@@ -625,12 +657,16 @@ class FishingService:
                     if now_ts - last_ts < _cooldown:
                         continue # CD中，跳过
 
-                    # 检查成本
-                    if not user.can_afford(cost):
+                    # 检查成本（从区域配置中读取）
+                    zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+                    if not zone:
+                        continue
+                    fishing_cost = zone.fishing_cost
+                    if not user.can_afford(fishing_cost):
                         # 金币不足，关闭其自动钓鱼
                         user.auto_fishing_enabled = False
                         self.user_repo.update(user)
-                        logger.warning(f"用户 {user_id} 金币不足，已关闭自动钓鱼")
+                        logger.warning(f"用户 {user_id} 金币不足（需要 {fishing_cost} 金币），已关闭自动钓鱼")
                         continue
 
                     # 执行钓鱼

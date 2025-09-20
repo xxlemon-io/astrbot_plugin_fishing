@@ -1,0 +1,408 @@
+{% extends "layout.html" %}
+
+{% block title %}钓鱼区域管理{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>钓鱼区域管理</h2>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createZoneModal">
+            <i class="fas fa-plus"></i> 创建新区域
+        </button>
+    </div>
+    <p>管理游戏中的钓鱼区域。您可以创建、编辑、删除区域，并配置每个区域的详细参数。</p>
+
+    <div id="zones-list">
+        {% for zone in zones %}
+        <div class="card mb-4" id="zone-card-{{ zone.id }}">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>{{ zone.name }} (ID: {{ zone.id }})</h4>
+                <div>
+                    <button class="btn btn-sm btn-primary me-2" onclick="openEditModal({{ zone.id }})"><i class="fas fa-edit"></i> 编辑</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteZone({{ zone.id }})"><i class="fas fa-trash"></i> 删除</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <p><strong>描述:</strong> {{ zone.description }}</p>
+                <p><strong>状态:</strong> 
+                    <span class="badge bg-{{ 'success' if zone.is_active else 'secondary' }}">
+                        {{ '启用' if zone.is_active else '禁用' }}
+                    </span>
+                </p>
+                {% if zone.available_from or zone.available_until %}
+                <p><strong>开放时间:</strong> 
+                    {{ zone.available_from if zone.available_from else '不限' }} - 
+                    {{ zone.available_until if zone.available_until else '不限' }}
+                </p>
+                {% endif %}
+                <p><strong>稀有鱼每日配额:</strong> {{ zone.daily_rare_fish_quota }}</p>
+                <p><strong>钓鱼消耗:</strong> {{ zone.fishing_cost }} 金币</p>
+                {% if zone.requires_pass and zone.required_item_id %}
+                <p><strong>通行证要求:</strong> 
+                    <span class="badge bg-warning">
+                        {% for item in all_items if item.item_id == zone.required_item_id %}
+                            {{ item.name }}
+                        {% endfor %}
+                    </span>
+                </p>
+                {% else %}
+                <p><strong>通行证要求:</strong> <span class="badge bg-success">无需通行证</span></p>
+                {% endif %}
+                <div><strong>限定鱼类 ({{ zone.specific_fish_ids|length }}):</strong>
+                    <ul class="list-group list-group-flush">
+                        {% for fish_id in zone.specific_fish_ids %}
+                            {% for fish in all_fish if fish.fish_id == fish_id %}
+                                <li class="list-group-item">{{ fish.name }} (ID: {{ fish.fish_id }})</li>
+                            {% endfor %}
+                        {% else %}
+                            <li class="list-group-item">无 (使用全局鱼池)</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Create Zone Modal -->
+<div class="modal fade" id="createZoneModal" tabindex="-1" aria-labelledby="createZoneModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createZoneModalLabel">创建新区域</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Form content will be loaded here by JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Zone Modal -->
+<div class="modal fade" id="editZoneModal" tabindex="-1" aria-labelledby="editZoneModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editZoneModalLabel">编辑区域</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editZoneModalBody">
+                <!-- Form content will be loaded here by JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const zonesData = {{ zones|tojson }};
+    const allFishData = {{ all_fish|tojson }};
+    const allItemsData = {{ all_items|tojson }};
+
+    function getZoneById(zoneId) {
+        return zonesData.find(z => z.id === zoneId);
+    }
+
+    function renderForm(zone = null) {
+        const isEdit = zone !== null;
+        const rarityDistribution = zone?.configs?.rarity_distribution || [0.5, 0.3, 0.15, 0.04, 0.01];
+        const specificFishIds = zone?.specific_fish_ids || [];
+
+        let fishOptions = allFishData.map(fish => {
+            const selected = specificFishIds.includes(fish.fish_id) ? 'selected' : '';
+            return `<option value="${fish.fish_id}" ${selected}>${fish.name} (ID: ${fish.fish_id})</option>`;
+        }).join('');
+
+        return `
+            <form id="${isEdit ? 'edit' : 'create'}-zone-form">
+                <div class="alert alert-danger d-none" role="alert" id="form-error-alert"></div>
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label for="id" class="form-label">区域 ID</label>
+                        <input type="number" class="form-control" name="id" value="${zone?.id || ''}" ${isEdit ? 'readonly' : ''} required>
+                    </div>
+                    <div class="col-md-9 mb-3">
+                        <label for="name" class="form-label">区域名称</label>
+                        <input type="text" class="form-control" name="name" value="${zone?.name || ''}" required>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="description" class="form-label">描述</label>
+                    <textarea class="form-control" name="description" rows="2">${zone?.description || ''}</textarea>
+                </div>
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="daily_rare_fish_quota" class="form-label">稀有鱼每日配额</label>
+                        <input type="number" class="form-control" name="daily_rare_fish_quota" value="${zone?.daily_rare_fish_quota || 0}">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="fishing_cost" class="form-label">钓鱼消耗 (金币)</label>
+                        <input type="number" class="form-control" name="fishing_cost" value="${zone?.fishing_cost || 10}" min="1">
+                    </div>
+                    <div class="col-md-4 mb-3 d-flex align-items-end">
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" name="is_active" id="is_active" ${zone?.is_active ?? true ? 'checked' : ''}>
+                            <label class="form-check-label ms-2" for="is_active">启用区域</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="available_from" class="form-label">开放时间 (可选)</label>
+                        <input type="datetime-local" class="form-control" name="available_from" value="${zone?.available_from || ''}">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <label for="available_until" class="form-label mb-0">结束时间 (可选)</label>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="limit_time" id="limit_time" ${zone?.available_from || zone?.available_until ? 'checked' : ''}>
+                                <label class="form-check-label" for="limit_time">限定开放时间</label>
+                            </div>
+                        </div>
+                        <input type="datetime-local" class="form-control mt-2" name="available_until" value="${zone?.available_until || ''}">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label>稀有度分布 (概率总和应为 1)</label>
+                    <div class="row">
+                        ${[...Array(5).keys()].map(i => `
+                            <div class="col">
+                                <label>${i+1} 星</label>
+                                <input type="number" step="0.01" class="form-control rarity-input" name="rarity_${i+1}" value="${rarityDistribution[i]}">
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div id="rarity-sum-feedback" class="form-text mt-1"></div>
+                </div>
+                <div class="mb-3">
+                    <label for="specific_fish_ids" class="form-label">限定鱼类 (可多选，不选则为全局鱼池)</label>
+                    <select class="form-control" name="specific_fish_ids" multiple size="8">
+                        ${fishOptions}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">通行证要求</label>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="requires_pass" 
+                                       id="requires_pass" ${zone?.requires_pass ? 'checked' : ''}>
+                                <label class="form-check-label" for="requires_pass">需要通行证</label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <select class="form-control" name="required_item_id" ${!zone?.requires_pass ? 'disabled' : ''}>
+                                <option value="">选择通行证道具</option>
+                                ${allItemsData.map(item => `
+                                    <option value="${item.item_id}" ${zone?.required_item_id == item.item_id ? 'selected' : ''}>
+                                        ${item.name} (ID: ${item.item_id})
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="submit" class="btn btn-primary">${isEdit ? '更新' : '创建'}</button>
+                </div>
+            </form>
+        `;
+    }
+
+    // Populate create form
+    document.getElementById('createZoneModal').querySelector('.modal-body').innerHTML = renderForm();
+
+    const createFormEl = document.getElementById('create-zone-form');
+    hookLimitedTimeToggle(createFormEl);
+
+    createFormEl.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const form = e.target;
+        const errorAlert = form.querySelector('#form-error-alert');
+        errorAlert.classList.add('d-none'); // Hide previous errors
+        
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData.entries());
+        data.id = parseInt(data.id);
+        data.daily_rare_fish_quota = parseInt(data.daily_rare_fish_quota);
+        data.fishing_cost = parseInt(data.fishing_cost) || 10;
+        data.is_active = data.is_active === 'on';
+        const limitTime = form.querySelector('input[name="limit_time"]').checked;
+        if (!limitTime) {
+            data.available_from = '';
+            data.available_until = '';
+        }
+        // 计算稀有度和
+        const rarityDistribution = [...Array(5).keys()].map(i => parseFloat(data[`rarity_${i+1}`]) || 0);
+        const sum = rarityDistribution.reduce((a,b)=>a+b,0);
+        if (Math.abs(sum - 1.0) > 1e-4) {
+            showFormError(form, '稀有度分布总和必须为 1');
+            return;
+        }
+        data.configs = { rarity_distribution: rarityDistribution };
+        data.specific_fish_ids = Array.from(this.querySelector('select[name="specific_fish_ids"]').selectedOptions).map(opt => parseInt(opt.value));
+        
+        // 处理通行证要求
+        data.requires_pass = data.requires_pass === 'on';
+        if (data.requires_pass && data.required_item_id) {
+            data.required_item_id = parseInt(data.required_item_id);
+        } else {
+            data.required_item_id = null;
+        }
+        
+        const response = await fetch('/admin/api/zones', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        const result = await response.json();
+        if (response.ok) {
+            location.reload();
+        } else {
+            showFormError(form, result.message, result.errors);
+        }
+    });
+
+    document.body.addEventListener('input', function(e) {
+        if (e.target.classList.contains('rarity-input')) {
+            const form = e.target.closest('form');
+            if (form) {
+                const rarityInputs = form.querySelectorAll('.rarity-input');
+                const sum = Array.from(rarityInputs).reduce((acc, input) => acc + (parseFloat(input.value) || 0), 0);
+                const feedbackEl = form.querySelector('#rarity-sum-feedback');
+                feedbackEl.textContent = `当前总和: ${sum.toFixed(4)}`;
+                if (Math.abs(sum - 1.0) > 1e-4) {
+                    feedbackEl.classList.add('text-danger');
+                } else {
+                    feedbackEl.classList.remove('text-danger');
+                }
+            }
+        }
+        
+        // 处理通行证选择
+        if (e.target.name === 'requires_pass') {
+            const itemSelect = e.target.closest('form').querySelector('select[name="required_item_id"]');
+            if (e.target.checked) {
+                itemSelect.disabled = false;
+            } else {
+                itemSelect.disabled = true;
+                itemSelect.value = '';
+            }
+        }
+    });
+
+    function showFormError(form, message, errors = null) {
+        const errorAlert = form.querySelector('#form-error-alert');
+        let html = `<strong>${message}</strong>`;
+        if (errors) {
+            html += '<ul>';
+            for (const key in errors) {
+                html += `<li>${errors[key]}</li>`;
+                const input = form.querySelector(`[name="${key}"]`);
+                if (input) {
+                    input.classList.add('is-invalid');
+                }
+            }
+            html += '</ul>';
+        }
+        errorAlert.innerHTML = html;
+        errorAlert.classList.remove('d-none');
+        // Remove 'is-invalid' class on input change
+        form.querySelectorAll('.is-invalid').forEach(input => {
+            input.addEventListener('input', () => input.classList.remove('is-invalid'), { once: true });
+        });
+    }
+
+    function openEditModal(zoneId) {
+        const zone = getZoneById(zoneId);
+        document.getElementById('editZoneModalBody').innerHTML = renderForm(zone);
+        new bootstrap.Modal(document.getElementById('editZoneModal')).show();
+
+        const editForm = document.getElementById('edit-zone-form');
+        hookLimitedTimeToggle(editForm);
+
+        editForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const form = e.target;
+            const errorAlert = form.querySelector('#form-error-alert');
+            errorAlert.classList.add('d-none'); // Hide previous errors
+
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData.entries());
+            data.id = parseInt(data.id);
+            data.daily_rare_fish_quota = parseInt(data.daily_rare_fish_quota);
+            data.fishing_cost = parseInt(data.fishing_cost) || 10;
+            data.is_active = data.is_active === 'on';
+            const limitTime = form.querySelector('input[name="limit_time"]').checked;
+            if (!limitTime) {
+                data.available_from = '';
+                data.available_until = '';
+            }
+            const rarityDistribution = [...Array(5).keys()].map(i => parseFloat(data[`rarity_${i+1}`]) || 0);
+            const sum = rarityDistribution.reduce((a,b)=>a+b,0);
+            if (Math.abs(sum - 1.0) > 1e-4) {
+                showFormError(form, '稀有度分布总和必须为 1');
+                return;
+            }
+            data.configs = { rarity_distribution: rarityDistribution };
+            data.specific_fish_ids = Array.from(this.querySelector('select[name="specific_fish_ids"]').selectedOptions).map(opt => parseInt(opt.value));
+            
+            // 处理通行证要求
+            data.requires_pass = data.requires_pass === 'on';
+            if (data.requires_pass && data.required_item_id) {
+                data.required_item_id = parseInt(data.required_item_id);
+            } else {
+                data.required_item_id = null;
+            }
+
+            const response = await fetch(`/admin/api/zones/${zoneId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+            const result = await response.json();
+            if (response.ok) {
+                location.reload();
+            } else {
+                showFormError(form, result.message, result.errors);
+            }
+        });
+    }
+
+    async function deleteZone(zoneId) {
+        if (confirm('确定要删除这个区域吗？')) {
+            const response = await fetch(`/admin/api/zones/${zoneId}`, {
+                method: 'DELETE',
+            });
+            const result = await response.json();
+            if (result.success) {
+                document.getElementById(`zone-card-${zoneId}`).remove();
+            } else {
+                alert('删除失败: ' + result.message);
+            }
+        }
+    }
+
+    function hookLimitedTimeToggle(form) {
+        const toggle = form.querySelector('input[name="limit_time"]');
+        const fromInput = form.querySelector('input[name="available_from"]');
+        const untilInput = form.querySelector('input[name="available_until"]');
+        const applyState = () => {
+            const enabled = toggle && toggle.checked;
+            [fromInput, untilInput].forEach(el => {
+                if (!el) return;
+                el.disabled = !enabled;
+                if (!enabled) el.value = '';
+            });
+        };
+        if (toggle) {
+            applyState();
+            toggle.addEventListener('change', applyState);
+        }
+    }
+</script>
+{% endblock %}
