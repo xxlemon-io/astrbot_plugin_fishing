@@ -984,6 +984,18 @@ class FishingPlugin(Star):
                 message = "【🎰 卡池详情】\n\n"
                 message += f"ID: {pool['gacha_pool_id']} - {pool['name']}\n"
                 message += f"描述: {pool['description']}\n"
+                # 限时开放信息展示
+                try:
+                    if pool['is_limited_time']:
+                        open_until = pool['open_until']
+                        if open_until:
+                            # 格式化为 YYYY/MM/DD HH:MM
+                            display_time = open_until.replace('T', ' ').replace('-', '/')
+                            if len(display_time) > 16:
+                                display_time = display_time[:16]
+                            message += f"限时开放 至: {display_time}\n"
+                except Exception:
+                    pass
                 if pool['cost_premium_currency']:
                     message += f"花费: {pool['cost_premium_currency']} 高级货币 / 次\n\n"
                 else:

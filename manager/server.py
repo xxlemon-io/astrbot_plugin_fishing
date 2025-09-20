@@ -290,13 +290,16 @@ async def add_gacha_pool():
     # 将 currency_type/cost_amount 映射到 cost_coins 或 cost_premium_currency
     currency_type = data.get("currency_type", "coins")
     amount = int(data.get("cost_amount", 0) or 0)
+    # 限时逻辑：仅当开关为 ON 时保留截止时间
+    is_limited_flag = data.get("is_limited_time") in (True, "1", 1, "on")
+    open_until_value = data.get("open_until") if is_limited_flag and data.get("open_until") else None
     payload = {
         "name": data.get("name"),
         "description": data.get("description"),
         "cost_coins": amount if currency_type == "coins" else 0,
         "cost_premium_currency": amount if currency_type == "premium" else 0,
-        "is_limited_time": data.get("is_limited_time"),
-        "open_until": data.get("open_until")
+        "is_limited_time": is_limited_flag,
+        "open_until": open_until_value
     }
     item_template_service.add_pool_template(payload)
     await flash("奖池添加成功！", "success")
@@ -311,13 +314,16 @@ async def edit_gacha_pool(pool_id):
     data = form.to_dict()
     currency_type = data.get("currency_type", "coins")
     amount = int(data.get("cost_amount", 0) or 0)
+    # 限时逻辑：仅当开关为 ON 时保留截止时间
+    is_limited_flag = data.get("is_limited_time") in (True, "1", 1, "on")
+    open_until_value = data.get("open_until") if is_limited_flag and data.get("open_until") else None
     payload = {
         "name": data.get("name"),
         "description": data.get("description"),
         "cost_coins": amount if currency_type == "coins" else 0,
         "cost_premium_currency": amount if currency_type == "premium" else 0,
-        "is_limited_time": data.get("is_limited_time"),
-        "open_until": data.get("open_until")
+        "is_limited_time": is_limited_flag,
+        "open_until": open_until_value
     }
     item_template_service.update_pool_template(pool_id, payload)
     await flash(f"奖池ID {pool_id} 更新成功！", "success")
