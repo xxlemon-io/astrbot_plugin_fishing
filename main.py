@@ -57,49 +57,29 @@ class FishingPlugin(Star):
         self.min_rate = config.get("min_rate", 0.05)  # 最小税率
         self.area2num = config.get("area2num", 2000)
         self.area3num = config.get("area3num", 500)
+        
+        # 插件ID
+        self.plugin_id = "astrbot_plugin_fishing"
+
+        # --- 1.1. 数据与临时文件路径管理 ---
+        try:
+            # 优先使用框架提供的 get_data_dir 方法
+            self.data_dir = self.context.get_data_dir(self.plugin_id)
+        except (AttributeError, TypeError):
+            # 如果方法不存在或调用失败，则回退到旧的硬编码路径
+            logger.warning(f"无法使用 self.context.get_data_dir('{self.plugin_id}'), 将回退到旧的 'data/' 目录。请考虑升级 AstrBot 框架以获得更好的数据隔离。")
+            self.data_dir = "data"
+        
+        self.tmp_dir = os.path.join(self.data_dir, "tmp")
+        os.makedirs(self.tmp_dir, exist_ok=True)
+
+        db_path = os.path.join(self.data_dir, "fish.db")
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        
         self.game_config = {
-            "fishing": {"cost": config.get("fish_cost", 10), "cooldown_seconds": config.get("fish_cooldown_seconds", 180)},
-            "steal": {"cooldown_seconds": config.get("steal_cooldown_seconds", 14400)},
-            "user": {"initial_coins": config.get("user_initial_coins", 200)},
-            "market": {"listing_tax_rate": config.get("market_listing_tax_rate", 0.05)},
-            "consecutive_bonuses": {
-                "7": 1000,  # 连续签到7天奖励1000金币
-                "14": 50000,  # 连续签到14天奖励5000金币
-                "30": 2000000,  # 连续签到30天奖励2000000金币
-                "45": 5000000,  # 连续签到45天奖励5000000金币
-                "60": 10000000,  # 连续签到60天奖励10000000金币
-                "90": 50000000,  # 连续签到90天奖励50000000金币
-                "120": 100000000,  # 连续签到120天奖励100000000金币
-            },
-            "tax_config":{
-                "is_tax": self.is_tax,
-                "threshold": self.threshold,  # 起征点
-                "step_coins": self.step_coins,  # 每次增加的金币数
-                "step_rate": self.step_rate,  # 每次增加的税率
-                "max_rate": self.max_rate,  # 最大税率
-                "min_rate": self.min_rate,  # 最小税率
-            },
-            "sell_prices": {
-              "by_rarity": {
-                  "1": config.get("sell_prices", {"by_rarity_1":100}).get("by_rarity_1", 100),
-                  "2": config.get("sell_prices", {"by_rarity_2": 500}).get("by_rarity_2", 500),
-                  "3": config.get("sell_prices", {"by_rarity_3": 1000}).get("by_rarity_3", 1000),
-                  "4": config.get("sell_prices", {"by_rarity_4": 5000}).get("by_rarity_4", 5000),
-                  "5": config.get("sell_prices", {"by_rarity_5": 10000}).get("by_rarity_5", 10000),
-              }
-            },
-            "wipe_bomb": {
-                "max_attempts_per_day": 3,
-                "reward_ranges": [
-                    (0.0, 0.5, 35),  # 0.0-0.5倍，权重35
-                    (0.5, 1.0, 25),  # 0.5-1.0倍，权重25
-                    (1.0, 2.0, 20),  # 1.0-2.0倍，权重20
-                    (2.0, 3.0, 10),  # 2.0-3.0倍，权重10
-                    (3.0, 5.0, 7),  # 3.0-5.0倍，权重7
-                    (5.0, 8.0, 2),  # 5.0-8.0倍，权重2
-                    (8.0, 10.0, 1),  # 8.0-10.0倍，权重1
-                ]
-            },
+            "fishing": {"cost": config.get("fish_cost", 10), "cooldown_seconds": config.get("fish_cooldown", 5)},
+            "steal": {"cooldown_seconds": config.get("steal_cooldown", 1800)},
+            "wipe_bomb": {"attempts_per_day": config.get("wipe_bomb_attempts", 5)},
             "pond_upgrades": [
                 { "from": 480, "to": 999, "cost": 50000 },
                 { "from": 999, "to": 9999, "cost": 500000 },
@@ -107,8 +87,7 @@ class FishingPlugin(Star):
                 { "from": 99999, "to": 999999, "cost": 5000000000 },
             ]
         }
-        db_path = "data/fish.db"
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
+        
         # 初始化数据库模式
         plugin_root_dir = os.path.dirname(__file__)
         migrations_path = os.path.join(plugin_root_dir, "core", "database", "migrations")
@@ -181,7 +160,10 @@ class FishingPlugin(Star):
 
         # --- Web后台配置 ---
         self.web_admin_task = None
-        self.secret_key = config.get("secret_key", "default_secret_key")
+        self.secret_key = config.get("secret_key")
+        if not self.secret_key:
+            logger.error("安全警告：Web后台管理的'secret_key'未在配置中设置！强烈建议您设置一个长且随机的字符串以保证安全。")
+            self.secret_key = None
         self.port = config.get("port", 7777)
 
         # 管理员扮演功能
@@ -323,9 +305,9 @@ class FishingPlugin(Star):
             yield event.plain_result('❌ 用户不存在，请先发送"注册"来开始游戏')
             return
         # 生成状态图像
-        image = draw_state_image(user_data)
+        image = await draw_state_image(user_data, self.data_dir)
         # 保存图像到临时文件
-        image_path = "user_status.png"
+        image_path = os.path.join(self.tmp_dir, "user_status.png")
         image.save(image_path)
         yield event.image_result(image_path)
 
@@ -345,9 +327,9 @@ class FishingPlugin(Star):
             backpack_data['nickname'] = user.nickname or user_id
             
             # 生成背包图像
-            image = draw_backpack_image(backpack_data)
+            image = await draw_backpack_image(backpack_data, self.data_dir)
             # 保存图像到临时文件
-            image_path = "user_backpack.png"
+            image_path = os.path.join(self.tmp_dir, "user_backpack.png")
             image.save(image_path)
             yield event.image_result(image_path)
         else:
@@ -496,14 +478,25 @@ class FishingPlugin(Star):
             return
         
         item_id = int(item_id_str)
-        result = self.inventory_service.use_item(user_id, item_id)
         
-        if result["success"]:
-            # 可以在这里根据 item 的效果触发不同逻辑
-            # 目前只返回成功信息
-            yield event.plain_result(f"✅ {result['message']}")
-        else:
-            yield event.plain_result(f"❌ {result['message']}")
+        quantity = 1
+        if len(args) > 2 and args[2].isdigit():
+            quantity = int(args[2])
+            if quantity <= 0:
+                yield event.plain_result("❌ 数量必须是正整数。")
+                return
+
+        for _ in range(quantity):
+            result = self.inventory_service.use_item(user_id, item_id)
+            
+            if result["success"]:
+                # 可以在这里根据 item 的效果触发不同逻辑
+                # 目前只返回成功信息
+                yield event.plain_result(f"✅ {result['message']}")
+            else:
+                yield event.plain_result(f"❌ {result['message']}")
+                # 如果失败，则停止使用后续的道具
+                break
 
     @filter.command("卖道具", alias={"出售道具", "卖出道具"})
     async def sell_item(self, event: AstrMessageEvent):
@@ -1292,8 +1285,9 @@ class FishingPlugin(Star):
             if user["fishing_rod"] is None:
                 user["fishing_rod"] = "无鱼竿"
         # logger.info(f"用户数据: {user_data}")
-        draw_fishing_ranking(user_data, output_path="fishing_ranking.png")
-        yield event.image_result("fishing_ranking.png")
+        output_path = os.path.join(self.tmp_dir, "fishing_ranking.png")
+        draw_fishing_ranking(user_data, output_path=output_path)
+        yield event.image_result(output_path)
 
     @filter.command("偷鱼")
     async def steal_fish(self, event: AstrMessageEvent):
@@ -1437,7 +1431,9 @@ class FishingPlugin(Star):
     async def fishing_help(self, event: AstrMessageEvent):
         """显示钓鱼插件帮助信息"""
         image = draw_help_image()
-        yield event.image_result(image)
+        output_path = os.path.join(self.tmp_dir, "fishing_help.png")
+        image.save(output_path)
+        yield event.image_result(output_path)
 
     @filter.command("鱼类图鉴")
     async def fish_pokedex(self, event: AstrMessageEvent):
@@ -1453,7 +1449,7 @@ class FishingPlugin(Star):
                     return
 
                 message = "【🐟 🌊 鱼类图鉴 📖 🎣】\n"
-                message += f"🏆 解锁进度：{to_percentage(1.0 + result['unlocked_percentage'])}\n"
+                message += f"🏆 解锁进度：{to_percentage(result['unlocked_percentage'])}\n"
                 message += f"📊 收集情况：{result['unlocked_fish_count']} / {result['total_fish_count']} 种\n"
 
                 for fish in pokedex:

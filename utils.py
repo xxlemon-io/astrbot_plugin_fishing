@@ -7,6 +7,7 @@ import subprocess
 import time
 
 import aiohttp
+import asyncio
 
 from astrbot.api import logger
 
@@ -30,24 +31,31 @@ async def get_public_ip():
                         # 添加二次验证确保是IPv4格式
                         if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", ip):
                             return ip
-            except:  # noqa: E722
+            except aiohttp.ClientError as e:
+                logger.warning(f"获取公网IP时请求 {api} 失败: {e}")
                 continue
 
     return None
 
-async def _is_port_available(port):
-    """检查端口是否可用"""
+async def _is_port_available(port: int) -> bool:
+    """异步检查端口是否可用，避免阻塞事件循环"""
+    
+    def check_sync():
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("0.0.0.0", port))
+            return True
+        except OSError:
+            return False
+            
+    loop = asyncio.get_running_loop()
     try:
-        # 尝试绑定到指定端口
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(1)
-        sock.bind(('0.0.0.0', port))
-        sock.close()
-        return True
-    except:
+        return await loop.run_in_executor(None, check_sync)
+    except Exception as e:
+        logger.warning(f"检查端口 {port} 可用性时出错: {e}")
         return False
 
-def _get_pids_listening_on_port(port: int):
+async def _get_pids_listening_on_port(port: int):
     """返回正在监听指定端口的进程PID列表。"""
     pids = set()
     system_name = platform.system().lower()
@@ -56,7 +64,14 @@ def _get_pids_listening_on_port(port: int):
         if "windows" in system_name:
             # Windows: 尝试 netstat
             try:
-                result = subprocess.check_output(["netstat", "-ano"], text=True, errors="ignore", timeout=5)
+                process = await asyncio.create_subprocess_exec(
+                    "netstat", "-ano",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, _ = await process.communicate()
+                result = stdout.decode(errors="ignore")
+                
                 for line in result.splitlines():
                     parts = line.split()
                     if len(parts) >= 5 and parts[0] in ("TCP", "UDP"):
@@ -71,16 +86,23 @@ def _get_pids_listening_on_port(port: int):
             # Unix-like: 依次尝试多种方法
             methods = [
                 # 方法1: lsof（常见但在容器中可能缺失）
-                lambda: subprocess.check_output(["lsof", "-i", f":{port}", "-sTCP:LISTEN", "-t"], text=True, timeout=3),
+                ("lsof", ["-i", f":{port}", "-sTCP:LISTEN", "-t"]),
                 # 方法2: ss（更现代，通常可用）
-                lambda: subprocess.check_output(["ss", "-ltnp", f"sport = {port}"], text=True, timeout=3),
+                ("ss", ["-ltnp", f"sport = {port}"]),
                 # 方法3: netstat（传统工具）
-                lambda: subprocess.check_output(["netstat", "-tlnp"], text=True, timeout=3)
+                ("netstat", ["-tlnp"])
             ]
             
-            for i, method in enumerate(methods):
+            for i, (cmd, args) in enumerate(methods):
                 try:
-                    result = method()
+                    process = await asyncio.create_subprocess_exec(
+                        cmd, *args,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, _ = await process.communicate()
+                    result = stdout.decode(errors="ignore")
+                    
                     if i == 0:  # lsof
                         for line in result.splitlines():
                             if line.strip().isdigit():
@@ -116,9 +138,9 @@ def _get_pids_listening_on_port(port: int):
         pids.discard(current_pid)
     return list(pids)
 
-def kill_processes_on_port(port: int):
+async def kill_processes_on_port(port: int):
     """尝试终止监听指定端口的进程。返回 (success, killed_pids)。"""
-    pids = _get_pids_listening_on_port(port)
+    pids = await _get_pids_listening_on_port(port)
     if not pids:
         return True, []
 
@@ -130,8 +152,12 @@ def kill_processes_on_port(port: int):
             if "windows" in system_name:
                 # Windows: 使用 taskkill
                 try:
-                    subprocess.run(["taskkill", "/PID", str(pid), "/F"], 
-                                 capture_output=True, text=True, timeout=5)
+                    process = await asyncio.create_subprocess_exec(
+                        "taskkill", "/PID", str(pid), "/F",
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+                    await process.communicate()
                     killed.append(pid)
                 except (subprocess.TimeoutExpired, FileNotFoundError):
                     logger.warning(f"taskkill 不可用或超时，尝试直接终止进程 {pid}")
@@ -146,7 +172,7 @@ def kill_processes_on_port(port: int):
                     for _ in range(10):  # 1秒内检查
                         try:
                             os.kill(pid, 0)  # 检查进程是否存在
-                            time.sleep(0.1)
+                            await asyncio.sleep(0.1)
                         except ProcessLookupError:
                             success = True
                             break
@@ -176,7 +202,7 @@ def kill_processes_on_port(port: int):
             sock.close()
             return True, killed
         except Exception:
-            time.sleep(0.2)
+            await asyncio.sleep(0.2)
             continue
 
     return len(killed) > 0, killed  # 即使端口未释放，如果杀死了进程也算部分成功
@@ -285,8 +311,8 @@ def safe_datetime_handler(
                 time_input = time_input.replace(tzinfo=default_timezone)
             logger.info(f"Formatting datetime: {time_input}")
             return time_input.strftime(output_format)
-        except Exception:
-            logger.error(f"Failed to format datetime: {time_input}")
+        except ValueError as e:
+            logger.error(f"Failed to format datetime: {time_input} with error: {e}")
             return None
 
     logger.error(f"Unsupported time input type: {type(time_input)}")

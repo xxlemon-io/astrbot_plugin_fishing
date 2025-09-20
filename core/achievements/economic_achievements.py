@@ -15,7 +15,7 @@ class TotalCoinsEarned1M(BaseAchievement):
         return context.user.total_coins_earned >= 1000000
 
 class WipeBomb10xMultiplier(BaseAchievement):
-    id = 15 # 对应原数据库中的 achievement_id
+    id = 33 # 对应原数据库中的 achievement_id
     name = "十倍奉还！"
     description = "在擦弹中获得10倍或以上奖励"
     target_value = 10.0
