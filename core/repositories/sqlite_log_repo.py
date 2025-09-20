@@ -173,12 +173,15 @@ class SqliteLogRepository(AbstractLogRepository):
 
     def add_log(self, user_id: str, log_type: str, message: str) -> None:
         """添加一条通用日志"""
+        # 由于 fishing_records 表有外键约束，我们使用一个简单的日志表
+        # 或者插入到现有的日志表中，避免外键约束问题
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            # 使用 wipe_bomb_log 表来记录通用日志，因为它没有外键约束
             cursor.execute("""
-                INSERT INTO fishing_records (user_id, fish_id, weight, value, timestamp, location_id)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (user_id, 0, 0, 0, datetime.now(), 0))
+                INSERT INTO wipe_bomb_log (user_id, contribution_amount, reward_multiplier, reward_amount, timestamp)
+                VALUES (?, ?, ?, ?, ?)
+            """, (user_id, 0, 0.0, 0, datetime.now()))
             conn.commit()
 
     # --- Tax Log Methods ---
