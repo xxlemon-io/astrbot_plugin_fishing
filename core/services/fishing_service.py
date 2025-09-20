@@ -540,8 +540,14 @@ class FishingService:
                 item_name = item_template.name if item_template else f"道具ID{zone.required_item_id}"
                 return {
                     "success": False, 
-                    "message": f"❌ 进入该区域需要 {item_name}，您当前拥有 {current_quantity} 个\n💡 使用「/使用道具 <道具ID>」命令使用通行证传送到该区域"
+                    "message": f"❌ 进入该区域需要 {item_name}，您当前拥有 {current_quantity} 个"
                 }
+            
+            # 消耗一个通行证道具
+            self.inventory_repo.decrease_item_quantity(user_id, zone.required_item_id, 1)
+            
+            # 记录日志
+            self.log_repo.add_log(user_id, "zone_entry", f"使用通行证进入 {zone.name}")
 
         user.fishing_zone_id = zone.id
         self.user_repo.update(user)
