@@ -445,13 +445,37 @@ class FishingPlugin(Star):
             message = "【📦 道具】：\n"
             for it in item_info["items"]:
                 message += f" - {it['name']} x {it['quantity']} (稀有度: {format_rarity_display(it['rarity'])})\n"
-                message += f"   - ID: {it['item_id']} 类型: {it.get('item_type', '未知')}\n"
+                message += f"   - ID: {it['item_id']}\n"
                 if it.get("effect_description"):
                     message += f"   - 效果: {it['effect_description']}\n"
                 message += "\n"
             yield event.plain_result(message)
         else:
             yield event.plain_result("📦 您还没有道具。")
+
+    @filter.command("使用道具", alias={"使用"})
+    async def use_item(self, event: AstrMessageEvent):
+        """使用一个道具"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要使用的道具 ID，例如：/使用道具 1")
+            return
+        
+        item_id_str = args[1]
+        if not item_id_str.isdigit():
+            yield event.plain_result("❌ 道具 ID 必须是数字。")
+            return
+        
+        item_id = int(item_id_str)
+        result = self.inventory_service.use_item(user_id, item_id)
+        
+        if result["success"]:
+            # 可以在这里根据 item 的效果触发不同逻辑
+            # 目前只返回成功信息
+            yield event.plain_result(f"✅ {result['message']}")
+        else:
+            yield event.plain_result(f"❌ {result['message']}")
 
     @filter.command("饰品")
     async def accessories(self, event: AstrMessageEvent):

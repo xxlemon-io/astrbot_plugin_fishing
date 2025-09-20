@@ -146,7 +146,8 @@ def calculate_dynamic_height(user_data: Dict[str, Any]) -> int:
     # 道具区域高度 - 保守估算
     items = user_data.get('items', [])
     if items:
-        rows = (len(items) + 4) // 5
+        rows = (len(items) + 1) // 2
+        # 估算每个道具卡片平均高度为130px（较小）
         avg_height = 130
         item_height = 35 + rows * avg_height + (rows - 1) * 15
     else:
@@ -790,27 +791,29 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
     current_y += 35
 
     if items:
-        card_width = (width - 120) // 5
+        # 计算道具卡片布局 - 每行2个（动态高度）
+        card_width = (width - 90) // 2
         card_margin = 15
         row_start_y = current_y
         next_row_start_y = current_y
 
         for i, item in enumerate(items):
-            row = i // 5
-            col = i % 5
+            row = i // 2
+            col = i % 2
             x = 30 + col * (card_width + card_margin)
 
             if col == 0:
                 row_start_y = next_row_start_y
                 
                 # Pre-measure card heights for the current row
-                row_heights = []
-                for j in range(5):
-                    idx = i + j
-                    if idx < len(items):
-                        row_heights.append(measure_item_card_height(items[idx], card_width))
+                left_h = measure_item_card_height(item, card_width)
+                right_index = i + 1
+                if right_index < len(items):
+                    right_h = measure_item_card_height(items[right_index], card_width)
+                else:
+                    right_h = 0
                 
-                row_h = max(row_heights) if row_heights else 0
+                row_h = max(left_h, right_h)
                 y = row_start_y
                 next_row_start_y = row_start_y + row_h + card_margin
                 card_height = row_h
@@ -841,8 +844,8 @@ def draw_backpack_image(user_data: Dict[str, Any]) -> Image.Image:
                 line_h = get_text_size("测", tiny_font)[1] + 2
                 max_lines = max((y + card_height - 15) - next_y, 0) // line_h
                 if max_lines > 0:
-                    for i, line in enumerate(lines[:max_lines]):
-                        draw.text((x + 15, next_y + i * line_h), line, font=tiny_font, fill=text_secondary)
+                    for line_idx, line in enumerate(lines[:max_lines]):
+                        draw.text((x + 15, next_y + line_idx * line_h), line, font=tiny_font, fill=text_secondary)
         current_y = next_row_start_y
     else:
         draw.text((30, current_y), "📦 您还没有道具。", font=content_font, fill=text_muted)

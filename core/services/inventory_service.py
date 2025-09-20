@@ -923,3 +923,38 @@ class InventoryService:
         self.user_repo.update(user)
         
         return is_first_infinite
+
+    def use_item(self, user_id: str, item_id: int) -> Dict[str, Any]:
+        """
+        使用一个道具。
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        # 检查是否有此道具
+        item_inventory = self.inventory_repo.get_user_item_inventory(user_id)
+        if item_inventory.get(item_id, 0) <= 0:
+            return {"success": False, "message": "你没有这个道具"}
+
+        item_template = self.item_template_repo.get_item_by_id(item_id)
+        if not item_template:
+            return {"success": False, "message": "道具信息不存在"}
+
+        # 检查道具类型
+        if item_template.item_type == "consumable":
+            # 消耗品，减少数量
+            self.inventory_repo.decrease_item_quantity(user_id, item_id, 1)
+            return {
+                "success": True, 
+                "message": f"成功使用了【{item_template.name}】",
+                "item": {
+                    "item_id": item_id,
+                    "name": item_template.name,
+                    "effect_description": item_template.effect_description,
+                    "item_type": item_template.item_type,
+                }
+            }
+        else:
+            # 非消耗品，提示无法使用
+            return {"success": False, "message": f"【{item_template.name}】是{item_template.item_type}类型，无法直接使用。"}
