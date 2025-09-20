@@ -134,7 +134,8 @@ class FishingPlugin(Star):
         # 3.2 实例化核心服务
         self.gacha_service = GachaService(self.gacha_repo, self.user_repo, self.inventory_repo, self.item_template_repo,
                                           self.log_repo, self.achievement_repo)
-
+        # UserService 依赖 GachaService，因此在 GachaService 之后实例化
+        self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.gacha_service, self.game_config)
         self.inventory_service = InventoryService(
             self.inventory_repo,
             self.user_repo,
@@ -146,7 +147,7 @@ class FishingPlugin(Star):
         self.market_service = MarketService(self.market_repo, self.inventory_repo, self.user_repo, self.log_repo,
                                             self.item_template_repo, self.game_config)
         self.game_mechanics_service = GameMechanicsService(self.user_repo, self.log_repo, self.inventory_repo,
-                                                             self.item_template_repo, self.buff_repo, self.game_config)
+                                                           self.item_template_repo, self.buff_repo, self.game_config)
         self.achievement_service = AchievementService(self.achievement_repo, self.user_repo, self.inventory_repo,
                                                       self.item_template_repo, self.log_repo)
         self.fishing_service = FishingService(
@@ -157,9 +158,6 @@ class FishingPlugin(Star):
             self.buff_repo,
             self.game_config,
         )
-        # UserService 依赖 GachaService，因此在 GachaService 之后实例化
-        self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.gacha_service, self.game_config)
-        # 取消主动通知注册（按需求不推送用户）
 
         self.item_template_service = ItemTemplateService(self.item_template_repo, self.gacha_repo)
 

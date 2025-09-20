@@ -23,7 +23,7 @@ class UserService:
         log_repo: AbstractLogRepository,
         inventory_repo: AbstractInventoryRepository,
         item_template_repo: AbstractItemTemplateRepository,
-        gacha_service: GachaService,
+        gacha_service: "GachaService",
         config: Dict[str, Any]  # 注入游戏配置
     ):
         self.user_repo = user_repo
