@@ -682,12 +682,7 @@ async def update_pool_item_weight(item_id):
         
         item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
         
-        # 获取当前物品信息
-        pool_items = item_template_service.get_pool_items(item_id)
-        if not pool_items:
-            return jsonify({"success": False, "message": "物品不存在"}), 404
-        
-        # 更新权重
+        # 直接更新权重，update_pool_item方法会处理验证
         item_template_service.update_pool_item(item_id, {"weight": int(weight)})
         
         return jsonify({"success": True, "message": "权重更新成功"})
