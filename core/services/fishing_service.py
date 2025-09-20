@@ -1,8 +1,9 @@
+import json
 import random
 import threading
 import time
 from typing import Dict, Any, Optional
-from datetime import  timedelta
+from datetime import timedelta
 from astrbot.api import logger
 
 # 导入仓储接口和领域模型
@@ -10,7 +11,8 @@ from ..repositories.abstract_repository import (
     AbstractUserRepository,
     AbstractInventoryRepository,
     AbstractItemTemplateRepository,
-    AbstractLogRepository
+    AbstractLogRepository,
+    AbstractUserBuffRepository,
 )
 from ..domain.models import FishingRecord, TaxRecord
 from ..utils import get_now, get_fish_template, get_today, calculate_after_refine
@@ -25,12 +27,14 @@ class FishingService:
         inventory_repo: AbstractInventoryRepository,
         item_template_repo: AbstractItemTemplateRepository,
         log_repo: AbstractLogRepository,
-        config: Dict[str, Any]
+        buff_repo: AbstractUserBuffRepository,
+        config: Dict[str, Any],
     ):
         self.user_repo = user_repo
         self.inventory_repo = inventory_repo
         self.item_template_repo = item_template_repo
         self.log_repo = log_repo
+        self.buff_repo = buff_repo
         self.config = config
 
         self.today = get_today()
@@ -97,7 +101,28 @@ class FishingService:
         quantity_modifier = 1.0 # 数量加成
         rare_chance = 0.0 # 稀有鱼出现几率
         coins_chance = 0.0 # 增加同稀有度高金币出现几率
-        logger.debug(f"当前钓鱼概率： base_success_rate={base_success_rate}, quality_modifier={quality_modifier}, quantity_modifier={quantity_modifier}, rare_chance={rare_chance}, coins_chance={coins_chance}")
+
+        # --- 新增：应用 Buff 效果 ---
+        active_buffs = self.buff_repo.get_all_active_by_user(user_id)
+        for buff in active_buffs:
+            if buff.buff_type == "RARE_FISH_BOOST":
+                try:
+                    payload = json.loads(buff.payload) if buff.payload else {}
+                    multiplier = payload.get("multiplier", 1.0)
+                    # 这里的实现是直接增加到 rare_chance
+                    # 注意：如果基础值是0，乘法无意义，所以用加法或更复杂的逻辑
+                    # 假设 payload 的 multiplier 是一个额外的概率加成
+                    rare_chance += multiplier
+                    logger.info(
+                        f"用户 {user_id} 的 RARE_FISH_BOOST 生效，稀有几率增加 {multiplier}"
+                    )
+                except (json.JSONDecodeError, TypeError):
+                    logger.error(f"解析 buff payload 失败: {buff.payload}")
+        # --- Buff 应用结束 ---
+
+        logger.debug(
+            f"当前钓鱼概率： base_success_rate={base_success_rate}, quality_modifier={quality_modifier}, quantity_modifier={quantity_modifier}, rare_chance={rare_chance}, coins_chance={coins_chance}"
+        )
         # 获取装备鱼竿并应用加成
         equipped_rod_instance = self.inventory_repo.get_user_equipped_rod(user.user_id)
         if equipped_rod_instance:

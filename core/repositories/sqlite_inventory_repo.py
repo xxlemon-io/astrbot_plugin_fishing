@@ -305,6 +305,36 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor.execute("DELETE FROM user_bait_inventory WHERE user_id = ? AND quantity <= 0", (user_id,))
             conn.commit()
 
+    # --- Item Inventory Methods ---
+    def get_user_item_inventory(self, user_id: str) -> Dict[int, int]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT item_id, quantity FROM user_items WHERE user_id = ?", (user_id,))
+            return {row["item_id"]: row["quantity"] for row in cursor.fetchall()}
+
+    def add_item_to_user(self, user_id: str, item_id: int, quantity: int) -> None:
+        """为用户添加指定数量的道具。"""
+        self.update_item_quantity(user_id, item_id, quantity)
+
+    def decrease_item_quantity(self, user_id: str, item_id: int, quantity: int) -> None:
+        """减少用户道具库存中特定道具的数量。"""
+        self.update_item_quantity(user_id, item_id, -quantity)
+
+    def update_item_quantity(self, user_id: str, item_id: int, delta: int) -> None:
+        """更新用户道具库存中特定道具的数量（可增可减），并确保数量不小于0。"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO user_items (user_id, item_id, quantity)
+                VALUES (?, ?, MAX(0, ?))
+                ON CONFLICT(user_id, item_id) DO UPDATE SET quantity = MAX(0, quantity + ?)
+                """,
+                (user_id, item_id, delta, delta),
+            )
+            cursor.execute("DELETE FROM user_items WHERE user_id = ? AND quantity <= 0", (user_id,))
+            conn.commit()
+
 
     # --- Rod Inventory Methods ---
     def get_user_rod_instances(self, user_id: str) -> List[UserRodInstance]:

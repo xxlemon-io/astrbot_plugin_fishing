@@ -44,6 +44,9 @@ function updateItemOptions(itemType) {
         case 'bait':
             templates = baitTemplates;
             break;
+        case 'item':
+            templates = itemsTemplates;
+            break;
         default:
             itemIdSelect.innerHTML = '<option value="">请先选择物品类型</option>';
             itemIdSelect.disabled = true;

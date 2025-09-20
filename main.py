@@ -20,6 +20,7 @@ from .core.repositories.sqlite_gacha_repo import SqliteGachaRepository
 from .core.repositories.sqlite_market_repo import SqliteMarketRepository
 from .core.repositories.sqlite_log_repo import SqliteLogRepository
 from .core.repositories.sqlite_achievement_repo import SqliteAchievementRepository
+from .core.repositories.sqlite_user_buff_repo import SqliteUserBuffRepository
 from .core.services.data_setup_service import DataSetupService
 from .core.services.item_template_service import ItemTemplateService
 # 服务
@@ -31,6 +32,7 @@ from .core.services.market_service import MarketService
 from .core.services.gacha_service import GachaService
 from .core.services.achievement_service import AchievementService
 from .core.services.game_mechanics_service import GameMechanicsService
+from .core.services.effect_manager import EffectManager
 # 其他
 
 from .core.database.migration import run_migrations
@@ -119,23 +121,43 @@ class FishingPlugin(Star):
         self.market_repo = SqliteMarketRepository(db_path)
         self.log_repo = SqliteLogRepository(db_path)
         self.achievement_repo = SqliteAchievementRepository(db_path)
+        self.buff_repo = SqliteUserBuffRepository(db_path)
 
         # --- 3. 组合根：实例化所有服务层，并注入依赖 ---
-        self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.game_config)
-        self.inventory_service = InventoryService(self.inventory_repo, self.user_repo, self.item_template_repo,
-                                                  self.game_config)
+        # 3.1 实例化效果管理器并自动注册所有效果
+        self.effect_manager = EffectManager()
+        self.effect_manager.discover_and_register(
+            effects_package_path="data.plugins.astrbot_plugin_fishing.core.services.item_effects",
+            dependencies={"user_repo": self.user_repo, "buff_repo": self.buff_repo},
+        )
+
+        # 3.2 实例化核心服务
+        self.gacha_service = GachaService(self.gacha_repo, self.user_repo, self.inventory_repo, self.item_template_repo,
+                                          self.log_repo, self.achievement_repo)
+        # UserService 依赖 GachaService，因此在 GachaService 之后实例化
+        self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.gacha_service, self.game_config)
+        self.inventory_service = InventoryService(
+            self.inventory_repo,
+            self.user_repo,
+            self.item_template_repo,
+            self.effect_manager,
+            self.game_config,
+        )
         self.shop_service = ShopService(self.item_template_repo, self.inventory_repo, self.user_repo)
         self.market_service = MarketService(self.market_repo, self.inventory_repo, self.user_repo, self.log_repo,
                                             self.item_template_repo, self.game_config)
-        self.gacha_service = GachaService(self.gacha_repo, self.user_repo, self.inventory_repo, self.item_template_repo,
-                                          self.log_repo, self.achievement_repo)
         self.game_mechanics_service = GameMechanicsService(self.user_repo, self.log_repo, self.inventory_repo,
-                                                           self.item_template_repo, self.game_config)
+                                                           self.item_template_repo, self.buff_repo, self.game_config)
         self.achievement_service = AchievementService(self.achievement_repo, self.user_repo, self.inventory_repo,
                                                       self.item_template_repo, self.log_repo)
-        self.fishing_service = FishingService(self.user_repo, self.inventory_repo, self.item_template_repo,
-                                              self.log_repo, self.game_config)
-        # 取消主动通知注册（按需求不推送用户）
+        self.fishing_service = FishingService(
+            self.user_repo,
+            self.inventory_repo,
+            self.item_template_repo,
+            self.log_repo,
+            self.buff_repo,
+            self.game_config,
+        )
 
         self.item_template_service = ItemTemplateService(self.item_template_repo, self.gacha_repo)
 
@@ -146,7 +168,15 @@ class FishingPlugin(Star):
         # --- 5. 初始化核心游戏数据 ---
         data_setup_service = DataSetupService(self.item_template_repo, self.gacha_repo)
         data_setup_service.setup_initial_data()
+        # 确保初始道具存在（在已有数据库上也可幂等执行）
+        try:
+            data_setup_service.create_initial_items()
+        except Exception:
+            pass
         self.fishing_service.on_load(area2num=self.area2num, area3num=self.area3num)
+
+        # --- 6. (临时) 实例化数据服务，供调试命令使用 ---
+        self.data_setup_service = data_setup_service
 
         # --- Web后台配置 ---
         self.web_admin_task = None
@@ -436,6 +466,69 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("🐟 您还没有鱼饵，快去商店购买或抽奖获得吧！")
 
+    @filter.command("道具", alias={"我的道具", "查看道具"})
+    async def items(self, event: AstrMessageEvent):
+        """查看用户道具信息（文本版）"""
+        user_id = event.get_sender_id()
+        item_info = self.inventory_service.get_user_item_inventory(user_id)
+        if item_info and item_info.get("items"):
+            message = "【📦 道具】：\n"
+            for it in item_info["items"]:
+                consumable_text = "消耗品" if it.get("is_consumable") else "非消耗"
+                message += f" - {it['name']} x {it['quantity']} (稀有度: {format_rarity_display(it['rarity'])}，{consumable_text})\n"
+                message += f"   - ID: {it['item_id']}\n"
+                if it.get("effect_description"):
+                    message += f"   - 效果: {it['effect_description']}\n"
+                message += "\n"
+            yield event.plain_result(message)
+        else:
+            yield event.plain_result("📦 您还没有道具。")
+
+    @filter.command("使用道具", alias={"使用"})
+    async def use_item(self, event: AstrMessageEvent):
+        """使用一个道具"""
+        user_id = event.get_sender_id()
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要使用的道具 ID，例如：/使用道具 1")
+            return
+        
+        item_id_str = args[1]
+        if not item_id_str.isdigit():
+            yield event.plain_result("❌ 道具 ID 必须是数字。")
+            return
+        
+        item_id = int(item_id_str)
+        result = self.inventory_service.use_item(user_id, item_id)
+        
+        if result["success"]:
+            # 可以在这里根据 item 的效果触发不同逻辑
+            # 目前只返回成功信息
+            yield event.plain_result(f"✅ {result['message']}")
+        else:
+            yield event.plain_result(f"❌ {result['message']}")
+
+    @filter.command("卖道具", alias={"出售道具", "卖出道具"})
+    async def sell_item(self, event: AstrMessageEvent):
+        """卖出道具：/卖道具 <ID> [数量]，数量缺省为1"""
+        user_id = event.get_sender_id()
+        parts = event.message_str.strip().split()
+        if len(parts) < 2:
+            yield event.plain_result("❌ 用法：/卖道具 <道具ID> [数量]")
+            return
+        if not parts[1].isdigit():
+            yield event.plain_result("❌ 道具ID必须是数字")
+            return
+        item_id = int(parts[1])
+        qty = 1
+        if len(parts) >= 3 and parts[2].isdigit():
+            qty = int(parts[2])
+        result = self.inventory_service.sell_item(user_id, item_id, qty)
+        if result.get("success"):
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result(result.get("message", "操作失败"))
+
     @filter.command("饰品")
     async def accessories(self, event: AstrMessageEvent):
         """查看用户饰品信息"""
@@ -489,7 +582,7 @@ class FishingPlugin(Star):
 • 等级范围：1级 → 10级（目前的满级）
 • 消耗条件：同模板材料 + 金币
 • 每次只升1级：精N → 精N+1
-• 材料选择：优先使用“未装备、精炼等级最低”的同模板实例；永不使用正在装备的作为材料
+• 材料选择：优先使用"未装备、精炼等级最低"的同模板实例；永不使用正在装备的作为材料
 
 成功：
 • 目标等级+1，消耗1件材料与对应金币
@@ -507,7 +600,7 @@ class FishingPlugin(Star):
 • 6星：6→10级约为 50%、45%、40%、35%、30%
 • 7星及以上：挑战性高，6→10级约为 40%、35%、30%、20%、15%-20%
 
-提示：成功率按“目标新等级”计算（例如精2→精3，用精3的成功率）。
+提示：成功率按"目标新等级"计算（例如精2→精3，用精3的成功率）。
 
 ═══════════════════════════════════
 ⚡ 属性成长与加成
@@ -526,7 +619,7 @@ class FishingPlugin(Star):
 • 每次钓鱼：鱼竿耐久 -1，降至0自动卸下
 • 精炼成功：耐久恢复至当前最大值
 • 每升1级：最大耐久度 ×1.5（累计）
-• 神器奖励：5星及以上鱼竿精炼到10级 → 获得“无限耐久”（∞）
+• 神器奖励：5星及以上鱼竿精炼到10级 → 获得"无限耐久"（∞）
 • 饰品无耐久度，不受上述规则影响
 
 ═══════════════════════════════════
@@ -1773,3 +1866,29 @@ class FishingPlugin(Star):
         if self.web_admin_task:
             self.web_admin_task.cancel()
         logger.info("钓鱼插件已成功终止。")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("debug add_items")
+    async def add_missing_items(self, event: AstrMessageEvent):
+        """[临时]手动执行初始道具的创建，用于补充现有数据库。"""
+        try:
+            self.data_setup_service.create_initial_items()
+            yield event.plain_result(
+                '✅ 成功执行初始道具检查和补充操作。\n请检查后台或使用 /道具 命令查看新增的"小钱袋"和"幸运药水"。'
+            )
+        except Exception as e:
+            logger.error(f"执行 add_missing_items 命令时出错: {e}", exc_info=True)
+            yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("管理员 同步道具", alias={"同步道具"})
+    async def sync_items_from_initial_data(self, event: AstrMessageEvent):
+        """从 initial_data.py 同步道具数据到数据库。"""
+        try:
+            self.data_setup_service.create_initial_items()
+            yield event.plain_result(
+                '✅ 成功执行初始道具同步操作。\n请检查后台或使用 /道具 命令确认数据。'
+            )
+        except Exception as e:
+            logger.error(f"执行 sync_items_from_initial_data 命令时出错: {e}", exc_info=True)
+            yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")

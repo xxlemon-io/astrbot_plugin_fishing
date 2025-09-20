@@ -583,7 +583,7 @@ async def manage_gacha_pool_details(pool_id):
         item_rarity = None  # 添加星级属性
         item_type = item.item_type
         item_id = item.item_id
-
+        
         # 根据类型从 item_template_service 获取名称和星级
         if item_type == "rod":
             template = item_template_service.item_template_repo.get_rod_by_id(item_id)
@@ -597,6 +597,11 @@ async def manage_gacha_pool_details(pool_id):
                 item_rarity = template.rarity
         elif item_type == "bait":
             template = item_template_service.item_template_repo.get_bait_by_id(item_id)
+            if template:
+                item_name = template.name
+                item_rarity = template.rarity
+        elif item_type == "item":
+            template = item_template_service.item_template_repo.get_by_id(item_id)
             if template:
                 item_name = template.name
                 item_rarity = template.rarity
@@ -622,7 +627,8 @@ async def manage_gacha_pool_details(pool_id):
         items=enriched_items,  # 传递丰富化后的物品列表
         all_rods=details["all_rods"],
         all_baits=details["all_baits"],
-        all_accessories=details["all_accessories"]
+        all_accessories=details["all_accessories"],
+        all_items=item_template_service.get_all_items()  # 新增
     )
 
 
@@ -871,6 +877,7 @@ async def manage_user_inventory(user_id):
         all_rods = item_template_service.get_all_rods()
         all_accessories = item_template_service.get_all_accessories()
         all_baits = item_template_service.get_all_baits()
+        all_items = item_template_service.get_all_items()
         
         return await render_template(
             "users_inventory.html",
@@ -880,7 +887,8 @@ async def manage_user_inventory(user_id):
             all_fish=all_fish,
             all_rods=all_rods,
             all_accessories=all_accessories,
-            all_baits=all_baits
+            all_baits=all_baits,
+            all_items=all_items
         )
     except Exception as e:
         await flash(f"页面加载失败: {str(e)}", "danger")
@@ -956,3 +964,62 @@ async def update_accessory_instance(user_id, instance_id):
         return user_service.update_user_accessory_instance_for_admin(user_id, instance_id, data)
     except Exception as e:
         return {"success": False, "message": f"更新饰品实例时发生错误: {str(e)}"}, 500
+
+# --- 道具管理 ---
+@admin_bp.route("/items")
+@login_required
+@admin_required
+async def manage_items():
+    item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
+    items = item_template_service.get_all_items()
+    return await render_template("items.html", items=items)
+
+@admin_bp.route("/items/add", methods=["POST"])
+@login_required
+@admin_required
+async def add_item():
+    item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
+    try:
+        form_data = await request.form
+        data = {k: v for k, v in form_data.items()}
+        data['rarity'] = int(data.get('rarity', 1))
+        data['cost'] = int(data.get('cost', 0))
+        # 使用布尔值保存是否消耗品
+        is_flag = 'is_consumable' in data
+        data['is_consumable'] = is_flag
+        item_template_service.add_item_template(data)
+        await flash("道具模板已添加", "success")
+    except Exception as e:
+        await flash(f"添加道具模板失败: {str(e)}", "danger")
+    return redirect(url_for("admin_bp.manage_items"))
+
+@admin_bp.route("/items/edit/<int:item_id>", methods=["POST"])
+@login_required
+@admin_required
+async def edit_item(item_id):
+    item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
+    try:
+        form_data = await request.form
+        data = {k: v for k, v in form_data.items()}
+        data['rarity'] = int(data.get('rarity', 1))
+        data['cost'] = int(data.get('cost', 0))
+        # 使用布尔值保存是否消耗品
+        is_flag = 'is_consumable' in data
+        data['is_consumable'] = is_flag
+        item_template_service.update_item_template(item_id, data)
+        await flash("道具模板已更新", "success")
+    except Exception as e:
+        await flash(f"更新道具模板失败: {str(e)}", "danger")
+    return redirect(url_for("admin_bp.manage_items"))
+
+@admin_bp.route("/items/delete/<int:item_id>", methods=["POST"])
+@login_required
+@admin_required
+async def delete_item(item_id):
+    item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
+    try:
+        item_template_service.delete_item_template(item_id)
+        await flash("道具模板已删除", "success")
+    except Exception as e:
+        await flash(f"删除道具模板失败: {str(e)}", "danger")
+    return redirect(url_for("admin_bp.manage_items"))

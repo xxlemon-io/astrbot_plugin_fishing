@@ -98,6 +98,16 @@ class SqliteGachaRepository(AbstractGachaRepository):
 
             return pools
 
+    def get_free_pools(self) -> List[GachaPool]:
+        """查找所有免费的抽卡池"""
+        with self._get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM gacha_pools WHERE cost_coins = 0 AND cost_premium_currency = 0"
+            )
+            return [self._row_to_gacha_pool(row) for row in cursor.fetchall()]
+
     # --- Admin Panel CRUD Methods ---
 
     # Pool CRUD
