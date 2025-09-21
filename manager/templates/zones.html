@@ -2,6 +2,27 @@
 
 {% block title %}钓鱼区域管理{% endblock %}
 
+{% block extra_css %}
+<style>
+.fish-list-toggle {
+    transition: all 0.3s ease;
+}
+
+.fish-list-toggle .fa-chevron-down {
+    transition: transform 0.3s ease;
+}
+
+.fish-list-toggle[aria-expanded="true"] .fa-chevron-down {
+    transform: rotate(180deg);
+}
+
+.collapse {
+    max-height: 300px;
+    overflow-y: auto;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -49,15 +70,34 @@
                 <p><strong>通行证要求:</strong> <span class="badge bg-success">无需通行证</span></p>
                 {% endif %}
                 <div><strong>限定鱼类 ({{ zone.specific_fish_ids|length }}):</strong>
-                    <ul class="list-group list-group-flush">
-                        {% for fish_id in zone.specific_fish_ids %}
-                            {% for fish in all_fish if fish.fish_id == fish_id %}
-                                <li class="list-group-item">{{ fish.name }} (ID: {{ fish.fish_id }})</li>
-                            {% endfor %}
+                    {% if zone.specific_fish_ids|length > 0 %}
+                        {% if zone.specific_fish_ids|length <= 5 %}
+                            <ul class="list-group list-group-flush">
+                                {% for fish_id in zone.specific_fish_ids %}
+                                    {% for fish in all_fish if fish.fish_id == fish_id %}
+                                        <li class="list-group-item">{{ fish.name }} (ID: {{ fish.fish_id }})</li>
+                                    {% endfor %}
+                                {% endfor %}
+                            </ul>
                         {% else %}
-                            <li class="list-group-item">无 (使用全局鱼池)</li>
-                        {% endfor %}
-                    </ul>
+                            <div class="mt-2">
+                                <button class="btn btn-sm btn-outline-secondary fish-list-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#fishList{{ zone.zone_id }}" aria-expanded="false" aria-controls="fishList{{ zone.zone_id }}">
+                                    <i class="fas fa-chevron-down"></i> 查看全部 {{ zone.specific_fish_ids|length }} 种鱼类
+                                </button>
+                                <div class="collapse mt-2" id="fishList{{ zone.zone_id }}">
+                                    <ul class="list-group list-group-flush">
+                                        {% for fish_id in zone.specific_fish_ids %}
+                                            {% for fish in all_fish if fish.fish_id == fish_id %}
+                                                <li class="list-group-item">{{ fish.name }} (ID: {{ fish.fish_id }})</li>
+                                            {% endfor %}
+                                        {% endfor %}
+                                    </ul>
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <p class="text-muted">无 (使用全局鱼池)</p>
+                    {% endif %}
                 </div>
             </div>
         </div>
