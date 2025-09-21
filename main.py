@@ -1501,6 +1501,51 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
+    @filter.command("驱灵")
+    async def steal_with_dispel(self, event: AstrMessageEvent):
+        """使用驱灵香偷鱼功能"""
+        user_id = self._get_effective_user_id(event)
+        message_obj = event.message_obj
+        target_id = None
+        if hasattr(message_obj, "message"):
+            # 检查消息中是否有At对象
+            for comp in message_obj.message:
+                if isinstance(comp, At):
+                    target_id = comp.qq
+                    break
+        if target_id is None:
+            yield event.plain_result("请在消息中@要偷鱼的用户")
+            return
+        if int(target_id) == int(user_id):
+            yield event.plain_result("不能偷自己的鱼哦！")
+            return
+        
+        # 检查是否有驱灵香
+        user_inventory = self.inventory_service.get_user_inventory(user_id)
+        dispel_items = [item for item in user_inventory.get("items", []) 
+                       if item.get("template", {}).get("effect_type") == "STEAL_PROTECTION_REMOVAL"]
+        
+        if not dispel_items:
+            yield event.plain_result("❌ 你没有驱灵香，无法使用此功能！")
+            return
+        
+        # 直接扣除驱灵香
+        dispel_item = dispel_items[0]
+        result = self.user_service.remove_item_from_user_inventory(user_id, "item", dispel_item["id"], 1)
+        if not result.get("success"):
+            yield event.plain_result(f"❌ 扣除驱灵香失败：{result.get('message', '未知错误')}")
+            return
+        
+        # 执行偷窃（此时会直接驱散海灵守护）
+        steal_result = self.game_mechanics_service.steal_fish_with_dispel(user_id, target_id)
+        if steal_result:
+            if steal_result["success"]:
+                yield event.plain_result(steal_result["message"])
+            else:
+                yield event.plain_result(f"❌ 偷鱼失败：{steal_result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
     @filter.command("查看称号", alias={"称号"})
     async def view_titles(self, event: AstrMessageEvent):
         """查看用户称号"""
