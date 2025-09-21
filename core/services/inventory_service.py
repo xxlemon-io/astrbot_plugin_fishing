@@ -802,15 +802,15 @@ class InventoryService:
             # 区分5星与6星的成功率曲线
             if rarity == 5:
                 success_rates = {
-                    1: 0.90, 2: 0.90, 3: 0.90, 4: 0.90,
-                    5: 0.75, 6: 0.60, 7: 0.50, 8: 0.45,
-                    9: 0.40, 10: 0.35
+                    1: 0.85, 2: 0.85, 3: 0.80, 4: 0.75,
+                    5: 0.65, 6: 0.50, 7: 0.40, 8: 0.35,
+                    9: 0.30, 10: 0.25
                 }
             else:  # rarity == 6
                 success_rates = {
-                    1: 0.85, 2: 0.85, 3: 0.85, 4: 0.85,
-                    5: 0.70, 6: 0.50, 7: 0.45, 8: 0.40,
-                    9: 0.35, 10: 0.30
+                    1: 0.80, 2: 0.80, 3: 0.75, 4: 0.70,
+                    5: 0.60, 6: 0.45, 7: 0.35, 8: 0.30,
+                    9: 0.25, 10: 0.20
                 }
             
         # 7星及以上装备：保持挑战性
@@ -824,6 +824,48 @@ class InventoryService:
         
         return adjusted_costs, success_rates
 
+    def _determine_failure_type(self, instance, template) -> str:
+        """
+        确定精炼失败的类型：普通失败、降级失败、毁坏失败
+        
+        Args:
+            instance: 装备实例
+            template: 装备模板
+            
+        Returns:
+            str: "normal", "downgrade", "destruction"
+        """
+        import random
+        
+        # 获取装备稀有度和精炼等级
+        rarity = template.rarity if template and hasattr(template, 'rarity') else 5
+        refine_level = instance.refine_level
+        
+        # 基础概率设置
+        downgrade_chance = 0.10  # 固定10%概率降级
+        destruction_chance = 0.0
+            
+        # 根据稀有度调整毁坏概率
+        if refine_level >= 5:
+            if rarity <= 2:
+                destruction_chance = 0.30  # 10% + 20% = 30%
+            elif rarity <= 4:
+                destruction_chance = 0.35  # 15% + 20% = 35%
+            elif rarity <= 6:
+                destruction_chance = 0.40  # 20% + 20% = 40%
+            else:
+                destruction_chance = 0.50  # 30% + 20% = 50%
+                
+        # 随机决定失败类型
+        rand = random.random()
+        
+        if rand < destruction_chance:
+            return "destruction"
+        elif rand < destruction_chance + downgrade_chance:
+            return "downgrade"
+        else:
+            return "normal"
+
     def _get_item_config(self, item_type, instance_id, user_id) -> Dict[str, Any]:
         """获取物品配置信息"""
         # 确保用户ID为整数类型（数据库层面需要）
@@ -835,9 +877,7 @@ class InventoryService:
             if not instance:
                 return {"success": False, "message": "鱼竿不存在或不属于你"}
 
-            # 检查是否锁定
-            if instance.is_locked:
-                return {"success": False, "message": "该鱼竿已锁定，无法精炼"}
+            # 锁定装备可以作为主装备精炼，但不能作为材料
 
             template = self.item_template_repo.get_rod_by_id(instance.rod_id)
             same_items = self.inventory_repo.get_same_rod_instances(user_id_int, instance.rod_id)
@@ -857,9 +897,7 @@ class InventoryService:
             if not instance:
                 return {"success": False, "message": "饰品不存在或不属于你"}
 
-            # 检查是否锁定
-            if instance.is_locked:
-                return {"success": False, "message": "该饰品已锁定，无法精炼"}
+            # 锁定装备可以作为主装备精炼，但不能作为材料
 
             template = self.item_template_repo.get_accessory_by_id(instance.accessory_id)
             same_items = self.inventory_repo.get_same_accessory_instances(user_id_int, instance.accessory_id)
@@ -892,6 +930,9 @@ class InventoryService:
                 continue
             # 跳过正在装备的材料
             if getattr(candidate, 'is_equipped', False):
+                continue
+            # 跳过锁定的材料（锁定的装备不能作为精炼材料）
+            if getattr(candidate, 'is_locked', False):
                 continue
 
             available_candidates += 1
@@ -940,46 +981,28 @@ class InventoryService:
                     else:
                         self.inventory_repo.delete_accessory_instance(candidate.accessory_instance_id)
 
-                    # 判断是否触发毁坏（仅高等级开启毁坏概率）
-                    destroyed = False
-                    if instance.refine_level >= 6 and template and hasattr(template, 'rarity'):
-                        rarity = template.rarity
-                        if rarity <= 2:
-                            destruction_chance = 0.10
-                        elif rarity <= 4:
-                            destruction_chance = 0.20
-                        elif rarity <= 6:
-                            destruction_chance = 0.25
+                    # 精炼失败时的三种结果：普通失败、降级失败、毁坏失败
+                    failure_type = self._determine_failure_type(instance, template)
+                    
+                    if failure_type == "downgrade":
+                        # 降级失败：装备等级-1，但保留装备
+                        instance.refine_level = max(1, instance.refine_level - 1)
+                        if item_type == "rod":
+                            self.inventory_repo.update_rod_instance(instance)
                         else:
-                            destruction_chance = 0.40
-                        if random.random() < destruction_chance:
-                            # 有机会保留（降级1级），否则毁坏
-                            survival_chance = 0.1  # 默认10%保留概率
-                            if template and hasattr(template, 'rarity'):
-                                rarity = template.rarity
-                                if rarity <= 2:
-                                    survival_chance = 0.5  # 1-2星：50%概率保留
-                                elif rarity <= 4:
-                                    survival_chance = 0.3  # 3-4星：30%概率保留
-                                else:
-                                    survival_chance = 0.1  # 5星+：10%概率保留
-                            
-                            if random.random() < survival_chance:
-                                # 降级并保留
-                                instance.refine_level = max(1, instance.refine_level - 1)
-                                if item_type == "rod":
-                                    self.inventory_repo.update_rod_instance(instance)
-                                else:
-                                    self.inventory_repo.update_accessory_instance(instance)
-                                return {
-                                    "success": False,
-                                    "message": f"💥 精炼失败！{item_name_display}等级降为 {instance.refine_level}，但装备得以保留！",
-                                    "destroyed": False,
-                                    "level_reduced": True,
-                                    "new_refine_level": instance.refine_level
-                                }
-                            else:
-                                # 彻底毁坏 → 优先检查是否有护符道具可自动消耗
+                            self.inventory_repo.update_accessory_instance(instance)
+                        return {
+                            "success": False,
+                            "message": f"📉 精炼失败！{item_name_display}等级降为 {instance.refine_level}（已消耗材料与金币）。",
+                            "failed": True,
+                            "destroyed": False,
+                            "level_reduced": True,
+                            "new_refine_level": instance.refine_level,
+                            "target_level": target_level,
+                            "success_rate": success_rate
+                        }
+                    elif failure_type == "destruction":
+                        # 毁坏失败：检查护符道具
                                 try:
                                     user_items = self.inventory_repo.get_user_item_inventory(user.user_id)
                                 except Exception:
@@ -1117,20 +1140,6 @@ class InventoryService:
                                     "destroyed": True
                                 }
 
-                    if destroyed:
-                        # 毁坏失败：销毁待精炼装备本体
-                        if item_type == "rod":
-                            self.inventory_repo.delete_rod_instance(instance.rod_instance_id)
-                        else:
-                            self.inventory_repo.delete_accessory_instance(instance.accessory_instance_id)
-                        return {
-                            "success": False,
-                            "message": f"💥 精炼失败！{item_name_display}在精炼过程中毁坏了（已消耗材料与金币）。",
-                            "failed": True,
-                            "destroyed": True,
-                            "target_level": target_level,
-                            "success_rate": success_rate
-                        }
                     else:
                         # 普通失败：本体保留，但已消耗材料与金币
                         return {
@@ -1344,7 +1353,8 @@ class InventoryService:
 
     def lock_rod(self, user_id: str, rod_instance_id: int) -> Dict[str, Any]:
         """
-        锁定指定的鱼竿，防止被精炼、卖出、上架
+        锁定指定的鱼竿，防止被当作精炼材料、卖出、上架
+        注意：锁定的鱼竿仍可作为主装备进行精炼，精炼失败时仍会被碎掉
         """
         user = self.user_repo.get_by_id(user_id)
         if not user:
@@ -1406,7 +1416,8 @@ class InventoryService:
 
     def lock_accessory(self, user_id: str, accessory_instance_id: int) -> Dict[str, Any]:
         """
-        锁定指定的饰品，防止被精炼、卖出、上架
+        锁定指定的饰品，防止被当作精炼材料、卖出、上架
+        注意：锁定的饰品仍可作为主装备进行精炼，精炼失败时仍会被碎掉
         """
         user = self.user_repo.get_by_id(user_id)
         if not user:

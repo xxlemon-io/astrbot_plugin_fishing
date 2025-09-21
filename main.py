@@ -605,8 +605,9 @@ class FishingPlugin(Star):
 成功：
 • 目标等级+1，消耗1件材料与对应金币
 
-失败（两种）：
+失败（三种）：
 • 普通失败：装备本体不变，但会消耗1件材料与对应金币
+• 降级失败：装备等级-1，消耗1件材料与对应金币（10%概率）
 • 毁坏失败（高等级概率触发）：消耗1件材料与对应金币，并摧毁本体装备
 
 ═══════════════════════════════════
@@ -615,9 +616,9 @@ class FishingPlugin(Star):
 
 🎲 成功率（关键档位）：
 • 1-4星：前期成功率高，后期逐步下降（更易满精）
-• 5星：6→10级约为 60%、50%、45%、40%、35%
-• 6星：6→10级约为 50%、45%、40%、35%、30%
-• 7星及以上：挑战性高，6→10级约为 40%、35%、30%、20%、15%-20%
+• 5星：6→10级约为 50%、40%、35%、30%、25%
+• 6星：6→10级约为 45%、35%、30%、25%、20%
+• 7星及以上：挑战性高，6→10级约为 60%、50%、40%、30%、20%
 
 提示：成功率按"目标新等级"计算（例如精2→精3，用精3的成功率）。
 
@@ -653,6 +654,21 @@ class FishingPlugin(Star):
 • 饰品无耐久度，不受上述规则影响
 
 ═══════════════════════════════════
+📉 失败类型与概率
+═══════════════════════════════════
+
+🎲 降级概率（固定）：
+• 所有等级：10%概率降级
+
+💥 毁坏概率（5级及以上）：
+• 1-2星：30%概率毁坏
+• 3-4星：35%概率毁坏
+• 5-6星：40%概率毁坏
+• 7星+：50%概率毁坏
+
+💔 普通失败：剩余概率（装备保持不变）
+
+═══════════════════════════════════
 📝 命令用法
 ═══════════════════════════════════
 
@@ -667,7 +683,7 @@ class FishingPlugin(Star):
 
     @filter.command("锁定鱼竿", alias={"鱼竿锁定"})
     async def lock_rod(self, event: AstrMessageEvent):
-        """锁定鱼竿，防止被精炼、卖出、上架"""
+        """锁定鱼竿，防止被当作精炼材料、卖出、上架（仍可作为主装备精炼）"""
         user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
@@ -707,7 +723,7 @@ class FishingPlugin(Star):
 
     @filter.command("锁定饰品", alias={"饰品锁定"})
     async def lock_accessory(self, event: AstrMessageEvent):
-        """锁定饰品，防止被精炼、卖出、上架"""
+        """锁定饰品，防止被当作精炼材料、卖出、上架（仍可作为主装备精炼）"""
         user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
@@ -745,7 +761,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result(f"❌ 解锁失败：{result['message']}")
 
-    @filter.command("使用鱼竿")
+    @filter.command("使用鱼竿 ", alias={"装备鱼竿"})
     async def use_rod(self, event: AstrMessageEvent):
         """使用鱼竿"""
         user_id = self._get_effective_user_id(event)
@@ -771,7 +787,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("使用鱼饵")
+    @filter.command("使用鱼饵", alias={"装备鱼饵"})
     async def use_bait(self, event: AstrMessageEvent):
         """使用鱼饵"""
         user_id = self._get_effective_user_id(event)
@@ -796,7 +812,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("使用饰品")
+    @filter.command("使用饰品", alias={"装备饰品"})
     async def use_accessories(self, event: AstrMessageEvent):
         """使用饰品"""
         user_id = self._get_effective_user_id(event)
