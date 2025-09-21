@@ -48,8 +48,8 @@ async def steal_fish(self, event: AstrMessageEvent):
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-async def steal_with_dispel(self, event: AstrMessageEvent):
-    """使用驱灵香偷鱼功能"""
+async def dispel_protection(self, event: AstrMessageEvent):
+    """使用驱灵香驱散目标的海灵守护"""
     user_id = self._get_effective_user_id(event)
     message_obj = event.message_obj
     target_id = None
@@ -60,10 +60,10 @@ async def steal_with_dispel(self, event: AstrMessageEvent):
                 target_id = comp.qq
                 break
     if target_id is None:
-        yield event.plain_result("请在消息中@要偷鱼的用户")
+        yield event.plain_result("请在消息中@要驱散守护的用户")
         return
     if int(target_id) == int(user_id):
-        yield event.plain_result("不能偷自己的鱼哦！")
+        yield event.plain_result("不能对自己使用驱灵香哦！")
         return
     
     # 检查是否有驱灵香

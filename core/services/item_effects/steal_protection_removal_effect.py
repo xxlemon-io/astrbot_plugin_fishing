@@ -10,11 +10,11 @@ class StealProtectionRemovalEffect(AbstractItemEffect):
         self, user: User, item_template: Item, payload: Dict[str, Any], quantity: int = 1
     ) -> Dict[str, Any]:
         """
-        驱灵香效果：移除目标玩家的海灵守护效果
-        注意：这个效果需要在偷窃时指定目标使用
+        驱灵香效果：用于驱散目标玩家的海灵守护效果。
+        命令使用：/驱灵 @目标用户
         """
-        # 这个效果需要在偷窃逻辑中特殊处理
-        # 这里只是标记用户使用了驱灵香
-        message = f"🔥 驱灵香已准备就绪！下次偷窃时将直接驱散目标的海灵守护！"
-        
-        return {"success": True, "message": message}
+        # 驱灵香不支持通过通用“使用道具”入口直接生效
+        # 引导用户使用专用指令
+        message = "请使用指令：/驱灵 @目标用户 来驱散其海灵守护。"
+
+        return {"success": False, "message": message}

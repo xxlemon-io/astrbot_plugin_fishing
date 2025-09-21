@@ -505,8 +505,8 @@ class FishingPlugin(Star):
             yield r
 
     @filter.command("驱灵")
-    async def steal_with_dispel(self, event: AstrMessageEvent):
-        async for r in social_handlers.steal_with_dispel(self, event):
+    async def dispel_protection(self, event: AstrMessageEvent):
+        async for r in social_handlers.dispel_protection(self, event):
             yield r
 
     @filter.command("查看称号", alias={"称号"})
