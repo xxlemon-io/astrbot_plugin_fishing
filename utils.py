@@ -244,7 +244,8 @@ def format_accessory_or_rod(accessory_or_rod: dict) -> str:
     return message
 
 from datetime import datetime, timezone, timedelta  # noqa: E402
-from typing import Union, Optional  # noqa: E402
+from typing import Union, Optional, Tuple  # noqa: E402
+from astrbot.core.message.components import At  # noqa: E402
 
 def safe_datetime_handler(
     time_input: Union[str, datetime, None],
@@ -320,3 +321,51 @@ def safe_datetime_handler(
     logger.error(f"Unsupported time input type: {type(time_input)}")
     # 无法处理的类型
     return None
+
+
+def parse_target_user_id(event, args: list, arg_index: int = 1) -> Tuple[Optional[str], Optional[str]]:
+    """解析目标用户ID，支持用户ID和@两种方式
+    
+    Args:
+        event: 消息事件对象，需要包含 message_obj 属性
+        args: 命令参数列表
+        arg_index: 用户ID参数在args中的索引位置
+        
+    Returns:
+        tuple: (target_user_id, error_message)
+        - target_user_id: 解析出的用户ID，如果解析失败则为None
+        - error_message: 错误信息，如果解析成功则为None
+        
+    Example:
+        # 使用@用户方式
+        target_id, error = parse_target_user_id(event, ["/修改金币", "@用户", "1000"], 1)
+        # 结果: target_id="123456789", error=None
+        
+        # 使用用户ID方式
+        target_id, error = parse_target_user_id(event, ["/修改金币", "123456789", "1000"], 1)
+        # 结果: target_id="123456789", error=None
+    """
+    # 首先尝试从@中获取用户ID
+    message_obj = event.message_obj
+    target_id = None
+    if hasattr(message_obj, "message"):
+        # 检查消息中是否有At对象
+        for comp in message_obj.message:
+            if isinstance(comp, At):
+                target_id = comp.qq
+                break
+    
+    # 如果从@中获取到了用户ID，直接返回
+    if target_id is not None:
+        return str(target_id), None
+    
+    # 如果没有@，尝试从参数中获取
+    if len(args) > arg_index:
+        target_user_id = args[arg_index]
+        if target_user_id.isdigit():
+            return target_user_id, None
+        else:
+            return None, f"❌ 用户 ID 必须是数字，请检查后重试。"
+    
+    # 如果既没有@也没有参数，返回错误
+    return None, f"❌ 请指定目标用户（用户ID或@用户），例如：/命令 123456789 或 /命令 @用户"

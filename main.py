@@ -42,7 +42,7 @@ from .draw.rank import draw_fishing_ranking
 from .draw.help import draw_help_image
 from .draw.state import draw_state_image, get_user_state_data
 from .manager.server import create_app
-from .utils import to_percentage, format_accessory_or_rod, safe_datetime_handler, _is_port_available, format_rarity_display, kill_processes_on_port
+from .utils import to_percentage, format_accessory_or_rod, safe_datetime_handler, _is_port_available, format_rarity_display, kill_processes_on_port, parse_target_user_id
 
 
 class FishingPlugin(Star):
@@ -201,6 +201,7 @@ class FishingPlugin(Star):
         """
         admin_id = event.get_sender_id()
         return self.impersonation_map.get(admin_id, admin_id)
+
 
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
@@ -1501,6 +1502,54 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
+    @filter.command("驱灵")
+    async def steal_with_dispel(self, event: AstrMessageEvent):
+        """使用驱灵香偷鱼功能"""
+        user_id = self._get_effective_user_id(event)
+        message_obj = event.message_obj
+        target_id = None
+        if hasattr(message_obj, "message"):
+            # 检查消息中是否有At对象
+            for comp in message_obj.message:
+                if isinstance(comp, At):
+                    target_id = comp.qq
+                    break
+        if target_id is None:
+            yield event.plain_result("请在消息中@要偷鱼的用户")
+            return
+        if int(target_id) == int(user_id):
+            yield event.plain_result("不能偷自己的鱼哦！")
+            return
+        
+        # 检查是否有驱灵香
+        user_inventory = self.inventory_service.get_user_item_inventory(user_id)
+        dispel_items = [item for item in user_inventory.get("items", []) 
+                       if item.get("effect_type") == "STEAL_PROTECTION_REMOVAL"]
+        
+        if not dispel_items:
+            yield event.plain_result("❌ 你没有驱灵香，无法使用此功能！")
+            return
+        
+        # 先检查目标是否有海灵守护效果
+        dispel_result = self.game_mechanics_service.check_steal_protection(target_id)
+        if not dispel_result.get("has_protection"):
+            yield event.plain_result(f"❌ 【{dispel_result.get('target_name', '目标')}】没有海灵守护效果，无需驱散！")
+            return
+        
+        # 直接扣除驱灵香
+        dispel_item = dispel_items[0]
+        result = self.user_service.remove_item_from_user_inventory(user_id, "item", dispel_item["item_id"], 1)
+        if not result.get("success"):
+            yield event.plain_result(f"❌ 扣除驱灵香失败：{result.get('message', '未知错误')}")
+            return
+        
+        # 驱散目标的海灵守护buff
+        dispel_result = self.game_mechanics_service.dispel_steal_protection(target_id)
+        if dispel_result.get("success"):
+            yield event.plain_result(f"🔥 驱灵香的力量驱散了【{dispel_result.get('target_name', '目标')}】的海灵守护！")
+        else:
+            yield event.plain_result(f"❌ 驱散失败：{dispel_result.get('message', '未知错误')}")
+
     @filter.command("查看称号", alias={"称号"})
     async def view_titles(self, event: AstrMessageEvent):
         """查看用户称号"""
@@ -1733,19 +1782,24 @@ class FishingPlugin(Star):
     @filter.command("修改金币")
     async def modify_coins(self, event: AstrMessageEvent):
         """修改用户金币"""
-        user_id = event.get_sender_id()
         args = event.message_str.split(" ")
+        
+        # 解析目标用户ID（支持@和用户ID两种方式）
+        target_user_id, error_msg = parse_target_user_id(event, args, 1)
+        if error_msg:
+            yield event.plain_result(error_msg)
+            return
+        
+        # 检查金币数量参数
         if len(args) < 3:
-            yield event.plain_result("❌ 请指定要修改的用户 ID 和金币数量，例如：/修改金币 123456789 1000")
+            yield event.plain_result("❌ 请指定金币数量，例如：/修改金币 @用户 1000 或 /修改金币 123456789 1000")
             return
-        target_user_id = args[1]
-        if not target_user_id.isdigit():
-            yield event.plain_result("❌ 用户 ID 必须是数字，请检查后重试。")
-            return
+        
         coins = args[2]
         if not coins.isdigit():
             yield event.plain_result("❌ 金币数量必须是数字，请检查后重试。")
             return
+        
         result = self.user_service.modify_user_coins(target_user_id, int(coins))
         if result:
             yield event.plain_result(f"✅ 成功修改用户 {target_user_id} 的金币数量为 {coins} 金币")
@@ -1757,17 +1811,23 @@ class FishingPlugin(Star):
     async def modify_premium(self, event: AstrMessageEvent):
         """修改用户高级货币"""
         args = event.message_str.split(" ")
+        
+        # 解析目标用户ID（支持@和用户ID两种方式）
+        target_user_id, error_msg = parse_target_user_id(event, args, 1)
+        if error_msg:
+            yield event.plain_result(error_msg)
+            return
+        
+        # 检查高级货币数量参数
         if len(args) < 3:
-            yield event.plain_result("❌ 请指定用户 ID 和高级货币数量，例如：/修改高级货币 123456789 100")
+            yield event.plain_result("❌ 请指定高级货币数量，例如：/修改高级货币 @用户 100 或 /修改高级货币 123456789 100")
             return
-        target_user_id = args[1]
-        if not target_user_id.isdigit():
-            yield event.plain_result("❌ 用户 ID 必须是数字，请检查后重试。")
-            return
+        
         premium = args[2]
         if not premium.isdigit():
             yield event.plain_result("❌ 高级货币数量必须是数字，请检查后重试。")
             return
+        
         user = self.user_repo.get_by_id(target_user_id)
         if not user:
             yield event.plain_result("❌ 用户不存在或未注册，请检查后重试。")
@@ -1781,17 +1841,23 @@ class FishingPlugin(Star):
     async def reward_premium(self, event: AstrMessageEvent):
         """奖励用户高级货币"""
         args = event.message_str.split(" ")
+        
+        # 解析目标用户ID（支持@和用户ID两种方式）
+        target_user_id, error_msg = parse_target_user_id(event, args, 1)
+        if error_msg:
+            yield event.plain_result(error_msg)
+            return
+        
+        # 检查高级货币数量参数
         if len(args) < 3:
-            yield event.plain_result("❌ 请指定用户 ID 和高级货币数量，例如：/奖励高级货币 123456789 100")
+            yield event.plain_result("❌ 请指定高级货币数量，例如：/奖励高级货币 @用户 100 或 /奖励高级货币 123456789 100")
             return
-        target_user_id = args[1]
-        if not target_user_id.isdigit():
-            yield event.plain_result("❌ 用户 ID 必须是数字，请检查后重试。")
-            return
+        
         premium = args[2]
         if not premium.isdigit():
             yield event.plain_result("❌ 高级货币数量必须是数字，请检查后重试。")
             return
+        
         user = self.user_repo.get_by_id(target_user_id)
         if not user:
             yield event.plain_result("❌ 用户不存在或未注册，请检查后重试。")
@@ -1805,17 +1871,23 @@ class FishingPlugin(Star):
     async def deduct_premium(self, event: AstrMessageEvent):
         """扣除用户高级货币"""
         args = event.message_str.split(" ")
+        
+        # 解析目标用户ID（支持@和用户ID两种方式）
+        target_user_id, error_msg = parse_target_user_id(event, args, 1)
+        if error_msg:
+            yield event.plain_result(error_msg)
+            return
+        
+        # 检查高级货币数量参数
         if len(args) < 3:
-            yield event.plain_result("❌ 请指定用户 ID 和高级货币数量，例如：/扣除高级货币 123456789 100")
+            yield event.plain_result("❌ 请指定高级货币数量，例如：/扣除高级货币 @用户 100 或 /扣除高级货币 123456789 100")
             return
-        target_user_id = args[1]
-        if not target_user_id.isdigit():
-            yield event.plain_result("❌ 用户 ID 必须是数字，请检查后重试。")
-            return
+        
         premium = args[2]
         if not premium.isdigit():
             yield event.plain_result("❌ 高级货币数量必须是数字，请检查后重试。")
             return
+        
         user = self.user_repo.get_by_id(target_user_id)
         if not user:
             yield event.plain_result("❌ 用户不存在或未注册，请检查后重试。")
@@ -1953,17 +2025,23 @@ class FishingPlugin(Star):
     async def reward_coins(self, event: AstrMessageEvent):
         """奖励用户金币"""
         args = event.message_str.split(" ")
+        
+        # 解析目标用户ID（支持@和用户ID两种方式）
+        target_user_id, error_msg = parse_target_user_id(event, args, 1)
+        if error_msg:
+            yield event.plain_result(error_msg)
+            return
+        
+        # 检查金币数量参数
         if len(args) < 3:
-            yield event.plain_result("❌ 请指定要奖励的用户 ID 和金币数量，例如：/奖励金币 123456789 1000")
+            yield event.plain_result("❌ 请指定金币数量，例如：/奖励金币 @用户 1000 或 /奖励金币 123456789 1000")
             return
-        target_user_id = args[1]
-        if not target_user_id.isdigit():
-            yield event.plain_result("❌ 用户 ID 必须是数字，请检查后重试。")
-            return
+        
         coins = args[2]
         if not coins.isdigit():
             yield event.plain_result("❌ 金币数量必须是数字，请检查后重试。")
             return
+        
         current_coins = self.user_service.get_user_currency(target_user_id)
         if current_coins is None:
             yield event.plain_result("❌ 用户不存在或未注册，请检查后重试。")
@@ -1979,17 +2057,23 @@ class FishingPlugin(Star):
     async def deduct_coins(self, event: AstrMessageEvent):
         """扣除用户金币"""
         args = event.message_str.split(" ")
+        
+        # 解析目标用户ID（支持@和用户ID两种方式）
+        target_user_id, error_msg = parse_target_user_id(event, args, 1)
+        if error_msg:
+            yield event.plain_result(error_msg)
+            return
+        
+        # 检查金币数量参数
         if len(args) < 3:
-            yield event.plain_result("❌ 请指定要扣除的用户 ID 和金币数量，例如：/扣除金币 123456789 1000")
+            yield event.plain_result("❌ 请指定金币数量，例如：/扣除金币 @用户 1000 或 /扣除金币 123456789 1000")
             return
-        target_user_id = args[1]
-        if not target_user_id.isdigit():
-            yield event.plain_result("❌ 用户 ID 必须是数字，请检查后重试。")
-            return
+        
         coins = args[2]
         if not coins.isdigit():
             yield event.plain_result("❌ 金币数量必须是数字，请检查后重试。")
             return
+        
         current_coins = self.user_service.get_user_currency(target_user_id)
         if current_coins is None:
             yield event.plain_result("❌ 用户不存在或未注册，请检查后重试。")
@@ -2107,20 +2191,19 @@ class FishingPlugin(Star):
         """管理员开始扮演一名用户。"""
         admin_id = event.get_sender_id()
         args = event.message_str.split(" ")
-        if len(args) < 2:
-            # 如果已经在线，则显示当前状态
-            if admin_id in self.impersonation_map:
-                target_user_id = self.impersonation_map[admin_id]
-                target_user = self.user_repo.get_by_id(target_user_id)
-                nickname = target_user.nickname if target_user else '未知用户'
-                yield event.plain_result(f"您当前正在代理用户: {nickname} ({target_user_id})")
-            else:
-                yield event.plain_result("用法: /代理上线 <目标用户ID>")
+        
+        # 如果已经在线，则显示当前状态
+        if admin_id in self.impersonation_map:
+            target_user_id = self.impersonation_map[admin_id]
+            target_user = self.user_repo.get_by_id(target_user_id)
+            nickname = target_user.nickname if target_user else '未知用户'
+            yield event.plain_result(f"您当前正在代理用户: {nickname} ({target_user_id})")
             return
-
-        target_user_id = args[1]
-        if not target_user_id.isdigit():
-            yield event.plain_result("❌ 目标用户ID必须是数字。")
+        
+        # 解析目标用户ID（支持@和用户ID两种方式）
+        target_user_id, error_msg = parse_target_user_id(event, args, 1)
+        if error_msg:
+            yield event.plain_result(f"用法: /代理上线 <目标用户ID> 或 /代理上线 @用户\n{error_msg}")
             return
 
         target_user = self.user_repo.get_by_id(target_user_id)
