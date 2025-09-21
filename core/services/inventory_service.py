@@ -285,21 +285,29 @@ class InventoryService:
             return {"success": False, "message": "❌ 你没有可以卖出的鱼竿"}
 
         total_value = 0
+        rods_to_sell = []
+        
+        # 只计算可以卖出的鱼竿（未装备且小于5星）
         for rod_instance in user_rods:
             if rod_instance.is_equipped:
                 continue
             rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
-            if rod_template:
+            if rod_template and rod_template.rarity < 5:  # 只计算小于5星的鱼竿
                 sell_price = self.game_mechanics_service.calculate_sell_price(
                     item_type="rod",
                     rarity=rod_template.rarity,
                     refine_level=rod_instance.refine_level,
                 )
                 total_value += sell_price
+                rods_to_sell.append(rod_instance)
+        
         if total_value == 0:
             return {"success": False, "message": "❌ 没有可以卖出的鱼竿"}
-        # 清空鱼竿库存
-        self.inventory_repo.clear_user_rod_instances(user_id)
+        
+        # 逐个删除可以卖出的鱼竿
+        for rod_instance in rods_to_sell:
+            self.inventory_repo.delete_rod_instance(rod_instance.rod_instance_id)
+        
         # 更新用户金币
         user.coins += total_value
         self.user_repo.update(user)
@@ -355,23 +363,29 @@ class InventoryService:
             return {"success": False, "message": "❌ 你没有可以卖出的饰品"}
 
         total_value = 0
+        accessories_to_sell = []
+        
+        # 只计算可以卖出的饰品（未装备且小于5星）
         for accessory_instance in user_accessories:
             if accessory_instance.is_equipped:
                 continue
             accessory_template = self.item_template_repo.get_accessory_by_id(accessory_instance.accessory_id)
-            if accessory_template:
+            if accessory_template and accessory_template.rarity < 5:  # 只计算小于5星的饰品
                 sell_price = self.game_mechanics_service.calculate_sell_price(
                     item_type="accessory",
                     rarity=accessory_template.rarity,
                     refine_level=accessory_instance.refine_level,
                 )
                 total_value += sell_price
+                accessories_to_sell.append(accessory_instance)
 
         if total_value == 0:
             return {"success": False, "message": "❌ 没有可以卖出的饰品"}
 
-        # 清空饰品库存
-        self.inventory_repo.clear_user_accessory_instances(user_id)
+        # 逐个删除可以卖出的饰品
+        for accessory_instance in accessories_to_sell:
+            self.inventory_repo.delete_accessory_instance(accessory_instance.accessory_instance_id)
+        
         # 更新用户金币
         user.coins += total_value
         self.user_repo.update(user)
