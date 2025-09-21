@@ -846,15 +846,15 @@ class InventoryService:
         destruction_chance = 0.0
             
         # 根据稀有度调整毁坏概率
-        if refine_level >= 6:
+        if refine_level >= 5:
             if rarity <= 2:
-                destruction_chance = 0.10
+                destruction_chance = 0.30  # 10% + 20% = 30%
             elif rarity <= 4:
-                destruction_chance = 0.15
+                destruction_chance = 0.35  # 15% + 20% = 35%
             elif rarity <= 6:
-                destruction_chance = 0.20
+                destruction_chance = 0.40  # 20% + 20% = 40%
             else:
-                destruction_chance = 0.30
+                destruction_chance = 0.50  # 30% + 20% = 50%
                 
         # 随机决定失败类型
         rand = random.random()
