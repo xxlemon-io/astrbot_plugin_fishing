@@ -197,7 +197,7 @@ async def deduct_all_coins(self, event: AstrMessageEvent):
             continue
         if user.coins <= 0:
             continue
-        deduct = amount_int if user.coins >= amount_int else user.coins
+        deduct = min(user.coins, amount_int)
         if deduct <= 0:
             continue
         user.coins -= deduct
@@ -229,7 +229,7 @@ async def deduct_all_premium(self, event: AstrMessageEvent):
             continue
         if user.premium_currency <= 0:
             continue
-        deduct = amount_int if user.premium_currency >= amount_int else user.premium_currency
+        deduct = min(user.premium_currency, amount_int)
         if deduct <= 0:
             continue
         user.premium_currency -= deduct
@@ -331,7 +331,7 @@ async def start_admin(self, event: AstrMessageEvent):
                 break
             await asyncio.sleep(1)
         else:
-            raise Exception("⌛ 启动超时，请检查防火墙设置")
+            raise TimeoutError("⌛ 启动超时，请检查防火墙设置")
 
         await asyncio.sleep(1)  # 等待服务启动
 

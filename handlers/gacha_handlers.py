@@ -157,9 +157,9 @@ async def wipe_bomb(self, event: AstrMessageEvent):
         else:
             yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
             return
-        if contribution_amount == 'allin' or contribution_amount == '梭哈':
+        if contribution_amount in ('allin', '梭哈'):
             contribution_amount = coins
-        elif contribution_amount == 'halfin' or contribution_amount == '梭一半':
+        elif contribution_amount in ('halfin', '梭一半'):
             contribution_amount = coins // 2
         contribution_amount = str(contribution_amount)
     # 判断是否为int或数字字符串

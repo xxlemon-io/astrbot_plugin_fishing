@@ -188,9 +188,7 @@ async def sell_item(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 道具ID必须是数字")
         return
     item_id = int(parts[1])
-    qty = 1
-    if len(parts) >= 3 and parts[2].isdigit():
-        qty = int(parts[2])
+    qty = int(parts[2]) if len(parts) >= 3 and parts[2].isdigit() else 1
     result = self.inventory_service.sell_item(user_id, item_id, qty)
     if result.get("success"):
         yield event.plain_result(result["message"])
