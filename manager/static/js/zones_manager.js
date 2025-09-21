@@ -465,6 +465,11 @@ document.addEventListener('DOMContentLoaded', function() {
             initializeSelectedFish(zone?.specific_fish_ids || [], modalEl);
             hookFormHandlers(form, zoneId);
         });
+
+        modalEl.addEventListener('hidden.bs.modal', function() {
+            // Clear the modal body when it's hidden to prevent focus issues and stale data
+            modalEl.querySelector('.modal-body').innerHTML = '';
+        });
     }
 
     function hookFormHandlers(form, zoneId) {
