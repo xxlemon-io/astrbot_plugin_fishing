@@ -27,7 +27,11 @@ class Zone1Strategy(FishingZoneStrategy):
 
     def get_fish_rarity_distribution(self, user: User) -> List[float]:
         # 新手区域逻辑：只能钓到0-4星鱼，4星鱼概率很低
-        return self.zone_config.get("rarity_distribution", [0.6, 0.3, 0.08, 0.02, 0])
+        # 如果没有配置或配置为空，则使用默认值
+        rarity_dist = self.zone_config.get("rarity_distribution")
+        if rarity_dist is None or not rarity_dist:
+            return [0.6, 0.3, 0.08, 0.02, 0]
+        return rarity_dist
 
 
 class Zone2Strategy(FishingZoneStrategy):
@@ -35,7 +39,11 @@ class Zone2Strategy(FishingZoneStrategy):
 
     def get_fish_rarity_distribution(self, user: User) -> List[float]:
         # 深海峡谷逻辑：4星鱼概率提升，有极小概率钓到5星鱼
-        return self.zone_config.get("rarity_distribution", [0.4, 0.3, 0.2, 0.09, 0.01])
+        # 如果没有配置或配置为空，则使用默认值
+        rarity_dist = self.zone_config.get("rarity_distribution")
+        if rarity_dist is None or not rarity_dist:
+            return [0.4, 0.3, 0.2, 0.09, 0.01]
+        return rarity_dist
 
 
 class Zone3Strategy(FishingZoneStrategy):
@@ -43,7 +51,23 @@ class Zone3Strategy(FishingZoneStrategy):
 
     def get_fish_rarity_distribution(self, user: User) -> List[float]:
         # 传说之海逻辑：5星鱼概率大幅提升
-        return self.zone_config.get("rarity_distribution", [0.3, 0.2, 0.2, 0.2, 0.1])
+        # 如果没有配置或配置为空，则使用默认值
+        rarity_dist = self.zone_config.get("rarity_distribution")
+        if rarity_dist is None or not rarity_dist:
+            return [0.3, 0.2, 0.2, 0.2, 0.1]
+        return rarity_dist
+
+
+class CustomZoneStrategy(FishingZoneStrategy):
+    """自定义区域策略"""
+
+    def get_fish_rarity_distribution(self, user: User) -> List[float]:
+        # 自定义区域完全依赖配置中的稀有度分布
+        # 如果没有配置，则使用均匀分布作为默认值
+        rarity_dist = self.zone_config.get("rarity_distribution")
+        if rarity_dist is None or not rarity_dist:
+            return [0.2, 0.2, 0.2, 0.2, 0.2]  # 默认均匀分布
+        return rarity_dist
 
 
 class FishingZoneService:
@@ -78,7 +102,8 @@ class FishingZoneService:
             elif zone.id == 3:
                 strategies[zone.id] = Zone3Strategy(self.item_template_repo, self.config, zone_config)
             else:
-                strategies[zone.id] = Zone1Strategy(self.item_template_repo, self.config, zone_config)
+                # 对于自定义区域（ID > 3），使用专门的自定义策略
+                strategies[zone.id] = CustomZoneStrategy(self.item_template_repo, self.config, zone_config)
         return strategies
 
     def get_strategy(self, zone_id: int) -> FishingZoneStrategy:
