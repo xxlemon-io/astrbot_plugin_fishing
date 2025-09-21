@@ -308,7 +308,7 @@ class GameMechanicsService:
                     pass
                 elif shadow_cloak_buff:
                     # 暗影斗篷效果：使用后立即失效
-                    self.buff_repo.remove(shadow_cloak_buff.id)
+                    self.buff_repo.delete(shadow_cloak_buff.id)
 
         # 1. 检查偷窃CD
         cooldown_seconds = self.config.get("steal", {}).get("cooldown_seconds", 14400) # 默认4小时
@@ -381,7 +381,7 @@ class GameMechanicsService:
         )
         if protection_buff:
             # 直接移除海灵守护效果
-            self.buff_repo.remove(protection_buff.id)
+            self.buff_repo.delete(protection_buff.id)
 
         # 1. 检查偷窃CD
         cooldown_seconds = self.config.get("steal", {}).get("cooldown_seconds", 14400) # 默认4小时
