@@ -390,33 +390,50 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!totalItem) return;
         
         const fishData = totalItem.dataset;
-        const rarityStars = '★'.repeat(parseInt(fishData.rarity));
-        const value = parseInt(fishData.value).toLocaleString();
-    
-        const newItemHtml = `
-            <div class="list-group-item fish-item" 
-                 data-fish-id="${fishData.fishId}" data-rarity="${fishData.rarity}" 
-                 data-value="${fishData.value}" data-name="${fishData.name}">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <strong>${fishData.name}</strong>
-                        <br><small class="text-muted">${rarityStars} 价值: ${value} 金币</small>
-                    </div>
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" value="${fishData.fishId}">
-                    </div>
-                </div>
-            </div>
-        `;
-    
-        const selectedList = container.querySelector('#selectedFishList');
-        selectedList.insertAdjacentHTML('beforeend', newItemHtml);
+        const rarity = parseInt(fishData.rarity);
+        const rarityStars = '★'.repeat(rarity);
+        const valueText = Number(fishData.value).toLocaleString();
 
-        const lastItem = selectedList.lastElementChild;
-        if (lastItem) {
-            const cb = lastItem.querySelector('input[type="checkbox"]');
-            if (cb) cb.addEventListener('click', (e) => e.stopPropagation());
-        }
+        const selectedList = container.querySelector('#selectedFishList');
+
+        // Build DOM nodes explicitly to avoid inheriting any classes or inline styles
+        const item = document.createElement('div');
+        item.className = 'list-group-item fish-item';
+        item.dataset.fishId = fishData.fishId;
+        item.dataset.rarity = String(rarity);
+        item.dataset.value = fishData.value;
+        item.dataset.name = fishData.name;
+        item.style.display = '';
+
+        const row = document.createElement('div');
+        row.className = 'd-flex justify-content-between align-items-center';
+
+        const left = document.createElement('div');
+        const nameStrong = document.createElement('strong');
+        nameStrong.textContent = fishData.name;
+        const br = document.createElement('br');
+        const small = document.createElement('small');
+        small.className = 'text-muted';
+        small.textContent = `${rarityStars} 价值: ${valueText} 金币`;
+        left.appendChild(nameStrong);
+        left.appendChild(br);
+        left.appendChild(small);
+
+        const right = document.createElement('div');
+        right.className = 'form-check';
+        const cb = document.createElement('input');
+        cb.className = 'form-check-input';
+        cb.type = 'checkbox';
+        cb.value = fishData.fishId;
+        cb.checked = false;
+        cb.addEventListener('click', (e) => e.stopPropagation());
+        right.appendChild(cb);
+
+        row.appendChild(left);
+        row.appendChild(right);
+        item.appendChild(row);
+
+        selectedList.appendChild(item);
     }
 
     function addFishToSelected(fishId, container) {
@@ -478,34 +495,6 @@ document.addEventListener('DOMContentLoaded', function() {
         container.querySelector('#totalFishCount').textContent = `${visibleCount} 种`;
     }
 
-    // Observe and sanitize visibility of selected list items to prevent accidental d-none injection
-    function attachSelectedListObserver(container) {
-        const selectedList = container.querySelector('#selectedFishList');
-        if (!selectedList) return;
-
-        const sanitize = () => {
-            selectedList.querySelectorAll('.fish-item').forEach(el => {
-                if (el.classList.contains('d-none')) el.classList.remove('d-none');
-                if (el.style && el.style.display === 'none') el.style.display = '';
-            });
-        };
-
-        // Run once immediately
-        sanitize();
-
-        const observer = new MutationObserver((mutations) => {
-            for (const m of mutations) {
-                if (m.type === 'childList' || m.type === 'attributes') {
-                    sanitize();
-                }
-            }
-        });
-
-        observer.observe(selectedList, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
-        // Stash so we can disconnect on hide
-        container._selectedListObserver = observer;
-    }
-
     function initializeSelectedFish(ids, container) {
         const selectedSet = getSelectedSet(container);
         selectedSet.clear();
@@ -539,28 +528,25 @@ document.addEventListener('DOMContentLoaded', function() {
             const button = event.relatedTarget;
             const zoneId = button ? button.getAttribute('data-bs-id') : null;
             const zone = zoneId ? getZoneById(parseInt(zoneId)) : null;
+            modalEl._currentZone = zone || null;
 
             modalEl.querySelector('.modal-body').innerHTML = renderForm(zone);
             
             const form = modalEl.querySelector(formId);
             setupFishSelection(modalEl);
-            attachSelectedListObserver(modalEl);
-            
-            // Defer initialization to avoid race conditions with modal transition
-            setTimeout(() => {
-                initializeSelectedFish(zone?.specific_fish_ids || [], modalEl);
-            }, 50);
-
             hookFormHandlers(form, zoneId);
+        });
+
+        // Initialize selections only after modal is fully shown to avoid transition races
+        modalEl.addEventListener('shown.bs.modal', function() {
+            const zone = modalEl._currentZone;
+            initializeSelectedFish(zone?.specific_fish_ids || [], modalEl);
         });
 
         modalEl.addEventListener('hidden.bs.modal', function() {
             // Clear the modal body when it's hidden to prevent focus issues and stale data
             modalEl.querySelector('.modal-body').innerHTML = '';
-            if (modalEl._selectedListObserver) {
-                modalEl._selectedListObserver.disconnect();
-                modalEl._selectedListObserver = null;
-            }
+            modalEl._currentZone = null;
         });
     }
 
