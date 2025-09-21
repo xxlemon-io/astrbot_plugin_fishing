@@ -1249,17 +1249,21 @@ class InventoryService:
         
         return is_first_infinite
 
-    def use_item(self, user_id: str, item_id: int) -> Dict[str, Any]:
+    def use_item(self, user_id: str, item_id: int, quantity: int = 1) -> Dict[str, Any]:
         """
-        使用一个道具，并将效果处理委托给 EffectManager。
+        使用一个或多个道具，并将效果处理委托给 EffectManager。
         """
+        if quantity <= 0:
+            return {"success": False, "message": "数量必须大于0"}
+
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
 
         item_inventory = self.inventory_repo.get_user_item_inventory(user_id)
-        if item_inventory.get(item_id, 0) <= 0:
-            return {"success": False, "message": "你没有这个道具"}
+        available_quantity = item_inventory.get(item_id, 0)
+        if available_quantity < quantity:
+            return {"success": False, "message": f"你只有 {available_quantity} 个该道具，数量不足"}
 
         item_template = self.item_template_repo.get_item_by_id(item_id)
         if not item_template:
@@ -1270,7 +1274,7 @@ class InventoryService:
 
         effect_type = item_template.effect_type
         if not effect_type:
-            return {"success": True, "message": f"成功使用了【{item_template.name}】，但它似乎没什么效果。"}
+            return {"success": True, "message": f"成功使用了 {quantity} 个【{item_template.name}】，但它似乎没什么效果。"}
 
         effect_handler = self.effect_manager.get_effect(effect_type)
         if not effect_handler:
@@ -1280,7 +1284,7 @@ class InventoryService:
             }
 
         # 消耗道具
-        self.inventory_repo.decrease_item_quantity(user_id, item_id, 1)
+        self.inventory_repo.decrease_item_quantity(user_id, item_id, quantity)
 
         try:
             payload = (
@@ -1288,10 +1292,12 @@ class InventoryService:
                 if item_template.effect_payload
                 else {}
             )
-            result = effect_handler.apply(user, item_template, payload)
+            
+            # 传递 quantity 参数给效果处理器
+            result = effect_handler.apply(user, item_template, payload, quantity=quantity)
 
-            # 确保返回的消息包含道具名称
-            final_message = f"成功使用了【{item_template.name}】！{result.get('message', '')}"
+            # 确保返回的消息包含道具名称和数量
+            final_message = f"成功使用了 {quantity} 个【{item_template.name}】！{result.get('message', '')}"
             result["message"] = final_message
             return result
 

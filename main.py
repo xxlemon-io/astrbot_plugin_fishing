@@ -497,7 +497,7 @@ class FishingPlugin(Star):
 
     @filter.command("使用道具", alias={"使用"})
     async def use_item(self, event: AstrMessageEvent):
-        """使用一个道具"""
+        """使用一个或多个道具"""
         user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
@@ -518,63 +518,13 @@ class FishingPlugin(Star):
                 yield event.plain_result("❌ 数量必须是正整数。")
                 return
 
-        # 批量使用道具，设置显示上限避免消息过长
-        DETAIL_DISPLAY_LIMIT = 5  # 最多显示5个道具的详细效果
-        success_count = 0
-        failed_count = 0
-        last_error_message = ""
-        success_messages = []
+        result = self.inventory_service.use_item(user_id, item_id, quantity)
         
-        for _ in range(quantity):
-            result = self.inventory_service.use_item(user_id, item_id)
-            
-            if result["success"]:
-                success_count += 1
-                success_messages.append(result["message"])
-            else:
-                failed_count += 1
-                last_error_message = result["message"]
-                # 如果失败，则停止使用后续的道具
-                break
-
-        # 发送汇总消息
-        if success_count > 0 and failed_count == 0:
-            if quantity == 1:
-                # 单个道具使用时，显示具体的道具效果消息
-                yield event.plain_result(f"✅ {success_messages[0]}")
-            else:
-                # 多个道具使用时，显示汇总 + 详细效果（有上限）
-                message = f"✅ 成功使用了 {success_count} 个道具！\n\n"
-                
-                # 显示详细效果（最多显示前N个）
-                display_count = min(success_count, DETAIL_DISPLAY_LIMIT)
-                message += "📋 使用效果：\n"
-                for i in range(display_count):
-                    message += f"{i+1}. {success_messages[i]}\n"
-                
-                # 如果还有更多未显示的
-                if success_count > DETAIL_DISPLAY_LIMIT:
-                    remaining = success_count - DETAIL_DISPLAY_LIMIT
-                    message += f"... 还有 {remaining} 个道具产生了相同效果"
-                
-                yield event.plain_result(message)
-        elif success_count > 0 and failed_count > 0:
-            message = f"⚠️ 成功使用了 {success_count} 个道具，{failed_count} 个失败：{last_error_message}\n\n"
-            
-            # 显示成功的详细效果
-            if success_count > 0:
-                display_count = min(success_count, DETAIL_DISPLAY_LIMIT)
-                message += "📋 成功的效果：\n"
-                for i in range(display_count):
-                    message += f"{i+1}. {success_messages[i]}\n"
-                    
-                if success_count > DETAIL_DISPLAY_LIMIT:
-                    remaining = success_count - DETAIL_DISPLAY_LIMIT
-                    message += f"... 还有 {remaining} 个道具产生了相同效果"
-            
-            yield event.plain_result(message)
+        if result and result.get("success"):
+            yield event.plain_result(f"✅ {result['message']}")
         else:
-            yield event.plain_result(f"❌ 使用道具失败：{last_error_message}")
+            error_message = result.get('message', '未知错误') if result else '未知错误'
+            yield event.plain_result(f"❌ 使用道具失败：{error_message}")
 
     @filter.command("卖道具", alias={"出售道具", "卖出道具"})
     async def sell_item(self, event: AstrMessageEvent):
