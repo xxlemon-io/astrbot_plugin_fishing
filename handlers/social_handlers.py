@@ -1,7 +1,7 @@
 import os
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.core.message.components import At
-from ..draw.ranking import draw_fishing_ranking
+from ..draw.rank import draw_fishing_ranking
 from ..utils import parse_target_user_id
 
 class SocialHandlers:
