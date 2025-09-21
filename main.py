@@ -68,7 +68,7 @@ class FishingPlugin(Star):
             self.data_dir = self.context.get_data_dir(self.plugin_id)
         except (AttributeError, TypeError):
             # 如果方法不存在或调用失败，则回退到旧的硬编码路径
-            logger.warning(f"无法使用 self.context.get_data_dir('{self.plugin_id}'), 将回退到旧的 'data/' 目录。请考虑升级 AstrBot 框架以获得更好的数据隔离。")
+            logger.warning(f"无法使用 self.context.get_data_dir('{self.plugin_id}'), 将回退到旧的 'data/' 目录。")
             self.data_dir = "data"
         
         self.tmp_dir = os.path.join(self.data_dir, "tmp")
