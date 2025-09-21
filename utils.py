@@ -11,31 +11,28 @@ import asyncio
 
 from astrbot.api import logger
 
-async def get_public_ip():
-    """异步获取公网IPv4地址"""
-    ipv4_apis = [
-        "http://ipv4.ifconfig.me/ip",  # IPv4专用接口
-        "http://api-ipv4.ip.sb/ip",  # 樱花云IPv4接口
-        "http://v4.ident.me",  # IPv4专用
-        "http://ip.qaros.com",  # 备用国内服务
-        "http://ipv4.icanhazip.com",  # IPv4专用
-        "http://4.icanhazip.com"  # 另一个变种地址
-    ]
-
-    async with aiohttp.ClientSession() as session:
-        for api in ipv4_apis:
-            try:
-                async with session.get(api, timeout=5) as response:
-                    if response.status == 200:
-                        ip = (await response.text()).strip()
-                        # 添加二次验证确保是IPv4格式
-                        if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", ip):
-                            return ip
-            except aiohttp.ClientError as e:
-                logger.warning(f"获取公网IP时请求 {api} 失败: {e}")
-                continue
-
-    return None
+async def get_local_ip():
+    """异步获取内网IPv4地址"""
+    try:
+        # 获取本机内网IP地址
+        import socket
+        # 创建一个socket连接来获取本机IP
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            # 连接到一个外部地址（不会实际发送数据）
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            
+        # 验证是否为有效的内网IP地址
+        if re.match(r"^(10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.)", local_ip):
+            logger.info(f"获取到内网IP地址: {local_ip}")
+            return local_ip
+        else:
+            logger.warning(f"获取到的IP地址 {local_ip} 不是内网地址，使用localhost")
+            return "127.0.0.1"
+            
+    except Exception as e:
+        logger.warning(f"获取内网IP失败: {e}，使用localhost")
+        return "127.0.0.1"
 
 async def _is_port_available(port: int) -> bool:
     """异步检查端口是否可用，避免阻塞事件循环"""

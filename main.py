@@ -42,7 +42,7 @@ from .draw.rank import draw_fishing_ranking
 from .draw.help import draw_help_image
 from .draw.state import draw_state_image, get_user_state_data
 from .manager.server import create_app
-from .utils import get_public_ip, to_percentage, format_accessory_or_rod, safe_datetime_handler, _is_port_available, format_rarity_display, kill_processes_on_port
+from .utils import get_local_ip, to_percentage, format_accessory_or_rod, safe_datetime_handler, _is_port_available, format_rarity_display, kill_processes_on_port
 
 
 class FishingPlugin(Star):
@@ -1925,7 +1925,7 @@ class FishingPlugin(Star):
             config.bind = [f"0.0.0.0:{self.port}"]
             self.web_admin_task = asyncio.create_task(serve(app, config))
 
-            # 等待服务启动并获取公网IP
+            # 等待服务启动并获取内网IP
             for i in range(10):
                 if await self._check_port_active():
                     break
@@ -1933,12 +1933,12 @@ class FishingPlugin(Star):
             else:
                 raise Exception("⌛ 启动超时，请检查防火墙设置")
 
-            public_ip = await get_public_ip()
+            local_ip = await get_local_ip()
             await asyncio.sleep(1)  # 等待服务启动
-            if public_ip is None:
-                public_ip = "localhost"
+            if local_ip is None:
+                local_ip = "localhost"
 
-            yield event.plain_result(f"✅ 钓鱼后台已启动！\n🔗请访问 http://{public_ip}:{self.port}/admin\n🔑 密钥请到配置文件中查看")
+            yield event.plain_result(f"✅ 钓鱼后台已启动！\n🔗请访问 http://{local_ip}:{self.port}/admin\n🔑 密钥请到配置文件中查看\n💡 注意：现在使用内网IP地址，更安全")
         except Exception as e:
             logger.error(f"启动后台失败: {e}", exc_info=True)
             yield event.plain_result(f"❌ 启动后台失败: {e}")
