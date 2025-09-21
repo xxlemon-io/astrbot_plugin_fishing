@@ -23,9 +23,11 @@ class AddWipeBombAttemptsEffect(AbstractItemEffect):
             raise ValueError("LogRepository and GameConfig are required for this effect.")
 
     def apply(
-        self, user: User, item_template: Item, payload: Dict[str, Any]
+        self, user: User, item_template: Item, payload: Dict[str, Any], quantity: int = 1
     ) -> Dict[str, Any]:
-        attempts_to_add = payload.get("amount", 1)
+        attempts_per_item = payload.get("amount", 1)
+        total_attempts_to_add = attempts_per_item * quantity
+        
         buff_type = "WIPE_BOMB_ATTEMPTS_BOOST"
         new_amount = 0
 
@@ -38,7 +40,7 @@ class AddWipeBombAttemptsEffect(AbstractItemEffect):
             # 如果buff已存在，累加次数
             current_payload = json.loads(existing_buff.payload or '{}')
             current_amount = current_payload.get("amount", 0)
-            new_amount = current_amount + attempts_to_add
+            new_amount = current_amount + total_attempts_to_add
             
             existing_buff.payload = json.dumps({"amount": new_amount})
             existing_buff.expires_at = get_end_of_day()
@@ -46,7 +48,7 @@ class AddWipeBombAttemptsEffect(AbstractItemEffect):
 
         else:
             # 如果buff不存在，创建新buff
-            new_amount = attempts_to_add
+            new_amount = total_attempts_to_add
             new_buff = UserBuff(
                 id=0,
                 user_id=user.user_id,
@@ -63,6 +65,6 @@ class AddWipeBombAttemptsEffect(AbstractItemEffect):
         used_attempts_today = self.log_repo.get_wipe_bomb_log_count_today(user.user_id)
         remaining_today = max(0, total_max_attempts - used_attempts_today)
 
-        message = f"你获得 {attempts_to_add} 次额外擦弹机会。今天剩余擦弹次数：{remaining_today} 次。"
+        message = f"你获得 {total_attempts_to_add} 次额外擦弹机会。今天剩余擦弹次数：{remaining_today} 次。"
         
         return {"success": True, "message": message}
