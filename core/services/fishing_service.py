@@ -44,14 +44,15 @@ class FishingService:
         # 自动钓鱼线程相关属性
         self.auto_fishing_thread: Optional[threading.Thread] = None
         self.auto_fishing_running = False
-        # 可选的消息通知回调：签名 (user_id: str, message: str) -> None
+        # 可选的消息通知回调：签名 (target: str, message: str) -> None，用于群聊通知
         self._notifier = None
         
 
     def register_notifier(self, notifier):
         """
-        注册一个用于发送系统消息的回调（例如私聊/频道推送）。
-        回调应为同步函数，签名为 (user_id: str, message: str) -> None。
+        注册一个用于发送系统消息的回调（群聊推送）。
+        回调应为同步函数，签名为 (target: str, message: str) -> None。
+        target 为 "group" 时发送群聊消息。
         """
         self._notifier = notifier
 
@@ -657,6 +658,92 @@ class FishingService:
                 )
                 self.log_repo.add_tax_record(tax_log)
 
+    def enforce_zone_pass_requirements_for_all_users(self) -> None:
+        """
+        每日检查：若用户当前所在钓鱼区域需要通行证，但其背包中已无对应道具，
+        则将用户传送回 1 号钓鱼地，并通过群聊@通知相关玩家。
+        """
+        try:
+            all_user_ids = self.user_repo.get_all_user_ids()
+        except Exception:
+            # 如果仓储异常，不影响主循环
+            return
+
+        relocated_users = []  # 存储被传送的用户信息
+
+        for user_id in all_user_ids:
+            try:
+                user = self.user_repo.get_by_id(user_id)
+                if not user:
+                    continue
+
+                zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+                if not zone or not getattr(zone, "requires_pass", False) or not getattr(zone, "required_item_id", None):
+                    continue
+
+                user_items = self.inventory_repo.get_user_item_inventory(user_id)
+                current_quantity = user_items.get(zone.required_item_id, 0) if user_items else 0
+
+                if current_quantity < 1:
+                    # 移动到 1 号区域
+                    user.fishing_zone_id = 1
+                    self.user_repo.update(user)
+                    
+                    # 记录日志
+                    try:
+                        item_template = self.item_template_repo.get_item_by_id(zone.required_item_id)
+                        item_name = item_template.name if item_template else f"道具ID{zone.required_item_id}"
+                    except Exception:
+                        item_name = f"道具ID{zone.required_item_id}"
+                    self.log_repo.add_log(user_id, "zone_relocation", f"缺少 {item_name}，已被传送至 1 号钓鱼地")
+                    
+                    # 收集被传送用户信息
+                    relocated_users.append({
+                        "user_id": user_id,
+                        "nickname": user.nickname,
+                        "zone_name": zone.name,
+                        "item_name": item_name
+                    })
+            except Exception:
+                # 单个用户异常不影响其他用户
+                continue
+
+        # 如果有被传送的用户，发送群聊通知
+        if relocated_users and self._notifier:
+            try:
+                self._send_relocation_notification(relocated_users)
+            except Exception as e:
+                logger.error(f"发送传送通知失败: {e}")
+
+    def _send_relocation_notification(self, relocated_users: list) -> None:
+        """
+        发送传送通知到群聊，以符合世界观的方式@相关玩家。
+        """
+        if not relocated_users:
+            return
+
+        try:
+            # 使用注册的通知回调发送群聊消息
+            if self._notifier:
+                # 构建符合世界观的通知消息
+                message_parts = ["🌅【每日区域检查】🌅\n"]
+                message_parts.append("黎明时分，钓鱼协会的巡查员开始检查各区域的准入资格...\n\n")
+                message_parts.append("以下渔者因缺少必要的通行证，已被安全传送回新手钓鱼地：\n")
+
+                for user_info in relocated_users:
+                    message_parts.append(f"• @{user_info['user_id']} ({user_info['nickname']})")
+                    message_parts.append(f"  从 {user_info['zone_name']} 传送至 1号钓鱼地")
+                    message_parts.append(f"  缺少：{user_info['item_name']}\n")
+
+                message_parts.append("💡 温馨提示：前往特殊区域前请确保携带足够的通行证。")
+                message_parts.append("祝各位渔者今日收获满满！🎣")
+
+                # 发送群聊通知
+                group_message = "".join(message_parts)
+                self._notifier("group", group_message)
+        except Exception as e:
+            logger.error(f"发送传送通知失败: {e}")
+
     def start_auto_fishing_task(self):
         """启动自动钓鱼的后台线程。"""
         if self.auto_fishing_thread and self.auto_fishing_thread.is_alive():
@@ -695,6 +782,8 @@ class FishingService:
                             self.inventory_repo.update_fishing_zone(zone)
                     # 每次循环开始时检查是否需要应用每日税收
                     self.apply_daily_taxes()
+                    # 每日检查：需要通行证的区域玩家是否仍持有通行证
+                    self.enforce_zone_pass_requirements_for_all_users()
                 # 获取所有开启自动钓鱼的用户
                 auto_users_ids = self.user_repo.get_all_user_ids(auto_fishing_only=True)
 
