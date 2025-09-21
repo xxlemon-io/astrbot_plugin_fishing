@@ -667,7 +667,7 @@ class FishingPlugin(Star):
 
     @filter.command("锁定鱼竿", alias={"鱼竿锁定"})
     async def lock_rod(self, event: AstrMessageEvent):
-        """锁定鱼竿，防止被精炼、卖出、上架"""
+        """锁定鱼竿，防止被当作精炼材料、卖出、上架（仍可作为主装备精炼）"""
         user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
@@ -707,7 +707,7 @@ class FishingPlugin(Star):
 
     @filter.command("锁定饰品", alias={"饰品锁定"})
     async def lock_accessory(self, event: AstrMessageEvent):
-        """锁定饰品，防止被精炼、卖出、上架"""
+        """锁定饰品，防止被当作精炼材料、卖出、上架（仍可作为主装备精炼）"""
         user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
@@ -745,7 +745,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result(f"❌ 解锁失败：{result['message']}")
 
-    @filter.command("使用鱼竿")
+    @filter.command("使用鱼竿 ", alias={"装备鱼竿"})
     async def use_rod(self, event: AstrMessageEvent):
         """使用鱼竿"""
         user_id = self._get_effective_user_id(event)
@@ -771,7 +771,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("使用鱼饵")
+    @filter.command("使用鱼饵", alias={"装备鱼饵"})
     async def use_bait(self, event: AstrMessageEvent):
         """使用鱼饵"""
         user_id = self._get_effective_user_id(event)
@@ -796,7 +796,7 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    @filter.command("使用饰品")
+    @filter.command("使用饰品", alias={"装备饰品"})
     async def use_accessories(self, event: AstrMessageEvent):
         """使用饰品"""
         user_id = self._get_effective_user_id(event)

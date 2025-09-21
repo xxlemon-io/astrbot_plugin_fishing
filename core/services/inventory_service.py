@@ -835,9 +835,7 @@ class InventoryService:
             if not instance:
                 return {"success": False, "message": "鱼竿不存在或不属于你"}
 
-            # 检查是否锁定
-            if instance.is_locked:
-                return {"success": False, "message": "该鱼竿已锁定，无法精炼"}
+            # 锁定装备可以作为主装备精炼，但不能作为材料
 
             template = self.item_template_repo.get_rod_by_id(instance.rod_id)
             same_items = self.inventory_repo.get_same_rod_instances(user_id_int, instance.rod_id)
@@ -857,9 +855,7 @@ class InventoryService:
             if not instance:
                 return {"success": False, "message": "饰品不存在或不属于你"}
 
-            # 检查是否锁定
-            if instance.is_locked:
-                return {"success": False, "message": "该饰品已锁定，无法精炼"}
+            # 锁定装备可以作为主装备精炼，但不能作为材料
 
             template = self.item_template_repo.get_accessory_by_id(instance.accessory_id)
             same_items = self.inventory_repo.get_same_accessory_instances(user_id_int, instance.accessory_id)
@@ -892,6 +888,9 @@ class InventoryService:
                 continue
             # 跳过正在装备的材料
             if getattr(candidate, 'is_equipped', False):
+                continue
+            # 跳过锁定的材料（锁定的装备不能作为精炼材料）
+            if getattr(candidate, 'is_locked', False):
                 continue
 
             available_candidates += 1
@@ -1344,7 +1343,8 @@ class InventoryService:
 
     def lock_rod(self, user_id: str, rod_instance_id: int) -> Dict[str, Any]:
         """
-        锁定指定的鱼竿，防止被精炼、卖出、上架
+        锁定指定的鱼竿，防止被当作精炼材料、卖出、上架
+        注意：锁定的鱼竿仍可作为主装备进行精炼，精炼失败时仍会被碎掉
         """
         user = self.user_repo.get_by_id(user_id)
         if not user:
@@ -1406,7 +1406,8 @@ class InventoryService:
 
     def lock_accessory(self, user_id: str, accessory_instance_id: int) -> Dict[str, Any]:
         """
-        锁定指定的饰品，防止被精炼、卖出、上架
+        锁定指定的饰品，防止被当作精炼材料、卖出、上架
+        注意：锁定的饰品仍可作为主装备进行精炼，精炼失败时仍会被碎掉
         """
         user = self.user_repo.get_by_id(user_id)
         if not user:
