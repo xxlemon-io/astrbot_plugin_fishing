@@ -147,6 +147,7 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
     success_color = (76, 175, 80)    # 温和绿 - 成功/积极状态
     warning_color = (255, 183, 77)   # 柔和橙 - 警告/中性
     error_color = (229, 115, 115)    # 温和红 - 错误/消极状态
+    lock_color = (54, 162, 235)      # 安全蓝 - 锁定保护状态
     
     # 背景色：更柔和的对比
     card_bg = (255, 255, 255, 240)   # 高透明度白色
@@ -433,7 +434,7 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             if is_locked:
                 label_text = "🔒 锁定"
                 lw, lh = get_text_size(label_text, tiny_font)
-                draw.text((x + card_width - 15 - lw, y + 12), label_text, font=tiny_font, fill=warning_color)
+                draw.text((x + card_width - 15 - lw, y + 12), label_text, font=tiny_font, fill=lock_color)
             
             # 稀有度和精炼等级
             rarity = rod.get('rarity', 1)
@@ -573,7 +574,7 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             if is_locked:
                 label_text = "🔒 锁定"
                 lw, lh = get_text_size(label_text, tiny_font)
-                draw.text((x + card_width - 15 - lw, y + 12), label_text, font=tiny_font, fill=warning_color)
+                draw.text((x + card_width - 15 - lw, y + 12), label_text, font=tiny_font, fill=lock_color)
             
             # 稀有度和精炼等级
             rarity = accessory.get('rarity', 1)

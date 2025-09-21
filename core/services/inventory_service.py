@@ -92,6 +92,13 @@ class InventoryService:
                     "current_durability": rod_instance.current_durability,
                     "max_durability": refined_max_durability,
                 })
+        # 排序：装备的鱼竿优先显示，然后按稀有度降序，最后按精炼等级降序
+        enriched_rods.sort(key=lambda x: (
+            not x["is_equipped"],  # False (装备中) 排在前面
+            -x["rarity"],          # 稀有度降序
+            -x["refine_level"]     # 精炼等级降序
+        ))
+        
         return {
             "success": True,
             "rods": enriched_rods
@@ -145,6 +152,13 @@ class InventoryService:
                     "refine_level": accessory_instance.refine_level,
                 })
 
+        # 排序：装备的饰品优先显示，然后按稀有度降序，最后按精炼等级降序
+        enriched_accessories.sort(key=lambda x: (
+            not x["is_equipped"],  # False (装备中) 排在前面
+            -x["rarity"],          # 稀有度降序
+            -x["refine_level"]     # 精炼等级降序
+        ))
+        
         return {
             "success": True,
             "accessories": enriched_accessories
