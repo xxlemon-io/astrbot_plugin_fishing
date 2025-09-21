@@ -290,7 +290,7 @@ class FishingZone:
     id: int
     name: str
     description: str
-    # 当天稀有鱼（4星和5星）的配额
+    # 当天稀有鱼（4星及以上）的配额
     daily_rare_fish_quota: int
     # 今天已被钓走的稀有鱼数量
     rare_fish_caught_today: int = 0
