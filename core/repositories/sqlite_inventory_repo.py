@@ -351,14 +351,14 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor = conn.cursor()
             now = datetime.now()
             cursor.execute("""
-                INSERT INTO user_rods (user_id, rod_id, current_durability, obtained_at, refine_level, is_equipped)
-                VALUES (?, ?, ?, ?, ?, 0)
+                INSERT INTO user_rods (user_id, rod_id, current_durability, obtained_at, refine_level, is_equipped, is_locked)
+                VALUES (?, ?, ?, ?, ?, 0, 0)
             """, (user_id, rod_id, durability, now, refine_level))
             instance_id = cursor.lastrowid
             conn.commit()
             return UserRodInstance(
                 rod_instance_id=instance_id, user_id=user_id, rod_id=rod_id,
-                is_equipped=False, obtained_at=now, current_durability=durability, refine_level=refine_level
+                is_equipped=False, obtained_at=now, current_durability=durability, refine_level=refine_level, is_locked=False
             )
 
     def delete_rod_instance(self, rod_instance_id: int) -> None:
@@ -379,14 +379,14 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor = conn.cursor()
             now = datetime.now()
             cursor.execute("""
-                INSERT INTO user_accessories (user_id, accessory_id, obtained_at, refine_level, is_equipped)
-                VALUES (?, ?, ?, ?, 0)
+                INSERT INTO user_accessories (user_id, accessory_id, obtained_at, refine_level, is_equipped, is_locked)
+                VALUES (?, ?, ?, ?, 0, 0)
             """, (user_id, accessory_id, now, refine_level))
             instance_id = cursor.lastrowid
             conn.commit()
             return UserAccessoryInstance(
                 accessory_instance_id=instance_id, user_id=user_id, accessory_id=accessory_id,
-                is_equipped=False, obtained_at=now, refine_level=refine_level
+                is_equipped=False, obtained_at=now, refine_level=refine_level, is_locked=False
             )
 
     def delete_accessory_instance(self, accessory_instance_id: int) -> None:
@@ -552,9 +552,9 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE user_rods
-                SET rod_id = ?, is_equipped = ?, current_durability = ?, refine_level = ?
+                SET rod_id = ?, is_equipped = ?, current_durability = ?, refine_level = ?, is_locked = ?
                 WHERE rod_instance_id = ? AND user_id = ?
-            """, (rod_instance.rod_id, rod_instance.is_equipped, rod_instance.current_durability, rod_instance.refine_level, rod_instance.rod_instance_id, rod_instance.user_id))
+            """, (rod_instance.rod_id, rod_instance.is_equipped, rod_instance.current_durability, rod_instance.refine_level, rod_instance.is_locked, rod_instance.rod_instance_id, rod_instance.user_id))
             conn.commit()
 
     def update_accessory_instance(self, accessory_instance: UserAccessoryInstance):
@@ -563,9 +563,9 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE user_accessories
-                SET accessory_id = ?, is_equipped = ?, refine_level = ?
+                SET accessory_id = ?, is_equipped = ?, refine_level = ?, is_locked = ?
                 WHERE accessory_instance_id = ? AND user_id = ?
-            """, (accessory_instance.accessory_id, accessory_instance.is_equipped, accessory_instance.refine_level, accessory_instance.accessory_instance_id, accessory_instance.user_id))
+            """, (accessory_instance.accessory_id, accessory_instance.is_equipped, accessory_instance.refine_level, accessory_instance.is_locked, accessory_instance.accessory_instance_id, accessory_instance.user_id))
             conn.commit()
 
     def get_same_rod_instances(self, user_id: int, rod_id: str) -> List[UserRodInstance]:
