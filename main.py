@@ -1531,7 +1531,7 @@ class FishingPlugin(Star):
         
         # 直接扣除驱灵香
         dispel_item = dispel_items[0]
-        result = self.user_service.remove_item_from_user_inventory(user_id, "item", dispel_item["id"], 1)
+        result = self.user_service.remove_item_from_user_inventory(user_id, "item", dispel_item["item_id"], 1)
         if not result.get("success"):
             yield event.plain_result(f"❌ 扣除驱灵香失败：{result.get('message', '未知错误')}")
             return
