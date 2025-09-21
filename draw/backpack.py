@@ -432,7 +432,7 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             # 锁定状态标识（右上角，参考道具消耗品位置）
             is_locked = rod.get('is_locked', False)
             if is_locked:
-                label_text = "🔒 锁定"
+                label_text = "🔒 锁定保护中"
                 lw, lh = get_text_size(label_text, tiny_font)
                 draw.text((x + card_width - 15 - lw, y + 12), label_text, font=tiny_font, fill=lock_color)
             
