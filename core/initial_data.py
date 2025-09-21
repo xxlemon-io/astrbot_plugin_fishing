@@ -249,7 +249,7 @@ ITEM_DATA = [
         3,
         "使用：立即重置钓鱼冷却。",
         0,
-        False,
+        True,
         None,
         "RESET_FISHING_COOLDOWN",
         '{}',

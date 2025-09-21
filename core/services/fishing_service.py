@@ -666,6 +666,13 @@ class FishingService:
                     last_ts = 0
                     if user.last_fishing_time and user.last_fishing_time.year > 1:
                         last_ts = user.last_fishing_time.timestamp()
+                    elif user.last_fishing_time and user.last_fishing_time.year <= 1:
+                        # 若 last_fishing_time 被重置为极早时间，将时间设为当前时间减去冷却时间，
+                        # 这样下一轮自动钓鱼就能正常工作了
+                        cooldown = fishing_config.get("cooldown_seconds", 180)
+                        user.last_fishing_time = get_now() - timedelta(seconds=cooldown)
+                        self.user_repo.update(user)
+                        last_ts = user.last_fishing_time.timestamp()
                     # 检查用户是否装备了海洋之心
                     _cooldown = cooldown
                     equipped_accessory = self.inventory_repo.get_user_equipped_accessory(user_id)
