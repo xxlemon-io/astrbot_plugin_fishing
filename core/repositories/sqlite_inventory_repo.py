@@ -43,7 +43,8 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             is_equipped=bool(row['is_equipped']),
             obtained_at=row['obtained_at'],
             refine_level=row['refine_level'] if 'refine_level' in row.keys() else 1,
-            current_durability=row['current_durability'] if 'current_durability' in row.keys() else None
+            current_durability=row['current_durability'] if 'current_durability' in row.keys() else None,
+            is_locked=bool(row['is_locked']) if 'is_locked' in row.keys() else False
         )
 
     def _row_to_accessory_instance(self, row: sqlite3.Row) -> Optional[UserAccessoryInstance]:
@@ -56,7 +57,8 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             accessory_id=row['accessory_id'],
             is_equipped=bool(row['is_equipped']),
             obtained_at=row['obtained_at'],
-            refine_level=row['refine_level'] if 'refine_level' in row.keys() else 1
+            refine_level=row['refine_level'] if 'refine_level' in row.keys() else 1,
+            is_locked=bool(row['is_locked']) if 'is_locked' in row.keys() else False
         )
 
     # --- Fish Inventory Methods ---
