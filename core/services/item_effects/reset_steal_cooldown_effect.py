@@ -9,8 +9,13 @@ class ResetStealCooldownEffect(AbstractItemEffect):
     effect_type = "RESET_STEAL_COOLDOWN"
 
     def apply(
-        self, user: User, item_template: Item, payload: Dict[str, Any]
+        self, user: User, item_template: Item, payload: Dict[str, Any], quantity: int = 1
     ) -> Dict[str, Any]:
+        if quantity > 1:
+            return {
+                "success": False,
+                "message": f"【{item_template.name}】不支持批量使用，请一次使用一个。"
+            }
         user.last_steal_time = datetime.min
         self.user_repo.update(user)
 

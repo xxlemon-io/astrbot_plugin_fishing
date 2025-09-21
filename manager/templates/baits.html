@@ -76,7 +76,11 @@
                 <div class="modal-body">
                     <div class="row g-3">
                         <div class="col-md-8"><label>名称</label><input type="text" name="name" class="form-control" required></div>
-                        <div class="col-md-4"><label>稀有度 (1-5)</label><input type="number" name="rarity" class="form-control" min="1" max="5" required></div>
+                        <div class="col-md-4">
+                            <label>稀有度</label>
+                            <input type="number" name="rarity" class="form-control" min="1" required>
+                            <div class="form-text text-muted small">支持任意星级</div>
+                        </div>
                         <div class="col-12"><label>描述 (给玩家看)</label><textarea name="description" class="form-control" rows="2"></textarea></div>
                         <div class="col-12"><label>效果描述 (给玩家看)</label><textarea name="effect_description" class="form-control" rows="2"></textarea></div>
 

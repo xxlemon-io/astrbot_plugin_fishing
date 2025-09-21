@@ -20,8 +20,13 @@ class ForecastWipeBombEffect(AbstractItemEffect):
         self.game_mechanics_service = game_mechanics_service
 
     def apply(
-        self, user: User, item_template: Item, payload: Dict[str, Any]
+        self, user: User, item_template: Item, payload: Dict[str, Any], quantity: int = 1
     ) -> Dict[str, Any]:
+        if quantity > 1:
+            return {
+                "success": False,
+                "message": f"【{item_template.name}】不支持批量使用，请一次使用一个。"
+            }
         # 直接调用现有的预测服务
         result = self.game_mechanics_service.forecast_wipe_bomb(user.user_id)
         

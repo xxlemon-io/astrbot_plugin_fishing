@@ -30,7 +30,7 @@ class AbstractItemEffect(ABC):
 
     @abstractmethod
     def apply(
-        self, user: User, item_template: Item, payload: Dict[str, Any]
+        self, user: User, item_template: Item, payload: Dict[str, Any], quantity: int = 1
     ) -> Dict[str, Any]:
         """
         应用道具效果。
@@ -39,6 +39,7 @@ class AbstractItemEffect(ABC):
             user: 目标用户对象。
             item_template: 被使用的道具模板对象。
             payload: 从 item_template.effect_payload 解析出的字典。
+            quantity: 使用的道具数量。
 
         Returns:
             一个包含结果信息的字典，至少应有 "success": bool 和 "message": str。
