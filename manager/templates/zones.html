@@ -81,10 +81,10 @@
                             </ul>
                         {% else %}
                             <div class="mt-2">
-                                <button class="btn btn-sm btn-outline-secondary fish-list-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#fishList{{ zone.zone_id }}" aria-expanded="false" aria-controls="fishList{{ zone.zone_id }}">
+                                <button class="btn btn-sm btn-outline-secondary fish-list-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#fishList-{{ zone.id }}" aria-expanded="false" aria-controls="fishList-{{ zone.id }}">
                                     <i class="fas fa-chevron-down"></i> 查看全部 {{ zone.specific_fish_ids|length }} 种鱼类
                                 </button>
-                                <div class="collapse mt-2" id="fishList{{ zone.zone_id }}">
+                                <div class="collapse mt-2" id="fishList-{{ zone.id }}">
                                     <ul class="list-group list-group-flush">
                                         {% for fish_id in zone.specific_fish_ids %}
                                             {% for fish in all_fish if fish.fish_id == fish_id %}
@@ -128,7 +128,7 @@
                 <h5 class="modal-title" id="editZoneModalLabel">编辑区域</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" id="editZoneModalBody">
+            <div class="modal-body">
                 <!-- Form content will be loaded here by JavaScript -->
             </div>
         </div>
