@@ -381,25 +381,6 @@
                     <button type="submit" class="btn btn-primary">${isEdit ? '更新' : '创建'}</button>
                 </div>
             </form>
-            <script>
-                // 初始化已选择的鱼类
-                function initializeSelectedFish() {
-                    const specificFishIds = ${JSON.stringify(specificFishIds)};
-                    specificFishIds.forEach(fishId => {
-                        const fishItem = document.querySelector(\`[data-fish-id="\${fishId}"]\`);
-                        if (fishItem) {
-                            addFishToSelected(fishId);
-                        }
-                    });
-                }
-                
-                // 页面加载完成后初始化
-                document.addEventListener('DOMContentLoaded', function() {
-                    initializeSelectedFish();
-                    updateTotalFishCount();
-                    updateSelectedStats();
-                });
-            </script>
         `;
     }
 
@@ -513,6 +494,10 @@
     function openEditModal(zoneId) {
         const zone = getZoneById(zoneId);
         document.getElementById('editZoneModalBody').innerHTML = renderForm(zone);
+        
+        // 初始化已选择的鱼类
+        initializeSelectedFish(zone?.specific_fish_ids || []);
+        
         new bootstrap.Modal(document.getElementById('editZoneModal')).show();
 
         const editForm = document.getElementById('edit-zone-form');
@@ -819,6 +804,41 @@
     function updateHiddenInput() {
         const hiddenInput = document.getElementById('specific_fish_ids_input');
         hiddenInput.value = Array.from(selectedFishIds).join(',');
+    }
+    
+    function initializeSelectedFish(specificFishIds) {
+        // 清空当前选择
+        selectedFishIds.clear();
+        
+        // 清空选择池
+        const selectedList = document.getElementById('selectedFishList');
+        if (selectedList) {
+            selectedList.innerHTML = '<div class="list-group-item text-muted text-center" id="emptySelectedMessage">暂无选择，双击左侧鱼类添加到选择池</div>';
+        }
+        
+        // 显示所有总鱼池项目
+        const totalItems = document.querySelectorAll('#totalFishList .fish-item');
+        totalItems.forEach(item => {
+            item.classList.remove('d-none');
+            item.querySelector('input[type="checkbox"]').checked = false;
+        });
+        
+        // 取消所有星级勾选框
+        const rarityCheckboxes = document.querySelectorAll('input[id^="rarity-"]');
+        rarityCheckboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        
+        // 添加已选择的鱼类
+        specificFishIds.forEach(fishId => {
+            const fishItem = document.querySelector(`[data-fish-id="${fishId}"]`);
+            if (fishItem) {
+                addFishToSelected(fishId);
+            }
+        });
+        
+        updateSelectedStats();
+        updateHiddenInput();
     }
     
     // 页面加载完成后初始化
