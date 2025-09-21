@@ -4,19 +4,45 @@
 
 一个功能齐全的钓鱼游戏系统插件，为您的机器人添加有趣的钓鱼休闲游戏。
 
-## 💡Future
+[![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
+[![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
+[![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
+
+## ✨ 功能特点
+
+- **完整的钓鱼游戏系统**：多种鱼类和稀有度，丰富的钓鱼体验
+- **智能区域访问控制**：通行证机制，不同区域有不同的进入要求
+- **装备精炼系统**：鱼竿、饰品可精炼升级，提升属性加成
+- **道具系统**：丰富的道具效果，包括通行证、护符、增益道具等
+- **经济系统**：金币、高级货币双货币体系，市场交易系统
+- **抽卡系统**：多种卡池，限时活动，十连保底机制
+- **社交功能**：排行榜、偷鱼、成就称号系统
+- **后台管理**：Web管理界面，支持数据导入导出，灵活配置游戏参数
+- **数据兼容**：支持导入1.4.6版本数据，平滑升级体验
+
+![image](https://github.com/user-attachments/assets/4dd1a179-967f-4cb9-82a5-ca3754b80bb0)
+![image](https://github.com/user-attachments/assets/c80550e6-86a2-4373-b593-a7e2a8d0ab6b)
+![image](https://github.com/user-attachments/assets/b7fd24bc-c0fe-4cee-9431-41b38af665e6)
+
+## 🔧 安装方法
+
+1. 将此插件放入 `data/plugins/` 目录下
+2. 重启 AstrBot 或使用插件管理命令加载插件
+
+## 💡 未来计划
 
 如果你有什么想法，欢迎提交issue！期待您天马行空的想法
 
-## 🤝TODO
+### 🤝 开发计划
 
+- [ ] 分离成就模块，以便于未来拓展
 - [ ] 丰富图鉴类命令
 - [ ] 将部分输出结果改写成输出图片
-- [x] 钓鱼区域功能扩展
+- [ ] 钓鱼区域功能扩展
 - [x] 更多经济系统
 - [ ] 重构商店系统
 - [x] 扩展背包，增加道具栏
-- [x] 更多社交玩法
+- [ ] 更多社交玩法
  
 ## 📦 更新记录
 
@@ -128,10 +154,6 @@
 - **社交功能**：排行榜、偷鱼、成就称号系统
 - **后台管理**：Web管理界面，支持数据导入导出，灵活配置游戏参数
 - **数据兼容**：支持导入1.4.6版本数据，平滑升级体验
-
-![image](https://github.com/user-attachments/assets/4dd1a179-967f-4cb9-82a5-ca3754b80bb0)
-![image](https://github.com/user-attachments/assets/c80550e6-86a2-4373-b593-a7e2a8d0ab6b)
-![image](https://github.com/user-attachments/assets/b7fd24bc-c0fe-4cee-9431-41b38af665e6)
 
 ## 🎣 钓鱼游戏命令手册 🎣
 
@@ -270,6 +292,91 @@
 | `/代理上线 [用户ID]` | 扮演指定用户 |
 | `/代理下线` | 结束扮演 |
 
-## 🔧 安装方法
+---
 
-1. 将此插件放入 `data/plugins/`
+## 👥 社区与贡献
+
+### 🤝 如何贡献
+
+我们欢迎各种形式的贡献！无论您是开发者、用户还是爱好者，都可以为项目做出贡献：
+
+#### 对于开发者
+- 🐛 **报告Bug**：在 [Issues](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues) 中报告发现的问题
+- 💡 **功能建议**：提出新功能想法和改进建议
+- 🔧 **代码贡献**：提交 Pull Request 改进代码
+- 📖 **文档完善**：帮助完善文档和注释
+
+#### 对于用户
+- ⭐ **Star支持**：给项目点个Star，让更多人看到
+- 📝 **使用反馈**：分享使用体验和建议
+- 🐛 **问题报告**：报告使用中遇到的问题
+- 💬 **社区讨论**：参与社区讨论，分享使用技巧
+
+### 📋 贡献指南
+
+1. **Fork** 本仓库
+2. 创建您的特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交您的更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 打开一个 **Pull Request**
+
+### 📄 代码规范
+
+- 遵循 Python PEP 8 代码规范
+- 添加适当的注释和文档字符串
+- 确保代码通过所有测试
+- 提交信息使用清晰的中文描述
+
+### 🏆 贡献者
+
+感谢所有为这个项目做出贡献的开发者们！
+
+<a href="https://github.com/xxlemon-io/astrbot_plugin_fishing/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=xxlemon-io/astrbot_plugin_fishing" />
+</a>
+
+## 📞 支持与联系
+
+- 🐛 **问题反馈**：[GitHub Issues](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues)
+- 💬 **讨论交流**：[GitHub Discussions](https://github.com/xxlemon-io/astrbot_plugin_fishing/discussions)
+- 📧 **邮件联系**：通过 GitHub 个人资料联系
+
+## 📜 开源协议
+
+本项目基于 [AGPL-3.0](https://opensource.org/licenses/AGPL-3.0) 开源协议发布。
+
+### 协议要点
+- ✅ **商业使用**：允许商业使用
+- ✅ **修改**：允许修改和分发
+- ✅ **专利使用**：允许专利使用
+- ✅ **私人使用**：允许私人使用
+- ⚠️ **开源要求**：基于本项目的衍生作品必须同样开源
+- ⚠️ **网络服务**：通过网络提供服务的衍生作品也必须开源
+
+## 🙏 致谢与项目来源
+
+本项目基于以下开源项目进行开发：
+
+- **原始版本**：[@baa131/astrbot_plugin_fishing](https://github.com/baa131/astrbot_plugin_fishing) v1.0.0
+- **基础版本**：[@tinkerbellqwq/astrbot_plugin_fishing](https://github.com/tinkerbellqwq/astrbot_plugin_fishing) v1.4.6
+
+感谢原作者的贡献和开源精神，让我们能够在此基础上继续改进和完善这个项目。
+
+## ⚖️ 法律声明
+
+本项目基于 AGPL-3.0 开源协议，使用本项目时请遵守相关协议条款。
+
+### 免责声明
+- 本项目仅供学习和娱乐使用
+- 使用者需自行承担使用风险
+- 开发者不对任何直接或间接损失负责
+
+---
+
+<div align="center">
+
+**如果这个项目对您有帮助，请给我们一个 ⭐ Star！**
+
+Made with ❤️ by the AstrBot Fishing Plugin Community
+
+</div>
