@@ -259,8 +259,17 @@ document.addEventListener('DOMContentLoaded', function() {
         totalFishList.querySelectorAll('.fish-item').forEach(item => {
             item.addEventListener('click', handleFishClick);
         });
+        // Prevent bubbling from checkbox clicks so row handler doesn't invert state
+        totalFishList.querySelectorAll('.fish-item input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('click', (e) => e.stopPropagation());
+        });
         
         selectedFishList.addEventListener('click', (e) => {
+            // If clicking directly on a checkbox inside selected list, don't bubble to row handler
+            if (e.target && e.target.matches('input[type="checkbox"]')) {
+                e.stopPropagation();
+                return;
+            }
             const item = e.target.closest('.fish-item');
             if(item) toggleFishSelection(item, container, e);
         });
@@ -426,6 +435,9 @@ document.addEventListener('DOMContentLoaded', function() {
         container.querySelector('#totalValue').textContent = totalValue.toLocaleString();
         container.querySelector('#emptySelectedMessage').style.display = count > 0 ? 'none' : '';
         container.querySelector('#specific_fish_ids_input').value = Array.from(selectedSet).join(',');
+
+        // Ensure no stray hidden classes remain in selected list
+        container.querySelectorAll('#selectedFishList .fish-item.d-none').forEach(el => el.classList.remove('d-none'));
 
         // Update total fish count
         let visibleCount = 0;
