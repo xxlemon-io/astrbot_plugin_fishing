@@ -245,7 +245,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 handleFishDblClick(item);
             } else {
                 clickTimer = setTimeout(() => {
-                    toggleFishSelection(item, container);
+                    toggleFishSelection(item, container, e);
                     clickTimer = null;
                 }, 220);
             }
@@ -262,7 +262,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         selectedFishList.addEventListener('click', (e) => {
             const item = e.target.closest('.fish-item');
-            if(item) toggleFishSelection(item, container);
+            if(item) toggleFishSelection(item, container, e);
         });
         // Double-click on selected list removes the fish
         selectedFishList.addEventListener('dblclick', (e) => {
@@ -323,10 +323,16 @@ document.addEventListener('DOMContentLoaded', function() {
         filterFishOptions();
     }
     
-    function toggleFishSelection(item, container) {
+    function toggleFishSelection(item, container, e = null) {
         const checkbox = item.querySelector('input[type="checkbox"]');
         if (!checkbox) return;
-        checkbox.checked = !checkbox.checked;
+        
+        // Only programmatically toggle the checkbox if the click was not on the input itself.
+        // The browser handles the toggle for direct clicks on the input.
+        if (!e || e.target.tagName !== 'INPUT') {
+            checkbox.checked = !checkbox.checked;
+        }
+
         const list = item.closest('#totalFishList, #selectedFishList');
         if(list) {
             updateRarityCheckboxState(list, item.dataset.rarity, container);
@@ -357,18 +363,35 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const totalItem = container.querySelector(`#totalFishList .fish-item[data-fish-id='${fishId}']`);
         if (!totalItem) return;
-
-        totalItem.style.display = 'none';
-        totalItem.querySelector('input[type="checkbox"]').checked = false;
-
-        const clonedItem = totalItem.cloneNode(true);
-        clonedItem.style.display = '';
-        clonedItem.classList.remove('d-none');
-        clonedItem.querySelector('input[type="checkbox"]').checked = false;
-        container.querySelector('#selectedFishList').appendChild(clonedItem);
+        
+        // Rebuild the element from data attributes to avoid cloning issues (e.g. d-none class being carried over)
+        const fishData = totalItem.dataset;
+        const rarityStars = '★'.repeat(parseInt(fishData.rarity));
+        const value = parseInt(fishData.value).toLocaleString();
+    
+        const newItemHtml = `
+            <div class="list-group-item fish-item" 
+                 data-fish-id="${fishData.fishId}" data-rarity="${fishData.rarity}" 
+                 data-value="${fishData.value}" data-name="${fishData.name}">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${fishData.name}</strong>
+                        <br><small class="text-muted">${rarityStars} 价值: ${value} 金币</small>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" value="${fishData.fishId}">
+                    </div>
+                </div>
+            </div>
+        `;
+    
+        const selectedList = container.querySelector('#selectedFishList');
+        // insertAdjacentHTML is faster than manipulating innerHTML
+        selectedList.insertAdjacentHTML('beforeend', newItemHtml);
         
         updateSelectedStats(container);
-        updateRarityCheckboxState(container.querySelector('#totalFishList'), totalItem.dataset.rarity, container);
+        // Let the central filter function handle visibility
+        container.querySelector('#fishSearch').dispatchEvent(new Event('keyup'));
     }
 
     function removeFishFromSelected(fishId, container) {
@@ -379,19 +402,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedItem = container.querySelector(`#selectedFishList .fish-item[data-fish-id='${fishId}']`);
         if (selectedItem) selectedItem.remove();
 
-        const totalItem = container.querySelector(`#totalFishList .fish-item[data-fish-id='${fishId}']`);
-        if (totalItem) {
-            const fishSearch = container.querySelector('#fishSearch');
-            const rarityFilter = container.querySelector('#rarityFilter');
-            const searchTerm = fishSearch.value.toLowerCase();
-            const rarity = rarityFilter.value;
-            const isVisible = 
-                (totalItem.dataset.name.toLowerCase().includes(searchTerm) || !searchTerm) &&
-                (totalItem.dataset.rarity === rarity || !rarity);
-            totalItem.style.display = isVisible ? '' : 'none';
-        }
-        
         updateSelectedStats(container);
+        // Let the central filter function handle visibility
+        container.querySelector('#fishSearch').dispatchEvent(new Event('keyup'));
     }
 
     function clearAllSelected(container) {
