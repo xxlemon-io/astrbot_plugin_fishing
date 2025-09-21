@@ -226,8 +226,10 @@ class FishingService:
         is_rare_fish_available = zone.rare_fish_caught_today < zone.daily_rare_fish_quota
         
         if not is_rare_fish_available:
-            # 稀有鱼定义：5星及以上（包括6+星组合）
-            # 若达到配额，屏蔽5星和6+星概率，其它星级不受影响
+            # 稀有鱼定义：4星及以上（包括5星和6+星组合）
+            # 若达到配额，屏蔽4星、5星和6+星概率，其它星级不受影响
+            if len(rarity_distribution) >= 4:
+                rarity_distribution[3] = 0.0  # 4星
             if len(rarity_distribution) >= 5:
                 rarity_distribution[4] = 0.0  # 5星
             if len(rarity_distribution) >= 6:
@@ -278,8 +280,8 @@ class FishingService:
                 -1
             )
 
-        if fish_template.rarity >= 5:
-            # 如果是5星及以上稀有鱼，增加用户的稀有鱼捕获计数
+        if fish_template.rarity >= 4:
+            # 如果是4星及以上稀有鱼，增加用户的稀有鱼捕获计数
             zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
             if zone:
                 zone.rare_fish_caught_today += 1
