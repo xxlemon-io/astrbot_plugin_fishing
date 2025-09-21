@@ -204,7 +204,7 @@ class InventoryService:
         if not fish_inventory:
             return {"success": False, "message": "❌ 你没有可以卖出的鱼"}
         if keep_one:
-            # 调用仓储方法执行“保留一条”的数据库操作
+            # 调用仓储方法执行"保留一条"的数据库操作
             sold_value = self.inventory_repo.sell_fish_keep_one(user_id)
         else:
             sold_value = self.inventory_repo.get_fish_inventory_value(user_id)
@@ -290,8 +290,8 @@ class InventoryService:
                 rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
                 if rod_template:
                     # 计算售价（基础价格 × 精炼倍数）
-                    base_price = self.game_config["sell_prices"]["rod"].get(str(rod_template.rarity), 100)
-                    refine_multiplier = self.game_config["sell_prices"]["refine_multiplier"].get(str(rod_instance.refine_level), 1.0)
+                    base_price = self.config["sell_prices"]["rod"].get(str(rod_template.rarity), 100)
+                    refine_multiplier = self.config["sell_prices"]["refine_multiplier"].get(str(rod_instance.refine_level), 1.0)
                     rod_price = int(base_price * refine_multiplier)
                     
                     total_value += rod_price
@@ -309,8 +309,8 @@ class InventoryService:
                 accessory_template = self.item_template_repo.get_accessory_by_id(accessory_instance.accessory_id)
                 if accessory_template:
                     # 计算售价（基础价格 × 精炼倍数）
-                    base_price = self.game_config["sell_prices"]["accessory"].get(str(accessory_template.rarity), 100)
-                    refine_multiplier = self.game_config["sell_prices"]["refine_multiplier"].get(str(accessory_instance.refine_level), 1.0)
+                    base_price = self.config["sell_prices"]["accessory"].get(str(accessory_template.rarity), 100)
+                    refine_multiplier = self.config["sell_prices"]["refine_multiplier"].get(str(accessory_instance.refine_level), 1.0)
                     accessory_price = int(base_price * refine_multiplier)
                     
                     total_value += accessory_price
