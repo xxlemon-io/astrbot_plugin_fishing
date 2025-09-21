@@ -421,7 +421,12 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                     val = row_dict.get(key)
                     if isinstance(val, str) and val:
                         try:
-                            row_dict[key] = datetime.fromisoformat(val)
+                            # 解析时间并添加UTC+8时区信息，与get_now()保持一致
+                            dt = datetime.fromisoformat(val)
+                            if dt.tzinfo is None:
+                                from datetime import timezone, timedelta
+                                dt = dt.replace(tzinfo=timezone(timedelta(hours=8)))
+                            row_dict[key] = dt
                         except Exception:
                             row_dict[key] = None
                 zone = FishingZone(**row_dict)
@@ -456,7 +461,12 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                     val = row_dict.get(key)
                     if isinstance(val, str) and val:
                         try:
-                            row_dict[key] = datetime.fromisoformat(val)
+                            # 解析时间并添加UTC+8时区信息，与get_now()保持一致
+                            dt = datetime.fromisoformat(val)
+                            if dt.tzinfo is None:
+                                from datetime import timezone, timedelta
+                                dt = dt.replace(tzinfo=timezone(timedelta(hours=8)))
+                            row_dict[key] = dt
                         except Exception:
                             row_dict[key] = None
                 zone = FishingZone(**row_dict)
