@@ -1642,6 +1642,23 @@ class FishingPlugin(Star):
                             required_item_name = zone.get('required_item_name', '通行证')
                             message += f"🔑 需要 {required_item_name} 才能进入\n"
                         
+                        # 显示限时信息（只有当有具体时间限制时才显示）
+                        if zone.get('available_from') or zone.get('available_until'):
+                            message += "⏰ 开放时间: "
+                            if zone.get('available_from') and zone.get('available_until'):
+                                # 有开始和结束时间
+                                from_time = zone['available_from'].strftime('%Y-%m-%d %H:%M')
+                                until_time = zone['available_until'].strftime('%Y-%m-%d %H:%M')
+                                message += f"{from_time} 至 {until_time}\n"
+                            elif zone.get('available_from'):
+                                # 只有开始时间
+                                from_time = zone['available_from'].strftime('%Y-%m-%d %H:%M')
+                                message += f"{from_time} 开始\n"
+                            elif zone.get('available_until'):
+                                # 只有结束时间
+                                until_time = zone['available_until'].strftime('%Y-%m-%d %H:%M')
+                                message += f"至 {until_time} 结束\n"
+                        
                         if zone['zone_id'] >= 2:
                             message += f"剩余稀有鱼类数量: {zone['daily_rare_fish_quota'] - zone['rare_fish_caught_today']}\n"
                         message += "\n"

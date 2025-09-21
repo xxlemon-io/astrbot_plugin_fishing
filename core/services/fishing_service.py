@@ -490,6 +490,8 @@ class FishingService:
                 "required_item_id": zone.required_item_id,
                 "required_item_name": required_item_name,
                 "fishing_cost": zone.fishing_cost,
+                "available_from": zone.available_from,
+                "available_until": zone.available_until,
             })
 
         return {
