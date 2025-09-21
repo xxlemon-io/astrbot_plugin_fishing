@@ -1521,9 +1521,9 @@ class FishingPlugin(Star):
             return
         
         # 检查是否有驱灵香
-        user_inventory = self.inventory_service.get_user_inventory(user_id)
+        user_inventory = self.inventory_service.get_user_item_inventory(user_id)
         dispel_items = [item for item in user_inventory.get("items", []) 
-                       if item.get("template", {}).get("effect_type") == "STEAL_PROTECTION_REMOVAL"]
+                       if item.get("effect_type") == "STEAL_PROTECTION_REMOVAL"]
         
         if not dispel_items:
             yield event.plain_result("❌ 你没有驱灵香，无法使用此功能！")

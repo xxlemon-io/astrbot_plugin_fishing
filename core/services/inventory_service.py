@@ -180,6 +180,7 @@ class InventoryService:
                     "rarity": item_template.rarity,
                     "quantity": quantity,
                     "effect_description": item_template.effect_description,
+                    "effect_type": item_template.effect_type,
                     "is_consumable": getattr(item_template, "is_consumable", False),
                 })
 
