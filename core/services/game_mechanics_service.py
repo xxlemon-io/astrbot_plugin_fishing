@@ -426,6 +426,51 @@ class GameMechanicsService:
             "message": f"{dispel_message}✅ 成功从【{victim.nickname}】的鱼塘里偷到了一条{stolen_fish_template.rarity}★【{stolen_fish_template.name}】！基础价值 {stolen_fish_template.base_value} 金币",
         }
 
+    def dispel_steal_protection(self, target_id: str) -> Dict[str, Any]:
+        """
+        驱散目标的海灵守护效果
+        """
+        # 检查目标是否存在
+        target = self.user_repo.get_by_id(target_id)
+        if not target:
+            return {"success": False, "message": "目标用户不存在"}
+
+        # 检查是否有海灵守护效果
+        protection_buff = self.buff_repo.get_active_by_user_and_type(
+            target_id, "STEAL_PROTECTION_BUFF"
+        )
+        
+        if not protection_buff:
+            return {"success": False, "message": f"【{target.nickname}】没有海灵守护效果"}
+        
+        # 移除海灵守护效果
+        self.buff_repo.delete(protection_buff.id)
+        
+        return {
+            "success": True, 
+            "message": f"成功驱散了【{target.nickname}】的海灵守护效果"
+        }
+
+    def check_steal_protection(self, target_id: str) -> Dict[str, Any]:
+        """
+        检查目标是否有海灵守护效果
+        """
+        # 检查目标是否存在
+        target = self.user_repo.get_by_id(target_id)
+        if not target:
+            return {"has_protection": False, "target_name": "未知用户", "message": "目标用户不存在"}
+
+        # 检查是否有海灵守护效果
+        protection_buff = self.buff_repo.get_active_by_user_and_type(
+            target_id, "STEAL_PROTECTION_BUFF"
+        )
+        
+        return {
+            "has_protection": protection_buff is not None,
+            "target_name": target.nickname,
+            "message": f"【{target.nickname}】{'有' if protection_buff else '没有'}海灵守护效果"
+        }
+
     def calculate_sell_price(self, item_type: str, rarity: int, refine_level: int) -> int:
         """
         计算物品的系统售价。
