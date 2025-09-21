@@ -2,36 +2,36 @@ import os
 from astrbot.api.event import filter, AstrMessageEvent
 from ..utils import to_percentage, format_accessory_or_rod, format_rarity_display
 
-def register_inventory_handlers(plugin):
+class InventoryHandlers:
     @filter.command("背包", alias={"查看背包", "我的背包"})
-    async def user_backpack(event: AstrMessageEvent):
+    async def user_backpack(self, event: AstrMessageEvent):
         """查看用户背包"""
-        user_id = plugin._get_effective_user_id(event)
-        user = plugin.user_repo.get_by_id(user_id)
+        user_id = self._get_effective_user_id(event)
+        user = self.user_repo.get_by_id(user_id)
         if user:
             # 导入绘制函数
             from ..draw.backpack import draw_backpack_image, get_user_backpack_data
             
             # 获取用户背包数据
-            backpack_data = get_user_backpack_data(plugin.inventory_service, user_id)
+            backpack_data = get_user_backpack_data(self.inventory_service, user_id)
             
             # 设置用户昵称
             backpack_data['nickname'] = user.nickname or user_id
             
             # 生成背包图像
-            image = await draw_backpack_image(backpack_data, plugin.data_dir)
+            image = await draw_backpack_image(backpack_data, self.data_dir)
             # 保存图像到临时文件
-            image_path = os.path.join(plugin.tmp_dir, "user_backpack.png")
+            image_path = os.path.join(self.tmp_dir, "user_backpack.png")
             image.save(image_path)
             yield event.image_result(image_path)
         else:
             yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
 
     @filter.command("鱼塘")
-    async def pond(event: AstrMessageEvent):
+    async def pond(self, event: AstrMessageEvent):
         """查看用户鱼塘内的鱼"""
-        user_id = plugin._get_effective_user_id(event)
-        pond_fish = plugin.inventory_service.get_user_fish_pond(user_id)
+        user_id = self._get_effective_user_id(event)
+        pond_fish = self.inventory_service.get_user_fish_pond(user_id)
         if pond_fish:
             fishes = pond_fish["fishes"]
             # 把fishes按稀有度分组
@@ -56,10 +56,10 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("🐟 您的鱼塘是空的，快去钓鱼吧！")
 
     @filter.command("鱼塘容量")
-    async def pond_capacity(event: AstrMessageEvent):
+    async def pond_capacity(self, event: AstrMessageEvent):
         """查看用户鱼塘容量"""
-        user_id = plugin._get_effective_user_id(event)
-        pond_capacity = plugin.inventory_service.get_user_fish_pond_capacity(user_id)
+        user_id = self._get_effective_user_id(event)
+        pond_capacity = self.inventory_service.get_user_fish_pond_capacity(user_id)
         if pond_capacity["success"]:
             message = f"🐠 您的鱼塘容量为 {pond_capacity['current_fish_count']} / {pond_capacity['fish_pond_capacity']} 条鱼。"
             yield event.plain_result(message)
@@ -67,20 +67,20 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     @filter.command("升级鱼塘", alias={"鱼塘升级"})
-    async def upgrade_pond(event: AstrMessageEvent):
+    async def upgrade_pond(self, event: AstrMessageEvent):
         """升级鱼塘容量"""
-        user_id = plugin._get_effective_user_id(event)
-        result = plugin.inventory_service.upgrade_fish_pond(user_id)
+        user_id = self._get_effective_user_id(event)
+        result = self.inventory_service.upgrade_fish_pond(user_id)
         if result["success"]:
             yield event.plain_result(f"🐠 鱼塘升级成功！新容量为 {result['new_capacity']} 条鱼。")
         else:
             yield event.plain_result(f"❌ 升级失败：{result['message']}")
 
     @filter.command("鱼竿")
-    async def rod(event: AstrMessageEvent):
+    async def rod(self, event: AstrMessageEvent):
         """查看用户鱼竿信息"""
-        user_id = plugin._get_effective_user_id(event)
-        rod_info = plugin.inventory_service.get_user_rod_inventory(user_id)
+        user_id = self._get_effective_user_id(event)
+        rod_info = self.inventory_service.get_user_rod_inventory(user_id)
         if rod_info and rod_info["rods"]:
             # 构造输出信息,附带emoji
             message = "【🎣 鱼竿】：\n"
@@ -94,10 +94,10 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("🎣 您还没有鱼竿，快去商店购买或抽奖获得吧！")
 
     @filter.command("精炼鱼竿", alias={"鱼竿精炼"})
-    async def refine_rod(event: AstrMessageEvent):
+    async def refine_rod(self, event: AstrMessageEvent):
         """精炼鱼竿"""
-        user_id = plugin._get_effective_user_id(event)
-        rod_info = plugin.inventory_service.get_user_rod_inventory(user_id)
+        user_id = self._get_effective_user_id(event)
+        rod_info = self.inventory_service.get_user_rod_inventory(user_id)
         if not rod_info or not rod_info["rods"]:
             yield event.plain_result("❌ 您还没有鱼竿，请先购买或抽奖获得。")
             return
@@ -109,7 +109,7 @@ def register_inventory_handlers(plugin):
         if not rod_instance_id.isdigit():
             yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
             return
-        result = plugin.inventory_service.refine(user_id, int(rod_instance_id), "rod")
+        result = self.inventory_service.refine(user_id, int(rod_instance_id), "rod")
         if result:
             if result["success"]:
                 yield event.plain_result(result["message"])
@@ -119,10 +119,10 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     @filter.command("鱼饵")
-    async def bait(event: AstrMessageEvent):
+    async def bait(self, event: AstrMessageEvent):
         """查看用户鱼饵信息"""
-        user_id = plugin._get_effective_user_id(event)
-        bait_info = plugin.inventory_service.get_user_bait_inventory(user_id)
+        user_id = self._get_effective_user_id(event)
+        bait_info = self.inventory_service.get_user_bait_inventory(user_id)
         if bait_info and bait_info["baits"]:
             # 构造输出信息,附带emoji
             message = "【🐟 鱼饵】：\n"
@@ -139,10 +139,10 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("🐟 您还没有鱼饵，快去商店购买或抽奖获得吧！")
 
     @filter.command("道具", alias={"我的道具", "查看道具"})
-    async def items(event: AstrMessageEvent):
+    async def items(self, event: AstrMessageEvent):
         """查看用户道具信息（文本版）"""
-        user_id = plugin._get_effective_user_id(event)
-        item_info = plugin.inventory_service.get_user_item_inventory(user_id)
+        user_id = self._get_effective_user_id(event)
+        item_info = self.inventory_service.get_user_item_inventory(user_id)
         if item_info and item_info.get("items"):
             message = "【📦 道具】：\n"
             for it in item_info["items"]:
@@ -157,9 +157,9 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("📦 您还没有道具。")
 
     @filter.command("使用道具", alias={"使用"})
-    async def use_item(event: AstrMessageEvent):
+    async def use_item(self, event: AstrMessageEvent):
         """使用一个或多个道具"""
-        user_id = plugin._get_effective_user_id(event)
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要使用的道具 ID，例如：/使用道具 1")
@@ -179,7 +179,7 @@ def register_inventory_handlers(plugin):
                 yield event.plain_result("❌ 数量必须是正整数。")
                 return
 
-        result = plugin.inventory_service.use_item(user_id, item_id, quantity)
+        result = self.inventory_service.use_item(user_id, item_id, quantity)
         
         if result and result.get("success"):
             yield event.plain_result(f"✅ {result['message']}")
@@ -188,9 +188,9 @@ def register_inventory_handlers(plugin):
             yield event.plain_result(f"❌ 使用道具失败：{error_message}")
 
     @filter.command("卖道具", alias={"出售道具", "卖出道具"})
-    async def sell_item(event: AstrMessageEvent):
+    async def sell_item(self, event: AstrMessageEvent):
         """卖出道具：/卖道具 <ID> [数量]，数量缺省为1"""
-        user_id = plugin._get_effective_user_id(event)
+        user_id = self._get_effective_user_id(event)
         parts = event.message_str.strip().split()
         if len(parts) < 2:
             yield event.plain_result("❌ 用法：/卖道具 <道具ID> [数量]")
@@ -202,17 +202,17 @@ def register_inventory_handlers(plugin):
         qty = 1
         if len(parts) >= 3 and parts[2].isdigit():
             qty = int(parts[2])
-        result = plugin.inventory_service.sell_item(user_id, item_id, qty)
+        result = self.inventory_service.sell_item(user_id, item_id, qty)
         if result.get("success"):
             yield event.plain_result(result["message"])
         else:
             yield event.plain_result(result.get("message", "操作失败"))
 
     @filter.command("饰品")
-    async def accessories(event: AstrMessageEvent):
+    async def accessories(self, event: AstrMessageEvent):
         """查看用户饰品信息"""
-        user_id = plugin._get_effective_user_id(event)
-        accessories_info = plugin.inventory_service.get_user_accessory_inventory(user_id)
+        user_id = self._get_effective_user_id(event)
+        accessories_info = self.inventory_service.get_user_accessory_inventory(user_id)
         if accessories_info and accessories_info["accessories"]:
             # 构造输出信息,附带emoji
             message = "【💍 饰品】：\n"
@@ -224,10 +224,10 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("💍 您还没有饰品，快去商店购买或抽奖获得吧！")
 
     @filter.command("精炼饰品", alias={"饰品精炼"})
-    async def refine_accessory(event: AstrMessageEvent):
+    async def refine_accessory(self, event: AstrMessageEvent):
         """精炼饰品"""
-        user_id = plugin._get_effective_user_id(event)
-        accessories_info = plugin.inventory_service.get_user_accessory_inventory(user_id)
+        user_id = self._get_effective_user_id(event)
+        accessories_info = self.inventory_service.get_user_accessory_inventory(user_id)
         if not accessories_info or not accessories_info["accessories"]:
             yield event.plain_result("❌ 您还没有饰品，请先购买或抽奖获得。")
             return
@@ -239,7 +239,7 @@ def register_inventory_handlers(plugin):
         if not accessory_instance_id.isdigit():
             yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
             return
-        result = plugin.inventory_service.refine(user_id, int(accessory_instance_id), "accessory")
+        result = self.inventory_service.refine(user_id, int(accessory_instance_id), "accessory")
         if result:
             if result["success"]:
                 yield event.plain_result(result["message"])
@@ -249,7 +249,7 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     @filter.command("精炼帮助", alias={"精炼说明", "精炼"})
-    async def refine_help(event: AstrMessageEvent):
+    async def refine_help(self, event: AstrMessageEvent):
         """精炼系统帮助（当前版本）"""
         help_message = """🔨 精炼系统指南（当前版本）
 
@@ -343,9 +343,9 @@ def register_inventory_handlers(plugin):
         yield event.plain_result(help_message)
 
     @filter.command("锁定鱼竿", alias={"鱼竿锁定"})
-    async def lock_rod(event: AstrMessageEvent):
+    async def lock_rod(self, event: AstrMessageEvent):
         """锁定鱼竿，防止被当作精炼材料、卖出、上架（仍可作为主装备精炼）"""
-        user_id = plugin._get_effective_user_id(event)
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要锁定的鱼竿 ID，例如：/锁定鱼竿 15")
@@ -356,16 +356,16 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
             return
         
-        result = plugin.inventory_service.lock_rod(user_id, int(rod_instance_id))
+        result = self.inventory_service.lock_rod(user_id, int(rod_instance_id))
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
             yield event.plain_result(f"❌ 锁定失败：{result['message']}")
 
     @filter.command("解锁鱼竿", alias={"鱼竿解锁"})
-    async def unlock_rod(event: AstrMessageEvent):
+    async def unlock_rod(self, event: AstrMessageEvent):
         """解锁鱼竿，允许正常操作"""
-        user_id = plugin._get_effective_user_id(event)
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要解锁的鱼竿 ID，例如：/解锁鱼竿 15")
@@ -376,16 +376,16 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
             return
         
-        result = plugin.inventory_service.unlock_rod(user_id, int(rod_instance_id))
+        result = self.inventory_service.unlock_rod(user_id, int(rod_instance_id))
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
             yield event.plain_result(f"❌ 解锁失败：{result['message']}")
 
     @filter.command("锁定饰品", alias={"饰品锁定"})
-    async def lock_accessory(event: AstrMessageEvent):
+    async def lock_accessory(self, event: AstrMessageEvent):
         """锁定饰品，防止被当作精炼材料、卖出、上架（仍可作为主装备精炼）"""
-        user_id = plugin._get_effective_user_id(event)
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要锁定的饰品 ID，例如：/锁定饰品 15")
@@ -396,16 +396,16 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
             return
         
-        result = plugin.inventory_service.lock_accessory(user_id, int(accessory_instance_id))
+        result = self.inventory_service.lock_accessory(user_id, int(accessory_instance_id))
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
             yield event.plain_result(f"❌ 锁定失败：{result['message']}")
 
     @filter.command("解锁饰品", alias={"饰品解锁"})
-    async def unlock_accessory(event: AstrMessageEvent):
+    async def unlock_accessory(self, event: AstrMessageEvent):
         """解锁饰品，允许正常操作"""
-        user_id = plugin._get_effective_user_id(event)
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
             yield event.plain_result("❌ 请指定要解锁的饰品 ID，例如：/解锁饰品 15")
@@ -416,17 +416,17 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
             return
         
-        result = plugin.inventory_service.unlock_accessory(user_id, int(accessory_instance_id))
+        result = self.inventory_service.unlock_accessory(user_id, int(accessory_instance_id))
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
             yield event.plain_result(f"❌ 解锁失败：{result['message']}")
 
     @filter.command("使用鱼竿 ", alias={"装备鱼竿"})
-    async def use_rod(event: AstrMessageEvent):
+    async def use_rod(self, event: AstrMessageEvent):
         """使用鱼竿"""
-        user_id = plugin._get_effective_user_id(event)
-        rod_info = plugin.inventory_service.get_user_rod_inventory(user_id)
+        user_id = self._get_effective_user_id(event)
+        rod_info = self.inventory_service.get_user_rod_inventory(user_id)
         if not rod_info or not rod_info["rods"]:
             yield event.plain_result("❌ 您还没有鱼竿，请先购买或抽奖获得。")
             return
@@ -439,7 +439,7 @@ def register_inventory_handlers(plugin):
         if not rod_instance_id.isdigit():
             yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
             return
-        result = plugin.inventory_service.equip_item(user_id, int(rod_instance_id), "rod")
+        result = self.inventory_service.equip_item(user_id, int(rod_instance_id), "rod")
         if result:
             if result["success"]:
                 yield event.plain_result(result["message"])
@@ -449,10 +449,10 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     @filter.command("使用鱼饵", alias={"装备鱼饵"})
-    async def use_bait(event: AstrMessageEvent):
+    async def use_bait(self, event: AstrMessageEvent):
         """使用鱼饵"""
-        user_id = plugin._get_effective_user_id(event)
-        bait_info = plugin.inventory_service.get_user_bait_inventory(user_id)
+        user_id = self._get_effective_user_id(event)
+        bait_info = self.inventory_service.get_user_bait_inventory(user_id)
         if not bait_info or not bait_info["baits"]:
             yield event.plain_result("❌ 您还没有鱼饵，请先购买或抽奖获得。")
             return
@@ -464,7 +464,7 @@ def register_inventory_handlers(plugin):
         if not bait_instance_id.isdigit():
             yield event.plain_result("❌ 鱼饵 ID 必须是数字，请检查后重试。")
             return
-        result = plugin.inventory_service.use_bait(user_id, int(bait_instance_id))
+        result = self.inventory_service.use_bait(user_id, int(bait_instance_id))
         if result:
             if result["success"]:
                 yield event.plain_result(result["message"])
@@ -474,10 +474,10 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     @filter.command("使用饰品", alias={"装备饰品"})
-    async def use_accessories(event: AstrMessageEvent):
+    async def use_accessories(self, event: AstrMessageEvent):
         """使用饰品"""
-        user_id = plugin._get_effective_user_id(event)
-        accessories_info = plugin.inventory_service.get_user_accessory_inventory(user_id)
+        user_id = self._get_effective_user_id(event)
+        accessories_info = self.inventory_service.get_user_accessory_inventory(user_id)
         if not accessories_info or not accessories_info["accessories"]:
             yield event.plain_result("❌ 您还没有饰品，请先购买或抽奖获得。")
             return
@@ -489,7 +489,7 @@ def register_inventory_handlers(plugin):
         if not accessory_instance_id.isdigit():
             yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
             return
-        result = plugin.inventory_service.equip_item(user_id, int(accessory_instance_id), "accessory")
+        result = self.inventory_service.equip_item(user_id, int(accessory_instance_id), "accessory")
         if result:
             if result["success"]:
                 yield event.plain_result(result["message"])
@@ -499,44 +499,21 @@ def register_inventory_handlers(plugin):
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     @filter.command("金币")
-    async def coins(event: AstrMessageEvent):
+    async def coins(self, event: AstrMessageEvent):
         """查看用户金币信息"""
-        user_id = plugin._get_effective_user_id(event)
-        user = plugin.user_repo.get_by_id(user_id)
+        user_id = self._get_effective_user_id(event)
+        user = self.user_repo.get_by_id(user_id)
         if user:
             yield event.plain_result(f"💰 您的金币余额：{user.coins} 金币")
         else:
             yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
 
     @filter.command("高级货币", alias={"钻石", "星石"})
-    async def premium(event: AstrMessageEvent):
+    async def premium(self, event: AstrMessageEvent):
         """查看用户高级货币信息"""
-        user_id = plugin._get_effective_user_id(event)
-        user = plugin.user_repo.get_by_id(user_id)
+        user_id = self._get_effective_user_id(event)
+        user = self.user_repo.get_by_id(user_id)
         if user:
             yield event.plain_result(f"💎 您的高级货币余额：{user.premium_currency}")
         else:
             yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
-
-    plugin.context.add_handler(user_backpack)
-    plugin.context.add_handler(pond)
-    plugin.context.add_handler(pond_capacity)
-    plugin.context.add_handler(upgrade_pond)
-    plugin.context.add_handler(rod)
-    plugin.context.add_handler(refine_rod)
-    plugin.context.add_handler(bait)
-    plugin.context.add_handler(items)
-    plugin.context.add_handler(use_item)
-    plugin.context.add_handler(sell_item)
-    plugin.context.add_handler(accessories)
-    plugin.context.add_handler(refine_accessory)
-    plugin.context.add_handler(refine_help)
-    plugin.context.add_handler(lock_rod)
-    plugin.context.add_handler(unlock_rod)
-    plugin.context.add_handler(lock_accessory)
-    plugin.context.add_handler(unlock_accessory)
-    plugin.context.add_handler(use_rod)
-    plugin.context.add_handler(use_bait)
-    plugin.context.add_handler(use_accessories)
-    plugin.context.add_handler(coins)
-    plugin.context.add_handler(premium)

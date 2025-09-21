@@ -2,27 +2,27 @@ from astrbot.api.event import filter, AstrMessageEvent
 from ..core.utils import get_now
 from ..utils import safe_datetime_handler, to_percentage
 
-def register_fishing_handlers(plugin):
+class FishingHandlers:
     @filter.command("钓鱼")
-    async def fish(event: AstrMessageEvent):
+    async def fish(self, event: AstrMessageEvent):
         """钓鱼"""
-        user_id = plugin._get_effective_user_id(event)
-        user = plugin.user_repo.get_by_id(user_id)
+        user_id = self._get_effective_user_id(event)
+        user = self.user_repo.get_by_id(user_id)
         if not user:
             yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
             return
         # 检查用户钓鱼CD
         lst_time = user.last_fishing_time
         # 检查是否装备了海洋之心饰品
-        info = plugin.user_service.get_user_current_accessory(user_id)
+        info = self.user_service.get_user_current_accessory(user_id)
         if info["success"] is False:
             yield event.plain_result(f"❌ 获取用户饰品信息失败：{info['message']}")
             return
         equipped_accessory = info.get("accessory")
-        cooldown_seconds = plugin.game_config["fishing"]["cooldown_seconds"]
+        cooldown_seconds = self.game_config["fishing"]["cooldown_seconds"]
         if equipped_accessory and equipped_accessory.get("name") == "海洋之心":
             # 如果装备了海洋之心，CD时间减半
-            cooldown_seconds = plugin.game_config["fishing"]["cooldown_seconds"] / 2
+            cooldown_seconds = self.game_config["fishing"]["cooldown_seconds"] / 2
             # logger.info(f"用户 {user_id} 装备了海洋之心，钓鱼CD时间减半。")
         # 修复时区问题
         now = get_now()
@@ -36,11 +36,11 @@ def register_fishing_handlers(plugin):
             wait_time = cooldown_seconds - (now - lst_time).total_seconds()
             yield event.plain_result(f"⏳ 您还需要等待 {int(wait_time)} 秒才能再次钓鱼。")
             return
-        result = plugin.fishing_service.go_fish(user_id)
+        result = self.fishing_service.go_fish(user_id)
         if result:
             if result["success"]:
                 # 获取当前区域的钓鱼消耗
-                zone = plugin.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+                zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
                 fishing_cost = zone.fishing_cost if zone else 10
                 
                 message = f"🎣 恭喜你钓到了：{result['fish']['name']}\n✨品质：{'★' * result['fish']['rarity']} \n⚖️重量：{result['fish']['weight']} 克\n💰价值：{result['fish']['value']} 金币\n💸消耗：{fishing_cost} 金币/次"
@@ -53,7 +53,7 @@ def register_fishing_handlers(plugin):
                 yield event.plain_result(message)
             else:
                 # 即使钓鱼失败，也显示消耗的金币
-                zone = plugin.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+                zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
                 fishing_cost = zone.fishing_cost if zone else 10
                 message = f"{result['message']}\n💸消耗：{fishing_cost} 金币/次"
                 yield event.plain_result(message)
@@ -61,19 +61,19 @@ def register_fishing_handlers(plugin):
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
     @filter.command("自动钓鱼")
-    async def auto_fish(event: AstrMessageEvent):
+    async def auto_fish(self, event: AstrMessageEvent):
         """自动钓鱼"""
-        user_id = plugin._get_effective_user_id(event)
-        result = plugin.fishing_service.toggle_auto_fishing(user_id)
+        user_id = self._get_effective_user_id(event)
+        result = self.fishing_service.toggle_auto_fishing(user_id)
         yield event.plain_result(result["message"])
 
     @filter.command("钓鱼区域", alias={"区域"})
-    async def fishing_area(event: AstrMessageEvent):
+    async def fishing_area(self, event: AstrMessageEvent):
         """查看当前钓鱼区域"""
-        user_id = plugin._get_effective_user_id(event)
+        user_id = self._get_effective_user_id(event)
         args = event.message_str.split(" ")
         if len(args) < 2:
-            result = plugin.fishing_service.get_user_fishing_zones(user_id)
+            result = self.fishing_service.get_user_fishing_zones(user_id)
             if result:
                 if result["success"]:
                     zones = result.get("zones", [])
@@ -135,7 +135,7 @@ def register_fishing_handlers(plugin):
         zone_id = int(zone_id)
         
         # 动态获取所有有效的区域ID
-        all_zones = plugin.fishing_zone_service.get_all_zones()
+        all_zones = self.fishing_zone_service.get_all_zones()
         valid_zone_ids = [zone['id'] for zone in all_zones]
         
         if zone_id not in valid_zone_ids:
@@ -144,14 +144,14 @@ def register_fishing_handlers(plugin):
             return
         
         # 切换用户的钓鱼区域
-        result = plugin.fishing_service.set_user_fishing_zone(user_id, zone_id)
+        result = self.fishing_service.set_user_fishing_zone(user_id, zone_id)
         yield event.plain_result(result["message"] if result else "❌ 出错啦！请稍后再试。")
 
     @filter.command("鱼类图鉴")
-    async def fish_pokedex(event: AstrMessageEvent):
+    async def fish_pokedex(self, event: AstrMessageEvent):
         """查看鱼类图鉴"""
-        user_id = plugin._get_effective_user_id(event)
-        result = plugin.fishing_service.get_user_pokedex(user_id)
+        user_id = self._get_effective_user_id(event)
+        result = self.fishing_service.get_user_pokedex(user_id)
 
         if result:
             if result["success"]:
@@ -209,8 +209,3 @@ def register_fishing_handlers(plugin):
                 yield event.plain_result(f"❌ 查看鱼类图鉴失败：{result['message']}")
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
-
-    plugin.context.add_handler(fish)
-    plugin.context.add_handler(auto_fish)
-    plugin.context.add_handler(fishing_area)
-    plugin.context.add_handler(fish_pokedex)

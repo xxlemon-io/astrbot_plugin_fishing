@@ -35,16 +35,22 @@ from .core.services.fishing_zone_service import FishingZoneService
 # 其他
 from .core.database.migration import run_migrations
 # 指令处理器
-from .handlers.admin_handlers import register_admin_handlers
-from .handlers.common_handlers import register_common_handlers
-from .handlers.inventory_handlers import register_inventory_handlers
-from .handlers.fishing_handlers import register_fishing_handlers
-from .handlers.market_handlers import register_market_handlers
-from .handlers.social_handlers import register_social_handlers
-from .handlers.gacha_handlers import register_gacha_handlers
+from .handlers.admin_handlers import AdminHandlers
+from .handlers.common_handlers import CommonHandlers
+from .handlers.inventory_handlers import InventoryHandlers
+from .handlers.fishing_handlers import FishingHandlers
+from .handlers.market_handlers import MarketHandlers
+from .handlers.social_handlers import SocialHandlers
+from .handlers.gacha_handlers import GachaHandlers
 
-
-class FishingPlugin(Star):
+class FishingPlugin(Star, 
+                    AdminHandlers,
+                    CommonHandlers,
+                    InventoryHandlers,
+                    FishingHandlers,
+                    MarketHandlers,
+                    SocialHandlers,
+                    GachaHandlers):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
 
@@ -115,11 +121,11 @@ class FishingPlugin(Star):
         # 3.1 核心服务必须在效果管理器之前实例化，以解决依赖问题
         self.fishing_zone_service = FishingZoneService(self.item_template_repo, self.inventory_repo, self.game_config)
         self.game_mechanics_service = GameMechanicsService(self.user_repo, self.log_repo, self.inventory_repo,
-                                                           self.item_template_repo, self.buff_repo, self.game_config)
+                                                          self.item_template_repo, self.buff_repo, self.game_config)
 
         # 3.3 实例化其他核心服务
         self.gacha_service = GachaService(self.gacha_repo, self.user_repo, self.inventory_repo, self.item_template_repo,
-                                          self.log_repo, self.achievement_repo)
+                                         self.log_repo, self.achievement_repo)
         # UserService 依赖 GachaService，因此在 GachaService 之后实例化
         self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.gacha_service, self.game_config)
         self.inventory_service = InventoryService(
@@ -132,9 +138,9 @@ class FishingPlugin(Star):
         )
         self.shop_service = ShopService(self.item_template_repo, self.inventory_repo, self.user_repo)
         self.market_service = MarketService(self.market_repo, self.inventory_repo, self.user_repo, self.log_repo,
-                                            self.item_template_repo, self.game_config)
+                                           self.item_template_repo, self.game_config)
         self.achievement_service = AchievementService(self.achievement_repo, self.user_repo, self.inventory_repo,
-                                                      self.item_template_repo, self.log_repo)
+                                                     self.item_template_repo, self.log_repo)
         self.fishing_service = FishingService(
             self.user_repo,
             self.inventory_repo,
@@ -180,9 +186,6 @@ class FishingPlugin(Star):
         # --- 6. (临时) 实例化数据服务，供调试命令使用 ---
         self.data_setup_service = data_setup_service
 
-        # --- 7. 注册所有指令处理器 ---
-        self._register_handlers()
-
         # --- Web后台配置 ---
         self.web_admin_task = None
         self.secret_key = config.get("secret_key")
@@ -203,20 +206,6 @@ class FishingPlugin(Star):
         admin_id = event.get_sender_id()
         return self.impersonation_map.get(admin_id, admin_id)
 
-    def add_handler(self, handler):
-        """动态添加指令处理器"""
-        self.context.add_handler(handler)
-            
-    def _register_handlers(self):
-        """注册所有分离出去的指令处理器"""
-        register_admin_handlers(self)
-        register_common_handlers(self)
-        register_inventory_handlers(self)
-        register_fishing_handlers(self)
-        register_market_handlers(self)
-        register_social_handlers(self)
-        register_gacha_handlers(self)
-
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
         logger.info("""
@@ -225,8 +214,8 @@ class FishingPlugin(Star):
     | |_  | / __| '_ \\| | '_ \\ / _` |
     |  _| | \\__ \\ | | | | | | | (_| |
     |_|   |_|___/_| |_|_|_| |_|\\__, |
-                               |___/
-                               """)
+                              |___/
+                              """)
 
     async def _check_port_active(self):
         """验证端口是否实际已激活"""
