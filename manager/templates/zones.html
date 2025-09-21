@@ -381,6 +381,25 @@
                     <button type="submit" class="btn btn-primary">${isEdit ? '更新' : '创建'}</button>
                 </div>
             </form>
+            <script>
+                // 初始化已选择的鱼类
+                function initializeSelectedFish() {
+                    const specificFishIds = ${JSON.stringify(specificFishIds)};
+                    specificFishIds.forEach(fishId => {
+                        const fishItem = document.querySelector(\`[data-fish-id="\${fishId}"]\`);
+                        if (fishItem) {
+                            addFishToSelected(fishId);
+                        }
+                    });
+                }
+                
+                // 页面加载完成后初始化
+                document.addEventListener('DOMContentLoaded', function() {
+                    initializeSelectedFish();
+                    updateTotalFishCount();
+                    updateSelectedStats();
+                });
+            </script>
         `;
     }
 
@@ -802,20 +821,8 @@
         hiddenInput.value = Array.from(selectedFishIds).join(',');
     }
     
-    // 初始化已选择的鱼类
-    function initializeSelectedFish() {
-        const specificFishIds = ${JSON.stringify(specificFishIds)};
-        specificFishIds.forEach(fishId => {
-            const fishItem = document.querySelector(`[data-fish-id="${fishId}"]`);
-            if (fishItem) {
-                addFishToSelected(fishId);
-            }
-        });
-    }
-    
     // 页面加载完成后初始化
     document.addEventListener('DOMContentLoaded', function() {
-        initializeSelectedFish();
         updateTotalFishCount();
         updateSelectedStats();
     });
