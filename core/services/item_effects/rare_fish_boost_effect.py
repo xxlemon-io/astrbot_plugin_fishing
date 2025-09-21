@@ -22,7 +22,7 @@ class RareFishBoostEffect(AbstractItemEffect):
             user.user_id, "RARE_FISH_BOOST"
         )
 
-        now = get_now()
+        now = get_now().replace(tzinfo=None)
         if existing_buff:
             # 如果 buff 已过期，则从当前时间开始计算；否则，在原过期时间上叠加
             start_time = max(now, existing_buff.expires_at)

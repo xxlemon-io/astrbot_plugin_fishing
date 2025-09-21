@@ -18,7 +18,7 @@ class StealProtectionEffect(AbstractItemEffect):
             user.user_id, self.effect_type
         )
         
-        now = get_now()
+        now = get_now().replace(tzinfo=None)
 
         if existing_buff:
             # 如果 buff 已过期，则从当前时间开始计算；否则，在原过期时间上叠加
