@@ -226,15 +226,27 @@ class FishingService:
         is_rare_fish_available = zone.rare_fish_caught_today < zone.daily_rare_fish_quota
         
         if not is_rare_fish_available:
-            # 稀有鱼定义：5星
-            # 若达到配额，仅屏蔽5星概率，其它星级不受影响
-            rarity_distribution[4] = 0.0
+            # 稀有鱼定义：5星及以上（包括6+星组合）
+            # 若达到配额，屏蔽5星和6+星概率，其它星级不受影响
+            if len(rarity_distribution) >= 5:
+                rarity_distribution[4] = 0.0  # 5星
+            if len(rarity_distribution) >= 6:
+                rarity_distribution[5] = 0.0  # 6+星
             # 重新归一化概率分布
             total = sum(rarity_distribution)
             if total > 0:
                 rarity_distribution = [x / total for x in rarity_distribution]
         
-        rarity = random.choices(range(1, len(rarity_distribution) + 1), weights=rarity_distribution, k=1)[0]
+        # 根据分布抽取稀有度
+        rarity_index = random.choices(range(len(rarity_distribution)), weights=rarity_distribution, k=1)[0]
+        
+        if rarity_index == 5:  # 抽中6+星组合
+            # 从6星及以上的鱼中随机选择，兼容区域限定鱼
+            rarity = self._get_random_high_rarity(zone)
+        else:
+            # 1-5星直接对应
+            rarity = rarity_index + 1
+            
         fish_template = self._get_fish_template(rarity, zone, coins_chance)
 
         if not fish_template:
@@ -267,7 +279,7 @@ class FishingService:
             )
 
         if fish_template.rarity >= 5:
-            # 如果是5星鱼，增加用户的稀有鱼捕获计数
+            # 如果是5星及以上稀有鱼，增加用户的稀有鱼捕获计数
             zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
             if zone:
                 zone.rare_fish_caught_today += 1
@@ -504,6 +516,32 @@ class FishingService:
             return self.item_template_repo.get_random_fish(rarity)
 
         return get_fish_template(fish_list, coins_chance)
+
+    def _get_random_high_rarity(self, zone: FishingZone = None) -> int:
+        """从6星及以上鱼类中随机选择一个稀有度，兼容区域限定鱼"""
+        # 检查是否有区域限定鱼
+        specific_fish_ids = getattr(zone, 'specific_fish_ids', []) if zone else []
+        
+        if specific_fish_ids:
+            # 如果是区域限定鱼，只在限定鱼中查找高星级
+            fish_list = [self.item_template_repo.get_fish_by_id(fish_id) for fish_id in specific_fish_ids]
+            fish_list = [fish for fish in fish_list if fish]
+        else:
+            # 否则在全局鱼池中查找
+            fish_list = self.item_template_repo.get_all_fish()
+        
+        # 找出所有6星及以上的稀有度
+        high_rarities = set()
+        for fish in fish_list:
+            if fish.rarity >= 6:
+                high_rarities.add(fish.rarity)
+        
+        if not high_rarities:
+            # 如果没有6星及以上的鱼，返回5星
+            return 5
+            
+        # 从高稀有度中随机选择一个
+        return random.choice(list(high_rarities))
 
     def set_user_fishing_zone(self, user_id: str, zone_id: int) -> Dict[str, Any]:
         """

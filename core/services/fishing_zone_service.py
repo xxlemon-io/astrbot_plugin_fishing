@@ -26,12 +26,16 @@ class Zone1Strategy(FishingZoneStrategy):
     """区域一：新手港湾"""
 
     def get_fish_rarity_distribution(self, user: User) -> List[float]:
-        # 新手区域逻辑：只能钓到0-4星鱼，4星鱼概率很低
-        # 如果没有配置或配置为空，则使用默认值
+        # 新手区域逻辑：只能钓到1-4星鱼，4星鱼概率很低，无6+星
+        # 分布格式：[1星, 2星, 3星, 4星, 5星, 6+星]
         rarity_dist = self.zone_config.get("rarity_distribution")
         if rarity_dist is None or not rarity_dist:
-            return [0.6, 0.3, 0.08, 0.02, 0]
-        return rarity_dist
+            # 默认分布：主要1-4星，少量5星，无6+星
+            return [0.6, 0.3, 0.08, 0.02, 0, 0]  # 6个元素：1-5星 + 6+星
+        # 确保返回的分布数组长度为6
+        while len(rarity_dist) < 6:
+            rarity_dist.append(0.0)
+        return rarity_dist[:6]  # 截取到6个元素
 
 
 class Zone2Strategy(FishingZoneStrategy):
@@ -39,23 +43,31 @@ class Zone2Strategy(FishingZoneStrategy):
 
     def get_fish_rarity_distribution(self, user: User) -> List[float]:
         # 深海峡谷逻辑：4星鱼概率提升，有极小概率钓到5星鱼
-        # 如果没有配置或配置为空，则使用默认值
+        # 分布格式：[1星, 2星, 3星, 4星, 5星, 6+星]
         rarity_dist = self.zone_config.get("rarity_distribution")
         if rarity_dist is None or not rarity_dist:
-            return [0.4, 0.3, 0.2, 0.09, 0.01]
-        return rarity_dist
+            # 默认分布：重点4-5星，少量6+星
+            return [0.4, 0.3, 0.2, 0.09, 0.01, 0]  # 6个元素：1-5星 + 6+星
+        # 确保返回的分布数组长度为6
+        while len(rarity_dist) < 6:
+            rarity_dist.append(0.0)
+        return rarity_dist[:6]  # 截取到6个元素
 
 
 class Zone3Strategy(FishingZoneStrategy):
     """区域三：传说之海"""
 
     def get_fish_rarity_distribution(self, user: User) -> List[float]:
-        # 传说之海逻辑：5星鱼概率大幅提升
-        # 如果没有配置或配置为空，则使用默认值
+        # 传说之海逻辑：5星鱼概率大幅提升，少量6+星
+        # 分布格式：[1星, 2星, 3星, 4星, 5星, 6+星]
         rarity_dist = self.zone_config.get("rarity_distribution")
         if rarity_dist is None or not rarity_dist:
-            return [0.3, 0.2, 0.2, 0.2, 0.1]
-        return rarity_dist
+            # 默认分布：重点5星，少量6+星
+            return [0.3, 0.2, 0.2, 0.2, 0.08, 0.02]  # 6个元素：1-5星 + 6+星
+        # 确保返回的分布数组长度为6
+        while len(rarity_dist) < 6:
+            rarity_dist.append(0.0)
+        return rarity_dist[:6]  # 截取到6个元素
 
 
 class CustomZoneStrategy(FishingZoneStrategy):
@@ -63,11 +75,15 @@ class CustomZoneStrategy(FishingZoneStrategy):
 
     def get_fish_rarity_distribution(self, user: User) -> List[float]:
         # 自定义区域完全依赖配置中的稀有度分布
-        # 如果没有配置，则使用均匀分布作为默认值
+        # 分布格式：[1星, 2星, 3星, 4星, 5星, 6+星]
         rarity_dist = self.zone_config.get("rarity_distribution")
         if rarity_dist is None or not rarity_dist:
-            return [0.2, 0.2, 0.2, 0.2, 0.2]  # 默认均匀分布
-        return rarity_dist
+            # 默认均匀分布：1-5星和6+星均等概率
+            return [0.16, 0.16, 0.16, 0.16, 0.16, 0.2]  # 6个元素：1-5星 + 6+星
+        # 确保返回的分布数组长度为6
+        while len(rarity_dist) < 6:
+            rarity_dist.append(0.0)
+        return rarity_dist[:6]  # 截取到6个元素
 
 
 class FishingZoneService:

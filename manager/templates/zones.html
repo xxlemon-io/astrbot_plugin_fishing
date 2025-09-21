@@ -108,7 +108,11 @@
 
     function renderForm(zone = null) {
         const isEdit = zone !== null;
-        const rarityDistribution = zone?.configs?.rarity_distribution || [0.5, 0.3, 0.15, 0.04, 0.01];
+        const rarityDistribution = zone?.configs?.rarity_distribution || [0.5, 0.3, 0.15, 0.04, 0.01, 0];
+        // 确保稀有度分布数组长度为6（1-5星 + 6+星）
+        while (rarityDistribution.length < 6) {
+            rarityDistribution.push(0);
+        }
         const specificFishIds = zone?.specific_fish_ids || [];
 
         let fishOptions = allFishData.map(fish => {
@@ -169,13 +173,18 @@
                     <label>稀有度分布 (概率总和应为 1)</label>
                     <div class="row">
                         ${[...Array(5).keys()].map(i => `
-                            <div class="col">
+                            <div class="col-md-2 col-4 mb-2">
                                 <label>${i+1} 星</label>
-                                <input type="number" step="0.01" class="form-control rarity-input" name="rarity_${i+1}" value="${rarityDistribution[i]}">
+                                <input type="number" step="0.001" min="0" max="1" class="form-control rarity-input" name="rarity_${i+1}" value="${rarityDistribution[i]}" placeholder="0.000">
                             </div>
                         `).join('')}
+                        <div class="col-md-2 col-4 mb-2">
+                            <label>6+ 星</label>
+                            <input type="number" step="0.001" min="0" max="1" class="form-control rarity-input" name="rarity_6plus" value="${rarityDistribution[5]}" placeholder="0.000">
+                        </div>
                     </div>
                     <div id="rarity-sum-feedback" class="form-text mt-1"></div>
+                    <small class="text-muted">提示：6+星包含所有6星及以上稀有度，中奖后随机从高星鱼池选择。</small>
                 </div>
                 <div class="mb-3">
                     <label for="specific_fish_ids" class="form-label">限定鱼类 (可多选，不选则为全局鱼池)</label>
@@ -236,8 +245,11 @@
             data.available_from = '';
             data.available_until = '';
         }
-        // 计算稀有度和
-        const rarityDistribution = [...Array(5).keys()].map(i => parseFloat(data[`rarity_${i+1}`]) || 0);
+        // 计算稀有度和（支持1-5星 + 6+星）
+        const rarityDistribution = [
+            ...([...Array(5).keys()].map(i => parseFloat(data[`rarity_${i+1}`]) || 0)),
+            parseFloat(data['rarity_6plus']) || 0
+        ];
         const sum = rarityDistribution.reduce((a,b)=>a+b,0);
         if (Math.abs(sum - 1.0) > 1e-4) {
             showFormError(form, '稀有度分布总和必须为 1');
@@ -342,7 +354,10 @@
                 data.available_from = '';
                 data.available_until = '';
             }
-            const rarityDistribution = [...Array(5).keys()].map(i => parseFloat(data[`rarity_${i+1}`]) || 0);
+            const rarityDistribution = [
+                ...([...Array(5).keys()].map(i => parseFloat(data[`rarity_${i+1}`]) || 0)),
+                parseFloat(data['rarity_6plus']) || 0
+            ];
             const sum = rarityDistribution.reduce((a,b)=>a+b,0);
             if (Math.abs(sum - 1.0) > 1e-4) {
                 showFormError(form, '稀有度分布总和必须为 1');
