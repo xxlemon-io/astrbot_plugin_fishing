@@ -61,9 +61,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 `;
                 fishByRarity[rarity].forEach(fish => {
                     const value = fish.base_value.toLocaleString();
-                    const isSelected = specificFishIds.includes(fish.fish_id);
                     totalFishListHtml += `
-                        <div class="list-group-item fish-item ${isSelected ? 'd-none' : ''}" 
+                        <div class="list-group-item fish-item" 
                              data-fish-id="${fish.fish_id}" data-rarity="${fish.rarity}" 
                              data-value="${fish.base_value}" data-name="${fish.name}">
                             <div class="d-flex justify-content-between align-items-center">
@@ -72,7 +71,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     <br><small class="text-muted">${rarityStars} 价值: ${value} 金币</small>
                                 </div>
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" value="${fish.fish_id}" ${isSelected ? 'checked' : ''}>
+                                    <input class="form-check-input" type="checkbox" value="${fish.fish_id}">
                                 </div>
                             </div>
                         </div>
@@ -282,8 +281,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const isVisible = 
                     (item.dataset.name.toLowerCase().includes(searchTerm) || !searchTerm) &&
                     (item.dataset.rarity === rarity || !rarity) &&
-                    !selectedSet.has(fishId) &&
-                    !item.classList.contains('d-none');
+                    !selectedSet.has(fishId);
                 item.style.display = isVisible ? '' : 'none';
                 if (isVisible) visibleCount++;
             });
@@ -389,8 +387,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const rarity = rarityFilter.value;
             const isVisible = 
                 (totalItem.dataset.name.toLowerCase().includes(searchTerm) || !searchTerm) &&
-                (totalItem.dataset.rarity === rarity || !rarity) &&
-                !totalItem.classList.contains('d-none');
+                (totalItem.dataset.rarity === rarity || !rarity);
             totalItem.style.display = isVisible ? '' : 'none';
         }
         
