@@ -155,10 +155,57 @@
         }
         const specificFishIds = zone?.specific_fish_ids || [];
 
-        let fishOptions = allFishData.map(fish => {
-            const selected = specificFishIds.includes(fish.fish_id) ? 'selected' : '';
-            return `<option value="${fish.fish_id}" ${selected}>${fish.name} (ID: ${fish.fish_id})</option>`;
-        }).join('');
+        // 按稀有度分组鱼类
+        const fishByRarity = {};
+        allFishData.forEach(fish => {
+            if (!fishByRarity[fish.rarity]) {
+                fishByRarity[fish.rarity] = [];
+            }
+            fishByRarity[fish.rarity].push(fish);
+        });
+        
+        // 生成总鱼池HTML
+        let totalFishListHtml = '';
+        for (let rarity = 1; rarity <= 10; rarity++) {
+            if (fishByRarity[rarity] && fishByRarity[rarity].length > 0) {
+                const rarityStars = '★'.repeat(rarity);
+                const availableCount = fishByRarity[rarity].filter(fish => !specificFishIds.includes(fish.fish_id)).length;
+                totalFishListHtml += `
+                    <div class="list-group-item bg-light fw-bold d-flex justify-content-between align-items-center">
+                        <span>${rarityStars} ${rarity}星鱼类 (${fishByRarity[rarity].length}种)</span>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="rarity-${rarity}" onchange="toggleRaritySelection(${rarity})" title="选中/取消选中此星级所有鱼类">
+                            <label class="form-check-label" for="rarity-${rarity}">
+                                全选
+                            </label>
+                        </div>
+                    </div>
+                `;
+                fishByRarity[rarity].forEach(fish => {
+                    const value = fish.base_value.toLocaleString();
+                    const isSelected = specificFishIds.includes(fish.fish_id);
+                    totalFishListHtml += `
+                        <div class="list-group-item fish-item ${isSelected ? 'd-none' : ''}" 
+                             data-fish-id="${fish.fish_id}" 
+                             data-rarity="${fish.rarity}" 
+                             data-value="${fish.base_value}"
+                             data-name="${fish.name}"
+                             ondblclick="addFishToSelected(${fish.fish_id})"
+                             onclick="toggleFishSelection(this)">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>${fish.name}</strong>
+                                    <br><small class="text-muted">价值: ${value} 金币</small>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="${fish.fish_id}">
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+        }
 
         return `
             <form id="${isEdit ? 'edit' : 'create'}-zone-form">
@@ -227,10 +274,85 @@
                     <small class="text-muted">提示：6+星包含所有6星及以上稀有度，中奖后随机从高星鱼池选择。</small>
                 </div>
                 <div class="mb-3">
-                    <label for="specific_fish_ids" class="form-label">限定鱼类 (可多选，不选则为全局鱼池)</label>
-                    <select class="form-control" name="specific_fish_ids" multiple size="8">
-                        ${fishOptions}
-                    </select>
+                    <label class="form-label">限定鱼类选择 (不选则为全局鱼池)</label>
+                    
+                    <!-- 搜索和过滤控件 -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control form-control-sm" id="fishSearch" placeholder="搜索鱼类名称..." onkeyup="filterFishOptions()">
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-control form-control-sm" id="rarityFilter" onchange="filterFishOptions()">
+                                <option value="">所有稀有度</option>
+                                <option value="1">★ 1星</option>
+                                <option value="2">★★ 2星</option>
+                                <option value="3">★★★ 3星</option>
+                                <option value="4">★★★★ 4星</option>
+                                <option value="5">★★★★★ 5星</option>
+                                <option value="6">★★★★★★ 6星</option>
+                                <option value="7">★★★★★★★ 7星</option>
+                                <option value="8">★★★★★★★★ 8星</option>
+                                <option value="9">★★★★★★★★★ 9星</option>
+                                <option value="10">★★★★★★★★★★ 10星</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-success" onclick="addSelectedFish()">
+                                    <i class="fas fa-plus"></i> 添加选中
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" onclick="removeSelectedFish()">
+                                    <i class="fas fa-minus"></i> 移除选中
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 双框选择器 -->
+                    <div class="row">
+                        <!-- 总鱼池 -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">总鱼池</h6>
+                                    <small class="text-muted" id="totalFishCount">0 种鱼类</small>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="list-group list-group-flush" id="totalFishList" style="max-height: 300px; overflow-y: auto;">
+                                        ${totalFishListHtml}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 选择池 -->
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">已选择鱼类</h6>
+                                    <div>
+                                        <small class="text-muted me-2">
+                                            <span id="selectedCount">0</span> 种 | 
+                                            总价值: <span id="totalValue">0</span>
+                                        </small>
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearAllSelected()">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body p-0">
+                                    <div class="list-group list-group-flush" id="selectedFishList" style="max-height: 300px; overflow-y: auto;">
+                                        <div class="list-group-item text-muted text-center" id="emptySelectedMessage">
+                                            暂无选择，双击左侧鱼类添加到选择池
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 隐藏的输入框用于表单提交 -->
+                    <input type="hidden" name="specific_fish_ids" id="specific_fish_ids_input">
                 </div>
                 <div class="mb-3">
                     <label class="form-label">通行证要求</label>
@@ -296,7 +418,7 @@
             return;
         }
         data.configs = { rarity_distribution: rarityDistribution };
-        data.specific_fish_ids = Array.from(this.querySelector('select[name="specific_fish_ids"]').selectedOptions).map(opt => parseInt(opt.value));
+            data.specific_fish_ids = this.querySelector('input[name="specific_fish_ids"]').value.split(',').filter(id => id).map(id => parseInt(id));
         
         // 处理通行证要求
         data.requires_pass = data.requires_pass === 'on';
@@ -404,7 +526,7 @@
                 return;
             }
             data.configs = { rarity_distribution: rarityDistribution };
-            data.specific_fish_ids = Array.from(this.querySelector('select[name="specific_fish_ids"]').selectedOptions).map(opt => parseInt(opt.value));
+            data.specific_fish_ids = this.querySelector('input[name="specific_fish_ids"]').value.split(',').filter(id => id).map(id => parseInt(id));
             
             // 处理通行证要求
             data.requires_pass = data.requires_pass === 'on';
@@ -459,5 +581,243 @@
             toggle.addEventListener('change', applyState);
         }
     }
+
+    // 双框鱼类选择功能
+    let selectedFishIds = new Set();
+    
+    function filterFishOptions() {
+        const searchTerm = document.getElementById('fishSearch').value.toLowerCase();
+        const rarityFilter = document.getElementById('rarityFilter').value;
+        const fishItems = document.querySelectorAll('#totalFishList .fish-item');
+        
+        fishItems.forEach(item => {
+            const fishName = item.getAttribute('data-name').toLowerCase();
+            const fishRarity = item.getAttribute('data-rarity');
+            
+            const matchesSearch = !searchTerm || fishName.includes(searchTerm);
+            const matchesRarity = !rarityFilter || fishRarity === rarityFilter;
+            
+            if (matchesSearch && matchesRarity) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+        
+        updateTotalFishCount();
+    }
+    
+    function toggleFishSelection(element) {
+        const checkbox = element.querySelector('input[type="checkbox"]');
+        checkbox.checked = !checkbox.checked;
+        
+        // 更新对应星级的全选状态
+        updateRarityCheckboxState(element);
+    }
+    
+    function updateRarityCheckboxState(fishElement) {
+        const rarity = fishElement.getAttribute('data-rarity');
+        const rarityCheckbox = document.getElementById(`rarity-${rarity}`);
+        if (!rarityCheckbox) return;
+        
+        // 找到该星级的所有可见鱼类
+        const fishItems = document.querySelectorAll(`#totalFishList .fish-item[data-rarity="${rarity}"]:not([style*="display: none"])`);
+        const checkedItems = document.querySelectorAll(`#totalFishList .fish-item[data-rarity="${rarity}"]:not([style*="display: none"]) input[type="checkbox"]:checked`);
+        
+        // 如果所有鱼类都被选中，则选中星级勾选框；否则取消选中
+        rarityCheckbox.checked = fishItems.length > 0 && checkedItems.length === fishItems.length;
+    }
+    
+    function addFishToSelected(fishId) {
+        if (selectedFishIds.has(fishId)) return;
+        
+        const fishItem = document.querySelector(`[data-fish-id="${fishId}"]`);
+        if (!fishItem) return;
+        
+        selectedFishIds.add(fishId);
+        fishItem.classList.add('d-none');
+        
+        // 添加到选择池
+        addFishToSelectedList(fishItem);
+        updateSelectedStats();
+        updateHiddenInput();
+    }
+    
+    function addSelectedFish() {
+        const checkedItems = document.querySelectorAll('#totalFishList .fish-item input[type="checkbox"]:checked');
+        checkedItems.forEach(checkbox => {
+            const fishId = parseInt(checkbox.value);
+            addFishToSelected(fishId);
+        });
+    }
+    
+    function removeSelectedFish() {
+        const checkedItems = document.querySelectorAll('#selectedFishList .fish-item input[type="checkbox"]:checked');
+        checkedItems.forEach(checkbox => {
+            const fishId = parseInt(checkbox.value);
+            removeFishFromSelected(fishId);
+        });
+    }
+    
+    function removeFishFromSelected(fishId) {
+        if (!selectedFishIds.has(fishId)) return;
+        
+        selectedFishIds.delete(fishId);
+        
+        // 从选择池移除
+        const selectedItem = document.querySelector(`#selectedFishList [data-fish-id="${fishId}"]`);
+        if (selectedItem) {
+            selectedItem.remove();
+        }
+        
+        // 显示在总鱼池中
+        const totalItem = document.querySelector(`#totalFishList [data-fish-id="${fishId}"]`);
+        if (totalItem) {
+            totalItem.classList.remove('d-none');
+            totalItem.querySelector('input[type="checkbox"]').checked = false;
+        }
+        
+        updateSelectedStats();
+        updateHiddenInput();
+    }
+    
+    function addFishToSelectedList(fishItem) {
+        const fishId = parseInt(fishItem.getAttribute('data-fish-id'));
+        const fishName = fishItem.getAttribute('data-name');
+        const fishRarity = parseInt(fishItem.getAttribute('data-rarity'));
+        const fishValue = parseInt(fishItem.getAttribute('data-value'));
+        
+        const rarityStars = '★'.repeat(fishRarity);
+        const value = fishValue.toLocaleString();
+        
+        const selectedList = document.getElementById('selectedFishList');
+        const emptyMessage = document.getElementById('emptySelectedMessage');
+        
+        if (emptyMessage) {
+            emptyMessage.style.display = 'none';
+        }
+        
+        const fishElement = document.createElement('div');
+        fishElement.className = 'list-group-item fish-item';
+        fishElement.setAttribute('data-fish-id', fishId);
+        fishElement.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>${fishName}</strong>
+                    <br><small class="text-muted">${rarityStars} 价值: ${value} 金币</small>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" value="${fishId}">
+                </div>
+            </div>
+        `;
+        
+        fishElement.onclick = function() {
+            toggleFishSelection(this);
+        };
+        
+        selectedList.appendChild(fishElement);
+    }
+    
+    function clearAllSelected() {
+        selectedFishIds.clear();
+        
+        // 清空选择池
+        const selectedList = document.getElementById('selectedFishList');
+        selectedList.innerHTML = '<div class="list-group-item text-muted text-center" id="emptySelectedMessage">暂无选择，双击左侧鱼类添加到选择池</div>';
+        
+        // 显示所有总鱼池项目
+        const totalItems = document.querySelectorAll('#totalFishList .fish-item');
+        totalItems.forEach(item => {
+            item.classList.remove('d-none');
+            item.querySelector('input[type="checkbox"]').checked = false;
+        });
+        
+        updateSelectedStats();
+        updateHiddenInput();
+    }
+    
+    function toggleRaritySelection(rarity) {
+        // 找到指定稀有度的所有可见鱼类
+        const fishItems = document.querySelectorAll(`#totalFishList .fish-item[data-rarity="${rarity}"]:not([style*="display: none"])`);
+        const rarityCheckbox = document.getElementById(`rarity-${rarity}`);
+        
+        if (fishItems.length === 0) {
+            rarityCheckbox.checked = false;
+            return;
+        }
+        
+        // 根据星级勾选框状态，设置所有该星级鱼类的勾选状态
+        const isChecked = rarityCheckbox.checked;
+        fishItems.forEach(item => {
+            const checkbox = item.querySelector('input[type="checkbox"]');
+            checkbox.checked = isChecked;
+        });
+        
+        // 显示成功消息
+        const rarityStars = '★'.repeat(rarity);
+        const count = fishItems.length;
+        const action = isChecked ? '选中' : '取消选中';
+        showTemporaryMessage(`已${action} ${count} 种 ${rarityStars} ${rarity}星鱼类`, 'info');
+    }
+    
+    function showTemporaryMessage(message, type = 'info') {
+        // 创建临时消息提示
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+        alertDiv.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        document.body.appendChild(alertDiv);
+        
+        // 3秒后自动消失
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 3000);
+    }
+    
+    function updateTotalFishCount() {
+        const visibleItems = document.querySelectorAll('#totalFishList .fish-item:not([style*="display: none"])');
+        document.getElementById('totalFishCount').textContent = `${visibleItems.length} 种鱼类`;
+    }
+    
+    function updateSelectedStats() {
+        const selectedCount = selectedFishIds.size;
+        const selectedItems = document.querySelectorAll('#selectedFishList .fish-item');
+        const totalValue = Array.from(selectedItems).reduce((sum, item) => {
+            return sum + (parseInt(item.getAttribute('data-value')) || 0);
+        }, 0);
+        
+        document.getElementById('selectedCount').textContent = selectedCount;
+        document.getElementById('totalValue').textContent = totalValue.toLocaleString();
+    }
+    
+    function updateHiddenInput() {
+        const hiddenInput = document.getElementById('specific_fish_ids_input');
+        hiddenInput.value = Array.from(selectedFishIds).join(',');
+    }
+    
+    // 初始化已选择的鱼类
+    function initializeSelectedFish() {
+        const specificFishIds = ${JSON.stringify(specificFishIds)};
+        specificFishIds.forEach(fishId => {
+            const fishItem = document.querySelector(`[data-fish-id="${fishId}"]`);
+            if (fishItem) {
+                addFishToSelected(fishId);
+            }
+        });
+    }
+    
+    // 页面加载完成后初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeSelectedFish();
+        updateTotalFishCount();
+        updateSelectedStats();
+    });
 </script>
 {% endblock %}
