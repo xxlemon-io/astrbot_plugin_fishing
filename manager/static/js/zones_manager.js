@@ -235,6 +235,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const rarityFilter = container.querySelector('#rarityFilter');
         const selectedSet = getSelectedSet(container);
         
+        console.debug('[Zones] setupFishSelection: start', { selectedCount: selectedSet.size });
+        
         let clickTimer = null;
 
         const handleFishClick = (e) => {
@@ -330,6 +332,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Initial count
         filterFishOptions();
+        console.debug('[Zones] setupFishSelection: initialized');
+    }
+
+    function ensureSelectedItemVisible(container, el) {
+        if (!el) return;
+        if (el.classList.contains('d-none')) {
+            console.debug('[Zones] ensureSelectedItemVisible: removed d-none from item', el.dataset);
+            el.classList.remove('d-none');
+        }
+        el.style.display = '';
+    }
+
+    function ensureSelectedListVisible(container) {
+        container.querySelectorAll('#selectedFishList .fish-item').forEach(el => ensureSelectedItemVisible(container, el));
     }
     
     function toggleFishSelection(item, container, e = null) {
@@ -337,8 +353,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!checkbox) return;
         
         // Only programmatically toggle the checkbox if the click was not on the input itself.
-        // The browser handles the toggle for direct clicks on the input.
-        if (!e || e.target.tagName !== 'INPUT') {
+        const targetIsCheckbox = e && e.target.tagName === 'INPUT';
+        if (!targetIsCheckbox) {
             checkbox.checked = !checkbox.checked;
         }
 
@@ -365,7 +381,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function addFishToSelected(fishId, container) {
+    function _addFishToSelected_internal(fishId, container) {
         const selectedSet = getSelectedSet(container);
         if (selectedSet.has(fishId)) return;
         selectedSet.add(fishId);
@@ -373,7 +389,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const totalItem = container.querySelector(`#totalFishList .fish-item[data-fish-id='${fishId}']`);
         if (!totalItem) return;
         
-        // Rebuild the element from data attributes to avoid cloning issues (e.g. d-none class being carried over)
         const fishData = totalItem.dataset;
         const rarityStars = '★'.repeat(parseInt(fishData.rarity));
         const value = parseInt(fishData.value).toLocaleString();
@@ -395,18 +410,18 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
     
         const selectedList = container.querySelector('#selectedFishList');
-        // insertAdjacentHTML is faster than manipulating innerHTML
         selectedList.insertAdjacentHTML('beforeend', newItemHtml);
-        
-        // Prevent bubbling from the newly inserted checkbox
+
         const lastItem = selectedList.lastElementChild;
         if (lastItem) {
             const cb = lastItem.querySelector('input[type="checkbox"]');
             if (cb) cb.addEventListener('click', (e) => e.stopPropagation());
         }
-        
+    }
+
+    function addFishToSelected(fishId, container) {
+        _addFishToSelected_internal(fishId, container);
         updateSelectedStats(container);
-        // Let the central filter function handle visibility
         container.querySelector('#fishSearch').dispatchEvent(new Event('keyup'));
     }
 
@@ -443,8 +458,15 @@ document.addEventListener('DOMContentLoaded', function() {
         container.querySelector('#emptySelectedMessage').style.display = count > 0 ? 'none' : '';
         container.querySelector('#specific_fish_ids_input').value = Array.from(selectedSet).join(',');
 
-        // Ensure no stray hidden classes remain in selected list
-        container.querySelectorAll('#selectedFishList .fish-item.d-none').forEach(el => el.classList.remove('d-none'));
+        // Defensively ensure all items in the selected list are visible.
+        container.querySelectorAll('#selectedFishList .fish-item').forEach(el => {
+            if (el.classList.contains('d-none')) {
+                el.classList.remove('d-none');
+            }
+            if (el.style.display === 'none') {
+                el.style.display = '';
+            }
+        });
 
         // Update total fish count
         let visibleCount = 0;
@@ -456,34 +478,52 @@ document.addEventListener('DOMContentLoaded', function() {
         container.querySelector('#totalFishCount').textContent = `${visibleCount} 种`;
     }
 
+    // Observe and sanitize visibility of selected list items to prevent accidental d-none injection
+    function attachSelectedListObserver(container) {
+        const selectedList = container.querySelector('#selectedFishList');
+        if (!selectedList) return;
+
+        const sanitize = () => {
+            selectedList.querySelectorAll('.fish-item').forEach(el => {
+                if (el.classList.contains('d-none')) el.classList.remove('d-none');
+                if (el.style && el.style.display === 'none') el.style.display = '';
+            });
+        };
+
+        // Run once immediately
+        sanitize();
+
+        const observer = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+                if (m.type === 'childList' || m.type === 'attributes') {
+                    sanitize();
+                }
+            }
+        });
+
+        observer.observe(selectedList, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+        // Stash so we can disconnect on hide
+        container._selectedListObserver = observer;
+    }
+
     function initializeSelectedFish(ids, container) {
         const selectedSet = getSelectedSet(container);
-        // Hard reset selected area first
         selectedSet.clear();
         const selectedList = container.querySelector('#selectedFishList');
         selectedList.innerHTML = '<div class="list-group-item text-muted text-center" id="emptySelectedMessage">暂无选择</div>';
         
-        // Reset total list visual state
         container.querySelectorAll('#totalFishList .fish-item').forEach(item => {
             item.style.display = '';
             const cb = item.querySelector('input[type="checkbox"]');
             if (cb) cb.checked = false;
         });
-        // Reset rarity header checkboxes
         container.querySelectorAll('.rarity-select-all').forEach(cb => {
             cb.checked = false;
             cb.indeterminate = false;
         });
         
-        // Add selected items
-        ids.forEach(id => addFishToSelected(id, container));
+        ids.forEach(id => _addFishToSelected_internal(id, container));
         
-        // Bind stopPropagation for any newly inserted checkboxes in the selected list
-        selectedList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            cb.addEventListener('click', (e) => e.stopPropagation());
-        });
-        
-        // Update stats and refresh filters once at the end
         updateSelectedStats(container);
         container.querySelector('#fishSearch').dispatchEvent(new Event('keyup'));
     }
@@ -504,13 +544,23 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const form = modalEl.querySelector(formId);
             setupFishSelection(modalEl);
-            initializeSelectedFish(zone?.specific_fish_ids || [], modalEl);
+            attachSelectedListObserver(modalEl);
+            
+            // Defer initialization to avoid race conditions with modal transition
+            setTimeout(() => {
+                initializeSelectedFish(zone?.specific_fish_ids || [], modalEl);
+            }, 50);
+
             hookFormHandlers(form, zoneId);
         });
 
         modalEl.addEventListener('hidden.bs.modal', function() {
             // Clear the modal body when it's hidden to prevent focus issues and stale data
             modalEl.querySelector('.modal-body').innerHTML = '';
+            if (modalEl._selectedListObserver) {
+                modalEl._selectedListObserver.disconnect();
+                modalEl._selectedListObserver = null;
+            }
         });
     }
 
