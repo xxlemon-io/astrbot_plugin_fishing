@@ -43,14 +43,7 @@ from .handlers.market_handlers import MarketHandlers
 from .handlers.social_handlers import SocialHandlers
 from .handlers.gacha_handlers import GachaHandlers
 
-class FishingPlugin(Star, 
-                    AdminHandlers,
-                    CommonHandlers,
-                    InventoryHandlers,
-                    FishingHandlers,
-                    MarketHandlers,
-                    SocialHandlers,
-                    GachaHandlers):
+class FishingPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
 
@@ -237,4 +230,23 @@ class FishingPlugin(Star,
         if self.web_admin_task:
             self.web_admin_task.cancel()
         logger.info("钓鱼插件已成功终止。")
+
+
+# Helper function to inject handler methods into the main plugin class
+def _inject_handlers(plugin_class, handler_classes):
+    for handler_class in handler_classes:
+        for name, method in handler_class.__dict__.items():
+            if callable(method) and not name.startswith("_"):
+                setattr(plugin_class, name, method)
+
+# Inject all command handlers from the handler classes into FishingPlugin
+_inject_handlers(FishingPlugin, [
+    AdminHandlers,
+    CommonHandlers,
+    InventoryHandlers,
+    FishingHandlers,
+    MarketHandlers,
+    SocialHandlers,
+    GachaHandlers
+])
 
