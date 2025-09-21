@@ -723,26 +723,26 @@ class FishingService:
             return
 
         try:
-            # 使用注册的通知回调发送群聊消息
             if self._notifier:
-                # 构建符合世界观的通知消息
-                message_parts = ["🌅【每日区域检查】🌅\n"]
-                message_parts.append("黎明时分，钓鱼协会的巡查员开始检查各区域的准入资格...\n\n")
-                message_parts.append("以下渔者因缺少必要的通行证，已被安全传送回新手钓鱼地：\n")
-
-                for user_info in relocated_users:
-                    message_parts.append(f"• @{user_info['user_id']} ({user_info['nickname']})")
-                    message_parts.append(f"  从 {user_info['zone_name']} 传送至 1号钓鱼地")
-                    message_parts.append(f"  缺少：{user_info['item_name']}\n")
-
-                message_parts.append("💡 温馨提示：前往特殊区域前请确保携带足够的通行证。")
-                message_parts.append("祝各位渔者今日收获满满！🎣")
-
-                # 发送群聊通知
-                group_message = "".join(message_parts)
+                group_message = self._build_relocation_notification_message(relocated_users)
                 self._notifier("group", group_message)
         except Exception as e:
             logger.error(f"发送传送通知失败: {e}")
+
+    def _build_relocation_notification_message(self, relocated_users: list) -> str:
+        """构建每日传送通知的消息文本。"""
+        message_parts = ["🌅【每日区域检查】🌅\n"]
+        message_parts.append("黎明时分，钓鱼协会的巡查员开始检查各区域的准入资格...\n\n")
+        message_parts.append("以下渔者因缺少必要的通行证，已被安全传送回新手钓鱼地：\n")
+
+        for user_info in relocated_users:
+            message_parts.append(f"• @{user_info['user_id']} ({user_info['nickname']})")
+            message_parts.append(f"  从 {user_info['zone_name']} 传送至 1号钓鱼地")
+            message_parts.append(f"  缺少：{user_info['item_name']}\n")
+
+        message_parts.append("💡 温馨提示：前往特殊区域前请确保携带足够的通行证。")
+        message_parts.append("祝各位渔者今日收获满满！🎣")
+        return "".join(message_parts)
 
     def start_auto_fishing_task(self):
         """启动自动钓鱼的后台线程。"""

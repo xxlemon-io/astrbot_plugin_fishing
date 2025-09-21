@@ -2,6 +2,44 @@ from astrbot.api.event import filter, AstrMessageEvent
 from ..core.utils import get_now
 from ..utils import safe_datetime_handler, to_percentage
 
+
+def _normalize_now_for(lst_time):
+    """根据 lst_time 的时区信息，规范化当前时间的 tzinfo。"""
+    now = get_now()
+    if lst_time and lst_time.tzinfo is None and now.tzinfo is not None:
+        return now.replace(tzinfo=None)
+    if lst_time and lst_time.tzinfo is not None and now.tzinfo is None:
+        return now.replace(tzinfo=lst_time.tzinfo)
+    return now
+
+
+def _compute_cooldown_seconds(base_seconds, equipped_accessory):
+    """根据是否装备海洋之心动态计算冷却时间。"""
+    if equipped_accessory and equipped_accessory.get("name") == "海洋之心":
+        return base_seconds / 2
+    return base_seconds
+
+
+def _get_fishing_cost(self, user):
+    zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+    return zone.fishing_cost if zone else 10
+
+
+def _build_fish_message(result, fishing_cost):
+    if result["success"]:
+        message = (
+            f"🎣 恭喜你钓到了：{result['fish']['name']}\n"
+            f"✨品质：{'★' * result['fish']['rarity']} \n"
+            f"⚖️重量：{result['fish']['weight']} 克\n"
+            f"💰价值：{result['fish']['value']} 金币\n"
+            f"💸消耗：{fishing_cost} 金币/次"
+        )
+        if "equipment_broken_messages" in result:
+            for broken_msg in result["equipment_broken_messages"]:
+                message += f"\n{broken_msg}"
+        return message
+    return f"{result['message']}\n💸消耗：{fishing_cost} 金币/次"
+
 async def fish(self, event: AstrMessageEvent):
     """钓鱼"""
     user_id = self._get_effective_user_id(event)
@@ -11,52 +49,25 @@ async def fish(self, event: AstrMessageEvent):
         return
     # 检查用户钓鱼CD
     lst_time = user.last_fishing_time
-    # 检查是否装备了海洋之心饰品
     info = self.user_service.get_user_current_accessory(user_id)
     if info["success"] is False:
         yield event.plain_result(f"❌ 获取用户饰品信息失败：{info['message']}")
         return
     equipped_accessory = info.get("accessory")
-    cooldown_seconds = self.game_config["fishing"]["cooldown_seconds"]
-    if equipped_accessory and equipped_accessory.get("name") == "海洋之心":
-        # 如果装备了海洋之心，CD时间减半
-        cooldown_seconds = self.game_config["fishing"]["cooldown_seconds"] / 2
-        # logger.info(f"用户 {user_id} 装备了海洋之心，钓鱼CD时间减半。")
+    base_cooldown = self.game_config["fishing"]["cooldown_seconds"]
+    cooldown_seconds = _compute_cooldown_seconds(base_cooldown, equipped_accessory)
     # 修复时区问题
-    now = get_now()
-    if lst_time and lst_time.tzinfo is None and now.tzinfo is not None:
-        # 如果 lst_time 没有时区而 now 有时区，移除 now 的时区信息
-        now = now.replace(tzinfo=None)
-    elif lst_time and lst_time.tzinfo is not None and now.tzinfo is None:
-        # 如果 lst_time 有时区而 now 没有时区，将 now 转换为有时区
-        now = now.replace(tzinfo=lst_time.tzinfo)
+    now = _normalize_now_for(lst_time)
     if lst_time and (now - lst_time).total_seconds() < cooldown_seconds:
         wait_time = cooldown_seconds - (now - lst_time).total_seconds()
         yield event.plain_result(f"⏳ 您还需要等待 {int(wait_time)} 秒才能再次钓鱼。")
         return
+    fishing_cost = _get_fishing_cost(self, user)
     result = self.fishing_service.go_fish(user_id)
-    if result:
-        if result["success"]:
-            # 获取当前区域的钓鱼消耗
-            zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
-            fishing_cost = zone.fishing_cost if zone else 10
-            
-            message = f"🎣 恭喜你钓到了：{result['fish']['name']}\n✨品质：{'★' * result['fish']['rarity']} \n⚖️重量：{result['fish']['weight']} 克\n💰价值：{result['fish']['value']} 金币\n💸消耗：{fishing_cost} 金币/次"
-            
-            # 添加装备损坏消息
-            if "equipment_broken_messages" in result:
-                for broken_msg in result["equipment_broken_messages"]:
-                    message += f"\n{broken_msg}"
-            
-            yield event.plain_result(message)
-        else:
-            # 即使钓鱼失败，也显示消耗的金币
-            zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
-            fishing_cost = zone.fishing_cost if zone else 10
-            message = f"{result['message']}\n💸消耗：{fishing_cost} 金币/次"
-            yield event.plain_result(message)
-    else:
+    if not result:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
+        return
+    yield event.plain_result(_build_fish_message(result, fishing_cost))
 
 async def auto_fish(self, event: AstrMessageEvent):
     """自动钓鱼"""
@@ -70,59 +81,47 @@ async def fishing_area(self, event: AstrMessageEvent):
     args = event.message_str.split(" ")
     if len(args) < 2:
         result = self.fishing_service.get_user_fishing_zones(user_id)
-        if result:
-            if result["success"]:
-                zones = result.get("zones", [])
-                message = f"【🌊 钓鱼区域】\n"
-                for zone in zones:
-                    # 区域状态标识
-                    status_icons = []
-                    if zone['whether_in_use']:
-                        status_icons.append("✅")
-                    if not zone['is_active']:
-                        status_icons.append("🚫")
-                    if zone.get('requires_pass'):
-                        status_icons.append("🔑")
-                    
-                    status_text = " ".join(status_icons) if status_icons else ""
-                    
-                    message += f"区域名称: {zone['name']} (ID: {zone['zone_id']}) {status_text}\n"
-                    message += f"描述: {zone['description']}\n"
-                    message += f"💰 钓鱼消耗: {zone.get('fishing_cost', 10)} 金币/次\n"
-                    
-                    if zone.get('requires_pass'):
-                        required_item_name = zone.get('required_item_name', '通行证')
-                        message += f"🔑 需要 {required_item_name} 才能进入\n"
-                    
-                    # 显示限时信息（只有当有具体时间限制时才显示）
-                    if zone.get('available_from') or zone.get('available_until'):
-                        message += "⏰ 开放时间: "
-                        if zone.get('available_from') and zone.get('available_until'):
-                            # 有开始和结束时间
-                            from_time = zone['available_from'].strftime('%Y-%m-%d %H:%M')
-                            until_time = zone['available_until'].strftime('%Y-%m-%d %H:%M')
-                            message += f"{from_time} 至 {until_time}\n"
-                        elif zone.get('available_from'):
-                            # 只有开始时间
-                            from_time = zone['available_from'].strftime('%Y-%m-%d %H:%M')
-                            message += f"{from_time} 开始\n"
-                        elif zone.get('available_until'):
-                            # 只有结束时间
-                            until_time = zone['available_until'].strftime('%Y-%m-%d %H:%M')
-                            message += f"至 {until_time} 结束\n"
-                    
-                    # 显示稀有鱼余量（4星及以上计入配额），对所有区域生效
-                    remaining_rare = max(0, zone['daily_rare_fish_quota'] - zone['rare_fish_caught_today'])
-                    if zone.get('daily_rare_fish_quota', 0) > 0:
-                        message += f"剩余稀有鱼类数量: {remaining_rare}\n"
-                    message += "\n"
-                
-                message += "使用「/钓鱼区域 ID」命令切换钓鱼区域。\n"
-                yield event.plain_result(message)
-            else:
-                yield event.plain_result(f"❌ 查看钓鱼区域失败：{result['message']}")
-        else:
+        if not result:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
+            return
+        if not result.get("success"):
+            yield event.plain_result(f"❌ 查看钓鱼区域失败：{result['message']}")
+            return
+        zones = result.get("zones", [])
+        message = "【🌊 钓鱼区域】\n"
+        for zone in zones:
+            status_icons = []
+            if zone['whether_in_use']:
+                status_icons.append("✅")
+            if not zone['is_active']:
+                status_icons.append("🚫")
+            if zone.get('requires_pass'):
+                status_icons.append("🔑")
+            status_text = " ".join(status_icons) if status_icons else ""
+            message += f"区域名称: {zone['name']} (ID: {zone['zone_id']}) {status_text}\n"
+            message += f"描述: {zone['description']}\n"
+            message += f"💰 钓鱼消耗: {zone.get('fishing_cost', 10)} 金币/次\n"
+            if zone.get('requires_pass'):
+                required_item_name = zone.get('required_item_name', '通行证')
+                message += f"🔑 需要 {required_item_name} 才能进入\n"
+            if zone.get('available_from') or zone.get('available_until'):
+                message += "⏰ 开放时间: "
+                if zone.get('available_from') and zone.get('available_until'):
+                    from_time = zone['available_from'].strftime('%Y-%m-%d %H:%M')
+                    until_time = zone['available_until'].strftime('%Y-%m-%d %H:%M')
+                    message += f"{from_time} 至 {until_time}\n"
+                elif zone.get('available_from'):
+                    from_time = zone['available_from'].strftime('%Y-%m-%d %H:%M')
+                    message += f"{from_time} 开始\n"
+                elif zone.get('available_until'):
+                    until_time = zone['available_until'].strftime('%Y-%m-%d %H:%M')
+                    message += f"至 {until_time} 结束\n"
+            remaining_rare = max(0, zone['daily_rare_fish_quota'] - zone['rare_fish_caught_today'])
+            if zone.get('daily_rare_fish_quota', 0) > 0:
+                message += f"剩余稀有鱼类数量: {remaining_rare}\n"
+            message += "\n"
+        message += "使用「/钓鱼区域 ID」命令切换钓鱼区域。\n"
+        yield event.plain_result(message)
         return
     zone_id = args[1]
     if not zone_id.isdigit():
