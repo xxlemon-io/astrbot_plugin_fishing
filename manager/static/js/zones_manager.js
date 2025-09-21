@@ -353,8 +353,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const rarityCheckbox = container.querySelector(`#totalFishList #rarity-${rarity}`);
         if (!rarityCheckbox) return;
 
-        const items = container.querySelectorAll(`#totalFishList .fish-item[data-rarity='${rarity}']:not(.d-none):not([style*='display: none'])`);
-        const checkedItems = container.querySelectorAll(`#totalFishList .fish-item[data-rarity='${rarity}']:not(.d-none):not([style*='display: none']) input:checked`);
+        const items = container.querySelectorAll(`#totalFishList .fish-item[data-rarity='${rarity}']:not([style*='display: none'])`);
+        const checkedItems = container.querySelectorAll(`#totalFishList .fish-item[data-rarity='${rarity}']:not([style*='display: none']) input:checked`);
 
         if (items.length > 0) {
             rarityCheckbox.checked = items.length === checkedItems.length;
@@ -458,21 +458,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function initializeSelectedFish(ids, container) {
         const selectedSet = getSelectedSet(container);
+        // Hard reset selected area first
         selectedSet.clear();
-        container.querySelector('#selectedFishList').innerHTML = '<div class="list-group-item text-muted text-center" id="emptySelectedMessage">暂无选择</div>';
+        const selectedList = container.querySelector('#selectedFishList');
+        selectedList.innerHTML = '<div class="list-group-item text-muted text-center" id="emptySelectedMessage">暂无选择</div>';
         
+        // Reset total list visual state
         container.querySelectorAll('#totalFishList .fish-item').forEach(item => {
             item.style.display = '';
-            item.querySelector('input[type="checkbox"]').checked = false;
+            const cb = item.querySelector('input[type="checkbox"]');
+            if (cb) cb.checked = false;
         });
-        
+        // Reset rarity header checkboxes
         container.querySelectorAll('.rarity-select-all').forEach(cb => {
             cb.checked = false;
             cb.indeterminate = false;
         });
         
+        // Add selected items
         ids.forEach(id => addFishToSelected(id, container));
+        
+        // Bind stopPropagation for any newly inserted checkboxes in the selected list
+        selectedList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('click', (e) => e.stopPropagation());
+        });
+        
+        // Update stats and refresh filters once at the end
         updateSelectedStats(container);
+        container.querySelector('#fishSearch').dispatchEvent(new Event('keyup'));
     }
     
     //
