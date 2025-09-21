@@ -235,8 +235,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const rarityFilter = container.querySelector('#rarityFilter');
         const selectedSet = getSelectedSet(container);
         
-        console.debug('[Zones] setupFishSelection: start', { selectedCount: selectedSet.size });
-        
         let clickTimer = null;
 
         const handleFishClick = (e) => {
@@ -332,20 +330,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Initial count
         filterFishOptions();
-        console.debug('[Zones] setupFishSelection: initialized');
-    }
-
-    function ensureSelectedItemVisible(container, el) {
-        if (!el) return;
-        if (el.classList.contains('d-none')) {
-            console.debug('[Zones] ensureSelectedItemVisible: removed d-none from item', el.dataset);
-            el.classList.remove('d-none');
-        }
-        el.style.display = '';
-    }
-
-    function ensureSelectedListVisible(container) {
-        container.querySelectorAll('#selectedFishList .fish-item').forEach(el => ensureSelectedItemVisible(container, el));
     }
     
     function toggleFishSelection(item, container, e = null) {
