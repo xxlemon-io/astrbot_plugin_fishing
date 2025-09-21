@@ -227,6 +227,11 @@ def format_accessory_or_rod(accessory_or_rod: dict) -> str:
     message += f" - {accessory_or_rod['name']} (稀有度: {format_rarity_display(accessory_or_rod['rarity'])})\n"
     if accessory_or_rod.get("is_equipped", False):
         message += f"   - {'✅ 已装备'}\n"
+    # 显示锁定状态：锁定或未锁定
+    if accessory_or_rod.get("is_locked", False):
+        message += f"   - {'🔒 已锁定'}\n"
+    else:
+        message += f"   - {'🔓 未锁定'}\n"
     if accessory_or_rod.get("bonus_fish_quality_modifier", 1.0) != 1.0 and accessory_or_rod.get("bonus_fish_quality_modifier", 1) != 1 and accessory_or_rod.get("bonus_fish_quality_modifier", 1) > 0:
         message += f"   - ✨鱼类质量加成: {to_percentage(accessory_or_rod['bonus_fish_quality_modifier'])}\n"
     if accessory_or_rod.get("bonus_fish_quantity_modifier", 1.0) != 1.0 and accessory_or_rod.get("bonus_fish_quantity_modifier", 1) != 1 and accessory_or_rod.get("bonus_fish_quantity_modifier", 1) > 0:

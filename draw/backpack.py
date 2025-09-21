@@ -147,6 +147,7 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
     success_color = (76, 175, 80)    # 温和绿 - 成功/积极状态
     warning_color = (255, 183, 77)   # 柔和橙 - 警告/中性
     error_color = (229, 115, 115)    # 温和红 - 错误/消极状态
+    lock_color = (54, 162, 235)      # 安全蓝 - 锁定保护状态
     
     # 背景色：更柔和的对比
     card_bg = (255, 255, 255, 240)   # 高透明度白色
@@ -233,6 +234,7 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
         if acc.get('description'):
             lines = wrap_text_by_width(f"{acc['description']}", tiny_font, card_width - 30)
             desc_lines = len(lines)
+        
         header_height = 85
         bottom_pad = 20
         card_h = header_height + attr_lines * 18 + desc_lines * line_h + bottom_pad
@@ -427,6 +429,13 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             # 让ID与装备名底部对齐（y同基线高度）
             draw.text((x + 15 + name_w + 10, y + 15 + (get_text_size(rod_name, content_font)[1] - id_h)), f"ID: {instance_id}", font=tiny_font, fill=primary_light)
             
+            # 锁定状态标识（右上角，参考道具消耗品位置）
+            is_locked = rod.get('is_locked', False)
+            if is_locked:
+                label_text = "🔒 锁定保护中"
+                lw, lh = get_text_size(label_text, tiny_font)
+                draw.text((x + card_width - 15 - lw, y + 12), label_text, font=tiny_font, fill=lock_color)
+            
             # 稀有度和精炼等级
             rarity = rod.get('rarity', 1)
             refine_level = rod.get('refine_level', 1)
@@ -559,6 +568,13 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             draw.text((x + 15, y + 15), acc_name, font=content_font, fill=text_primary)
             id_w, id_h = get_text_size("ID: 000000", tiny_font)
             draw.text((x + 15 + name_w + 10, y + 15 + (get_text_size(acc_name, content_font)[1] - id_h)), f"ID: {instance_id}", font=tiny_font, fill=primary_light)
+            
+            # 锁定状态标识（右上角，参考道具消耗品位置）
+            is_locked = accessory.get('is_locked', False)
+            if is_locked:
+                label_text = "🔒 锁定"
+                lw, lh = get_text_size(label_text, tiny_font)
+                draw.text((x + card_width - 15 - lw, y + 12), label_text, font=tiny_font, fill=lock_color)
             
             # 稀有度和精炼等级
             rarity = accessory.get('rarity', 1)

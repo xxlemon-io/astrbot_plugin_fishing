@@ -518,7 +518,8 @@ class FishingPlugin(Star):
                 yield event.plain_result("❌ 数量必须是正整数。")
                 return
 
-        # 批量使用道具，避免消息刷屏
+        # 批量使用道具，设置显示上限避免消息过长
+        DETAIL_DISPLAY_LIMIT = 5  # 最多显示5个道具的详细效果
         success_count = 0
         failed_count = 0
         last_error_message = ""
@@ -542,10 +543,36 @@ class FishingPlugin(Star):
                 # 单个道具使用时，显示具体的道具效果消息
                 yield event.plain_result(f"✅ {success_messages[0]}")
             else:
-                # 多个道具使用时，显示汇总消息
-                yield event.plain_result(f"✅ 成功使用了 {success_count} 个道具！")
+                # 多个道具使用时，显示汇总 + 详细效果（有上限）
+                message = f"✅ 成功使用了 {success_count} 个道具！\n\n"
+                
+                # 显示详细效果（最多显示前N个）
+                display_count = min(success_count, DETAIL_DISPLAY_LIMIT)
+                message += "📋 使用效果：\n"
+                for i in range(display_count):
+                    message += f"{i+1}. {success_messages[i]}\n"
+                
+                # 如果还有更多未显示的
+                if success_count > DETAIL_DISPLAY_LIMIT:
+                    remaining = success_count - DETAIL_DISPLAY_LIMIT
+                    message += f"... 还有 {remaining} 个道具产生了相同效果"
+                
+                yield event.plain_result(message)
         elif success_count > 0 and failed_count > 0:
-            yield event.plain_result(f"⚠️ 成功使用了 {success_count} 个道具，{failed_count} 个失败：{last_error_message}")
+            message = f"⚠️ 成功使用了 {success_count} 个道具，{failed_count} 个失败：{last_error_message}\n\n"
+            
+            # 显示成功的详细效果
+            if success_count > 0:
+                display_count = min(success_count, DETAIL_DISPLAY_LIMIT)
+                message += "📋 成功的效果：\n"
+                for i in range(display_count):
+                    message += f"{i+1}. {success_messages[i]}\n"
+                    
+                if success_count > DETAIL_DISPLAY_LIMIT:
+                    remaining = success_count - DETAIL_DISPLAY_LIMIT
+                    message += f"... 还有 {remaining} 个道具产生了相同效果"
+            
+            yield event.plain_result(message)
         else:
             yield event.plain_result(f"❌ 使用道具失败：{last_error_message}")
 
@@ -688,6 +715,86 @@ class FishingPlugin(Star):
 
         yield event.plain_result(help_message)
 
+    @filter.command("锁定鱼竿", alias={"鱼竿锁定"})
+    async def lock_rod(self, event: AstrMessageEvent):
+        """锁定鱼竿，防止被精炼、卖出、上架"""
+        user_id = self._get_effective_user_id(event)
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要锁定的鱼竿 ID，例如：/锁定鱼竿 15")
+            return
+        
+        rod_instance_id = args[1]
+        if not rod_instance_id.isdigit():
+            yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
+            return
+        
+        result = self.inventory_service.lock_rod(user_id, int(rod_instance_id))
+        if result["success"]:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result(f"❌ 锁定失败：{result['message']}")
+
+    @filter.command("解锁鱼竿", alias={"鱼竿解锁"})
+    async def unlock_rod(self, event: AstrMessageEvent):
+        """解锁鱼竿，允许正常操作"""
+        user_id = self._get_effective_user_id(event)
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要解锁的鱼竿 ID，例如：/解锁鱼竿 15")
+            return
+        
+        rod_instance_id = args[1]
+        if not rod_instance_id.isdigit():
+            yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
+            return
+        
+        result = self.inventory_service.unlock_rod(user_id, int(rod_instance_id))
+        if result["success"]:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result(f"❌ 解锁失败：{result['message']}")
+
+    @filter.command("锁定饰品", alias={"饰品锁定"})
+    async def lock_accessory(self, event: AstrMessageEvent):
+        """锁定饰品，防止被精炼、卖出、上架"""
+        user_id = self._get_effective_user_id(event)
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要锁定的饰品 ID，例如：/锁定饰品 15")
+            return
+        
+        accessory_instance_id = args[1]
+        if not accessory_instance_id.isdigit():
+            yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
+            return
+        
+        result = self.inventory_service.lock_accessory(user_id, int(accessory_instance_id))
+        if result["success"]:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result(f"❌ 锁定失败：{result['message']}")
+
+    @filter.command("解锁饰品", alias={"饰品解锁"})
+    async def unlock_accessory(self, event: AstrMessageEvent):
+        """解锁饰品，允许正常操作"""
+        user_id = self._get_effective_user_id(event)
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要解锁的饰品 ID，例如：/解锁饰品 15")
+            return
+        
+        accessory_instance_id = args[1]
+        if not accessory_instance_id.isdigit():
+            yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
+            return
+        
+        result = self.inventory_service.unlock_accessory(user_id, int(accessory_instance_id))
+        if result["success"]:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result(f"❌ 解锁失败：{result['message']}")
+
     @filter.command("使用鱼竿")
     async def use_rod(self, event: AstrMessageEvent):
         """使用鱼竿"""
@@ -803,6 +910,19 @@ class FishingPlugin(Star):
         result = self.inventory_service.sell_all_fish(user_id, keep_one=True)
         if result:
             yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    @filter.command("砸锅卖铁", alias={"破产", "清仓", "一键清空", "全部卖出装备", "卖光所有"})
+    async def sell_everything(self, event: AstrMessageEvent):
+        """砸锅卖铁：出售所有未锁定且未装备的鱼竿、饰品和全部鱼类"""
+        user_id = self._get_effective_user_id(event)
+        result = self.inventory_service.sell_everything_except_locked(user_id)
+        if result:
+            if result["success"]:
+                yield event.plain_result(result["message"])
+            else:
+                yield event.plain_result(f"❌ 砸锅卖铁失败：{result['message']}")
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 

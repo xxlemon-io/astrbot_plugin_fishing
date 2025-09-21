@@ -202,6 +202,7 @@
                                 <th>精炼等级</th>
                                 <th>耐久度</th>
                                 <th>状态</th>
+                                <th>锁定</th>
                                 <th class="text-end">操作</th>
                             </tr>
                         </thead>
@@ -218,6 +219,13 @@
                                         <span class="badge bg-success">已装备</span>
                                     {% else %}
                                         <span class="badge bg-secondary">未装备</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.is_locked %}
+                                        <span class="badge bg-warning">已锁定</span>
+                                    {% else %}
+                                        <span class="badge bg-light text-dark">未锁定</span>
                                     {% endif %}
                                 </td>
                                 <td class="text-end">
@@ -260,6 +268,7 @@
                                 <th>稀有度</th>
                                 <th>精炼等级</th>
                                 <th>状态</th>
+                                <th>锁定</th>
                                 <th class="text-end">操作</th>
                             </tr>
                         </thead>
@@ -275,6 +284,13 @@
                                         <span class="badge bg-success">已装备</span>
                                     {% else %}
                                         <span class="badge bg-secondary">未装备</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if item.is_locked %}
+                                        <span class="badge bg-warning">🔒 已锁定</span>
+                                    {% else %}
+                                        <span class="badge bg-light text-dark">🔓 未锁定</span>
                                     {% endif %}
                                 </td>
                                 <td class="text-end">

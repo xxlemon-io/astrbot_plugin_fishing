@@ -149,6 +149,7 @@ class UserRodInstance:
     obtained_at: datetime
     refine_level: int = 1  # 精炼等级，默认为1
     current_durability: Optional[int] = None
+    is_locked: bool = False  # 是否锁定保护，默认为False
 
 @dataclass
 class UserAccessoryInstance:
@@ -159,6 +160,7 @@ class UserAccessoryInstance:
     is_equipped: bool
     obtained_at: datetime
     refine_level: int = 1
+    is_locked: bool = False  # 是否锁定保护，默认为False
 
 @dataclass
 class User:
