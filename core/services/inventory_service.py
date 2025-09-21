@@ -249,6 +249,101 @@ class InventoryService:
 
         return {"success": True, "message": f"💰 成功卖出稀有度 {rarity} 的鱼，获得 {total_value} 金币"}
 
+    def sell_everything_except_locked(self, user_id: str) -> Dict[str, Any]:
+        """
+        砸锅卖铁：出售所有未锁定且未装备的鱼竿、饰品和全部鱼类
+        保留当前装备的鱼竿和饰品，以及所有锁定的装备
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        total_value = 0
+        sold_items = {
+            "fish_count": 0,
+            "fish_value": 0,
+            "rod_count": 0,
+            "rod_value": 0,
+            "accessory_count": 0,
+            "accessory_value": 0,
+        }
+
+        # 1. 卖出所有鱼类
+        fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
+        for item in fish_inventory:
+            fish_id = item.fish_id
+            fish_info = self.item_template_repo.get_fish_by_id(fish_id)
+            if fish_info:
+                fish_value = fish_info.base_value * item.quantity
+                total_value += fish_value
+                sold_items["fish_count"] += item.quantity
+                sold_items["fish_value"] += fish_value
+        
+        # 清空所有鱼类
+        self.inventory_repo.clear_fish_inventory(user_id)
+
+        # 2. 卖出所有未锁定且未装备的鱼竿
+        rod_instances = self.inventory_repo.get_user_rod_instances(user_id)
+        for rod_instance in rod_instances:
+            # 只卖出未锁定且未装备的鱼竿
+            if not rod_instance.is_locked and not rod_instance.is_equipped:
+                rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
+                if rod_template:
+                    # 计算售价（基础价格 × 精炼倍数）
+                    base_price = self.game_config["sell_prices"]["rod"].get(str(rod_template.rarity), 100)
+                    refine_multiplier = self.game_config["sell_prices"]["refine_multiplier"].get(str(rod_instance.refine_level), 1.0)
+                    rod_price = int(base_price * refine_multiplier)
+                    
+                    total_value += rod_price
+                    sold_items["rod_count"] += 1
+                    sold_items["rod_value"] += rod_price
+                    
+                    # 删除鱼竿实例
+                    self.inventory_repo.delete_rod_instance(rod_instance.rod_instance_id)
+
+        # 3. 卖出所有未锁定且未装备的饰品
+        accessory_instances = self.inventory_repo.get_user_accessory_instances(user_id)
+        for accessory_instance in accessory_instances:
+            # 只卖出未锁定且未装备的饰品
+            if not accessory_instance.is_locked and not accessory_instance.is_equipped:
+                accessory_template = self.item_template_repo.get_accessory_by_id(accessory_instance.accessory_id)
+                if accessory_template:
+                    # 计算售价（基础价格 × 精炼倍数）
+                    base_price = self.game_config["sell_prices"]["accessory"].get(str(accessory_template.rarity), 100)
+                    refine_multiplier = self.game_config["sell_prices"]["refine_multiplier"].get(str(accessory_instance.refine_level), 1.0)
+                    accessory_price = int(base_price * refine_multiplier)
+                    
+                    total_value += accessory_price
+                    sold_items["accessory_count"] += 1
+                    sold_items["accessory_value"] += accessory_price
+                    
+                    # 删除饰品实例
+                    self.inventory_repo.delete_accessory_instance(accessory_instance.accessory_instance_id)
+
+        # 更新用户金币
+        user.coins += total_value
+        self.user_repo.update(user)
+
+        # 构造详细的结果消息
+        if total_value == 0:
+            return {"success": False, "message": "❌ 没有可出售的物品（可能全部被锁定或仓库为空）"}
+        
+        message = f"💥 砸锅卖铁完成！总共获得 {total_value} 金币\n\n"
+        message += "📊 出售详情：\n"
+        
+        if sold_items["fish_count"] > 0:
+            message += f"🐟 鱼类：{sold_items['fish_count']} 条 (💰 {sold_items['fish_value']} 金币)\n"
+        
+        if sold_items["rod_count"] > 0:
+            message += f"🎣 鱼竿：{sold_items['rod_count']} 根 (💰 {sold_items['rod_value']} 金币)\n"
+        
+        if sold_items["accessory_count"] > 0:
+            message += f"💍 饰品：{sold_items['accessory_count']} 件 (💰 {sold_items['accessory_value']} 金币)\n"
+        
+        message += f"\n🔒 已锁定和装备中的装备已自动保留"
+        
+        return {"success": True, "message": message}
+
     def sell_rod(self, user_id: str, rod_instance_id: int) -> Dict[str, Any]:
         """
         向系统出售指定的鱼竿。

@@ -886,6 +886,19 @@ class FishingPlugin(Star):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
+    @filter.command("砸锅卖铁", alias={"破产", "清仓", "一键清空", "全部卖出装备", "卖光所有"})
+    async def sell_everything(self, event: AstrMessageEvent):
+        """砸锅卖铁：出售所有未锁定且未装备的鱼竿、饰品和全部鱼类"""
+        user_id = self._get_effective_user_id(event)
+        result = self.inventory_service.sell_everything_except_locked(user_id)
+        if result:
+            if result["success"]:
+                yield event.plain_result(result["message"])
+            else:
+                yield event.plain_result(f"❌ 砸锅卖铁失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
     @filter.command("出售稀有度", alias={"按稀有度出售", "稀有度出售", "卖稀有度", "出售星级", "按星级出售"})
     async def sell_by_rarity(self, event: AstrMessageEvent):
         """按稀有度出售鱼"""
