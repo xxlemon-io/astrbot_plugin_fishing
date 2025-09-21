@@ -398,6 +398,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // insertAdjacentHTML is faster than manipulating innerHTML
         selectedList.insertAdjacentHTML('beforeend', newItemHtml);
         
+        // Prevent bubbling from the newly inserted checkbox
+        const lastItem = selectedList.lastElementChild;
+        if (lastItem) {
+            const cb = lastItem.querySelector('input[type="checkbox"]');
+            if (cb) cb.addEventListener('click', (e) => e.stopPropagation());
+        }
+        
         updateSelectedStats(container);
         // Let the central filter function handle visibility
         container.querySelector('#fishSearch').dispatchEvent(new Event('keyup'));
