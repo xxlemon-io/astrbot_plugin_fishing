@@ -102,7 +102,8 @@ class FishingZoneService:
             if not zone.is_active:
                 continue
 
-            now = datetime.now()
+            from ..utils import get_now
+            now = get_now()
             if zone.available_from and now < zone.available_from:
                 continue
             if zone.available_until and now > zone.available_until:
