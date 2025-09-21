@@ -504,7 +504,8 @@ class UserService:
                         "rarity": rod_template.rarity,
                         "refine_level": instance.refine_level,
                         "durability": instance.current_durability,
-                        "is_equipped": instance.rod_instance_id == user.equipped_rod_instance_id
+                        "is_equipped": instance.rod_instance_id == user.equipped_rod_instance_id,
+                        "is_locked": instance.is_locked
                     })
             
             # 获取饰品库存
@@ -519,7 +520,8 @@ class UserService:
                         "name": accessory_template.name,
                         "rarity": accessory_template.rarity,
                         "refine_level": instance.refine_level,
-                        "is_equipped": instance.accessory_instance_id == user.equipped_accessory_instance_id
+                        "is_equipped": instance.accessory_instance_id == user.equipped_accessory_instance_id,
+                        "is_locked": instance.is_locked
                     })
             
             # 获取鱼饵库存

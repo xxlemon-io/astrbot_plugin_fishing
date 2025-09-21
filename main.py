@@ -688,6 +688,86 @@ class FishingPlugin(Star):
 
         yield event.plain_result(help_message)
 
+    @filter.command("锁定鱼竿", alias={"鱼竿锁定"})
+    async def lock_rod(self, event: AstrMessageEvent):
+        """锁定鱼竿，防止被精炼、卖出、上架"""
+        user_id = self._get_effective_user_id(event)
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要锁定的鱼竿 ID，例如：/锁定鱼竿 15")
+            return
+        
+        rod_instance_id = args[1]
+        if not rod_instance_id.isdigit():
+            yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
+            return
+        
+        result = self.inventory_service.lock_rod(user_id, int(rod_instance_id))
+        if result["success"]:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result(f"❌ 锁定失败：{result['message']}")
+
+    @filter.command("解锁鱼竿", alias={"鱼竿解锁"})
+    async def unlock_rod(self, event: AstrMessageEvent):
+        """解锁鱼竿，允许正常操作"""
+        user_id = self._get_effective_user_id(event)
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要解锁的鱼竿 ID，例如：/解锁鱼竿 15")
+            return
+        
+        rod_instance_id = args[1]
+        if not rod_instance_id.isdigit():
+            yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
+            return
+        
+        result = self.inventory_service.unlock_rod(user_id, int(rod_instance_id))
+        if result["success"]:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result(f"❌ 解锁失败：{result['message']}")
+
+    @filter.command("锁定饰品", alias={"饰品锁定"})
+    async def lock_accessory(self, event: AstrMessageEvent):
+        """锁定饰品，防止被精炼、卖出、上架"""
+        user_id = self._get_effective_user_id(event)
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要锁定的饰品 ID，例如：/锁定饰品 15")
+            return
+        
+        accessory_instance_id = args[1]
+        if not accessory_instance_id.isdigit():
+            yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
+            return
+        
+        result = self.inventory_service.lock_accessory(user_id, int(accessory_instance_id))
+        if result["success"]:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result(f"❌ 锁定失败：{result['message']}")
+
+    @filter.command("解锁饰品", alias={"饰品解锁"})
+    async def unlock_accessory(self, event: AstrMessageEvent):
+        """解锁饰品，允许正常操作"""
+        user_id = self._get_effective_user_id(event)
+        args = event.message_str.split(" ")
+        if len(args) < 2:
+            yield event.plain_result("❌ 请指定要解锁的饰品 ID，例如：/解锁饰品 15")
+            return
+        
+        accessory_instance_id = args[1]
+        if not accessory_instance_id.isdigit():
+            yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
+            return
+        
+        result = self.inventory_service.unlock_accessory(user_id, int(accessory_instance_id))
+        if result["success"]:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result(f"❌ 解锁失败：{result['message']}")
+
     @filter.command("使用鱼竿")
     async def use_rod(self, event: AstrMessageEvent):
         """使用鱼竿"""

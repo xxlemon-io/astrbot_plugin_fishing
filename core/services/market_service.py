@@ -80,6 +80,8 @@ class MarketService:
                 return {"success": False, "message": "鱼竿不存在或不属于你"}
             if item_to_list.is_equipped:
                 return {"success": False, "message": "不能上架正在装备的鱼竿"}
+            if item_to_list.is_locked:
+                return {"success": False, "message": "该鱼竿已锁定，无法上架"}
             item_template_id = item_to_list.rod_id
             rod_template = self.item_template_repo.get_rod_by_id(item_template_id)
             item_name = rod_template.name if rod_template else None
@@ -92,6 +94,8 @@ class MarketService:
                 return {"success": False, "message": "饰品不存在或不属于你"}
             if item_to_list.is_equipped:
                  return {"success": False, "message": "不能上架正在装备的饰品"}
+            if item_to_list.is_locked:
+                return {"success": False, "message": "该饰品已锁定，无法上架"}
             item_template_id = item_to_list.accessory_id
             accessory_template = self.item_template_repo.get_accessory_by_id(item_template_id)
             item_name = accessory_template.name if accessory_template else None

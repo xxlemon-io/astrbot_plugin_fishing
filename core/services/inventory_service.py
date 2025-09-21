@@ -84,6 +84,7 @@ class InventoryService:
                     "instance_id": rod_instance.rod_instance_id,
                     "description": rod_template.description,
                     "is_equipped": rod_instance.is_equipped,
+                    "is_locked": rod_instance.is_locked,
                     "bonus_fish_quality_modifier": calculate_after_refine(rod_template.bonus_fish_quality_modifier, refine_level= rod_instance.refine_level, rarity=rod_template.rarity),
                     "bonus_fish_quantity_modifier": calculate_after_refine(rod_template.bonus_fish_quantity_modifier, refine_level= rod_instance.refine_level, rarity=rod_template.rarity),
                     "bonus_rare_fish_chance": calculate_after_refine(rod_template.bonus_rare_fish_chance, refine_level= rod_instance.refine_level, rarity=rod_template.rarity),
@@ -136,6 +137,7 @@ class InventoryService:
                     "instance_id": accessory_instance.accessory_instance_id,
                     "description": accessory_template.description,
                     "is_equipped": accessory_instance.is_equipped,
+                    "is_locked": accessory_instance.is_locked,
                     "bonus_fish_quality_modifier": calculate_after_refine(accessory_template.bonus_fish_quality_modifier, refine_level=accessory_instance.refine_level, rarity=accessory_template.rarity),
                     "bonus_fish_quantity_modifier": calculate_after_refine(accessory_template.bonus_fish_quantity_modifier, refine_level=accessory_instance.refine_level, rarity=accessory_template.rarity),
                     "bonus_rare_fish_chance": calculate_after_refine(accessory_template.bonus_rare_fish_chance, refine_level=accessory_instance.refine_level, rarity=accessory_template.rarity),
@@ -248,6 +250,10 @@ class InventoryService:
         if not rod_to_sell:
             return {"success": False, "message": "鱼竿不存在或不属于你"}
 
+        # 检查是否锁定
+        if rod_to_sell.is_locked:
+            return {"success": False, "message": "该鱼竿已锁定，无法出售"}
+
         # 2. 获取鱼竿模板以计算售价
         rod_template = self.item_template_repo.get_rod_by_id(rod_to_sell.rod_id)
         if not rod_template:
@@ -327,6 +333,10 @@ class InventoryService:
 
         if not accessory_to_sell:
             return {"success": False, "message": "饰品不存在或不属于你"}
+
+        # 检查是否锁定
+        if accessory_to_sell.is_locked:
+            return {"success": False, "message": "该饰品已锁定，无法出售"}
 
         # 2. 获取饰品模板以计算售价
         accessory_template = self.item_template_repo.get_accessory_by_id(accessory_to_sell.accessory_id)
@@ -716,6 +726,10 @@ class InventoryService:
             if not instance:
                 return {"success": False, "message": "鱼竿不存在或不属于你"}
 
+            # 检查是否锁定
+            if instance.is_locked:
+                return {"success": False, "message": "该鱼竿已锁定，无法精炼"}
+
             template = self.item_template_repo.get_rod_by_id(instance.rod_id)
             same_items = self.inventory_repo.get_same_rod_instances(user_id_int, instance.rod_id)
 
@@ -733,6 +747,10 @@ class InventoryService:
             instance = next((i for i in instances if i.accessory_instance_id == instance_id), None)
             if not instance:
                 return {"success": False, "message": "饰品不存在或不属于你"}
+
+            # 检查是否锁定
+            if instance.is_locked:
+                return {"success": False, "message": "该饰品已锁定，无法精炼"}
 
             template = self.item_template_repo.get_accessory_by_id(instance.accessory_id)
             same_items = self.inventory_repo.get_same_accessory_instances(user_id_int, instance.accessory_id)
@@ -1207,4 +1225,128 @@ class InventoryService:
             "message": f"💰 成功卖出【{tpl.name}】x{quantity}，获得 {total} 金币",
             "gained": total,
             "remaining": owned_qty - quantity
+        }
+
+    def lock_rod(self, user_id: str, rod_instance_id: int) -> Dict[str, Any]:
+        """
+        锁定指定的鱼竿，防止被精炼、卖出、上架
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        # 验证鱼竿是否属于该用户
+        user_rods = self.inventory_repo.get_user_rod_instances(user_id)
+        rod_to_lock = next((r for r in user_rods if r.rod_instance_id == rod_instance_id), None)
+        
+        if not rod_to_lock:
+            return {"success": False, "message": "鱼竿不存在或不属于您"}
+
+        if rod_to_lock.is_locked:
+            return {"success": False, "message": "该鱼竿已经锁定"}
+
+        # 锁定鱼竿
+        rod_to_lock.is_locked = True
+        self.inventory_repo.update_rod_instance(rod_to_lock)
+
+        # 获取鱼竿模板信息用于显示
+        rod_template = self.item_template_repo.get_rod_by_id(rod_to_lock.rod_id)
+        rod_name = rod_template.name if rod_template else f"鱼竿#{rod_instance_id}"
+
+        return {
+            "success": True,
+            "message": f"🔒 成功锁定【{rod_name}】，该鱼竿现在受到保护"
+        }
+
+    def unlock_rod(self, user_id: str, rod_instance_id: int) -> Dict[str, Any]:
+        """
+        解锁指定的鱼竿
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        # 验证鱼竿是否属于该用户
+        user_rods = self.inventory_repo.get_user_rod_instances(user_id)
+        rod_to_unlock = next((r for r in user_rods if r.rod_instance_id == rod_instance_id), None)
+        
+        if not rod_to_unlock:
+            return {"success": False, "message": "鱼竿不存在或不属于您"}
+
+        if not rod_to_unlock.is_locked:
+            return {"success": False, "message": "该鱼竿未锁定"}
+
+        # 解锁鱼竿
+        rod_to_unlock.is_locked = False
+        self.inventory_repo.update_rod_instance(rod_to_unlock)
+
+        # 获取鱼竿模板信息用于显示
+        rod_template = self.item_template_repo.get_rod_by_id(rod_to_unlock.rod_id)
+        rod_name = rod_template.name if rod_template else f"鱼竿#{rod_instance_id}"
+
+        return {
+            "success": True,
+            "message": f"🔓 成功解锁【{rod_name}】，该鱼竿现在可以正常操作"
+        }
+
+    def lock_accessory(self, user_id: str, accessory_instance_id: int) -> Dict[str, Any]:
+        """
+        锁定指定的饰品，防止被精炼、卖出、上架
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        # 验证饰品是否属于该用户
+        user_accessories = self.inventory_repo.get_user_accessory_instances(user_id)
+        accessory_to_lock = next((a for a in user_accessories if a.accessory_instance_id == accessory_instance_id), None)
+        
+        if not accessory_to_lock:
+            return {"success": False, "message": "饰品不存在或不属于您"}
+
+        if accessory_to_lock.is_locked:
+            return {"success": False, "message": "该饰品已经锁定"}
+
+        # 锁定饰品
+        accessory_to_lock.is_locked = True
+        self.inventory_repo.update_accessory_instance(accessory_to_lock)
+
+        # 获取饰品模板信息用于显示
+        accessory_template = self.item_template_repo.get_accessory_by_id(accessory_to_lock.accessory_id)
+        accessory_name = accessory_template.name if accessory_template else f"饰品#{accessory_instance_id}"
+
+        return {
+            "success": True,
+            "message": f"🔒 成功锁定【{accessory_name}】，该饰品现在受到保护"
+        }
+
+    def unlock_accessory(self, user_id: str, accessory_instance_id: int) -> Dict[str, Any]:
+        """
+        解锁指定的饰品
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        # 验证饰品是否属于该用户
+        user_accessories = self.inventory_repo.get_user_accessory_instances(user_id)
+        accessory_to_unlock = next((a for a in user_accessories if a.accessory_instance_id == accessory_instance_id), None)
+        
+        if not accessory_to_unlock:
+            return {"success": False, "message": "饰品不存在或不属于您"}
+
+        if not accessory_to_unlock.is_locked:
+            return {"success": False, "message": "该饰品未锁定"}
+
+        # 解锁饰品
+        accessory_to_unlock.is_locked = False
+        self.inventory_repo.update_accessory_instance(accessory_to_unlock)
+
+        # 获取饰品模板信息用于显示
+        accessory_template = self.item_template_repo.get_accessory_by_id(accessory_to_unlock.accessory_id)
+        accessory_name = accessory_template.name if accessory_template else f"饰品#{accessory_instance_id}"
+
+        return {
+            "success": True,
+            "message": f"🔓 成功解锁【{accessory_name}】，该饰品现在可以正常操作"
         }
