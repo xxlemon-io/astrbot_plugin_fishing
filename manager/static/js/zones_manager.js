@@ -1,8 +1,16 @@
 document.addEventListener('DOMContentLoaded', function() {
     //
-    // Global state and utility functions
+    // Scoped selection state per-modal using WeakMap
     //
-    let selectedFishIds = new Set();
+    const containerToSelectedIds = new WeakMap();
+    function getSelectedSet(container) {
+        let set = containerToSelectedIds.get(container);
+        if (!set) {
+            set = new Set();
+            containerToSelectedIds.set(container, set);
+        }
+        return set;
+    }
 
     function getZoneById(zoneId) {
         return zonesData.find(z => z.id === zoneId);
@@ -174,7 +182,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                         <div class="col-md-6">
                              <div class="card">
-                                <div class="card-header d-flex justify-content-between align-items-center">
+                                <div class="card-header d-flex justify-content_between align-items-center">
                                     <h6 class="mb-0">已选择鱼类</h6>
                                     <div>
                                         <small class="text-muted me-2"><span id="selectedCount">0</span> 种 | 总价值: <span id="totalValue">0</span></small>
@@ -226,6 +234,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedFishList = container.querySelector('#selectedFishList');
         const fishSearch = container.querySelector('#fishSearch');
         const rarityFilter = container.querySelector('#rarityFilter');
+        const selectedSet = getSelectedSet(container);
         
         let clickTimer = null;
 
@@ -239,7 +248,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 clickTimer = setTimeout(() => {
                     toggleFishSelection(item, container);
                     clickTimer = null;
-                }, 250);
+                }, 220);
             }
         };
 
@@ -256,6 +265,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const item = e.target.closest('.fish-item');
             if(item) toggleFishSelection(item, container);
         });
+        // Double-click on selected list removes the fish
+        selectedFishList.addEventListener('dblclick', (e) => {
+            const item = e.target.closest('.fish-item');
+            if (!item) return;
+            const fishId = parseInt(item.dataset.fishId);
+            removeFishFromSelected(fishId, container);
+        });
 
         const filterFishOptions = () => {
             const searchTerm = fishSearch.value.toLowerCase();
@@ -266,8 +282,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const isVisible = 
                     (item.dataset.name.toLowerCase().includes(searchTerm) || !searchTerm) &&
                     (item.dataset.rarity === rarity || !rarity) &&
-                    !selectedFishIds.has(fishId);
-                
+                    !selectedSet.has(fishId) &&
+                    !item.classList.contains('d-none');
                 item.style.display = isVisible ? '' : 'none';
                 if (isVisible) visibleCount++;
             });
@@ -280,11 +296,14 @@ document.addEventListener('DOMContentLoaded', function() {
         container.querySelectorAll('.rarity-select-all').forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
                 const rarity = e.target.id.split('-')[1];
-                totalFishList.querySelectorAll(`.fish-item[data-rarity='${rarity}']`).forEach(item => {
+                const items = totalFishList.querySelectorAll(`.fish-item[data-rarity='${rarity}']`);
+                items.forEach(item => {
                     if (item.style.display !== 'none') {
                         item.querySelector('input[type="checkbox"]').checked = e.target.checked;
                     }
                 });
+                // Keep header state consistent
+                updateRarityCheckboxState(totalFishList, rarity, container);
             });
         });
 
@@ -301,10 +320,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         container.querySelector('#clearAllBtn').addEventListener('click', () => clearAllSelected(container));
+
+        // Initial count
+        filterFishOptions();
     }
     
     function toggleFishSelection(item, container) {
         const checkbox = item.querySelector('input[type="checkbox"]');
+        if (!checkbox) return;
         checkbox.checked = !checkbox.checked;
         const list = item.closest('#totalFishList, #selectedFishList');
         if(list) {
@@ -314,12 +337,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updateRarityCheckboxState(list, rarity, container) {
         if (!list || !rarity) return;
-
         const rarityCheckbox = container.querySelector(`#totalFishList #rarity-${rarity}`);
         if (!rarityCheckbox) return;
 
-        const items = container.querySelectorAll(`#totalFishList .fish-item[data-rarity='${rarity}']:not([style*='display: none'])`);
-        const checkedItems = container.querySelectorAll(`#totalFishList .fish-item[data-rarity='${rarity}']:not([style*='display: none']) input:checked`);
+        const items = container.querySelectorAll(`#totalFishList .fish-item[data-rarity='${rarity}']:not(.d-none):not([style*='display: none'])`);
+        const checkedItems = container.querySelectorAll(`#totalFishList .fish-item[data-rarity='${rarity}']:not(.d-none):not([style*='display: none']) input:checked`);
 
         if (items.length > 0) {
             rarityCheckbox.checked = items.length === checkedItems.length;
@@ -331,8 +353,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function addFishToSelected(fishId, container) {
-        if (selectedFishIds.has(fishId)) return;
-        selectedFishIds.add(fishId);
+        const selectedSet = getSelectedSet(container);
+        if (selectedSet.has(fishId)) return;
+        selectedSet.add(fishId);
 
         const totalItem = container.querySelector(`#totalFishList .fish-item[data-fish-id='${fishId}']`);
         if (!totalItem) return;
@@ -342,7 +365,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const clonedItem = totalItem.cloneNode(true);
         clonedItem.style.display = '';
-        clonedItem.querySelector('input[type="checkbox"]').checked = false; // Reset checkbox in selected list
+        clonedItem.classList.remove('d-none');
+        clonedItem.querySelector('input[type="checkbox"]').checked = false;
         container.querySelector('#selectedFishList').appendChild(clonedItem);
         
         updateSelectedStats(container);
@@ -350,22 +374,23 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function removeFishFromSelected(fishId, container) {
-        if (!selectedFishIds.has(fishId)) return;
-        selectedFishIds.delete(fishId);
+        const selectedSet = getSelectedSet(container);
+        if (!selectedSet.has(fishId)) return;
+        selectedSet.delete(fishId);
 
         const selectedItem = container.querySelector(`#selectedFishList .fish-item[data-fish-id='${fishId}']`);
         if (selectedItem) selectedItem.remove();
 
         const totalItem = container.querySelector(`#totalFishList .fish-item[data-fish-id='${fishId}']`);
         if (totalItem) {
-            // Re-evaluate display based on current filters
             const fishSearch = container.querySelector('#fishSearch');
             const rarityFilter = container.querySelector('#rarityFilter');
             const searchTerm = fishSearch.value.toLowerCase();
             const rarity = rarityFilter.value;
             const isVisible = 
                 (totalItem.dataset.name.toLowerCase().includes(searchTerm) || !searchTerm) &&
-                (totalItem.dataset.rarity === rarity || !rarity);
+                (totalItem.dataset.rarity === rarity || !rarity) &&
+                !totalItem.classList.contains('d-none');
             totalItem.style.display = isVisible ? '' : 'none';
         }
         
@@ -373,13 +398,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function clearAllSelected(container) {
-        const ids = [...selectedFishIds];
+        const selectedSet = getSelectedSet(container);
+        const ids = [...selectedSet];
         ids.forEach(id => removeFishFromSelected(id, container));
     }
     
     function updateSelectedStats(container) {
+        const selectedSet = getSelectedSet(container);
         const selectedList = container.querySelector('#selectedFishList');
-        const count = selectedFishIds.size;
+        const count = selectedSet.size;
         let totalValue = 0;
         selectedList.querySelectorAll('.fish-item').forEach(item => {
             totalValue += parseInt(item.dataset.value);
@@ -388,7 +415,7 @@ document.addEventListener('DOMContentLoaded', function() {
         container.querySelector('#selectedCount').textContent = count;
         container.querySelector('#totalValue').textContent = totalValue.toLocaleString();
         container.querySelector('#emptySelectedMessage').style.display = count > 0 ? 'none' : '';
-        container.querySelector('#specific_fish_ids_input').value = Array.from(selectedFishIds).join(',');
+        container.querySelector('#specific_fish_ids_input').value = Array.from(selectedSet).join(',');
 
         // Update total fish count
         let visibleCount = 0;
@@ -401,7 +428,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function initializeSelectedFish(ids, container) {
-        selectedFishIds.clear();
+        const selectedSet = getSelectedSet(container);
+        selectedSet.clear();
         container.querySelector('#selectedFishList').innerHTML = '<div class="list-group-item text-muted text-center" id="emptySelectedMessage">暂无选择</div>';
         
         container.querySelectorAll('#totalFishList .fish-item').forEach(item => {
@@ -432,7 +460,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
             modalEl.querySelector('.modal-body').innerHTML = renderForm(zone);
             
-            // Now that the form is in the DOM, we can work with it.
             const form = modalEl.querySelector(formId);
             setupFishSelection(modalEl);
             initializeSelectedFish(zone?.specific_fish_ids || [], modalEl);
@@ -444,6 +471,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!form) return;
         
         const container = form.closest('.modal');
+        const selectedSet = getSelectedSet(container);
 
         // Rarity distribution sum feedback
         form.addEventListener('input', e => {
@@ -504,7 +532,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             payload.configs = { rarity_distribution: rarityDistribution };
-            payload.specific_fish_ids = Array.from(selectedFishIds);
+            payload.specific_fish_ids = Array.from(selectedSet);
             payload.requires_pass = form.querySelector('input[name="requires_pass"]').checked;
             payload.required_item_id = payload.requires_pass ? (parseInt(payload.required_item_id) || null) : null;
             
