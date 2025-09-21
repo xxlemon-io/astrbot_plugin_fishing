@@ -205,7 +205,7 @@ class FishingPlugin(Star):
 
     def add_handler(self, handler):
         """动态添加指令处理器"""
-        super().add_handler(handler)
+        self.context.add_handler(handler)
             
     def _register_handlers(self):
         """注册所有分离出去的指令处理器"""

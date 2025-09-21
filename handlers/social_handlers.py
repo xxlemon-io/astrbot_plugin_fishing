@@ -175,10 +175,10 @@ def register_social_handlers(plugin):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
             
-    plugin.add_handler(ranking)
-    plugin.add_handler(steal_fish)
-    plugin.add_handler(steal_with_dispel)
-    plugin.add_handler(view_titles)
-    plugin.add_handler(use_title)
-    plugin.add_handler(view_achievements)
-    plugin.add_handler(tax_record)
+    plugin.context.add_handler(ranking)
+    plugin.context.add_handler(steal_fish)
+    plugin.context.add_handler(steal_with_dispel)
+    plugin.context.add_handler(view_titles)
+    plugin.context.add_handler(use_title)
+    plugin.context.add_handler(view_achievements)
+    plugin.context.add_handler(tax_record)

@@ -210,7 +210,7 @@ def register_fishing_handlers(plugin):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-    plugin.add_handler(fish)
-    plugin.add_handler(auto_fish)
-    plugin.add_handler(fishing_area)
-    plugin.add_handler(fish_pokedex)
+    plugin.context.add_handler(fish)
+    plugin.context.add_handler(auto_fish)
+    plugin.context.add_handler(fishing_area)
+    plugin.context.add_handler(fish_pokedex)

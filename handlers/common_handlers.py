@@ -76,8 +76,8 @@ def register_common_handlers(plugin):
         image.save(output_path)
         yield event.image_result(output_path)
         
-    plugin.add_handler(register_user)
-    plugin.add_handler(sign_in)
-    plugin.add_handler(state)
-    plugin.add_handler(fishing_log)
-    plugin.add_handler(fishing_help)
+    plugin.context.add_handler(register_user)
+    plugin.context.add_handler(sign_in)
+    plugin.context.add_handler(state)
+    plugin.context.add_handler(fishing_log)
+    plugin.context.add_handler(fishing_help)

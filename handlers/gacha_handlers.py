@@ -231,9 +231,9 @@ def register_gacha_handlers(plugin):
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
             
-    plugin.add_handler(gacha)
-    plugin.add_handler(ten_gacha)
-    plugin.add_handler(view_gacha_pool)
-    plugin.add_handler(gacha_history)
-    plugin.add_handler(wipe_bomb)
-    plugin.add_handler(wipe_bomb_history)
+    plugin.context.add_handler(gacha)
+    plugin.context.add_handler(ten_gacha)
+    plugin.context.add_handler(view_gacha_pool)
+    plugin.context.add_handler(gacha_history)
+    plugin.context.add_handler(wipe_bomb)
+    plugin.context.add_handler(wipe_bomb_history)
