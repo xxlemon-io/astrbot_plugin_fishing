@@ -154,7 +154,9 @@ class FishingPlugin(Star):
                 "user_repo": self.user_repo, 
                 "buff_repo": self.buff_repo,
                 "game_mechanics_service": self.game_mechanics_service,
-                "fishing_service": self.fishing_service
+                "fishing_service": self.fishing_service,
+                "log_repo": self.log_repo,
+                "game_config": self.game_config,
             },
         )
         

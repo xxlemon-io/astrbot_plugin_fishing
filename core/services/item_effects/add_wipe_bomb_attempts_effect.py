@@ -15,11 +15,19 @@ def get_end_of_day():
 class AddWipeBombAttemptsEffect(AbstractItemEffect):
     effect_type = "WIPE_BOMB_ATTEMPTS_BOOST"
 
+    def __init__(self, user_repo=None, buff_repo=None, **kwargs):
+        super().__init__(user_repo, buff_repo, **kwargs)
+        self.log_repo = kwargs.get("log_repo")
+        self.game_config = kwargs.get("game_config")
+        if not self.log_repo or not self.game_config:
+            raise ValueError("LogRepository and GameConfig are required for this effect.")
+
     def apply(
         self, user: User, item_template: Item, payload: Dict[str, Any]
     ) -> Dict[str, Any]:
         attempts_to_add = payload.get("amount", 1)
         buff_type = "WIPE_BOMB_ATTEMPTS_BOOST"
+        new_amount = 0
 
         # 查找现有buff
         existing_buff = self.buff_repo.get_active_by_user_and_type(
@@ -35,20 +43,26 @@ class AddWipeBombAttemptsEffect(AbstractItemEffect):
             existing_buff.payload = json.dumps({"amount": new_amount})
             existing_buff.expires_at = get_end_of_day()
             self.buff_repo.update(existing_buff)
-            
-            message = f"💣 擦弹次数已累加！今天总共额外增加了 {new_amount} 次。"
 
         else:
             # 如果buff不存在，创建新buff
+            new_amount = attempts_to_add
             new_buff = UserBuff(
                 id=0,
                 user_id=user.user_id,
                 buff_type=buff_type,
-                payload=json.dumps({"amount": attempts_to_add}),
+                payload=json.dumps({"amount": new_amount}),
                 started_at=get_now(),
                 expires_at=get_end_of_day(),  # buff持续到当天结束
             )
             self.buff_repo.add(new_buff)
-            message = f"💣 你获得了 {attempts_to_add} 次额外的擦弹机会，仅限今天有效！"
 
+        # 计算剩余次数
+        base_max_attempts = self.game_config.get("wipe_bomb", {}).get("max_attempts_per_day", 3)
+        total_max_attempts = base_max_attempts + new_amount
+        used_attempts_today = self.log_repo.get_wipe_bomb_log_count_today(user.user_id)
+        remaining_today = max(0, total_max_attempts - used_attempts_today)
+
+        message = f"你获得 {attempts_to_add} 次额外擦弹机会。今天剩余擦弹次数：{remaining_today} 次。"
+        
         return {"success": True, "message": message}
