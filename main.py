@@ -520,12 +520,14 @@ class FishingPlugin(Star):
         success_count = 0
         failed_count = 0
         last_error_message = ""
+        success_messages = []
         
         for _ in range(quantity):
             result = self.inventory_service.use_item(user_id, item_id)
             
             if result["success"]:
                 success_count += 1
+                success_messages.append(result["message"])
             else:
                 failed_count += 1
                 last_error_message = result["message"]
@@ -535,8 +537,10 @@ class FishingPlugin(Star):
         # 发送汇总消息
         if success_count > 0 and failed_count == 0:
             if quantity == 1:
-                yield event.plain_result(f"✅ 成功使用了道具！")
+                # 单个道具使用时，显示具体的道具效果消息
+                yield event.plain_result(f"✅ {success_messages[0]}")
             else:
+                # 多个道具使用时，显示汇总消息
                 yield event.plain_result(f"✅ 成功使用了 {success_count} 个道具！")
         elif success_count > 0 and failed_count > 0:
             yield event.plain_result(f"⚠️ 成功使用了 {success_count} 个道具，{failed_count} 个失败：{last_error_message}")
