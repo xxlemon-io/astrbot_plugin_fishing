@@ -516,17 +516,32 @@ class FishingPlugin(Star):
                 yield event.plain_result("❌ 数量必须是正整数。")
                 return
 
+        # 批量使用道具，避免消息刷屏
+        success_count = 0
+        failed_count = 0
+        last_error_message = ""
+        
         for _ in range(quantity):
             result = self.inventory_service.use_item(user_id, item_id)
             
             if result["success"]:
-                # 可以在这里根据 item 的效果触发不同逻辑
-                # 目前只返回成功信息
-                yield event.plain_result(f"✅ {result['message']}")
+                success_count += 1
             else:
-                yield event.plain_result(f"❌ {result['message']}")
+                failed_count += 1
+                last_error_message = result["message"]
                 # 如果失败，则停止使用后续的道具
                 break
+
+        # 发送汇总消息
+        if success_count > 0 and failed_count == 0:
+            if quantity == 1:
+                yield event.plain_result(f"✅ 成功使用了道具！")
+            else:
+                yield event.plain_result(f"✅ 成功使用了 {success_count} 个道具！")
+        elif success_count > 0 and failed_count > 0:
+            yield event.plain_result(f"⚠️ 成功使用了 {success_count} 个道具，{failed_count} 个失败：{last_error_message}")
+        else:
+            yield event.plain_result(f"❌ 使用道具失败：{last_error_message}")
 
     @filter.command("卖道具", alias={"出售道具", "卖出道具"})
     async def sell_item(self, event: AstrMessageEvent):
