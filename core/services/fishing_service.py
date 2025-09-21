@@ -460,6 +460,12 @@ class FishingService:
         zones_info = []
         
         for zone in fishing_zones:
+            # 获取通行证道具名称
+            required_item_name = None
+            if zone.requires_pass and zone.required_item_id:
+                item_template = self.item_template_repo.get_item_by_id(zone.required_item_id)
+                required_item_name = item_template.name if item_template else f"道具ID{zone.required_item_id}"
+            
             zones_info.append({
                 "zone_id": zone.id,
                 "name": zone.name,
@@ -469,6 +475,8 @@ class FishingService:
                 "whether_in_use": zone.id == user.fishing_zone_id,
                 "is_active": zone.is_active,
                 "requires_pass": zone.requires_pass,
+                "required_item_id": zone.required_item_id,
+                "required_item_name": required_item_name,
                 "fishing_cost": zone.fishing_cost,
             })
 
@@ -529,6 +537,8 @@ class FishingService:
             return {"success": False, "message": f"该钓鱼区域已于 {zone.available_until.strftime('%Y-%m-%d %H:%M')} 关闭"}
 
         # 检查通行证要求（从数据库读取）
+        pass_consumed = False
+        consumed_item_name = None
         if zone.requires_pass and zone.required_item_id:
             # 获取用户道具库存
             user_items = self.inventory_repo.get_user_item_inventory(user_id)
@@ -546,13 +556,23 @@ class FishingService:
             # 消耗一个通行证道具
             self.inventory_repo.decrease_item_quantity(user_id, zone.required_item_id, 1)
             
+            # 获取道具名称用于提示
+            item_template = self.item_template_repo.get_item_by_id(zone.required_item_id)
+            consumed_item_name = item_template.name if item_template else f"道具ID{zone.required_item_id}"
+            pass_consumed = True
+            
             # 记录日志
             self.log_repo.add_log(user_id, "zone_entry", f"使用通行证进入 {zone.name}")
 
         user.fishing_zone_id = zone.id
         self.user_repo.update(user)
 
-        return {"success": True, "message": f"✅已将钓鱼区域设置为 {zone.name}"}
+        # 构建成功消息
+        success_message = f"✅已将钓鱼区域设置为 {zone.name}"
+        if pass_consumed and consumed_item_name:
+            success_message += f"\n🔑 已消耗 1 个 {consumed_item_name}"
+
+        return {"success": True, "message": success_message}
 
     def apply_daily_taxes(self) -> None:
         """对所有高价值用户征收每日税收。"""

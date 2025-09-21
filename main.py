@@ -1517,7 +1517,8 @@ class FishingPlugin(Star):
                         message += f"💰 钓鱼消耗: {zone.get('fishing_cost', 10)} 金币/次\n"
                         
                         if zone.get('requires_pass'):
-                            message += f"🔑 需要通行证才能进入\n"
+                            required_item_name = zone.get('required_item_name', '通行证')
+                            message += f"🔑 需要 {required_item_name} 才能进入\n"
                         
                         if zone['zone_id'] >= 2:
                             message += f"剩余稀有鱼类数量: {zone['daily_rare_fish_quota'] - zone['rare_fish_caught_today']}\n"
