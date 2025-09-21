@@ -209,16 +209,14 @@
                              data-fish-id="${fish.fish_id}" 
                              data-rarity="${fish.rarity}" 
                              data-value="${fish.base_value}"
-                             data-name="${fish.name}"
-                             ondblclick="addFishToSelected(${fish.fish_id})"
-                             onclick="toggleFishSelection(this)">
+                             data-name="${fish.name}">
                             <div class="d-flex justify-content-between align-items-center">
                                 <div>
                                     <strong>${fish.name}</strong>
-                                    <br><small class="text-muted">价值: ${value} 金币</small>
+                                    <br><small class="text-muted">${rarityStars} 价值: ${value} 金币</small>
                                 </div>
                                 <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" value="${fish.fish_id}">
+                                    <input class="form-check-input" type="checkbox" value="${fish.fish_id}" ${isSelected ? 'checked' : ''}>
                                 </div>
                             </div>
                         </div>
@@ -633,10 +631,14 @@
     
     function toggleFishSelection(element) {
         const checkbox = element.querySelector('input[type="checkbox"]');
+        if (!checkbox) return;
+        
         checkbox.checked = !checkbox.checked;
         
         // 更新对应星级的全选状态
         updateRarityCheckboxState(element);
+        
+        console.log(`Toggled fish ${element.getAttribute('data-fish-id')}: ${checkbox.checked}`);
     }
     
     function updateRarityCheckboxState(fishElement) {
@@ -650,6 +652,8 @@
         
         // 如果所有鱼类都被选中，则选中星级勾选框；否则取消选中
         rarityCheckbox.checked = fishItems.length > 0 && checkedItems.length === fishItems.length;
+        
+        console.log(`Rarity ${rarity}: ${checkedItems.length}/${fishItems.length} checked, rarity checkbox: ${rarityCheckbox.checked}`);
     }
     
     function addFishToSelected(fishId) {
@@ -669,9 +673,24 @@
     
     function addSelectedFish() {
         const checkedItems = document.querySelectorAll('#totalFishList .fish-item input[type="checkbox"]:checked');
+        console.log(`Adding ${checkedItems.length} selected fish`);
+        
         checkedItems.forEach(checkbox => {
             const fishId = parseInt(checkbox.value);
+            console.log(`Adding fish ID: ${fishId}`);
             addFishToSelected(fishId);
+        });
+        
+        // 清空所有勾选状态
+        checkedItems.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        
+        // 更新星级勾选框状态
+        const allRarityCheckboxes = document.querySelectorAll('input[id^="rarity-"]');
+        allRarityCheckboxes.forEach(checkbox => {
+            const rarity = checkbox.id.replace('rarity-', '');
+            updateRarityCheckboxState({ getAttribute: () => rarity });
         });
     }
     
@@ -849,6 +868,9 @@
             checkbox.checked = false;
         });
         
+        // 绑定事件
+        bindFishSelectionEvents();
+        
         // 添加已选择的鱼类
         specificFishIds.forEach(fishId => {
             const fishItem = document.querySelector(`[data-fish-id="${fishId}"]`);
@@ -859,6 +881,44 @@
         
         updateSelectedStats();
         updateHiddenInput();
+    }
+    
+    function bindFishSelectionEvents() {
+        // 绑定总鱼池项目事件
+        const totalItems = document.querySelectorAll('#totalFishList .fish-item');
+        totalItems.forEach(item => {
+            // 移除旧的事件监听器
+            item.onclick = null;
+            item.ondblclick = null;
+            
+            // 添加新的事件监听器
+            item.onclick = function(e) {
+                e.stopPropagation();
+                toggleFishSelection(this);
+            };
+            
+            item.ondblclick = function(e) {
+                e.stopPropagation();
+                const fishId = parseInt(this.getAttribute('data-fish-id'));
+                addFishToSelected(fishId);
+            };
+        });
+        
+        // 绑定按钮事件
+        const addSelectedBtn = document.querySelector('button[onclick="addSelectedFish()"]');
+        if (addSelectedBtn) {
+            addSelectedBtn.onclick = addSelectedFish;
+        }
+        
+        const removeSelectedBtn = document.querySelector('button[onclick="removeSelectedFish()"]');
+        if (removeSelectedBtn) {
+            removeSelectedBtn.onclick = removeSelectedFish;
+        }
+        
+        const clearAllBtn = document.querySelector('button[onclick="clearAllSelected()"]');
+        if (clearAllBtn) {
+            clearAllBtn.onclick = clearAllSelected;
+        }
     }
     
     // 页面加载完成后初始化
