@@ -419,7 +419,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                     row_dict['configs'] = json.loads(row_dict['configs'])
                 for key in ('available_from', 'available_until'):
                     val = row_dict.get(key)
-                    if isinstance(val, str) and val:
+                    if isinstance(val, str) and val.strip():  # 检查非空字符串
                         try:
                             # 解析时间并添加UTC+8时区信息，与get_now()保持一致
                             dt = datetime.fromisoformat(val)
@@ -429,6 +429,9 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                             row_dict[key] = dt
                         except Exception:
                             row_dict[key] = None
+                    else:
+                        # 空字符串或None都设为None
+                        row_dict[key] = None
                 zone = FishingZone(**row_dict)
                 zone.specific_fish_ids = self.get_specific_fish_ids_for_zone(zone.id)
                 return zone
@@ -459,7 +462,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                 # 解析时间字段
                 for key in ('available_from', 'available_until'):
                     val = row_dict.get(key)
-                    if isinstance(val, str) and val:
+                    if isinstance(val, str) and val.strip():  # 检查非空字符串
                         try:
                             # 解析时间并添加UTC+8时区信息，与get_now()保持一致
                             dt = datetime.fromisoformat(val)
@@ -469,6 +472,9 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                             row_dict[key] = dt
                         except Exception:
                             row_dict[key] = None
+                    else:
+                        # 空字符串或None都设为None
+                        row_dict[key] = None
                 zone = FishingZone(**row_dict)
                 # 加载限定鱼
                 zone.specific_fish_ids = self.get_specific_fish_ids_for_zone(zone.id)
