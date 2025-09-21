@@ -1625,8 +1625,10 @@ class FishingPlugin(Star):
                                 until_time = zone['available_until'].strftime('%Y-%m-%d %H:%M')
                                 message += f"至 {until_time} 结束\n"
                         
-                        if zone['zone_id'] >= 2:
-                            message += f"剩余稀有鱼类数量: {zone['daily_rare_fish_quota'] - zone['rare_fish_caught_today']}\n"
+                        # 显示稀有鱼余量（4星及以上计入配额），对所有区域生效
+                        remaining_rare = max(0, zone['daily_rare_fish_quota'] - zone['rare_fish_caught_today'])
+                        if zone.get('daily_rare_fish_quota', 0) > 0:
+                            message += f"剩余稀有鱼类数量: {remaining_rare}\n"
                         message += "\n"
                     
                     message += "使用「/钓鱼区域 ID」命令切换钓鱼区域。\n"

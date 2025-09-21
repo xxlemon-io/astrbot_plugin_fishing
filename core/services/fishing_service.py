@@ -687,12 +687,19 @@ class FishingService:
                 if today != self.today:
                     # 如果今天日期变了，重置今日稀有鱼捕获数量
                     self.today = today
+                    # 重置所有受配额限制区域的稀有鱼计数（4星及以上）
+                    zone1 = self.inventory_repo.get_zone_by_id(1)
                     zone2 = self.inventory_repo.get_zone_by_id(2)
                     zone3 = self.inventory_repo.get_zone_by_id(3)
-                    zone2.rare_fish_caught_today = 0
-                    zone3.rare_fish_caught_today = 0
-                    self.inventory_repo.update_fishing_zone(zone2)
-                    self.inventory_repo.update_fishing_zone(zone3)
+                    if zone1:
+                        zone1.rare_fish_caught_today = 0
+                        self.inventory_repo.update_fishing_zone(zone1)
+                    if zone2:
+                        zone2.rare_fish_caught_today = 0
+                        self.inventory_repo.update_fishing_zone(zone2)
+                    if zone3:
+                        zone3.rare_fish_caught_today = 0
+                        self.inventory_repo.update_fishing_zone(zone3)
                     # 每次循环开始时检查是否需要应用每日税收
                     self.apply_daily_taxes()
                 # 获取所有开启自动钓鱼的用户
