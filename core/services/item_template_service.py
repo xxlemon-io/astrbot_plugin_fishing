@@ -19,7 +19,7 @@ class ItemTemplateService:
         return self.item_template_repo.get_all_fish()
 
     def add_fish_template(self, data: Dict[str, Any]):
-        # 服务层可以添加数据验证逻辑，例如检查rarity是否在1-5之间
+        # 服务层可以添加数据验证逻辑，支持任意稀有度级别
         self.item_template_repo.add_fish_template(data)
 
     def update_fish_template(self, fish_id: int, data: Dict[str, Any]):
