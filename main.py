@@ -518,7 +518,8 @@ class FishingPlugin(Star):
                 yield event.plain_result("❌ 数量必须是正整数。")
                 return
 
-        # 批量使用道具，避免消息刷屏
+        # 批量使用道具，设置显示上限避免消息过长
+        DETAIL_DISPLAY_LIMIT = 5  # 最多显示5个道具的详细效果
         success_count = 0
         failed_count = 0
         last_error_message = ""
@@ -542,10 +543,36 @@ class FishingPlugin(Star):
                 # 单个道具使用时，显示具体的道具效果消息
                 yield event.plain_result(f"✅ {success_messages[0]}")
             else:
-                # 多个道具使用时，显示汇总消息
-                yield event.plain_result(f"✅ 成功使用了 {success_count} 个道具！")
+                # 多个道具使用时，显示汇总 + 详细效果（有上限）
+                message = f"✅ 成功使用了 {success_count} 个道具！\n\n"
+                
+                # 显示详细效果（最多显示前N个）
+                display_count = min(success_count, DETAIL_DISPLAY_LIMIT)
+                message += "📋 使用效果：\n"
+                for i in range(display_count):
+                    message += f"{i+1}. {success_messages[i]}\n"
+                
+                # 如果还有更多未显示的
+                if success_count > DETAIL_DISPLAY_LIMIT:
+                    remaining = success_count - DETAIL_DISPLAY_LIMIT
+                    message += f"... 还有 {remaining} 个道具产生了相同效果"
+                
+                yield event.plain_result(message)
         elif success_count > 0 and failed_count > 0:
-            yield event.plain_result(f"⚠️ 成功使用了 {success_count} 个道具，{failed_count} 个失败：{last_error_message}")
+            message = f"⚠️ 成功使用了 {success_count} 个道具，{failed_count} 个失败：{last_error_message}\n\n"
+            
+            # 显示成功的详细效果
+            if success_count > 0:
+                display_count = min(success_count, DETAIL_DISPLAY_LIMIT)
+                message += "📋 成功的效果：\n"
+                for i in range(display_count):
+                    message += f"{i+1}. {success_messages[i]}\n"
+                    
+                if success_count > DETAIL_DISPLAY_LIMIT:
+                    remaining = success_count - DETAIL_DISPLAY_LIMIT
+                    message += f"... 还有 {remaining} 个道具产生了相同效果"
+            
+            yield event.plain_result(message)
         else:
             yield event.plain_result(f"❌ 使用道具失败：{last_error_message}")
 
