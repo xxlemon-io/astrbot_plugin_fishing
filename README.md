@@ -341,7 +341,16 @@
 - 💬 **讨论交流**：[GitHub Discussions](https://github.com/xxlemon-io/astrbot_plugin_fishing/discussions)
 - 📧 **邮件联系**：通过 GitHub 个人资料联系
 
-## 📜 开源协议
+## 🙏 致谢与项目来源
+
+本项目基于以下开源项目进行开发：
+
+- **原始版本**：[@baa131/astrbot_plugin_fishing](https://github.com/baa131/astrbot_plugin_fishing) v1.0.0
+- **基础版本**：[@tinkerbellqwq/astrbot_plugin_fishing](https://github.com/tinkerbellqwq/astrbot_plugin_fishing) v1.4.6
+
+感谢原作者的贡献和开源精神，让我们能够在此基础上继续改进和完善这个项目。
+
+## 📜 开源协议与法律声明
 
 本项目基于 [AGPL-3.0](https://opensource.org/licenses/AGPL-3.0) 开源协议发布。
 
@@ -352,19 +361,6 @@
 - ✅ **私人使用**：允许私人使用
 - ⚠️ **开源要求**：基于本项目的衍生作品必须同样开源
 - ⚠️ **网络服务**：通过网络提供服务的衍生作品也必须开源
-
-## 🙏 致谢与项目来源
-
-本项目基于以下开源项目进行开发：
-
-- **原始版本**：[@baa131/astrbot_plugin_fishing](https://github.com/baa131/astrbot_plugin_fishing) v1.0.0
-- **基础版本**：[@tinkerbellqwq/astrbot_plugin_fishing](https://github.com/tinkerbellqwq/astrbot_plugin_fishing) v1.4.6
-
-感谢原作者的贡献和开源精神，让我们能够在此基础上继续改进和完善这个项目。
-
-## ⚖️ 法律声明
-
-本项目基于 AGPL-3.0 开源协议，使用本项目时请遵守相关协议条款。
 
 ### 免责声明
 - 本项目仅供学习和娱乐使用
