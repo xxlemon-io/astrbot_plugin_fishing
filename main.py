@@ -80,7 +80,7 @@ class FishingPlugin(Star):
         self.game_config = {
             "fishing": {"cost": config.get("fish_cost", 10), "cooldown_seconds": config.get("fish_cooldown_seconds", 180)},
             "steal": {"cooldown_seconds": config.get("steal_cooldown", 1800)},
-            "wipe_bomb": {"attempts_per_day": config.get("wipe_bomb_attempts", 5)},
+            "wipe_bomb": {"max_attempts_per_day": config.get("wipe_bomb_attempts", 3)},
             "pond_upgrades": [
                 { "from": 480, "to": 999, "cost": 50000 },
                 { "from": 999, "to": 9999, "cost": 500000 },
