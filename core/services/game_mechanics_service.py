@@ -249,7 +249,7 @@ class GameMechanicsService:
             "multiplier": reward_multiplier,
             "reward": reward_amount,
             "profit": profit,
-            "remaining_today": total_max_attempts - (attempts_today + 1)
+            "remaining_today": total_max_attempts - (attempts_today + 1),
         }
 
     def get_wipe_bomb_history(self, user_id: str, limit: int = 10) -> Dict[str, Any]:

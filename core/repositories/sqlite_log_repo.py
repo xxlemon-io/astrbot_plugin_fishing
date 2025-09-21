@@ -148,6 +148,7 @@ class SqliteLogRepository(AbstractLogRepository):
             cursor.execute("""
                 SELECT COUNT(*) FROM wipe_bomb_log
                 WHERE user_id = ? AND timestamp >= ? AND timestamp < ?
+                  AND contribution_amount > 0
             """, (user_id, today_start, today_end))
             result = cursor.fetchone()
             return result[0] if result else 0
