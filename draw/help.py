@@ -1,6 +1,7 @@
 import math
 import os
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from .styles import COLOR_TITLE, COLOR_CMD, COLOR_LINE, COLOR_SHADOW, load_font
 
 
 def draw_help_image():
@@ -25,25 +26,18 @@ def draw_help_image():
     bg_bot = (255, 255, 255)  # 白
 
     # 2. 加载字体
-    def load_font(name, size):
-        path = os.path.join(os.path.dirname(__file__), "resource", name)
-        try:
-            return ImageFont.truetype(path, size)
-        except:
-            return ImageFont.load_default()
-
-    title_font = load_font("DouyinSansBold.otf", 32)
-    subtitle_font = load_font("DouyinSansBold.otf", 28)
-    section_font = load_font("DouyinSansBold.otf", 24)
-    cmd_font = load_font("DouyinSansBold.otf", 18)
-    desc_font = load_font("DouyinSansBold.otf", 16)
+    title_font = load_font(32)
+    subtitle_font = load_font(28)
+    section_font = load_font(24)
+    cmd_font = load_font(18)
+    desc_font = load_font(16)
 
     # 3. 颜色定义
-    title_color = (30, 80, 162)
-    cmd_color = (40, 40, 40)
+    title_color = COLOR_TITLE
+    cmd_color = COLOR_CMD
     card_bg = (255, 255, 255)
-    line_color = (200, 200, 200)
-    shadow_color = (0, 0, 0, 80)
+    line_color = COLOR_LINE
+    shadow_color = COLOR_SHADOW
 
     # 4. 获取文本尺寸的辅助函数（测量版）
     _measure_img = Image.new('RGB', (10, 10), bg_bot)
