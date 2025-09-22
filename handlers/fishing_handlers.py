@@ -1,4 +1,5 @@
 from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api import logger
 from ..core.utils import get_now
 from ..utils import safe_datetime_handler, to_percentage, safe_get_file_path
 from ..draw.pokedex import draw_pokedex
@@ -171,5 +172,5 @@ async def fish_pokedex(self, event: AstrMessageEvent):
         draw_pokedex(pokedex_data, {"nickname": user_info.nickname}, output_path, page=page)
         yield event.image_result(path=f"file:///{output_path}")
     except Exception as e:
-        self.logger.error(f"绘制图鉴图片失败: {e}", exc_info=e)
+        logger.error(f"绘制图鉴图片失败: {e}", exc_info=e)
         yield event.plain_result("❌ 绘制图鉴时发生错误，请稍后再试或联系管理员。")
