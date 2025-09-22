@@ -123,9 +123,9 @@ async def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], 
             img.paste(avatar_image, (header_x, header_y), avatar_image)
             header_x += avatar_size + 20  # 头像存在时，标题向右偏移
     
-    # 标题 - 使用背包颜色
+    # 标题 - 使用背包颜色，调整到头像中间位置
     header_text = f"{user_info.get('nickname', '玩家')}的图鉴"
-    draw.text((header_x, header_y), header_text, font=FONT_HEADER, fill=primary_dark)
+    draw.text((header_x, header_y + 30), header_text, font=FONT_HEADER, fill=primary_dark)
 
     # 进度 - 使用背包颜色
     progress_text = f"◇ 收集进度: {pokedex_data.get('unlocked_fish_count', 0)} / {pokedex_data.get('total_fish_count', 0)} ◇"
@@ -151,24 +151,24 @@ async def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], 
         # 右侧统计信息 - 进一步向右移动
         stats_x = PADDING + 440
         stats_y = card_y1 + 15
-        # 重量纪录 - 使用背包颜色
+        # 重量纪录 - 使用更醒目的深金色
         min_w = fish.get('min_weight', 0)
         max_w = fish.get('max_weight', 0)
         weight_text = f"● 重量纪录: 最小 {format_weight(min_w)} / 最大 {format_weight(max_w)}"
-        draw.text((stats_x, stats_y), weight_text, font=FONT_REGULAR, fill=COLOR_GOLD)
+        draw.text((stats_x, stats_y), weight_text, font=FONT_REGULAR, fill=(218, 165, 32))  # 深金色
         
-        # 累计捕获 - 使用背包颜色
+        # 累计捕获 - 使用深蓝色
         total_w = fish.get('total_weight', 0)
         caught_text = f"◆ 累计捕获: {fish.get('total_caught', 0)} 条 ({format_weight(total_w)})"
-        draw.text((stats_x, stats_y + 18), caught_text, font=FONT_REGULAR, fill=primary_light)
+        draw.text((stats_x, stats_y + 18), caught_text, font=FONT_REGULAR, fill=(25, 118, 210))  # 深蓝色
 
-        # 首次捕获 - 使用背包颜色
+        # 首次捕获 - 使用深绿色
         first_caught_time = fish.get('first_caught_time')
         if isinstance(first_caught_time, datetime):
             first_caught_text = f"★ 首次捕获: {first_caught_time.strftime('%Y-%m-%d %H:%M')}"
         else:
             first_caught_text = f"★ 首次捕获: {str(first_caught_time).split('.')[0] if first_caught_time else '未知'}"
-        draw.text((stats_x, stats_y + 36), first_caught_text, font=FONT_REGULAR, fill=COLOR_SUCCESS)
+        draw.text((stats_x, stats_y + 36), first_caught_text, font=FONT_REGULAR, fill=(46, 125, 50))  # 深绿色
         # 描述 - 调整位置适应更小的卡片，使用背包颜色
         desc_y = card_y1 + FISH_CARD_HEIGHT - 20
         draw.text((left_pane_x, desc_y), fish.get("description", ""), font=FONT_SMALL, fill=text_muted)

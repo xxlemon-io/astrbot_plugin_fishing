@@ -73,7 +73,7 @@ def load_font(size):
         return ImageFont.load_default()
 
 FONT_HEADER = load_font(36)    # 减小标题字体
-FONT_SUBHEADER = load_font(18) # 减小副标题字体
+FONT_SUBHEADER = load_font(24) # 收集进度字体
 FONT_FISH_NAME = load_font(20) # 减小鱼名字体
 FONT_REGULAR = load_font(14)   # 减小常规字体
 FONT_SMALL = load_font(12)     # 减小小字体
