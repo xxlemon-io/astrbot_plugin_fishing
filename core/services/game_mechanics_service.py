@@ -271,7 +271,7 @@ class GameMechanicsService:
 
     def steal_fish(self, thief_id: str, victim_id: str) -> Dict[str, Any]:
         """
-        处理“偷鱼”的逻辑。
+        处理"偷鱼"的逻辑。
         """
         if thief_id == victim_id:
             return {"success": False, "message": "不能偷自己的鱼！"}
@@ -284,7 +284,22 @@ class GameMechanicsService:
         if not victim:
             return {"success": False, "message": "目标用户不存在"}
 
-        # 0. 检查受害者是否受保护，以及偷窃者是否有反制能力
+        # 0. 首先检查偷窃CD（避免在CD中浪费暗影斗篷等道具）
+        cooldown_seconds = self.config.get("steal", {}).get("cooldown_seconds", 14400) # 默认4小时
+        now = get_now()
+
+        # 修复时区问题
+        last_steal_time = thief.last_steal_time
+        if last_steal_time and last_steal_time.tzinfo is None and now.tzinfo is not None:
+            now = now.replace(tzinfo=None)
+        elif last_steal_time and last_steal_time.tzinfo is not None and now.tzinfo is None:
+            now = now.replace(tzinfo=last_steal_time.tzinfo)
+
+        if last_steal_time and (now - last_steal_time).total_seconds() < cooldown_seconds:
+            remaining = int(cooldown_seconds - (now - last_steal_time).total_seconds())
+            return {"success": False, "message": f"偷鱼冷却中，请等待 {remaining // 60} 分钟后再试"}
+
+        # 1. 检查受害者是否受保护，以及偷窃者是否有反制能力
         protection_buff = self.buff_repo.get_active_by_user_and_type(
             victim_id, "STEAL_PROTECTION_BUFF"
         )
@@ -309,21 +324,6 @@ class GameMechanicsService:
                 elif shadow_cloak_buff:
                     # 暗影斗篷效果：使用后立即失效
                     self.buff_repo.delete(shadow_cloak_buff.id)
-
-        # 1. 检查偷窃CD
-        cooldown_seconds = self.config.get("steal", {}).get("cooldown_seconds", 14400) # 默认4小时
-        now = get_now()
-
-        # 修复时区问题
-        last_steal_time = thief.last_steal_time
-        if last_steal_time and last_steal_time.tzinfo is None and now.tzinfo is not None:
-            now = now.replace(tzinfo=None)
-        elif last_steal_time and last_steal_time.tzinfo is not None and now.tzinfo is None:
-            now = now.replace(tzinfo=last_steal_time.tzinfo)
-
-        if last_steal_time and (now - last_steal_time).total_seconds() < cooldown_seconds:
-            remaining = int(cooldown_seconds - (now - last_steal_time).total_seconds())
-            return {"success": False, "message": f"偷鱼冷却中，请等待 {remaining // 60} 分钟后再试"}
 
         # 2. 检查受害者是否有鱼可偷
         victim_inventory = self.inventory_repo.get_fish_inventory(victim_id)
@@ -358,72 +358,6 @@ class GameMechanicsService:
         return {
             "success": True,
             "message": f"{counter_message}✅ 成功从【{victim.nickname}】的鱼塘里偷到了一条{stolen_fish_template.rarity}★【{stolen_fish_template.name}】！基础价值 {stolen_fish_template.base_value} 金币",
-        }
-
-    def steal_fish_with_dispel(self, thief_id: str, victim_id: str) -> Dict[str, Any]:
-        """
-        使用驱灵香偷鱼，会直接驱散目标的海灵守护效果
-        """
-        if thief_id == victim_id:
-            return {"success": False, "message": "不能偷自己的鱼！"}
-
-        thief = self.user_repo.get_by_id(thief_id)
-        if not thief:
-            return {"success": False, "message": "偷窃者用户不存在"}
-
-        victim = self.user_repo.get_by_id(victim_id)
-        if not victim:
-            return {"success": False, "message": "目标用户不存在"}
-
-        # 0. 检查并驱散海灵守护
-        protection_buff = self.buff_repo.get_active_by_user_and_type(
-            victim_id, "STEAL_PROTECTION_BUFF"
-        )
-        if protection_buff:
-            # 直接移除海灵守护效果
-            self.buff_repo.delete(protection_buff.id)
-
-        # 1. 检查偷窃CD
-        cooldown_seconds = self.config.get("steal", {}).get("cooldown_seconds", 14400) # 默认4小时
-        now = get_now()
-
-        # 修复时区问题
-        last_steal_time = thief.last_steal_time
-        if last_steal_time and last_steal_time.tzinfo is None and now.tzinfo is not None:
-            now = now.replace(tzinfo=None)
-        elif last_steal_time and last_steal_time.tzinfo is not None and now.tzinfo is None:
-            now = now.replace(tzinfo=last_steal_time.tzinfo)
-
-        if last_steal_time and (now - last_steal_time).total_seconds() < cooldown_seconds:
-            remaining = int(cooldown_seconds - (now - last_steal_time).total_seconds())
-            return {"success": False, "message": f"偷鱼冷却中，请等待 {remaining // 60} 分钟后再试"}
-
-        # 2. 检查受害者是否有鱼可偷
-        victim_inventory = self.inventory_repo.get_fish_inventory(victim_id)
-        if not victim_inventory:
-            return {"success": False, "message": f"目标用户【{victim.nickname}】的鱼塘是空的！"}
-
-        # 3. 随机选择一条鱼偷取
-        stolen_fish_item = random.choice(victim_inventory)
-        stolen_fish_template = self.item_template_repo.get_fish_by_id(stolen_fish_item.fish_id)
-
-        if not stolen_fish_template:
-            return {"success": False, "message": "发生内部错误，无法识别被偷的鱼"}
-
-        # 4. 执行偷窃事务
-        # 从受害者库存中移除一条鱼
-        self.inventory_repo.update_fish_quantity(victim_id, stolen_fish_item.fish_id, delta=-1)
-        # 向偷窃者库存中添加一条鱼
-        self.inventory_repo.add_fish_to_inventory(thief_id, stolen_fish_item.fish_id, quantity=1)
-
-        # 5. 更新偷窃者的CD时间
-        thief.last_steal_time = now
-        self.user_repo.update(thief)
-
-        dispel_message = "🔥 驱灵香的力量驱散了海灵守护！" if protection_buff else ""
-        return {
-            "success": True,
-            "message": f"{dispel_message}✅ 成功从【{victim.nickname}】的鱼塘里偷到了一条{stolen_fish_template.rarity}★【{stolen_fish_template.name}】！基础价值 {stolen_fish_template.base_value} 金币",
         }
 
     def dispel_steal_protection(self, target_id: str) -> Dict[str, Any]:
