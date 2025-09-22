@@ -395,24 +395,28 @@ class FishingService:
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
-
-        pokedex_ids = self.log_repo.get_unlocked_fish_ids(user_id)
-        # Dict[int, datetime]: 键为鱼类ID，值为首次捕获时间
-        if not pokedex_ids:
+        # 使用聚合统计作为图鉴数据来源
+        stats = self.log_repo.get_user_fish_stats(user_id)
+        if not stats:
             return {"success": True, "pokedex": []}
         all_fish_count = len(self.item_template_repo.get_all_fish())
-        unlock_fish_count = len(pokedex_ids)
+        unlock_fish_count = len(stats)
         pokedex = []
-        for fish_id, first_caught_time in pokedex_ids.items():
-            fish_template = self.item_template_repo.get_fish_by_id(fish_id)
+        for stat in stats:
+            fish_template = self.item_template_repo.get_fish_by_id(stat.fish_id)
             if fish_template:
                 pokedex.append({
-                    "fish_id": fish_id,
+                    "fish_id": stat.fish_id,
                     "name": fish_template.name,
                     "rarity": fish_template.rarity,
                     "description": fish_template.description,
                     "value": fish_template.base_value,
-                    "first_caught_time": first_caught_time
+                    "first_caught_time": stat.first_caught_at,
+                    "last_caught_time": stat.last_caught_at,
+                    "max_weight": stat.max_weight,
+                    "min_weight": stat.min_weight,
+                    "total_caught": stat.total_caught,
+                    "total_weight": stat.total_weight,
                 })
         # 将图鉴按稀有度从大到小排序
         pokedex.sort(key=lambda x: x["rarity"], reverse=True)

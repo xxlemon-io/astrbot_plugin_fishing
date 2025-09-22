@@ -386,6 +386,15 @@ class AbstractLogRepository(ABC):
         """添加一条通用日志"""
         pass
 
+    # --- 用户鱼类统计（用于图鉴与个人纪录） ---
+    @abstractmethod
+    def get_user_fish_stats(self, user_id: str) -> List["UserFishStat"]:
+        pass
+
+    @abstractmethod
+    def get_user_fish_stat(self, user_id: str, fish_id: int) -> Optional["UserFishStat"]:
+        pass
+
 class AbstractAchievementRepository(ABC):
     """成就数据仓储接口"""
     # 获取所有成就的模板信息

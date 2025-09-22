@@ -3,34 +3,43 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 from typing import List, Dict
 from astrbot.api import logger
+from .styles import (
+    IMG_WIDTH, PADDING, CORNER_RADIUS,
+    HEADER_HEIGHT, USER_CARD_HEIGHT, USER_CARD_MARGIN,
+    COLOR_BACKGROUND, COLOR_HEADER_BG, COLOR_TEXT_WHITE as COLOR_HEADER_TEXT,
+    COLOR_CARD_BG, COLOR_CARD_BORDER, COLOR_TEXT_DARK,
+    COLOR_ACCENT, COLOR_TEXT_GOLD, COLOR_TEXT_SILVER, COLOR_TEXT_BRONZE,
+    COLOR_FISH_COUNT, COLOR_COINS, load_font
+)
+
 # 图片基本设置
-IMG_WIDTH = 800
-IMG_HEIGHT = 1500  # 动态调整
-PADDING = 30  # 减小内边距
-CORNER_RADIUS = 15  # 稍微减小圆角
+# IMG_WIDTH = 800 # 移除本地定义
+# IMG_HEIGHT = 1500  # 动态调整 # 移除本地定义
+# PADDING = 30  # 减小内边距 # 移除本地定义
+# CORNER_RADIUS = 15  # 稍微减小圆角 # 移除本地定义
 
 # 颜色定义
-COLOR_BACKGROUND = (245, 245, 245)  # 浅灰色背景
-COLOR_HEADER_BG = (51, 153, 255)  # 蓝色标题背景
-COLOR_HEADER_TEXT = (255, 255, 255)  # 白色标题文字
-COLOR_CARD_BG = (255, 255, 255)  # 白色卡片背景
-COLOR_CARD_BORDER = (230, 230, 230)  # 灰色卡片边框
-COLOR_TEXT_DARK = (50, 50, 50)  # 深灰文字
-COLOR_TEXT_GOLD = (255, 215, 0)  # 金色（用于第一名）
-COLOR_TEXT_SILVER = (192, 192, 192)  # 银色（用于第二名）
-COLOR_TEXT_BRONZE = (205, 127, 50)  # 铜色（用于第三名）
-COLOR_ACCENT = (51, 153, 255)  # 强调色
-COLOR_FISH_COUNT = (46, 139, 87)  # 鱼数量颜色
-COLOR_COINS = (218, 165, 32)  # 更改为更深的金币颜色，提高对比度
+# COLOR_BACKGROUND = (245, 245, 245)  # 浅灰色背景 # 移除本地定义
+# COLOR_HEADER_BG = (51, 153, 255)  # 蓝色标题背景 # 移除本地定义
+# COLOR_HEADER_TEXT = (255, 255, 255)  # 白色标题文字 # 移除本地定义
+# COLOR_CARD_BG = (255, 255, 255)  # 白色卡片背景 # 移除本地定义
+# COLOR_CARD_BORDER = (230, 230, 230)  # 灰色卡片边框 # 移除本地定义
+# COLOR_TEXT_DARK = (50, 50, 50)  # 深灰文字 # 移除本地定义
+# COLOR_TEXT_GOLD = (255, 215, 0)  # 金色（用于第一名） # 移除本地定义
+# COLOR_TEXT_SILVER = (192, 192, 192)  # 银色（用于第二名） # 移除本地定义
+# COLOR_TEXT_BRONZE = (205, 127, 50)  # 铜色（用于第三名） # 移除本地定义
+# COLOR_ACCENT = (51, 153, 255)  # 强调色 # 移除本地定义
+# COLOR_FISH_COUNT = (46, 139, 87)  # 鱼数量颜色 # 移除本地定义
+# COLOR_COINS = (218, 165, 32)  # 更改为更深的金币颜色，提高对比度 # 移除本地定义
 
 # 布局设置
-HEADER_HEIGHT = 100  # 减小标题高度
-USER_CARD_HEIGHT = 90  # 减小卡片高度
-USER_CARD_MARGIN = 12  # 减小卡片间距
+# HEADER_HEIGHT = 100  # 减小标题高度 # 移除本地定义
+# USER_CARD_HEIGHT = 90  # 减小卡片高度 # 移除本地定义
+# USER_CARD_MARGIN = 12  # 减小卡片间距 # 移除本地定义
 
-# 字体路径 - 请确保这些字体文件存在或使用你系统中的字体
-FONT_PATH_REGULAR = os.path.join(os.path.dirname(__file__),"resource", "DouyinSansBold.otf")
-FONT_PATH_BOLD = os.path.join(os.path.dirname(__file__),"resource", "DouyinSansBold.otf")
+# 字体路径 - 请确保这些字体文件存在或使用你系统中的字体 # 移除本地定义
+# FONT_PATH_REGULAR = os.path.join(os.path.dirname(__file__),"resource", "DouyinSansBold.otf") # 移除本地定义
+# FONT_PATH_BOLD = os.path.join(os.path.dirname(__file__),"resource", "DouyinSansBold.otf") # 移除本地定义
 
 def draw_rounded_rectangle(draw, xy, radius=10, fill=None, outline=None, width=1):
     """绘制圆角矩形"""
@@ -80,13 +89,11 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str):
     """
     # 准备字体
     try:
-        font_title = ImageFont.truetype(FONT_PATH_BOLD, 42)  # 减小字体尺寸
-        ImageFont.truetype(FONT_PATH_REGULAR, 28)
-        font_rank = ImageFont.truetype(FONT_PATH_BOLD, 32)
-        ImageFont.truetype(FONT_PATH_BOLD, 36)
-        font_name = ImageFont.truetype(FONT_PATH_BOLD, 22)
-        font_regular = ImageFont.truetype(FONT_PATH_REGULAR, 18)
-        font_small = ImageFont.truetype(FONT_PATH_REGULAR, 16)
+        font_title = load_font(42)  # 减小字体尺寸
+        font_rank = load_font(32)
+        font_name = load_font(22)
+        font_regular = load_font(18)
+        font_small = load_font(16)
     except IOError:
         # 如果找不到指定字体，
         logger.warning("指定的字体文件未找到，使用默认字体。")

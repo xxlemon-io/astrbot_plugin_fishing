@@ -1,6 +1,9 @@
 from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api import logger
 from ..core.utils import get_now
-from ..utils import safe_datetime_handler, to_percentage
+from ..utils import safe_datetime_handler, to_percentage, safe_get_file_path
+from ..draw.pokedex import draw_pokedex
+from astrbot.api.message_components import Image as AstrImage
 
 
 def _normalize_now_for(lst_time):
@@ -145,61 +148,35 @@ async def fishing_area(self, event: AstrMessageEvent):
 async def fish_pokedex(self, event: AstrMessageEvent):
     """查看鱼类图鉴"""
     user_id = self._get_effective_user_id(event)
-    result = self.fishing_service.get_user_pokedex(user_id)
+    args = event.message_str.split()
+    page = 1
+    if len(args) > 1 and args[1].isdigit():
+        page = int(args[1])
+    
+    pokedex_data = self.fishing_service.get_user_pokedex(user_id)
+    if not pokedex_data or not pokedex_data.get("success"):
+        yield event.plain_result(f"❌ 查看图鉴失败: {pokedex_data.get('message', '未知错误')}")
+        return
+        
+    pokedex_list = pokedex_data.get("pokedex", [])
+    if not pokedex_list:
+        yield event.plain_result("❌ 您还没有捕捉到任何鱼类，快去钓鱼吧！")
+        return
 
-    if result:
-        if result["success"]:
-            pokedex = result.get("pokedex", [])
-            if not pokedex:
-                yield event.plain_result("❌ 您还没有捕捉到任何鱼类，快去钓鱼吧！")
-                return
-
-            message = "【🐟 🌊 鱼类图鉴 📖 🎣】\n"
-            message += f"🏆 解锁进度：{to_percentage(result['unlocked_percentage'])}\n"
-            message += f"📊 收集情况：{result['unlocked_fish_count']} / {result['total_fish_count']} 种\n"
-
-            for fish in pokedex:
-                rarity = fish["rarity"]
-
-                message += f" - {fish['name']} ({'✨' * rarity})\n"
-                message += f"💎 价值：{fish['value']} 金币\n"
-                message += f"🕰️ 首次捕获：{safe_datetime_handler(fish['first_caught_time'])}\n"
-                message += f"📜 描述：{fish['description']}\n"
-
-            if len(message) <= 500:
-                yield event.plain_result(message)
-                return
-
-            text_chunk_size = 1000  # 每个Plain文本块的最大字数
-            node_chunk_size = 4  # 每个Node中最多包含的Plain文本块数量
-            text_chunks = [message[i:i + text_chunk_size] for i in
-                           range(0, len(message), text_chunk_size)]
-
-            if not text_chunks:
-                yield event.plain_result("❌ 内容为空，无法发送。")
-                return
-
-            grouped_chunks = [text_chunks[i:i + node_chunk_size] for i in
-                              range(0, len(text_chunks), node_chunk_size)]
-
-            from astrbot.api.message_components import Node, Plain
-            nodes_to_send = []
-            for i, group in enumerate(grouped_chunks):
-                plain_components = [Plain(text=chunk) for chunk in group]
-
-                node = Node(
-                    uin=event.get_self_id(),
-                    name=f"鱼类图鉴 - 第 {i + 1} 页",
-                    content=plain_components
-                )
-                nodes_to_send.append(node)
-
-            try:
-                yield event.chain_result(nodes_to_send)
-            except Exception as e:
-                yield event.plain_result(f"❌ 发送转发消息失败：{e}")
-
-        else:
-            yield event.plain_result(f"❌ 查看鱼类图鉴失败：{result['message']}")
-    else:
-        yield event.plain_result("❌ 出错啦！请稍后再试。")
+    user_info = self.user_repo.get_by_id(user_id)
+    
+    # 绘制图片
+    output_path = safe_get_file_path(self, f"pokedex_{user_id}_page_{page}.png")
+    
+    try:
+        await draw_pokedex(
+            pokedex_data, 
+            {"nickname": user_info.nickname, "user_id": user_id}, 
+            output_path, 
+            page=page,
+            data_dir=self.data_dir
+        )
+        yield event.image_result(output_path)
+    except Exception as e:
+        logger.error(f"绘制图鉴图片失败: {e}", exc_info=e)
+        yield event.plain_result("❌ 绘制图鉴时发生错误，请稍后再试或联系管理员。")

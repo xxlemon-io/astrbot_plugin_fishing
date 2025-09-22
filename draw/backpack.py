@@ -3,6 +3,14 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from .utils import get_user_avatar
+from .styles import (
+    IMG_WIDTH, PADDING, CORNER_RADIUS,
+    COLOR_BACKGROUND, COLOR_HEADER_BG, COLOR_TEXT_WHITE, COLOR_TEXT_DARK,
+    COLOR_TEXT_GRAY, COLOR_CARD_BG, COLOR_CARD_BORDER, COLOR_ACCENT,
+    COLOR_SUCCESS, COLOR_WARNING, COLOR_ERROR, COLOR_LOCK,
+    COLOR_GOLD, COLOR_RARE, COLOR_REFINE_RED, COLOR_REFINE_ORANGE,
+    COLOR_CORNER, load_font
+)
 
 def format_rarity_display(rarity: int) -> str:
     """格式化稀有度显示，支持显示到10星，10星以上显示为★★★★★★★★★★+"""
@@ -120,20 +128,13 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
     draw = ImageDraw.Draw(image)
 
     # 2. 加载字体
-    def load_font(name, size):
-        path = os.path.join(os.path.dirname(__file__), "resource", name)
-        try:
-            return ImageFont.truetype(path, size)
-        except Exception as e:
-            return ImageFont.load_default()
+    title_font = load_font(32)
+    subtitle_font = load_font(24)
+    content_font = load_font(18)
+    small_font = load_font(16)
+    tiny_font = load_font(14)
 
-    title_font = load_font("DouyinSansBold.otf", 32)
-    subtitle_font = load_font("DouyinSansBold.otf", 24)
-    content_font = load_font("DouyinSansBold.otf", 18)
-    small_font = load_font("DouyinSansBold.otf", 16)
-    tiny_font = load_font("DouyinSansBold.otf", 14)
-
-    # 3. 颜色定义 - 温和协调的海洋主题配色
+    # 3. 颜色定义 - 使用统一颜色系统
     primary_dark = (52, 73, 94)      # 温和深蓝 - 主标题
     primary_medium = (74, 105, 134)  # 柔和中蓝 - 副标题
     primary_light = (108, 142, 191)  # 淡雅蓝 - 强调色
@@ -143,18 +144,18 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
     text_secondary = (120, 144, 156) # 柔和灰蓝 - 次要文本
     text_muted = (176, 190, 197)     # 温和浅灰 - 弱化文本
     
-    # 状态色：柔和自然色系
-    success_color = (76, 175, 80)    # 温和绿 - 成功/积极状态
-    warning_color = (255, 183, 77)   # 柔和橙 - 警告/中性
-    error_color = (229, 115, 115)    # 温和红 - 错误/消极状态
-    lock_color = (54, 162, 235)      # 安全蓝 - 锁定保护状态
+    # 状态色：使用统一颜色
+    success_color = COLOR_SUCCESS
+    warning_color = COLOR_WARNING
+    error_color = COLOR_ERROR
+    lock_color = COLOR_LOCK
     
     # 背景色：更柔和的对比
     card_bg = (255, 255, 255, 240)   # 高透明度白色
     
-    # 特殊色：温和特色
-    gold_color = (240, 173, 78)      # 温和金色 - 金币
-    rare_color = (149, 117, 205)     # 柔和紫色 - 稀有物品
+    # 特殊色：使用统一颜色
+    gold_color = COLOR_GOLD
+    rare_color = COLOR_RARE
 
     # 4. 获取文本尺寸的辅助函数
     def get_text_size(text, font):
@@ -440,9 +441,9 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             rarity = rod.get('rarity', 1)
             refine_level = rod.get('refine_level', 1)
             if refine_level >= 10:
-                star_color = (255, 0, 0)  # 红色 - 10级
+                star_color = COLOR_REFINE_RED  # 红色 - 10级
             elif refine_level >= 6:
-                star_color = (255, 165, 0)  # 橙色 - 6-9级
+                star_color = COLOR_REFINE_ORANGE  # 橙色 - 6-9级
             elif rarity > 4 and refine_level > 4:
                 star_color = rare_color
             elif rarity > 3:
@@ -580,9 +581,9 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             rarity = accessory.get('rarity', 1)
             refine_level = accessory.get('refine_level', 1)
             if refine_level >= 10:
-                star_color = (255, 0, 0)  # 红色 - 10级
+                star_color = COLOR_REFINE_RED  # 红色 - 10级
             elif refine_level >= 6:
-                star_color = (255, 165, 0)  # 橙色 - 6-9级
+                star_color = COLOR_REFINE_ORANGE  # 橙色 - 6-9级
             elif rarity > 4 and refine_level > 4:
                 star_color = rare_color
             elif rarity > 3:
@@ -814,7 +815,7 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
 
     # 添加装饰性元素
     corner_size = 15
-    corner_color = (255, 255, 255, 80)
+    corner_color = COLOR_CORNER
     
     # 四角装饰
     draw.ellipse([8, 8, 8 + corner_size, 8 + corner_size], fill=corner_color)

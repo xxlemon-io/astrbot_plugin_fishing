@@ -7,6 +7,10 @@ from io import BytesIO
 import time
 import json
 from .utils import get_user_avatar
+from .styles import (
+    COLOR_SUCCESS, COLOR_WARNING, COLOR_ERROR, COLOR_GOLD, COLOR_RARE,
+    COLOR_REFINE_RED, COLOR_REFINE_ORANGE, COLOR_CORNER, load_font
+)
 
 def format_rarity_display(rarity: int) -> str:
     """格式化稀有度显示，支持显示到10星，10星以上显示为★★★★★★★★★★+"""
@@ -99,16 +103,16 @@ async def draw_state_image(user_data: Dict[str, Any], data_dir: str) -> Image.Im
     text_muted = (176, 190, 197)     # 温和浅灰 - 弱化文本
     
     # 状态色：柔和自然色系
-    success_color = (76, 175, 80)    # 温和绿 - 成功/积极状态
-    warning_color = (255, 183, 77)   # 柔和橙 - 警告/中性
-    error_color = (229, 115, 115)    # 温和红 - 错误/消极状态
+    success_color = COLOR_SUCCESS
+    warning_color = COLOR_WARNING
+    error_color = COLOR_ERROR
     
     # 背景色：更柔和的对比
     card_bg = (255, 255, 255, 240)   # 高透明度白色
     
     # 特殊色：温和特色
-    gold_color = (240, 173, 78)      # 温和金色 - 金币
-    rare_color = (149, 117, 205)     # 柔和紫色 - 稀有物品
+    gold_color = COLOR_GOLD
+    rare_color = COLOR_RARE
 
     # 4. 获取文本尺寸的辅助函数
     def get_text_size(text, font):
@@ -277,9 +281,9 @@ async def draw_state_image(user_data: Dict[str, Any], data_dir: str) -> Image.Im
         rarity = current_rod.get('rarity', 1)
         refined_level = current_rod.get('refine_level', 1)
         if refined_level >= 10:
-            star_color = (255, 0, 0)  # 红色 - 10级
+            star_color = COLOR_REFINE_RED  # 红色 - 10级
         elif refined_level >= 6:
-            star_color = (255, 165, 0)  # 橙色 - 6-9级
+            star_color = COLOR_REFINE_ORANGE  # 橙色 - 6-9级
         elif rarity > 4 and refined_level > 4:
             star_color = rare_color
         elif rarity > 3:
@@ -304,9 +308,9 @@ async def draw_state_image(user_data: Dict[str, Any], data_dir: str) -> Image.Im
         rarity = current_accessory.get('rarity', 1)
         refined_level = current_accessory.get('refine_level', 1)
         if refined_level >= 10:
-            star_color = (255, 0, 0)  # 红色 - 10级
+            star_color = COLOR_REFINE_RED  # 红色 - 10级
         elif refined_level >= 6:
-            star_color = (255, 165, 0)  # 橙色 - 6-9级
+            star_color = COLOR_REFINE_ORANGE  # 橙色 - 6-9级
         elif rarity > 4 and refined_level > 4:
             star_color = rare_color
         elif rarity > 3:
@@ -445,7 +449,7 @@ async def draw_state_image(user_data: Dict[str, Any], data_dir: str) -> Image.Im
 
     # 12. 添加装饰性元素 - 保持简洁
     corner_size = 15  # 稍微减小装饰元素
-    corner_color = (255, 255, 255, 80)
+    corner_color = COLOR_CORNER
     
     # 四角装饰
     draw.ellipse([8, 8, 8 + corner_size, 8 + corner_size], fill=corner_color)

@@ -323,6 +323,20 @@ def safe_datetime_handler(
     return None
 
 
+def safe_get_file_path(handler_instance, filename: str) -> str:
+    """安全生成文件路径，使用处理器的临时目录
+    
+    Args:
+        handler_instance: 处理器实例，需要有 tmp_dir 属性
+        filename: 文件名
+        
+    Returns:
+        str: 完整的文件路径
+    """
+    import os
+    return os.path.join(handler_instance.tmp_dir, filename)
+
+
 def parse_target_user_id(event, args: list, arg_index: int = 1) -> Tuple[Optional[str], Optional[str]]:
     """解析目标用户ID，支持用户ID和@两种方式
     
