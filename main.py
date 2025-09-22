@@ -472,7 +472,7 @@ class FishingPlugin(Star):
         async for r in gacha_handlers.ten_gacha(self, event):
             yield r
 
-    @filter.command("查看卡池")
+    @filter.command("查看卡池", alias={"卡池"})
     async def view_gacha_pool(self, event: AstrMessageEvent):
         async for r in gacha_handlers.view_gacha_pool(self, event):
             yield r
