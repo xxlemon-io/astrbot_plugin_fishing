@@ -286,12 +286,12 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.items(self, event):
             yield r
 
-    @filter.command("使用道具", alias={"使用"})
+    @filter.command("使用道具")
     async def use_item(self, event: AstrMessageEvent):
         async for r in inventory_handlers.use_item(self, event):
             yield r
 
-    @filter.command("卖道具", alias={"出售道具", "卖出道具"})
+    @filter.command("出售道具", alias={"卖出道具"})
     async def sell_item(self, event: AstrMessageEvent):
         async for r in inventory_handlers.sell_item(self, event):
             yield r
@@ -363,7 +363,7 @@ class FishingPlugin(Star):
         async for r in fishing_handlers.fishing_area(self, event):
             yield r
 
-    @filter.command("鱼类图鉴")
+    @filter.command("鱼类图鉴", alias={"图鉴"})
     async def fish_pokedex(self, event: AstrMessageEvent):
         async for r in fishing_handlers.fish_pokedex(self, event):
             yield r
@@ -380,22 +380,22 @@ class FishingPlugin(Star):
         async for r in market_handlers.sell_keep(self, event):
             yield r
 
-    @filter.command("砸锅卖铁", alias={"破产", "清空", "一键清空", "全部卖出装备", "卖光所有"})
+    @filter.command("砸锅卖铁", alias={"破产", "清空", "清仓"})
     async def sell_everything(self, event: AstrMessageEvent):
         async for r in market_handlers.sell_everything(self, event):
             yield r
 
-    @filter.command("出售稀有度", alias={"按稀有度出售", "稀有度出售", "卖稀有度", "出售星级", "按星级出售"})
+    @filter.command("出售稀有度", alias={"稀有度出售", "出售星级"})
     async def sell_by_rarity(self, event: AstrMessageEvent):
         async for r in market_handlers.sell_by_rarity(self, event):
             yield r
 
-    @filter.command("出售鱼竿", alias={"卖出鱼竿", "卖鱼竿", "卖掉鱼竿"})
+    @filter.command("出售鱼竿", alias={"卖出鱼竿"})
     async def sell_rod(self, event: AstrMessageEvent):
         async for r in market_handlers.sell_rod(self, event):
             yield r
 
-    @filter.command("出售所有鱼竿", alias={"出售全部鱼竿", "卖出所有鱼竿", "卖出全部鱼竿", "卖光鱼竿", "清空鱼竿", "一键卖鱼竿"})
+    @filter.command("出售所有鱼竿", alias={"出售全部鱼竿", "卖出所有鱼竿", "卖出全部鱼竿", "清空鱼竿"})
     async def sell_all_rods(self, event: AstrMessageEvent):
         async for r in market_handlers.sell_all_rods(self, event):
             yield r
@@ -405,7 +405,7 @@ class FishingPlugin(Star):
         async for r in market_handlers.sell_accessories(self, event):
             yield r
 
-    @filter.command("出售所有饰品", alias={"出售全部饰品", "卖出所有饰品", "卖出全部饰品", "卖光饰品", "清空饰品", "一键卖饰品"})
+    @filter.command("出售所有饰品", alias={"出售全部饰品", "卖出所有饰品", "卖出全部饰品", "清空饰品"})
     async def sell_all_accessories(self, event: AstrMessageEvent):
         async for r in market_handlers.sell_all_accessories(self, event):
             yield r
@@ -610,13 +610,13 @@ class FishingPlugin(Star):
             yield r
 
     @filter.permission_type(PermissionType.ADMIN)
-    @filter.command("代理上线")
+    @filter.command("代理上线", alias={"login"})
     async def impersonate_start(self, event: AstrMessageEvent):
         async for r in admin_handlers.impersonate_start(self, event):
             yield r
 
     @filter.permission_type(PermissionType.ADMIN)
-    @filter.command("代理下线")
+    @filter.command("代理下线", alias={"logout"})
     async def impersonate_stop(self, event: AstrMessageEvent):
         async for r in admin_handlers.impersonate_stop(self, event):
             yield r
