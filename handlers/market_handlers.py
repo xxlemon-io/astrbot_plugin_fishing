@@ -4,8 +4,7 @@ from ..utils import format_rarity_display, parse_target_user_id
 async def sell_all(self, event: AstrMessageEvent):
     """卖出用户所有鱼"""
     user_id = self._get_effective_user_id(event)
-    result = self.inventory_service.sell_all_fish(user_id)
-    if result:
+    if result := self.inventory_service.sell_all_fish(user_id):
         yield event.plain_result(result["message"])
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
@@ -13,8 +12,7 @@ async def sell_all(self, event: AstrMessageEvent):
 async def sell_keep(self, event: AstrMessageEvent):
     """卖出用户鱼，但保留每种鱼一条"""
     user_id = self._get_effective_user_id(event)
-    result = self.inventory_service.sell_all_fish(user_id, keep_one=True)
-    if result:
+    if result := self.inventory_service.sell_all_fish(user_id, keep_one=True):
         yield event.plain_result(result["message"])
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
@@ -22,8 +20,7 @@ async def sell_keep(self, event: AstrMessageEvent):
 async def sell_everything(self, event: AstrMessageEvent):
     """砸锅卖铁：出售所有未锁定且未装备的鱼竿、饰品和全部鱼类"""
     user_id = self._get_effective_user_id(event)
-    result = self.inventory_service.sell_everything_except_locked(user_id)
-    if result:
+    if result := self.inventory_service.sell_everything_except_locked(user_id):
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
@@ -42,8 +39,7 @@ async def sell_by_rarity(self, event: AstrMessageEvent):
     if not rarity.isdigit() or int(rarity) < 1 or int(rarity) > 5:
         yield event.plain_result("❌ 稀有度必须是1到5之间的数字，请检查后重试。")
         return
-    result = self.inventory_service.sell_fish_by_rarity(user_id, int(rarity))
-    if result:
+    if result := self.inventory_service.sell_fish_by_rarity(user_id, int(rarity)):
         yield event.plain_result(result["message"])
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
@@ -59,8 +55,7 @@ async def sell_rod(self, event: AstrMessageEvent):
     if not rod_instance_id.isdigit():
         yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
         return
-    result = self.inventory_service.sell_rod(user_id, int(rod_instance_id))
-    if result:
+    if result := self.inventory_service.sell_rod(user_id, int(rod_instance_id)):
         if result["success"]:
             yield event.plain_result(result["message"])
         else:

@@ -5,8 +5,7 @@ from ..utils import to_percentage, format_accessory_or_rod, format_rarity_displa
 async def user_backpack(self, event: AstrMessageEvent):
     """查看用户背包"""
     user_id = self._get_effective_user_id(event)
-    user = self.user_repo.get_by_id(user_id)
-    if user:
+    if user := self.user_repo.get_by_id(user_id):
         # 导入绘制函数
         from ..draw.backpack import draw_backpack_image, get_user_backpack_data
         
@@ -28,8 +27,7 @@ async def user_backpack(self, event: AstrMessageEvent):
 async def pond(self, event: AstrMessageEvent):
     """查看用户鱼塘内的鱼"""
     user_id = self._get_effective_user_id(event)
-    pond_fish = self.inventory_service.get_user_fish_pond(user_id)
-    if pond_fish:
+    if pond_fish := self.inventory_service.get_user_fish_pond(user_id):
         fishes = pond_fish["fishes"]
         # 把fishes按稀有度分组
         fished_by_rarity = {}
@@ -102,8 +100,7 @@ async def refine_rod(self, event: AstrMessageEvent):
     if not rod_instance_id.isdigit():
         yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
         return
-    result = self.inventory_service.refine(user_id, int(rod_instance_id), "rod")
-    if result:
+    if result := self.inventory_service.refine(user_id, int(rod_instance_id), "rod"):
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
@@ -189,6 +186,9 @@ async def sell_item(self, event: AstrMessageEvent):
         return
     item_id = int(parts[1])
     qty = int(parts[2]) if len(parts) >= 3 and parts[2].isdigit() else 1
+    if qty <= 0:
+        yield event.plain_result("❌ 数量必须是正整数")
+        return
     result = self.inventory_service.sell_item(user_id, item_id, qty)
     if result.get("success"):
         yield event.plain_result(result["message"])
@@ -224,8 +224,7 @@ async def refine_accessory(self, event: AstrMessageEvent):
     if not accessory_instance_id.isdigit():
         yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
         return
-    result = self.inventory_service.refine(user_id, int(accessory_instance_id), "accessory")
-    if result:
+    if result := self.inventory_service.refine(user_id, int(accessory_instance_id), "accessory"):
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
@@ -418,8 +417,7 @@ async def use_rod(self, event: AstrMessageEvent):
     if not rod_instance_id.isdigit():
         yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
         return
-    result = self.inventory_service.equip_item(user_id, int(rod_instance_id), "rod")
-    if result:
+    if result := self.inventory_service.equip_item(user_id, int(rod_instance_id), "rod"):
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
@@ -442,8 +440,7 @@ async def use_bait(self, event: AstrMessageEvent):
     if not bait_instance_id.isdigit():
         yield event.plain_result("❌ 鱼饵 ID 必须是数字，请检查后重试。")
         return
-    result = self.inventory_service.use_bait(user_id, int(bait_instance_id))
-    if result:
+    if result := self.inventory_service.use_bait(user_id, int(bait_instance_id)):
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
@@ -466,8 +463,7 @@ async def use_accessories(self, event: AstrMessageEvent):
     if not accessory_instance_id.isdigit():
         yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
         return
-    result = self.inventory_service.equip_item(user_id, int(accessory_instance_id), "accessory")
-    if result:
+    if result := self.inventory_service.equip_item(user_id, int(accessory_instance_id), "accessory"):
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
@@ -478,8 +474,7 @@ async def use_accessories(self, event: AstrMessageEvent):
 async def coins(self, event: AstrMessageEvent):
     """查看用户金币信息"""
     user_id = self._get_effective_user_id(event)
-    user = self.user_repo.get_by_id(user_id)
-    if user:
+    if user := self.user_repo.get_by_id(user_id):
         yield event.plain_result(f"💰 您的金币余额：{user.coins} 金币")
     else:
         yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
@@ -487,8 +482,7 @@ async def coins(self, event: AstrMessageEvent):
 async def premium(self, event: AstrMessageEvent):
     """查看用户高级货币信息"""
     user_id = self._get_effective_user_id(event)
-    user = self.user_repo.get_by_id(user_id)
-    if user:
+    if user := self.user_repo.get_by_id(user_id):
         yield event.plain_result(f"💎 您的高级货币余额：{user.premium_currency}")
     else:
         yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")

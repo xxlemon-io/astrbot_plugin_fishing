@@ -10,8 +10,7 @@ async def register_user(self, event: AstrMessageEvent):
     """注册用户命令"""
     user_id = self._get_effective_user_id(event)
     nickname = event.get_sender_name() if event.get_sender_name() is not None else user_id
-    result = self.user_service.register(user_id, nickname)
-    if result:
+    if result := self.user_service.register(user_id, nickname):
         yield event.plain_result(result["message"])
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
@@ -45,8 +44,7 @@ async def state(self, event: AstrMessageEvent):
 async def fishing_log(self, event: AstrMessageEvent):
     """查看钓鱼记录"""
     user_id = self._get_effective_user_id(event)
-    result = self.fishing_service.get_user_fish_log(user_id)
-    if result:
+    if result := self.fishing_service.get_user_fish_log(user_id):
         if result["success"]:
             records = result["records"]
             if not records:

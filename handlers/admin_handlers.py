@@ -31,8 +31,7 @@ async def modify_coins(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 金币数量必须是数字，请检查后重试。")
         return
     
-    result = self.user_service.modify_user_coins(target_user_id, int(coins))
-    if result:
+    if result := self.user_service.modify_user_coins(target_user_id, int(coins)):
         yield event.plain_result(f"✅ 成功修改用户 {target_user_id} 的金币数量为 {coins} 金币")
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
@@ -257,12 +256,10 @@ async def reward_coins(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 金币数量必须是数字，请检查后重试。")
         return
     
-    current_coins = self.user_service.get_user_currency(target_user_id)
-    if current_coins is None:
+    if (current_coins := self.user_service.get_user_currency(target_user_id)) is None:
         yield event.plain_result("❌ 用户不存在或未注册，请检查后重试。")
         return
-    result = self.user_service.modify_user_coins(target_user_id, int(current_coins.get('coins') + int(coins)))
-    if result:
+    if result := self.user_service.modify_user_coins(target_user_id, int(current_coins.get('coins') + int(coins))):
         yield event.plain_result(f"✅ 成功给用户 {target_user_id} 奖励 {coins} 金币")
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
@@ -287,15 +284,13 @@ async def deduct_coins(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 金币数量必须是数字，请检查后重试。")
         return
     
-    current_coins = self.user_service.get_user_currency(target_user_id)
-    if current_coins is None:
+    if (current_coins := self.user_service.get_user_currency(target_user_id)) is None:
         yield event.plain_result("❌ 用户不存在或未注册，请检查后重试。")
         return
     if int(coins) > current_coins.get('coins'):
         yield event.plain_result("❌ 扣除的金币数量不能超过用户当前拥有的金币数量")
         return
-    result = self.user_service.modify_user_coins(target_user_id, int(current_coins.get('coins') - int(coins)))
-    if result:
+    if result := self.user_service.modify_user_coins(target_user_id, int(current_coins.get('coins') - int(coins))):
         yield event.plain_result(f"✅ 成功扣除用户 {target_user_id} 的 {coins} 金币")
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")

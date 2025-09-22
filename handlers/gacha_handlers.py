@@ -66,8 +66,7 @@ async def gacha(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 抽奖池 ID 必须是数字，请检查后重试。")
         return
     pool_id = int(pool_id)
-    result = self.gacha_service.perform_draw(user_id, pool_id, num_draws=1)
-    if result:
+    if result := self.gacha_service.perform_draw(user_id, pool_id, num_draws=1):
         if result["success"]:
             items = result.get("results", [])
             message = f"🎉 抽卡成功！您抽到了 {len(items)} 件物品：\n"
@@ -96,8 +95,7 @@ async def ten_gacha(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 抽奖池 ID 必须是数字，请检查后重试。")
         return
     pool_id = int(pool_id)
-    result = self.gacha_service.perform_draw(user_id, pool_id, num_draws=10)
-    if result:
+    if result := self.gacha_service.perform_draw(user_id, pool_id, num_draws=10):
         if result["success"]:
             items = result.get("results", [])
             message = f"🎉 十连抽卡成功！您抽到了 {len(items)} 件物品：\n"
@@ -125,8 +123,7 @@ async def view_gacha_pool(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 卡池 ID 必须是数字，请检查后重试。")
         return
     pool_id = int(pool_id)
-    result = self.gacha_service.get_pool_details(pool_id)
-    if result:
+    if result := self.gacha_service.get_pool_details(pool_id):
         if result["success"]:
             pool = result.get("pool", {})
             probabilities = result.get("probabilities", [])
@@ -139,8 +136,7 @@ async def view_gacha_pool(self, event: AstrMessageEvent):
 async def gacha_history(self, event: AstrMessageEvent):
     """查看抽卡记录"""
     user_id = self._get_effective_user_id(event)
-    result = self.gacha_service.get_user_gacha_history(user_id)
-    if result:
+    if result := self.gacha_service.get_user_gacha_history(user_id):
         if result["success"]:
             history = result.get("records", [])
             if not history:
@@ -166,8 +162,7 @@ async def wipe_bomb(self, event: AstrMessageEvent):
     contribution_amount = args[1]
     if contribution_amount in ['allin', 'halfin', '梭哈', '梭一半']:
         # 查询用户当前金币数量
-        user = self.user_repo.get_by_id(user_id)
-        if user:
+        if user := self.user_repo.get_by_id(user_id):
             coins = user.coins
         else:
             yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
@@ -181,8 +176,7 @@ async def wipe_bomb(self, event: AstrMessageEvent):
     if not contribution_amount.isdigit():
         yield event.plain_result("❌ 擦弹数量必须是数字，请检查后重试。")
         return
-    result = self.game_mechanics_service.perform_wipe_bomb(user_id, int(contribution_amount))
-    if result:
+    if result := self.game_mechanics_service.perform_wipe_bomb(user_id, int(contribution_amount)):
         if result["success"]:
             message = ""
             contribution = result["contribution"]
@@ -210,8 +204,7 @@ async def wipe_bomb(self, event: AstrMessageEvent):
 async def wipe_bomb_history(self, event: AstrMessageEvent):
     """查看擦弹记录"""
     user_id = self._get_effective_user_id(event)
-    result = self.game_mechanics_service.get_wipe_bomb_history(user_id)
-    if result:
+    if result := self.game_mechanics_service.get_wipe_bomb_history(user_id):
         if result["success"]:
             history = result.get("logs", [])
             if not history:

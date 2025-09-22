@@ -44,17 +44,22 @@ class FishingService:
         # 自动钓鱼线程相关属性
         self.auto_fishing_thread: Optional[threading.Thread] = None
         self.auto_fishing_running = False
-        # 可选的消息通知回调：签名 (target: str, message: str) -> None，用于群聊通知
+        # 可选的消息通知回调：签名 (target: str, message: str) -> None，用于消息通知
         self._notifier = None
+        # 通知目标可配置，默认群聊。可由 config['notifications']['relocation_target'] 覆盖
+        notifications_cfg = self.config.get("notifications", {}) if isinstance(self.config, dict) else {}
+        self._notification_target = notifications_cfg.get("relocation_target", "group")
         
 
-    def register_notifier(self, notifier):
+    def register_notifier(self, notifier, default_target: Optional[str] = None):
         """
-        注册一个用于发送系统消息的回调（群聊推送）。
+        注册一个用于发送系统消息的回调（如群聊推送）。
         回调应为同步函数，签名为 (target: str, message: str) -> None。
-        target 为 "group" 时发送群聊消息。
+        默认目标可通过参数或配置指定。
         """
         self._notifier = notifier
+        if default_target:
+            self._notification_target = default_target
 
     def toggle_auto_fishing(self, user_id: str) -> Dict[str, Any]:
         """
@@ -725,23 +730,31 @@ class FishingService:
         try:
             if self._notifier:
                 group_message = self._build_relocation_notification_message(relocated_users)
-                self._notifier("group", group_message)
+                self._notifier(self._notification_target, group_message)
         except Exception as e:
             logger.error(f"发送传送通知失败: {e}")
 
     def _build_relocation_notification_message(self, relocated_users: list) -> str:
         """构建每日传送通知的消息文本。"""
-        message_parts = ["🌅【每日区域检查】🌅\n"]
-        message_parts.append("黎明时分，钓鱼协会的巡查员开始检查各区域的准入资格...\n\n")
-        message_parts.append("以下渔者因缺少必要的通行证，已被安全传送回新手钓鱼地：\n")
+        # 动态获取 1 号区域名称（读取失败时回退为“区域一”）
+        try:
+            home_zone = self.inventory_repo.get_zone_by_id(1)
+            home_zone_name = home_zone.name if home_zone and getattr(home_zone, "name", None) else "区域一"
+        except Exception:
+            home_zone_name = "区域一"
+
+        message_parts = [
+            "🌅【每日区域检查】🌅\n",
+            "黎明时分，钓鱼协会的巡查员开始检查各区域的准入资格...\n\n",
+            f"以下玩家因缺少必要的通行证，已被安全传送回{home_zone_name}：\n",
+        ]
 
         for user_info in relocated_users:
-            message_parts.append(f"• @{user_info['user_id']} ({user_info['nickname']})")
-            message_parts.append(f"  从 {user_info['zone_name']} 传送至 1号钓鱼地")
-            message_parts.append(f"  缺少：{user_info['item_name']}\n")
-
-        message_parts.append("💡 温馨提示：前往特殊区域前请确保携带足够的通行证。")
-        message_parts.append("祝各位渔者今日收获满满！🎣")
+            message_parts.extend([
+                f"• @{user_info['user_id']} ({user_info['nickname']})",
+                f"  从 {user_info['zone_name']} 传送至 {home_zone_name}",
+                f"  缺少：{user_info['item_name']}\n",
+            ])
         return "".join(message_parts)
 
     def start_auto_fishing_task(self):
