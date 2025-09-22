@@ -370,17 +370,17 @@ class FishingPlugin(Star):
 
     # =========== 市场与商店 ==========
 
-    @filter.command("全部卖出", alias={"全部出售", "卖出全部", "出售全部", "卖光", "清空鱼", "一键卖出"})
+    @filter.command("全部卖出", alias={"全部出售", "卖出全部", "出售全部", "清空鱼"})
     async def sell_all(self, event: AstrMessageEvent):
         async for r in market_handlers.sell_all(self, event):
             yield r
 
-    @filter.command("保留卖出", alias={"保留出售", "卖出保留", "出售保留", "留一卖出", "卖鱼留一"})
+    @filter.command("保留卖出", alias={"保留出售", "卖出保留", "出售保留"})
     async def sell_keep(self, event: AstrMessageEvent):
         async for r in market_handlers.sell_keep(self, event):
             yield r
 
-    @filter.command("砸锅卖铁", alias={"破产", "清仓", "一键清空", "全部卖出装备", "卖光所有"})
+    @filter.command("砸锅卖铁", alias={"破产", "清空", "一键清空", "全部卖出装备", "卖光所有"})
     async def sell_everything(self, event: AstrMessageEvent):
         async for r in market_handlers.sell_everything(self, event):
             yield r

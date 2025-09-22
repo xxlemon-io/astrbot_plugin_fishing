@@ -1,6 +1,32 @@
 from astrbot.api.event import filter, AstrMessageEvent
 from ..utils import parse_target_user_id, to_percentage, safe_datetime_handler
 
+
+def _format_pool_details(pool, probabilities):
+    message = "【🎰 卡池详情】\n\n"
+    message += f"ID: {pool['gacha_pool_id']} - {pool['name']}\n"
+    message += f"描述: {pool['description']}\n"
+    # 限时开放信息展示（安全检查字段）
+    is_limited_time = bool(pool.get('is_limited_time'))
+    open_until = pool.get('open_until')
+    if is_limited_time and open_until:
+        display_time = str(open_until).replace('T', ' ').replace('-', '/')
+        if len(display_time) > 16:
+            display_time = display_time[:16]
+        message += f"限时开放 至: {display_time}\n"
+    if pool.get('cost_premium_currency'):
+        message += f"花费: {pool['cost_premium_currency']} 高级货币 / 次\n\n"
+    else:
+        message += f"花费: {pool['cost_coins']} 金币 / 次\n\n"
+    message += "【📋 物品概率】\n"
+    if probabilities:
+        for item in probabilities:
+            message += (
+                f" - {'⭐' * item.get('item_rarity', 0)} {item['item_name']} "
+                f"(概率: {to_percentage(item['probability'])})\n"
+            )
+    return message
+
 async def gacha(self, event: AstrMessageEvent):
     """抽卡"""
     user_id = self._get_effective_user_id(event)
@@ -91,31 +117,8 @@ async def view_gacha_pool(self, event: AstrMessageEvent):
     if result:
         if result["success"]:
             pool = result.get("pool", {})
-            message = "【🎰 卡池详情】\n\n"
-            message += f"ID: {pool['gacha_pool_id']} - {pool['name']}\n"
-            message += f"描述: {pool['description']}\n"
-            # 限时开放信息展示
-            try:
-                if pool['is_limited_time']:
-                    open_until = pool['open_until']
-                    if open_until:
-                        # 格式化为 YYYY/MM/DD HH:MM
-                        display_time = open_until.replace('T', ' ').replace('-', '/')
-                        if len(display_time) > 16:
-                            display_time = display_time[:16]
-                        message += f"限时开放 至: {display_time}\n"
-            except Exception:
-                pass
-            if pool['cost_premium_currency']:
-                message += f"花费: {pool['cost_premium_currency']} 高级货币 / 次\n\n"
-            else:
-                message += f"花费: {pool['cost_coins']} 金币 / 次\n\n"
-            message += "【📋 物品概率】\n"
-
-            if result["probabilities"]:
-                for item in result["probabilities"]:
-                    message += f" - {'⭐' * item.get('item_rarity', 0)} {item['item_name']} (概率: {to_percentage(item['probability'])})\n"
-            yield event.plain_result(message)
+            probabilities = result.get("probabilities", [])
+            yield event.plain_result(_format_pool_details(pool, probabilities))
         else:
             yield event.plain_result(f"❌ 查看卡池失败：{result['message']}")
     else:
@@ -157,9 +160,9 @@ async def wipe_bomb(self, event: AstrMessageEvent):
         else:
             yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
             return
-        if contribution_amount == 'allin' or contribution_amount == '梭哈':
+        if contribution_amount in ('allin', '梭哈'):
             contribution_amount = coins
-        elif contribution_amount == 'halfin' or contribution_amount == '梭一半':
+        elif contribution_amount in ('halfin', '梭一半'):
             contribution_amount = coins // 2
         contribution_amount = str(contribution_amount)
     # 判断是否为int或数字字符串
