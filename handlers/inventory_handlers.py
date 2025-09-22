@@ -187,11 +187,11 @@ async def open_all_money_bags(self, event: AstrMessageEvent):
         yield event.plain_result(f"❌ 开启钱袋失败：{error_message}")
 
 async def sell_item(self, event: AstrMessageEvent):
-    """卖出道具：/卖道具 <ID> [数量]，数量缺省为1"""
+    """出售道具：/出售道具 <ID> [数量]，数量缺省为1"""
     user_id = self._get_effective_user_id(event)
     parts = event.message_str.strip().split()
     if len(parts) < 2:
-        yield event.plain_result("❌ 用法：/卖道具 <道具ID> [数量]")
+        yield event.plain_result("❌ 用法：/出售道具 <道具ID> [数量]")
         return
     if not parts[1].isdigit():
         yield event.plain_result("❌ 道具ID必须是数字")
