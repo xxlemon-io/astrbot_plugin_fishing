@@ -321,15 +321,19 @@ class InventoryService:
                     # 删除饰品实例
                     self.inventory_repo.delete_accessory_instance(accessory_instance.accessory_instance_id)
 
-        # 更新用户金币
+        # 更新用户金币（出售所得）
         user.coins += total_value
         self.user_repo.update(user)
+
+        # 4. 自动消耗“钱袋”类道具（ADD_COINS），并统计获得金币
+        coins_from_bags = self._auto_consume_money_bags(user)
 
         # 构造详细的结果消息
         if total_value == 0:
             return {"success": False, "message": "❌ 没有可出售的物品（可能全部被锁定或仓库为空）"}
         
-        message = f"💥 砸锅卖铁完成！总共获得 {total_value} 金币\n\n"
+        grand_total = total_value + coins_from_bags
+        message = f"💥 砸锅卖铁完成！总共获得 {grand_total} 金币\n\n"
         message += "📊 出售详情：\n"
         
         if sold_items["fish_count"] > 0:
@@ -340,10 +344,74 @@ class InventoryService:
         
         if sold_items["accessory_count"] > 0:
             message += f"💍 饰品：{sold_items['accessory_count']} 件 (💰 {sold_items['accessory_value']} 金币)\n"
+
+        if coins_from_bags > 0:
+            message += f"👜 钱袋：自动开启获得 (💰 {coins_from_bags} 金币)\n"
         
         message += f"\n🔒 已锁定和装备中的装备已自动保留"
         
         return {"success": True, "message": message}
+
+    def _auto_consume_money_bags(self, user) -> int:
+        """
+        自动消耗所有“钱袋”类道具（effect_type == "ADD_COINS"），返回获得金币总数。
+        不产生单独消息，直接修改用户金币并统计总额，用于砸锅卖铁聚合展示。
+        """
+        try:
+            # 获取用户道具持有情况与所有道具模板
+            user_items = self.inventory_repo.get_user_item_inventory(user.user_id)
+            all_items_tpl = self.item_template_repo.get_all_items()
+        except Exception:
+            return 0
+
+        # 过滤出钱袋类可消耗道具
+        money_bag_templates = []
+        for tpl in all_items_tpl:
+            try:
+                if getattr(tpl, "effect_type", None) == "ADD_COINS" and getattr(tpl, "is_consumable", False):
+                    money_bag_templates.append(tpl)
+            except Exception:
+                continue
+
+        if not money_bag_templates:
+            return 0
+
+        total_gained = 0
+        effect_handler = self.effect_manager.get_effect("ADD_COINS")
+        if not effect_handler:
+            return 0
+
+        for tpl in money_bag_templates:
+            qty = int(user_items.get(tpl.item_id, 0) or 0)
+            if qty <= 0:
+                continue
+            # 先扣减背包数量
+            try:
+                self.inventory_repo.decrease_item_quantity(user.user_id, tpl.item_id, qty)
+            except Exception:
+                # 若扣减失败，跳过该模板
+                continue
+            # 解析负载并应用效果，累计金币
+            try:
+                payload = json.loads(tpl.effect_payload or "{}")
+            except Exception:
+                payload = {}
+
+            try:
+                result = effect_handler.apply(user, tpl, payload, quantity=qty)
+                gained = int(result.get("coins_gained", 0) or 0)
+                total_gained += max(gained, 0)
+            except Exception:
+                # 某个模板应用失败，不影响其他模板
+                continue
+
+        # 最终确保用户数据已持久（effect 内已 update，这里稳健再更新一次）
+        try:
+            self.user_repo.update(user)
+        except Exception:
+            pass
+
+        return total_gained
 
     def sell_rod(self, user_id: str, rod_instance_id: int) -> Dict[str, Any]:
         """
