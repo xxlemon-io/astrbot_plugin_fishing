@@ -2,19 +2,31 @@ from astrbot.api.event import filter, AstrMessageEvent
 from ..utils import parse_target_user_id, to_percentage, safe_datetime_handler
 
 
+def _get_field(obj, key, default=None):
+    """统一读取字段，兼容 dataclass 模型实现了 __getitem__ 但没有 dict.get 的情况。"""
+    try:
+        # 优先尝试下标访问（GachaPool 实现了 __getitem__）
+        return obj[key]
+    except Exception:
+        # 若是 dict 支持 get；否则回退 getattr
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        return getattr(obj, key, default)
+
+
 def _format_pool_details(pool, probabilities):
     message = "【🎰 卡池详情】\n\n"
     message += f"ID: {pool['gacha_pool_id']} - {pool['name']}\n"
     message += f"描述: {pool['description']}\n"
     # 限时开放信息展示（安全检查字段）
-    is_limited_time = bool(pool.get('is_limited_time'))
-    open_until = pool.get('open_until')
+    is_limited_time = bool(_get_field(pool, 'is_limited_time'))
+    open_until = _get_field(pool, 'open_until')
     if is_limited_time and open_until:
         display_time = str(open_until).replace('T', ' ').replace('-', '/')
         if len(display_time) > 16:
             display_time = display_time[:16]
         message += f"限时开放 至: {display_time}\n"
-    if pool.get('cost_premium_currency'):
+    if _get_field(pool, 'cost_premium_currency'):
         message += f"花费: {pool['cost_premium_currency']} 高级货币 / 次\n\n"
     else:
         message += f"花费: {pool['cost_coins']} 金币 / 次\n\n"
