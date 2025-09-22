@@ -327,3 +327,15 @@ class UserBuff:
 @dataclass
 class UserItem:
     user_id: str
+
+@dataclass
+class UserFishStat:
+    """用户对某鱼种的聚合统计，用于图鉴与个人纪录"""
+    user_id: str
+    fish_id: int
+    first_caught_at: Optional[datetime]
+    last_caught_at: Optional[datetime]
+    max_weight: int
+    min_weight: int
+    total_caught: int
+    total_weight: int

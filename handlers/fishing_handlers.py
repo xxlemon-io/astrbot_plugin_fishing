@@ -163,7 +163,13 @@ async def fish_pokedex(self, event: AstrMessageEvent):
 
                 message += f" - {fish['name']} ({'✨' * rarity})\n"
                 message += f"💎 价值：{fish['value']} 金币\n"
-                message += f"🕰️ 首次捕获：{safe_datetime_handler(fish['first_caught_time'])}\n"
+                message += f"🕰️ 首次捕获：{safe_datetime_handler(fish.get('first_caught_time'))}\n"
+                if 'last_caught_time' in fish:
+                    message += f"🕰️ 最近捕获：{safe_datetime_handler(fish.get('last_caught_time'))}\n"
+                if 'min_weight' in fish and 'max_weight' in fish:
+                    message += f"⚖️ 重量纪录：{fish['min_weight']}g ~ {fish['max_weight']}g\n"
+                if 'total_caught' in fish and 'total_weight' in fish:
+                    message += f"📈 累计：{fish['total_caught']} 条 / {fish['total_weight']}g\n"
                 message += f"📜 描述：{fish['description']}\n"
 
             if len(message) <= 500:
