@@ -187,6 +187,8 @@ class FishingPlugin(Star):
         # 管理员扮演功能
         self.impersonation_map = {}
 
+        # 命令在类定义期通过装饰器静态注册
+
     def _get_effective_user_id(self, event: AstrMessageEvent):
         """获取在当前上下文中应当作为指令执行者的用户ID。
         - 默认返回消息发送者ID
@@ -207,329 +209,90 @@ class FishingPlugin(Star):
                                |___/
                                """)
 
-    # =========== 基础与核心 ==========
+    # 工厂函数 + 装饰器：在类定义期静态注册命令，减少样板
+    def _make_cmd(name, handler, alias=None, permission=None):
+        async def _fn(self, event: AstrMessageEvent):
+            async for r in handler(self, event):
+                yield r
+        fn = _fn
+        if permission is not None:
+            fn = filter.permission_type(permission)(fn)
+        if alias is not None:
+            fn = filter.command(name, alias=alias)(fn)
+        else:
+            fn = filter.command(name)(fn)
+        return fn
 
-    @filter.command("注册")
-    async def register_user(self, event: AstrMessageEvent):
-        async for r in common_handlers.register_user(self, event):
-            yield r
-
-    @filter.command("钓鱼")
-    async def fish(self, event: AstrMessageEvent):
-        async for r in fishing_handlers.fish(self, event):
-            yield r
-
-    @filter.command("签到")
-    async def sign_in(self, event: AstrMessageEvent):
-        async for r in common_handlers.sign_in(self, event):
-            yield r
-
-    @filter.command("自动钓鱼")
-    async def auto_fish(self, event: AstrMessageEvent):
-        async for r in fishing_handlers.auto_fish(self, event):
-            yield r
-
-    @filter.command("钓鱼记录", alias={"钓鱼日志", "钓鱼历史"})
-    async def fishing_log(self, event: AstrMessageEvent):
-        async for r in common_handlers.fishing_log(self, event):
-            yield r
-
-    @filter.command("状态", alias={"我的状态"})
-    async def state(self, event: AstrMessageEvent):
-        async for r in common_handlers.state(self, event):
-            yield r
-
-    @filter.command("钓鱼帮助", alias={"钓鱼菜单", "菜单"})
-    async def fishing_help(self, event: AstrMessageEvent):
-        async for r in common_handlers.fishing_help(self, event):
-            yield r
+    
 
     # =========== 背包与资产 ==========
+    register_user = _make_cmd("注册", common_handlers.register_user)
+    fish = _make_cmd("钓鱼", fishing_handlers.fish)
+    sign_in = _make_cmd("签到", common_handlers.sign_in)
+    auto_fish = _make_cmd("自动钓鱼", fishing_handlers.auto_fish)
+    fishing_log = _make_cmd("钓鱼记录", common_handlers.fishing_log, alias={"钓鱼日志", "钓鱼历史"})
+    state = _make_cmd("状态", common_handlers.state, alias={"我的状态"})
+    fishing_help = _make_cmd("钓鱼帮助", common_handlers.fishing_help, alias={"钓鱼菜单", "菜单"})
 
-    @filter.command("背包", alias={"查看背包", "我的背包"})
-    async def user_backpack(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.user_backpack(self, event):
-            yield r
-
-    @filter.command("鱼塘")
-    async def pond(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.pond(self, event):
-            yield r
-
-    @filter.command("鱼塘容量")
-    async def pond_capacity(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.pond_capacity(self, event):
-            yield r
-
-    @filter.command("升级鱼塘", alias={"鱼塘升级"})
-    async def upgrade_pond(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.upgrade_pond(self, event):
-            yield r
-
-    @filter.command("鱼竿")
-    async def rod(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.rod(self, event):
-            yield r
-
-    @filter.command("精炼鱼竿", alias={"鱼竿精炼"})
-    async def refine_rod(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.refine_rod(self, event):
-            yield r
-
-    @filter.command("鱼饵")
-    async def bait(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.bait(self, event):
-            yield r
-
-    @filter.command("道具", alias={"我的道具", "查看道具"})
-    async def items(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.items(self, event):
-            yield r
-
-    @filter.command("使用道具", alias={"使用"})
-    async def use_item(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.use_item(self, event):
-            yield r
-
-    @filter.command("卖道具", alias={"出售道具", "卖出道具"})
-    async def sell_item(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.sell_item(self, event):
-            yield r
-
-    @filter.command("饰品")
-    async def accessories(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.accessories(self, event):
-            yield r
-
-    @filter.command("精炼饰品", alias={"饰品精炼"})
-    async def refine_accessory(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.refine_accessory(self, event):
-            yield r
-
-    @filter.command("精炼帮助", alias={"精炼说明", "精炼"})
-    async def refine_help(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.refine_help(self, event):
-            yield r
-
-    @filter.command("锁定鱼竿", alias={"鱼竿锁定"})
-    async def lock_rod(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.lock_rod(self, event):
-            yield r
-
-    @filter.command("解锁鱼竿", alias={"鱼竿解锁"})
-    async def unlock_rod(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.unlock_rod(self, event):
-            yield r
-
-    @filter.command("锁定饰品", alias={"饰品锁定"})
-    async def lock_accessory(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.lock_accessory(self, event):
-            yield r
-
-    @filter.command("解锁饰品", alias={"饰品解锁"})
-    async def unlock_accessory(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.unlock_accessory(self, event):
-            yield r
-
-    @filter.command("使用鱼竿 ", alias={"装备鱼竿"})
-    async def use_rod(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.use_rod(self, event):
-            yield r
-
-    @filter.command("使用鱼饵", alias={"装备鱼饵"})
-    async def use_bait(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.use_bait(self, event):
-            yield r
-
-    @filter.command("使用饰品", alias={"装备饰品"})
-    async def use_accessories(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.use_accessories(self, event):
-            yield r
-
-    @filter.command("金币")
-    async def coins(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.coins(self, event):
-            yield r
-
-    @filter.command("高级货币", alias={"钻石", "星石"})
-    async def premium(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.premium(self, event):
-            yield r
+    
 
     # =========== 钓鱼与图鉴 ==========
-
-    @filter.command("钓鱼区域", alias={"区域"})
-    async def fishing_area(self, event: AstrMessageEvent):
-        async for r in fishing_handlers.fishing_area(self, event):
-            yield r
-
-    @filter.command("鱼类图鉴")
-    async def fish_pokedex(self, event: AstrMessageEvent):
-        async for r in fishing_handlers.fish_pokedex(self, event):
-            yield r
+    fishing_area = _make_cmd("钓鱼区域", fishing_handlers.fishing_area, alias={"区域"})
+    fish_pokedex = _make_cmd("鱼类图鉴", fishing_handlers.fish_pokedex)
 
     # =========== 市场与商店 ==========
-
-    @filter.command("全部卖出", alias={"全部出售", "卖出全部", "出售全部", "卖光", "清空鱼", "一键卖出"})
-    async def sell_all(self, event: AstrMessageEvent):
-        async for r in market_handlers.sell_all(self, event):
-            yield r
-
-    @filter.command("保留卖出", alias={"保留出售", "卖出保留", "出售保留", "留一卖出", "卖鱼留一"})
-    async def sell_keep(self, event: AstrMessageEvent):
-        async for r in market_handlers.sell_keep(self, event):
-            yield r
-
-    @filter.command("砸锅卖铁", alias={"破产", "清仓", "一键清空", "全部卖出装备", "卖光所有"})
-    async def sell_everything(self, event: AstrMessageEvent):
-        async for r in market_handlers.sell_everything(self, event):
-            yield r
-
-    @filter.command("出售稀有度", alias={"按稀有度出售", "稀有度出售", "卖稀有度", "出售星级", "按星级出售"})
-    async def sell_by_rarity(self, event: AstrMessageEvent):
-        async for r in market_handlers.sell_by_rarity(self, event):
-            yield r
-
-    @filter.command("出售鱼竿", alias={"卖出鱼竿", "卖鱼竿", "卖掉鱼竿"})
-    async def sell_rod(self, event: AstrMessageEvent):
-        async for r in market_handlers.sell_rod(self, event):
-            yield r
-
-    @filter.command("出售所有鱼竿", alias={"出售全部鱼竿", "卖出所有鱼竿", "卖出全部鱼竿", "卖光鱼竿", "清空鱼竿", "一键卖鱼竿"})
-    async def sell_all_rods(self, event: AstrMessageEvent):
-        async for r in market_handlers.sell_all_rods(self, event):
-            yield r
-
-    @filter.command("出售饰品", alias={"卖出饰品", "卖饰品", "卖掉饰品"})
-    async def sell_accessories(self, event: AstrMessageEvent):
-        async for r in market_handlers.sell_accessories(self, event):
-            yield r
-
-    @filter.command("出售所有饰品", alias={"出售全部饰品", "卖出所有饰品", "卖出全部饰品", "卖光饰品", "清空饰品", "一键卖饰品"})
-    async def sell_all_accessories(self, event: AstrMessageEvent):
-        async for r in market_handlers.sell_all_accessories(self, event):
-            yield r
-
-    @filter.command("商店")
-    async def shop(self, event: AstrMessageEvent):
-        async for r in market_handlers.shop(self, event):
-            yield r
-
-    @filter.command("购买鱼竿")
-    async def buy_rod(self, event: AstrMessageEvent):
-        async for r in market_handlers.buy_rod(self, event):
-            yield r
-
-    @filter.command("购买鱼饵")
-    async def buy_bait(self, event: AstrMessageEvent):
-        async for r in market_handlers.buy_bait(self, event):
-            yield r
-
-    @filter.command("市场")
-    async def market(self, event: AstrMessageEvent):
-        async for r in market_handlers.market(self, event):
-            yield r
-
-    @filter.command("上架鱼竿")
-    async def list_rod(self, event: AstrMessageEvent):
-        async for r in market_handlers.list_rod(self, event):
-            yield r
-
-    @filter.command("上架饰品")
-    async def list_accessories(self, event: AstrMessageEvent):
-        async for r in market_handlers.list_accessories(self, event):
-            yield r
-
-    @filter.command("上架道具")
-    async def list_item(self, event: AstrMessageEvent):
-        async for r in market_handlers.list_item(self, event):
-            yield r
-
-    @filter.command("购买")
-    async def buy_item(self, event: AstrMessageEvent):
-        async for r in market_handlers.buy_item(self, event):
-            yield r
-
-    @filter.command("我的上架", alias={"上架列表", "我的商品", "我的挂单"})
-    async def my_listings(self, event: AstrMessageEvent):
-        async for r in market_handlers.my_listings(self, event):
-            yield r
-
-    @filter.command("下架")
-    async def delist_item(self, event: AstrMessageEvent):
-        async for r in market_handlers.delist_item(self, event):
-            yield r
+    sell_all = _make_cmd("全部卖出", market_handlers.sell_all, alias={"全部出售", "卖出全部", "出售全部", "卖光", "清空鱼", "一键卖出"})
+    sell_keep = _make_cmd("保留卖出", market_handlers.sell_keep, alias={"保留出售", "卖出保留", "出售保留", "留一卖出", "卖鱼留一"})
+    sell_everything = _make_cmd("砸锅卖铁", market_handlers.sell_everything, alias={"破产", "清仓", "一键清空", "全部卖出装备", "卖光所有"})
+    sell_by_rarity = _make_cmd("出售稀有度", market_handlers.sell_by_rarity, alias={"按稀有度出售", "稀有度出售", "卖稀有度", "出售星级", "按星级出售"})
+    sell_rod = _make_cmd("出售鱼竿", market_handlers.sell_rod, alias={"卖出鱼竿", "卖鱼竿", "卖掉鱼竿"})
+    sell_all_rods = _make_cmd("出售所有鱼竿", market_handlers.sell_all_rods, alias={"出售全部鱼竿", "卖出所有鱼竿", "卖出全部鱼竿", "卖光鱼竿", "清空鱼竿", "一键卖鱼竿"})
+    sell_accessories = _make_cmd("出售饰品", market_handlers.sell_accessories, alias={"卖出饰品", "卖饰品", "卖掉饰品"})
+    sell_all_accessories = _make_cmd("出售所有饰品", market_handlers.sell_all_accessories, alias={"出售全部饰品", "卖出所有饰品", "卖出全部饰品", "卖光饰品", "清空饰品", "一键卖饰品"})
+    shop = _make_cmd("商店", market_handlers.shop)
+    buy_rod = _make_cmd("购买鱼竿", market_handlers.buy_rod)
+    buy_bait = _make_cmd("购买鱼饵", market_handlers.buy_bait)
+    market = _make_cmd("市场", market_handlers.market)
+    list_rod = _make_cmd("上架鱼竿", market_handlers.list_rod)
+    list_accessories = _make_cmd("上架饰品", market_handlers.list_accessories)
+    list_item = _make_cmd("上架道具", market_handlers.list_item)
+    buy_item = _make_cmd("购买", market_handlers.buy_item)
+    my_listings = _make_cmd("我的上架", market_handlers.my_listings, alias={"上架列表", "我的商品", "我的挂单"})
+    delist_item = _make_cmd("下架", market_handlers.delist_item)
 
     # =========== 抽卡 ==========
-
-    @filter.command("抽卡", alias={"抽奖"})
-    async def gacha(self, event: AstrMessageEvent):
-        async for r in gacha_handlers.gacha(self, event):
-            yield r
-
-    @filter.command("十连")
-    async def ten_gacha(self, event: AstrMessageEvent):
-        async for r in gacha_handlers.ten_gacha(self, event):
-            yield r
-
-    @filter.command("查看卡池")
-    async def view_gacha_pool(self, event: AstrMessageEvent):
-        async for r in gacha_handlers.view_gacha_pool(self, event):
-            yield r
-
-    @filter.command("抽卡记录")
-    async def gacha_history(self, event: AstrMessageEvent):
-        async for r in gacha_handlers.gacha_history(self, event):
-            yield r
-
-    @filter.command("擦弹")
-    async def wipe_bomb(self, event: AstrMessageEvent):
-        async for r in gacha_handlers.wipe_bomb(self, event):
-            yield r
-
-    @filter.command("擦弹记录", alias={"擦弹历史"})
-    async def wipe_bomb_history(self, event: AstrMessageEvent):
-        async for r in gacha_handlers.wipe_bomb_history(self, event):
-            yield r
+    gacha = _make_cmd("抽卡", gacha_handlers.gacha, alias={"抽奖"})
+    ten_gacha = _make_cmd("十连", gacha_handlers.ten_gacha)
+    view_gacha_pool = _make_cmd("查看卡池", gacha_handlers.view_gacha_pool)
+    gacha_history = _make_cmd("抽卡记录", gacha_handlers.gacha_history)
+    wipe_bomb = _make_cmd("擦弹", gacha_handlers.wipe_bomb)
+    wipe_bomb_history = _make_cmd("擦弹记录", gacha_handlers.wipe_bomb_history, alias={"擦弹历史"})
 
     # =========== 社交 ==========
-
-    @filter.command("排行榜", alias={"phb"})
-    async def ranking(self, event: AstrMessageEvent):
-        async for r in social_handlers.ranking(self, event):
-            yield r
-
-    @filter.command("偷鱼")
-    async def steal_fish(self, event: AstrMessageEvent):
-        async for r in social_handlers.steal_fish(self, event):
-            yield r
-
-    @filter.command("驱灵")
-    async def dispel_protection(self, event: AstrMessageEvent):
-        async for r in social_handlers.dispel_protection(self, event):
-            yield r
-
-    @filter.command("查看称号", alias={"称号"})
-    async def view_titles(self, event: AstrMessageEvent):
-        async for r in social_handlers.view_titles(self, event):
-            yield r
-
-    @filter.command("使用称号")
-    async def use_title(self, event: AstrMessageEvent):
-        async for r in social_handlers.use_title(self, event):
-            yield r
-
-    @filter.command("查看成就", alias={"成就"})
-    async def view_achievements(self, event: AstrMessageEvent):
-        async for r in social_handlers.view_achievements(self, event):
-            yield r
-
-    @filter.command("税收记录")
-    async def tax_record(self, event: AstrMessageEvent):
-        async for r in social_handlers.tax_record(self, event):
-            yield r
+    ranking = _make_cmd("排行榜", social_handlers.ranking, alias={"phb"})
+    steal_fish = _make_cmd("偷鱼", social_handlers.steal_fish)
+    dispel_protection = _make_cmd("驱灵", social_handlers.dispel_protection)
+    view_titles = _make_cmd("查看称号", social_handlers.view_titles, alias={"称号"})
+    use_title = _make_cmd("使用称号", social_handlers.use_title)
+    view_achievements = _make_cmd("查看成就", social_handlers.view_achievements, alias={"成就"})
+    tax_record = _make_cmd("税收记录", social_handlers.tax_record)
 
     # =========== 管理后台 ==========
+    modify_coins = _make_cmd("修改金币", admin_handlers.modify_coins, permission=PermissionType.ADMIN)
+    modify_premium = _make_cmd("修改高级货币", admin_handlers.modify_premium, permission=PermissionType.ADMIN)
+    reward_premium = _make_cmd("奖励高级货币", admin_handlers.reward_premium, permission=PermissionType.ADMIN)
+    deduct_premium = _make_cmd("扣除高级货币", admin_handlers.deduct_premium, permission=PermissionType.ADMIN)
+    reward_all_coins = _make_cmd("全体奖励金币", admin_handlers.reward_all_coins, permission=PermissionType.ADMIN)
+    reward_all_premium = _make_cmd("全体奖励高级货币", admin_handlers.reward_all_premium, permission=PermissionType.ADMIN)
+    deduct_all_coins = _make_cmd("全体扣除金币", admin_handlers.deduct_all_coins, permission=PermissionType.ADMIN)
+    deduct_all_premium = _make_cmd("全体扣除高级货币", admin_handlers.deduct_all_premium, permission=PermissionType.ADMIN)
+    reward_coins = _make_cmd("奖励金币", admin_handlers.reward_coins, permission=PermissionType.ADMIN)
+    deduct_coins = _make_cmd("扣除金币", admin_handlers.deduct_coins, permission=PermissionType.ADMIN)
+    start_admin = _make_cmd("开启钓鱼后台管理", admin_handlers.start_admin, permission=PermissionType.ADMIN)
+    stop_admin = _make_cmd("关闭钓鱼后台管理", admin_handlers.stop_admin, permission=PermissionType.ADMIN)
+    sync_items_from_initial_data = _make_cmd("同步道具", admin_handlers.sync_items_from_initial_data, alias={"管理员 同步道具"}, permission=PermissionType.ADMIN)
+    impersonate_start = _make_cmd("代理上线", admin_handlers.impersonate_start, permission=PermissionType.ADMIN)
+    impersonate_stop = _make_cmd("代理下线", admin_handlers.impersonate_stop, permission=PermissionType.ADMIN)
 
     @filter.permission_type(PermissionType.ADMIN)
     @filter.command("修改金币")
