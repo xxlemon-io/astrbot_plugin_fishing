@@ -78,17 +78,12 @@ async def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], 
     """
     绘制图鉴图片
     """
-    logger.debug(f"开始绘制图鉴，用户: {user_info.get('nickname', '未知')}, 页面: {page}")
-    logger.debug(f"传入数据: {pokedex_data}")
-
     pokedex_list = pokedex_data.get("pokedex", [])
     total_pages = (len(pokedex_list) + FISH_PER_PAGE - 1) // FISH_PER_PAGE
-    logger.debug(f"总页数: {total_pages}, 鱼类总数: {len(pokedex_list)}")
 
     start_index = (page - 1) * FISH_PER_PAGE
     end_index = start_index + FISH_PER_PAGE
     page_fishes = pokedex_list[start_index:end_index]
-    logger.debug(f"当前页鱼类数据: {page_fishes}")
 
     # 页脚高度
     FOOTER_HEIGHT = 50
@@ -125,7 +120,7 @@ async def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], 
     
     # 标题 - 使用背包颜色，调整到头像中间位置
     header_text = f"{user_info.get('nickname', '玩家')}的图鉴"
-    draw.text((header_x, header_y + 30), header_text, font=FONT_HEADER, fill=primary_dark)
+    draw.text((header_x, header_y + 12), header_text, font=FONT_HEADER, fill=primary_dark)
 
     # 进度 - 使用背包颜色
     progress_text = f"◇ 收集进度: {pokedex_data.get('unlocked_fish_count', 0)} / {pokedex_data.get('total_fish_count', 0)} ◇"
@@ -134,7 +129,6 @@ async def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], 
     # 绘制鱼卡片
     current_y = PADDING + HEADER_HEIGHT + FISH_CARD_MARGIN
     for i, fish in enumerate(page_fishes):
-        logger.debug(f"正在绘制第 {i+1} 条鱼: {fish.get('name', '未知')}")
         card_y1 = current_y
         card_y2 = card_y1 + FISH_CARD_HEIGHT
         # 绘制鱼卡片 - 使用背包风格
