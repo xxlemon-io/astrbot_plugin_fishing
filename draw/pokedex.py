@@ -45,19 +45,36 @@ def create_vertical_gradient(w, h, top_color, bottom_color):
     return base
 
 def draw_rounded_rectangle(draw, bbox, radius, fill=None, outline=None, width=1):
-    """改进的圆角矩形绘制 - 参考背包设计"""
+    """优化的圆角矩形绘制 - 避免边框重叠问题"""
     x1, y1, x2, y2 = bbox
-    # 绘制主体矩形
-    draw.rectangle([x1 + radius, y1, x2 - radius, y2], fill=fill, outline=outline, width=width)
-    draw.rectangle([x1, y1 + radius, x2, y2 - radius], fill=fill, outline=outline, width=width)
-    # 绘制圆角
-    draw.ellipse([x1, y1, x1 + 2*radius, y1 + 2*radius], fill=fill, outline=outline, width=width)
-    draw.ellipse([x2 - 2*radius, y1, x2, y1 + 2*radius], fill=fill, outline=outline, width=width)
-    draw.ellipse([x1, y2 - 2*radius, x1 + 2*radius, y2], fill=fill, outline=outline, width=width)
-    draw.ellipse([x2 - 2*radius, y2 - 2*radius, x2, y2], fill=fill, outline=outline, width=width)
+    
+    # 首先绘制填充区域（无边框）
+    if fill is not None:
+        # 主体矩形
+        draw.rectangle([x1 + radius, y1, x2 - radius, y2], fill=fill)
+        draw.rectangle([x1, y1 + radius, x2, y2 - radius], fill=fill)
+        # 四个圆角
+        draw.ellipse([x1, y1, x1 + 2*radius, y1 + 2*radius], fill=fill)
+        draw.ellipse([x2 - 2*radius, y1, x2, y1 + 2*radius], fill=fill)
+        draw.ellipse([x1, y2 - 2*radius, x1 + 2*radius, y2], fill=fill)
+        draw.ellipse([x2 - 2*radius, y2 - 2*radius, x2, y2], fill=fill)
+    
+    # 然后绘制边框（仅在外围）
+    if outline is not None and width > 0:
+        # 四条直线边框
+        draw.line([x1 + radius, y1, x2 - radius, y1], fill=outline, width=width)  # 上边
+        draw.line([x1 + radius, y2, x2 - radius, y2], fill=outline, width=width)  # 下边
+        draw.line([x1, y1 + radius, x1, y2 - radius], fill=outline, width=width)  # 左边
+        draw.line([x2, y1 + radius, x2, y2 - radius], fill=outline, width=width)  # 右边
+        
+        # 四个圆角边框
+        draw.arc([x1, y1, x1 + 2*radius, y1 + 2*radius], 180, 270, fill=outline, width=width)  # 左上角
+        draw.arc([x2 - 2*radius, y1, x2, y1 + 2*radius], 270, 360, fill=outline, width=width)  # 右上角
+        draw.arc([x1, y2 - 2*radius, x1 + 2*radius, y2], 90, 180, fill=outline, width=width)   # 左下角
+        draw.arc([x2 - 2*radius, y2 - 2*radius, x2, y2], 0, 90, fill=outline, width=width)     # 右下角
 
 
-def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output_path: str, page: int = 1):
+async def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output_path: str, page: int = 1, data_dir: str = None):
     """
     绘制图鉴图片
     """
@@ -95,9 +112,20 @@ def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output
     # 绘制头部 - 使用背包风格
     draw_rounded_rectangle(draw, (PADDING, PADDING, IMG_WIDTH - PADDING, PADDING + HEADER_HEIGHT), CORNER_RADIUS, fill=card_bg)
     
+    # 用户头像和标题区域
+    avatar_size = 60
+    header_x = PADDING + 30
+    header_y = PADDING + 30
+    
+    # 绘制用户头像 - 参考背包做法
+    if data_dir and user_info.get('user_id'):
+        if avatar_image := await get_user_avatar(user_info['user_id'], data_dir, avatar_size):
+            img.paste(avatar_image, (header_x, header_y), avatar_image)
+            header_x += avatar_size + 20  # 头像存在时，标题向右偏移
+    
     # 标题 - 使用背包颜色
     header_text = f"{user_info.get('nickname', '玩家')}的图鉴"
-    draw.text((PADDING + 30, PADDING + 30), header_text, font=FONT_HEADER, fill=primary_dark)
+    draw.text((header_x, header_y), header_text, font=FONT_HEADER, fill=primary_dark)
 
     # 进度 - 使用背包颜色
     progress_text = f"◇ 收集进度: {pokedex_data.get('unlocked_fish_count', 0)} / {pokedex_data.get('total_fish_count', 0)} ◇"
@@ -121,7 +149,7 @@ def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output
         rarity_color = COLOR_RARITY_MAP.get(fish.get("rarity", 1), text_secondary)
         draw.text((left_pane_x, name_y + 25), rarity_text, font=FONT_FISH_NAME, fill=rarity_color)
         # 右侧统计信息 - 进一步向右移动
-        stats_x = PADDING + 480
+        stats_x = PADDING + 440
         stats_y = card_y1 + 15
         # 重量纪录 - 使用背包颜色
         min_w = fish.get('min_weight', 0)
@@ -152,9 +180,26 @@ def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output
     footer_text = f"◈ 第 {page} / {total_pages} 页 - 使用 /图鉴 [页码] 查看更多 ◈"
     draw.text((PADDING, footer_y), footer_text, font=FONT_SMALL, fill=text_secondary)
 
+    # 应用整个图片的圆角遮罩
+    def apply_rounded_corners(image, corner_radius=20):
+        """为整个图片应用圆角"""
+        # 创建圆角遮罩
+        mask = Image.new("L", image.size, 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.rounded_rectangle([0, 0, image.size[0], image.size[1]], corner_radius, fill=255)
+        
+        # 创建带透明通道的输出图片
+        output = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        output.paste(image, (0, 0))
+        output.putalpha(mask)
+        
+        return output
+
     try:
         logger.info(f"准备将图鉴图片保存至: {output_path}")
-        img.save(output_path)
+        # 应用圆角遮罩
+        rounded_img = apply_rounded_corners(img, 20)
+        rounded_img.save(output_path)
         logger.info(f"图鉴图片已成功保存至 {output_path}")
     except Exception as e:
         logger.error(f"保存图鉴图片失败: {e}", exc_info=True)

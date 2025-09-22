@@ -169,7 +169,13 @@ async def fish_pokedex(self, event: AstrMessageEvent):
     output_path = safe_get_file_path(self, f"pokedex_{user_id}_page_{page}.png")
     
     try:
-        draw_pokedex(pokedex_data, {"nickname": user_info.nickname}, output_path, page=page)
+        await draw_pokedex(
+            pokedex_data, 
+            {"nickname": user_info.nickname, "user_id": user_id}, 
+            output_path, 
+            page=page,
+            data_dir=self.data_dir
+        )
         yield event.image_result(output_path)
     except Exception as e:
         logger.error(f"绘制图鉴图片失败: {e}", exc_info=e)
