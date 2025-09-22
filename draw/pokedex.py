@@ -10,7 +10,7 @@ from .styles import (
     COLOR_BACKGROUND, COLOR_HEADER_BG, COLOR_TEXT_WHITE, COLOR_TEXT_DARK,
     COLOR_TEXT_GRAY, COLOR_CARD_BG, COLOR_CARD_BORDER, COLOR_RARITY_MAP,
     FONT_HEADER, FONT_SUBHEADER, FONT_FISH_NAME, FONT_REGULAR, FONT_SMALL,
-    COLOR_ACCENT
+    COLOR_ACCENT, COLOR_SUCCESS, COLOR_WARNING, COLOR_GOLD, COLOR_RARE
 )
 
 def format_weight(g):
@@ -25,15 +25,36 @@ def format_weight(g):
 
 # --- 布局 ---
 HEADER_HEIGHT = 120
-FISH_CARD_HEIGHT = 120  # 稍微减小高度以适应更多内容
-FISH_CARD_MARGIN = 15   # 减小间距
-FISH_PER_PAGE = 10      # 每页显示10个
+FISH_CARD_HEIGHT = 80   # 大幅减小高度以适应20个项目
+FISH_CARD_MARGIN = 8    # 减小间距
+FISH_PER_PAGE = 20      # 每页显示20个
 
 
-def draw_rounded_rectangle(draw, xy, radius, fill, outline=None, width=1):
-    """通用圆角矩形绘制"""
-    x1, y1, x2, y2 = xy
-    draw.rectangle(xy, fill=fill, outline=outline)
+def create_vertical_gradient(w, h, top_color, bottom_color):
+    """创建垂直渐变背景"""
+    base = Image.new('RGB', (w, h), top_color)
+    top_r, top_g, top_b = top_color
+    bot_r, bot_g, bot_b = bottom_color
+    draw = ImageDraw.Draw(base)
+    for y in range(h):
+        ratio = y / (h - 1)
+        r = int(top_r + (bot_r - top_r) * ratio)
+        g = int(top_g + (bot_g - top_g) * ratio)
+        b = int(top_b + (bot_b - top_b) * ratio)
+        draw.line([(0, y), (w, y)], fill=(r, g, b))
+    return base
+
+def draw_rounded_rectangle(draw, bbox, radius, fill=None, outline=None, width=1):
+    """改进的圆角矩形绘制 - 参考背包设计"""
+    x1, y1, x2, y2 = bbox
+    # 绘制主体矩形
+    draw.rectangle([x1 + radius, y1, x2 - radius, y2], fill=fill, outline=outline, width=width)
+    draw.rectangle([x1, y1 + radius, x2, y2 - radius], fill=fill, outline=outline, width=width)
+    # 绘制圆角
+    draw.ellipse([x1, y1, x1 + 2*radius, y1 + 2*radius], fill=fill, outline=outline, width=width)
+    draw.ellipse([x2 - 2*radius, y1, x2, y1 + 2*radius], fill=fill, outline=outline, width=width)
+    draw.ellipse([x1, y2 - 2*radius, x1 + 2*radius, y2], fill=fill, outline=outline, width=width)
+    draw.ellipse([x2 - 2*radius, y2 - 2*radius, x2, y2], fill=fill, outline=outline, width=width)
 
 
 def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output_path: str, page: int = 1):
@@ -55,19 +76,32 @@ def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output
     # 页脚高度
     FOOTER_HEIGHT = 50
     img_height = HEADER_HEIGHT + (FISH_CARD_HEIGHT + FISH_CARD_MARGIN) * len(page_fishes) + PADDING * 2 + FOOTER_HEIGHT
-    img = Image.new("RGB", (IMG_WIDTH, img_height), COLOR_BACKGROUND)
-    draw = ImageDraw.Draw(img)
-
-    # 绘制头部
-    draw_rounded_rectangle(draw, (PADDING, PADDING, IMG_WIDTH - PADDING, PADDING + HEADER_HEIGHT), CORNER_RADIUS, fill=COLOR_HEADER_BG)
     
-    # 标题
-    header_text = f"{user_info.get('nickname', '玩家')}的图鉴"
-    draw.text((PADDING + 30, PADDING + 30), header_text, font=FONT_HEADER, fill=COLOR_TEXT_WHITE)
+    # 创建渐变背景 - 参考背包设计
+    bg_top = (174, 214, 241)  # 柔和天蓝色
+    bg_bot = (245, 251, 255)  # 温和淡蓝色
+    img = create_vertical_gradient(IMG_WIDTH, img_height, bg_top, bg_bot)
+    draw = ImageDraw.Draw(img)
+    
+    # 背包风格的颜色定义
+    primary_dark = (52, 73, 94)      # 温和深蓝 - 主标题
+    primary_medium = (74, 105, 134)  # 柔和中蓝 - 副标题
+    primary_light = (108, 142, 191)  # 淡雅蓝 - 强调色
+    text_primary = (55, 71, 79)      # 温和深灰 - 主要文本
+    text_secondary = (120, 144, 156) # 柔和灰蓝 - 次要文本
+    text_muted = (176, 190, 197)     # 温和浅灰 - 弱化文本
+    card_bg = (255, 255, 255, 240)   # 高透明度白色
 
-    # 进度
+    # 绘制头部 - 使用背包风格
+    draw_rounded_rectangle(draw, (PADDING, PADDING, IMG_WIDTH - PADDING, PADDING + HEADER_HEIGHT), CORNER_RADIUS, fill=card_bg)
+    
+    # 标题 - 使用背包颜色
+    header_text = f"{user_info.get('nickname', '玩家')}的图鉴"
+    draw.text((PADDING + 30, PADDING + 30), header_text, font=FONT_HEADER, fill=primary_dark)
+
+    # 进度 - 使用背包颜色
     progress_text = f"◇ 收集进度: {pokedex_data.get('unlocked_fish_count', 0)} / {pokedex_data.get('total_fish_count', 0)} ◇"
-    draw.text((IMG_WIDTH - PADDING - 300, PADDING + 45), progress_text, font=FONT_SUBHEADER, fill=COLOR_TEXT_WHITE)
+    draw.text((IMG_WIDTH - PADDING - 300, PADDING + 45), progress_text, font=FONT_SUBHEADER, fill=primary_medium)
 
     # 绘制鱼卡片
     current_y = PADDING + HEADER_HEIGHT + FISH_CARD_MARGIN
@@ -75,47 +109,48 @@ def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output
         logger.debug(f"正在绘制第 {i+1} 条鱼: {fish.get('name', '未知')}")
         card_y1 = current_y
         card_y2 = card_y1 + FISH_CARD_HEIGHT
-        draw_rounded_rectangle(draw, (PADDING, card_y1, IMG_WIDTH - PADDING, card_y2), CORNER_RADIUS, fill=COLOR_CARD_BG, outline=COLOR_CARD_BORDER)
+        # 绘制鱼卡片 - 使用背包风格
+        draw_rounded_rectangle(draw, (PADDING, card_y1, IMG_WIDTH - PADDING, card_y2), CORNER_RADIUS, fill=card_bg, outline=COLOR_CARD_BORDER)
         # 左侧内容区域
         left_pane_x = PADDING + 30
-        # 鱼名和稀有度
-        name_y = card_y1 + 20
-        draw.text((left_pane_x, name_y), fish.get("name", "未知鱼"), font=FONT_FISH_NAME, fill=COLOR_TEXT_DARK)
-        # 稀有度星星
+        # 鱼名和稀有度 - 调整位置适应更小的卡片
+        name_y = card_y1 + 10
+        draw.text((left_pane_x, name_y), fish.get("name", "未知鱼"), font=FONT_FISH_NAME, fill=text_primary)
+        # 稀有度星星 - 向上移动，使用背包颜色
         rarity_text = "★" * fish.get("rarity", 1)
-        rarity_color = COLOR_RARITY_MAP.get(fish.get("rarity", 1), COLOR_TEXT_GRAY)
-        draw.text((left_pane_x, name_y + 40), rarity_text, font=FONT_FISH_NAME, fill=rarity_color)
-        # 右侧统计信息
-        stats_x = PADDING + 300
-        stats_y = card_y1 + 25
-        # 重量纪录
+        rarity_color = COLOR_RARITY_MAP.get(fish.get("rarity", 1), text_secondary)
+        draw.text((left_pane_x, name_y + 25), rarity_text, font=FONT_FISH_NAME, fill=rarity_color)
+        # 右侧统计信息 - 进一步向右移动
+        stats_x = PADDING + 480
+        stats_y = card_y1 + 15
+        # 重量纪录 - 使用背包颜色
         min_w = fish.get('min_weight', 0)
         max_w = fish.get('max_weight', 0)
         weight_text = f"● 重量纪录: 最小 {format_weight(min_w)} / 最大 {format_weight(max_w)}"
-        draw.text((stats_x, stats_y), weight_text, font=FONT_REGULAR, fill=COLOR_TEXT_DARK)
+        draw.text((stats_x, stats_y), weight_text, font=FONT_REGULAR, fill=COLOR_GOLD)
         
-        # 累计捕获
+        # 累计捕获 - 使用背包颜色
         total_w = fish.get('total_weight', 0)
         caught_text = f"◆ 累计捕获: {fish.get('total_caught', 0)} 条 ({format_weight(total_w)})"
-        draw.text((stats_x, stats_y + 25), caught_text, font=FONT_REGULAR, fill=COLOR_ACCENT)
+        draw.text((stats_x, stats_y + 18), caught_text, font=FONT_REGULAR, fill=primary_light)
 
-        # 首次捕获
+        # 首次捕获 - 使用背包颜色
         first_caught_time = fish.get('first_caught_time')
         if isinstance(first_caught_time, datetime):
             first_caught_text = f"★ 首次捕获: {first_caught_time.strftime('%Y-%m-%d %H:%M')}"
         else:
             first_caught_text = f"★ 首次捕获: {str(first_caught_time).split('.')[0] if first_caught_time else '未知'}"
-        draw.text((stats_x, stats_y + 50), first_caught_text, font=FONT_REGULAR, fill=COLOR_TEXT_GRAY)
-        # 描述
-        desc_y = card_y1 + FISH_CARD_HEIGHT - 35
-        draw.text((left_pane_x, desc_y), fish.get("description", ""), font=FONT_SMALL, fill=COLOR_TEXT_GRAY)
+        draw.text((stats_x, stats_y + 36), first_caught_text, font=FONT_REGULAR, fill=COLOR_SUCCESS)
+        # 描述 - 调整位置适应更小的卡片，使用背包颜色
+        desc_y = card_y1 + FISH_CARD_HEIGHT - 20
+        draw.text((left_pane_x, desc_y), fish.get("description", ""), font=FONT_SMALL, fill=text_muted)
 
         current_y = card_y2 + FISH_CARD_MARGIN
 
-    # 绘制页脚
+    # 绘制页脚 - 使用背包颜色
     footer_y = img_height - PADDING - FOOTER_HEIGHT + 20
     footer_text = f"◈ 第 {page} / {total_pages} 页 - 使用 /图鉴 [页码] 查看更多 ◈"
-    draw.text((PADDING, footer_y), footer_text, font=FONT_SMALL, fill=COLOR_TEXT_GRAY)
+    draw.text((PADDING, footer_y), footer_text, font=FONT_SMALL, fill=text_secondary)
 
     try:
         logger.info(f"准备将图鉴图片保存至: {output_path}")
