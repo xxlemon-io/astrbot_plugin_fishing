@@ -2,6 +2,7 @@ import os
 from PIL import Image, ImageDraw
 from typing import List, Dict, Any
 from astrbot.api import logger
+from datetime import datetime
 
 from .utils import get_user_avatar
 from .styles import (
@@ -28,11 +29,17 @@ def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output
     """
     绘制图鉴图片
     """
+    logger.debug(f"开始绘制图鉴，用户: {user_info.get('nickname', '未知')}, 页面: {page}")
+    logger.debug(f"传入数据: {pokedex_data}")
+
     pokedex_list = pokedex_data.get("pokedex", [])
     total_pages = (len(pokedex_list) + FISH_PER_PAGE - 1) // FISH_PER_PAGE
+    logger.debug(f"总页数: {total_pages}, 鱼类总数: {len(pokedex_list)}")
+
     start_index = (page - 1) * FISH_PER_PAGE
     end_index = start_index + FISH_PER_PAGE
     page_fishes = pokedex_list[start_index:end_index]
+    logger.debug(f"当前页鱼类数据: {page_fishes}")
 
     # 页脚高度
     FOOTER_HEIGHT = 50
@@ -53,7 +60,8 @@ def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output
 
     # 绘制鱼卡片
     current_y = PADDING + HEADER_HEIGHT + FISH_CARD_MARGIN
-    for fish in page_fishes:
+    for i, fish in enumerate(page_fishes):
+        logger.debug(f"正在绘制第 {i+1} 条鱼: {fish.get('name', '未知')}")
         card_y1 = current_y
         card_y2 = card_y1 + FISH_CARD_HEIGHT
         draw_rounded_rectangle(draw, (PADDING, card_y1, IMG_WIDTH - PADDING, card_y2), CORNER_RADIUS, fill=COLOR_CARD_BG, outline=COLOR_CARD_BORDER)
@@ -76,7 +84,11 @@ def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output
         caught_text = f"📈 累计捕获: {fish.get('total_caught', 0)} 条 ({fish.get('total_weight', 0)}g)"
         draw.text((stats_x, stats_y + 30), caught_text, font=FONT_REGULAR, fill=COLOR_TEXT_GRAY)
         # 首次捕获
-        first_caught_text = f"🗓️ 首次捕获: {fish.get('first_caught_time', '未知')}"
+        first_caught_time = fish.get('first_caught_time')
+        if isinstance(first_caught_time, datetime):
+            first_caught_text = f"🗓️ 首次捕获: {first_caught_time.strftime('%Y-%m-%d %H:%M')}"
+        else:
+            first_caught_text = f"🗓️ 首次捕获: {first_caught_time or '未知'}"
         draw.text((stats_x, stats_y + 60), first_caught_text, font=FONT_REGULAR, fill=COLOR_TEXT_GRAY)
         # 描述
         desc_y = card_y1 + FISH_CARD_HEIGHT - 35
@@ -90,8 +102,9 @@ def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output
     draw.text((PADDING, footer_y), footer_text, font=FONT_SMALL, fill=COLOR_TEXT_GRAY)
 
     try:
+        logger.info(f"准备将图鉴图片保存至: {output_path}")
         img.save(output_path)
-        logger.info(f"图鉴图片已保存至 {output_path}")
+        logger.info(f"图鉴图片已成功保存至 {output_path}")
     except Exception as e:
-        logger.error(f"保存图鉴图片失败: {e}")
+        logger.error(f"保存图鉴图片失败: {e}", exc_info=True)
         raise
