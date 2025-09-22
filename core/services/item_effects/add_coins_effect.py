@@ -35,8 +35,4 @@ class AddCoinsEffect(AbstractItemEffect):
         user.coins += total_amount
         self.user_repo.update(user)
 
-        return {
-            "success": True,
-            "message": f"💰 打开 {item_template.name} x{quantity}，获得了 {total_amount} 金币！",
-            "coins_gained": total_amount,
-        }
+        return {"success": True, "message": f"💰 打开 {item_template.name} x{quantity}，获得了 {total_amount} 金币！"}
