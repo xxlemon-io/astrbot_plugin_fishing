@@ -9,14 +9,25 @@ from .styles import (
     IMG_WIDTH, PADDING, CORNER_RADIUS,
     COLOR_BACKGROUND, COLOR_HEADER_BG, COLOR_TEXT_WHITE, COLOR_TEXT_DARK,
     COLOR_TEXT_GRAY, COLOR_CARD_BG, COLOR_CARD_BORDER, COLOR_RARITY_MAP,
-    FONT_HEADER, FONT_SUBHEADER, FONT_FISH_NAME, FONT_REGULAR, FONT_SMALL
+    FONT_HEADER, FONT_SUBHEADER, FONT_FISH_NAME, FONT_REGULAR, FONT_SMALL,
+    COLOR_ACCENT
 )
+
+def format_weight(g):
+    """将克转换为更易读的单位 (kg, t)"""
+    if g is None:
+        return "0g"
+    if g >= 1000000:
+        return f"{g / 1000000:.2f}t"
+    if g >= 1000:
+        return f"{g / 1000:.2f}kg"
+    return f"{g}g"
 
 # --- 布局 ---
 HEADER_HEIGHT = 120
-FISH_CARD_HEIGHT = 150
-FISH_CARD_MARGIN = 20
-FISH_PER_PAGE = 5
+FISH_CARD_HEIGHT = 120  # 稍微减小高度以适应更多内容
+FISH_CARD_MARGIN = 15   # 减小间距
+FISH_PER_PAGE = 10      # 每页显示10个
 
 
 def draw_rounded_rectangle(draw, xy, radius, fill, outline=None, width=1):
@@ -55,7 +66,7 @@ def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output
     draw.text((PADDING + 30, PADDING + 30), header_text, font=FONT_HEADER, fill=COLOR_TEXT_WHITE)
 
     # 进度
-    progress_text = f"收集进度: {pokedex_data.get('unlocked_fish_count', 0)} / {pokedex_data.get('total_fish_count', 0)}"
+    progress_text = f"◇ 收集进度: {pokedex_data.get('unlocked_fish_count', 0)} / {pokedex_data.get('total_fish_count', 0)} ◇"
     draw.text((IMG_WIDTH - PADDING - 300, PADDING + 45), progress_text, font=FONT_SUBHEADER, fill=COLOR_TEXT_WHITE)
 
     # 绘制鱼卡片
@@ -78,18 +89,23 @@ def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output
         stats_x = PADDING + 300
         stats_y = card_y1 + 25
         # 重量纪录
-        weight_text = f"⚖️ 重量纪录: {fish.get('min_weight', 0)}g / {fish.get('max_weight', 0)}g"
-        draw.text((stats_x, stats_y), weight_text, font=FONT_REGULAR, fill=COLOR_TEXT_GRAY)
+        min_w = fish.get('min_weight', 0)
+        max_w = fish.get('max_weight', 0)
+        weight_text = f"● 重量纪录: 最小 {format_weight(min_w)} / 最大 {format_weight(max_w)}"
+        draw.text((stats_x, stats_y), weight_text, font=FONT_REGULAR, fill=COLOR_TEXT_DARK)
+        
         # 累计捕获
-        caught_text = f"📈 累计捕获: {fish.get('total_caught', 0)} 条 ({fish.get('total_weight', 0)}g)"
-        draw.text((stats_x, stats_y + 30), caught_text, font=FONT_REGULAR, fill=COLOR_TEXT_GRAY)
+        total_w = fish.get('total_weight', 0)
+        caught_text = f"◆ 累计捕获: {fish.get('total_caught', 0)} 条 ({format_weight(total_w)})"
+        draw.text((stats_x, stats_y + 25), caught_text, font=FONT_REGULAR, fill=COLOR_ACCENT)
+
         # 首次捕获
         first_caught_time = fish.get('first_caught_time')
         if isinstance(first_caught_time, datetime):
-            first_caught_text = f"🗓️ 首次捕获: {first_caught_time.strftime('%Y-%m-%d %H:%M')}"
+            first_caught_text = f"★ 首次捕获: {first_caught_time.strftime('%Y-%m-%d %H:%M')}"
         else:
-            first_caught_text = f"🗓️ 首次捕获: {first_caught_time or '未知'}"
-        draw.text((stats_x, stats_y + 60), first_caught_text, font=FONT_REGULAR, fill=COLOR_TEXT_GRAY)
+            first_caught_text = f"★ 首次捕获: {str(first_caught_time).split('.')[0] if first_caught_time else '未知'}"
+        draw.text((stats_x, stats_y + 50), first_caught_text, font=FONT_REGULAR, fill=COLOR_TEXT_GRAY)
         # 描述
         desc_y = card_y1 + FISH_CARD_HEIGHT - 35
         draw.text((left_pane_x, desc_y), fish.get("description", ""), font=FONT_SMALL, fill=COLOR_TEXT_GRAY)
@@ -98,7 +114,7 @@ def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], output
 
     # 绘制页脚
     footer_y = img_height - PADDING - FOOTER_HEIGHT + 20
-    footer_text = f"第 {page} / {total_pages} 页 - 使用 /图鉴 [页码] 查看更多"
+    footer_text = f"◈ 第 {page} / {total_pages} 页 - 使用 /图鉴 [页码] 查看更多 ◈"
     draw.text((PADDING, footer_y), footer_text, font=FONT_SMALL, fill=COLOR_TEXT_GRAY)
 
     try:
