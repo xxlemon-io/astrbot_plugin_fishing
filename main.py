@@ -291,6 +291,11 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.use_item(self, event):
             yield r
 
+    @filter.command("开启全部钱袋", alias={"开全部钱袋", "全部钱袋"})
+    async def open_all_money_bags(self, event: AstrMessageEvent):
+        async for r in inventory_handlers.open_all_money_bags(self, event):
+            yield r
+
     @filter.command("出售道具", alias={"卖出道具"})
     async def sell_item(self, event: AstrMessageEvent):
         async for r in inventory_handlers.sell_item(self, event):

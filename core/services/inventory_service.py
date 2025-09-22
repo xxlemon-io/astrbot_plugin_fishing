@@ -1384,6 +1384,96 @@ class InventoryService:
             # 在实际生产中，这里应该有更详细的日志记录
             return {"success": False, "message": f"使用道具时发生未知错误: {e}"}
 
+    def open_all_money_bags(self, user_id: str) -> Dict[str, Any]:
+        """
+        开启用户拥有的所有钱袋类道具（effect_type == "ADD_COINS" 且 is_consumable == True）
+        返回开启结果统计
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        try:
+            # 获取用户道具持有情况与所有道具模板
+            user_items = self.inventory_repo.get_user_item_inventory(user_id)
+            all_items_tpl = self.item_template_repo.get_all_items()
+        except Exception as e:
+            return {"success": False, "message": f"获取道具信息失败: {e}"}
+
+        # 过滤出钱袋类可消耗道具
+        money_bag_templates = []
+        for tpl in all_items_tpl:
+            try:
+                if (getattr(tpl, "effect_type", None) == "ADD_COINS" and 
+                    getattr(tpl, "is_consumable", False)):
+                    money_bag_templates.append(tpl)
+            except Exception:
+                continue
+
+        if not money_bag_templates:
+            return {"success": True, "message": "🎒 您当前没有可开启的钱袋", "total_gained": 0, "opened_bags": 0}
+
+        # 统计用户拥有的钱袋
+        owned_money_bags = []
+        for tpl in money_bag_templates:
+            quantity = user_items.get(tpl.item_id, 0)
+            if quantity > 0:
+                owned_money_bags.append((tpl, quantity))
+
+        if not owned_money_bags:
+            return {"success": True, "message": "🎒 您当前没有可开启的钱袋", "total_gained": 0, "opened_bags": 0}
+
+        # 获取金币效果处理器
+        effect_handler = self.effect_manager.get_effect("ADD_COINS")
+        if not effect_handler:
+            return {"success": False, "message": "金币效果处理器不可用"}
+
+        total_gained = 0
+        opened_bags = 0
+        bag_details = []
+
+        # 逐个开启钱袋
+        for tpl, quantity in owned_money_bags:
+            try:
+                # 消耗道具
+                self.inventory_repo.decrease_item_quantity(user_id, tpl.item_id, quantity)
+                
+                # 应用效果
+                payload = json.loads(tpl.effect_payload) if tpl.effect_payload else {}
+                result = effect_handler.apply(user, tpl, payload, quantity=quantity)
+                
+                if result.get("success", False):
+                    coins_gained = result.get("coins_gained", 0)
+                    total_gained += coins_gained
+                    opened_bags += quantity
+                    bag_details.append(f"  {tpl.name} x{quantity} → {coins_gained} 金币")
+                else:
+                    # 如果开启失败，恢复道具数量
+                    self.inventory_repo.increase_item_quantity(user_id, tpl.item_id, quantity)
+                    
+            except Exception as e:
+                # 如果开启失败，恢复道具数量
+                try:
+                    self.inventory_repo.increase_item_quantity(user_id, tpl.item_id, quantity)
+                except:
+                    pass
+                continue
+
+        # 构建返回消息
+        if opened_bags == 0:
+            return {"success": True, "message": "🎒 没有成功开启任何钱袋", "total_gained": 0, "opened_bags": 0}
+
+        message = f"🎒 成功开启了 {opened_bags} 个钱袋，共获得 {total_gained} 金币！\n\n"
+        message += "📋 开启详情：\n"
+        message += "\n".join(bag_details)
+        
+        return {
+            "success": True,
+            "message": message,
+            "total_gained": total_gained,
+            "opened_bags": opened_bags
+        }
+
     def sell_item(self, user_id: str, item_id: int, quantity: int = 1) -> Dict[str, Any]:
         """出售指定数量的道具，按照模板 cost 的一半计价（至少 1）。"""
         if quantity <= 0:
