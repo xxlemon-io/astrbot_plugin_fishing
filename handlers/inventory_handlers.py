@@ -74,13 +74,26 @@ async def rod(self, event: AstrMessageEvent):
     user_id = self._get_effective_user_id(event)
     rod_info = self.inventory_service.get_user_rod_inventory(user_id)
     if rod_info and rod_info["rods"]:
+        rods = rod_info["rods"]
+        total_count = len(rods)
+        
+        # 检查是否超过显示限制
+        if total_count > 20:
+            yield event.plain_result(f"🎣 您有 {total_count} 根鱼竿，数量过多无法完整显示。\n💡 建议使用「背包图片」命令查看完整信息，或使用「出售鱼竿」命令清理不需要的鱼竿。")
+            return
+        
         # 构造输出信息,附带emoji
-        message = "【🎣 鱼竿】：\n"
-        for rod in rod_info["rods"]:
+        message = f"【🎣 鱼竿】共 {total_count} 根：\n"
+        for rod in rods:
             message += format_accessory_or_rod(rod)
             if rod.get("bonus_rare_fish_chance", 1) != 1 and rod.get("bonus_fish_weight", 1.0) != 1.0:
                 message += f"   - 钓上鱼鱼类几率加成: {to_percentage(rod['bonus_rare_fish_chance'])}\n"
             message += f"   -精炼等级: {rod.get('refine_level', 1)}\n"
+        
+        # 检查消息长度，如果太长则截断
+        if len(message) > 1000:
+            message = message[:1000] + "\n\n📝 消息过长已截断，建议使用「背包图片」命令查看完整信息。"
+        
         yield event.plain_result(message)
     else:
         yield event.plain_result("🎣 您还没有鱼竿，快去商店购买或抽奖获得吧！")
@@ -213,11 +226,24 @@ async def accessories(self, event: AstrMessageEvent):
     user_id = self._get_effective_user_id(event)
     accessories_info = self.inventory_service.get_user_accessory_inventory(user_id)
     if accessories_info and accessories_info["accessories"]:
+        accessories = accessories_info["accessories"]
+        total_count = len(accessories)
+        
+        # 检查是否超过显示限制
+        if total_count > 20:
+            yield event.plain_result(f"💍 您有 {total_count} 个饰品，数量过多无法完整显示。\n💡 建议使用「背包图片」命令查看完整信息，或使用「出售饰品」命令清理不需要的饰品。")
+            return
+        
         # 构造输出信息,附带emoji
-        message = "【💍 饰品】：\n"
-        for accessory in accessories_info["accessories"]:
+        message = f"【💍 饰品】共 {total_count} 个：\n"
+        for accessory in accessories:
             message += format_accessory_or_rod(accessory)
             message += f"   -精炼等级: {accessory.get('refine_level', 1)}\n"
+        
+        # 检查消息长度，如果太长则截断
+        if len(message) > 3000:
+            message = message[:3000] + "\n\n📝 消息过长已截断，建议使用「背包图片」命令查看完整信息。"
+        
         yield event.plain_result(message)
     else:
         yield event.plain_result("💍 您还没有饰品，快去商店购买或抽奖获得吧！")

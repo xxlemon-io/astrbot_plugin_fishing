@@ -125,7 +125,20 @@ async def shop(self, event: AstrMessageEvent):
             if s.get("description"):
                 msg += f"   - {s.get('description')}\n"
         msg += "\n💡 使用「商店 商店ID」查看详情；使用「商店购买 商店ID 商品ID [数量]」购买\n"
-        yield event.plain_result(msg)
+        
+        # 检查消息长度，如果太长则分多次发送
+        if len(msg) > 1500:
+            # 分割消息
+            lines = msg.split('\n')
+            mid_point = len(lines) // 2
+            
+            first_part = '\n'.join(lines[:mid_point])
+            second_part = '\n'.join(lines[mid_point:])
+            
+            yield event.plain_result(first_part)
+            yield event.plain_result(second_part)
+        else:
+            yield event.plain_result(msg)
         return
 
     # /商店 <ID> → 详情
@@ -454,29 +467,67 @@ async def market(self, event: AstrMessageEvent):
     """查看市场"""
     result = self.market_service.get_market_listings()
     if result["success"]:
-        message = "【🛒 市场】\n\n"
+        # 收集所有商品并限制总数
+        all_items = []
+        
         if result["rods"]:
-            message += "【🎣 鱼竿】:\n"
-            for rod in result["rods"]:
-                message += f" - {rod['item_name']} 精{rod['refine_level']} (ID: {rod['market_id']}) - 价格: {rod['price']} 金币\n"
-                message += f" - 售卖人： {rod['seller_nickname']}\n\n"
-        else:
-            message += "🎣 市场中没有鱼竿可供购买。\n\n"
+            for rod in result["rods"][:15]:  # 限制鱼竿最多15件
+                all_items.append({
+                    "type": "鱼竿",
+                    "emoji": "🎣",
+                    "name": f"{rod['item_name']} 精{rod['refine_level']}",
+                    "id": rod['market_id'],
+                    "price": rod['price'],
+                    "seller": rod['seller_nickname']
+                })
+        
         if result["accessories"]:
-            message += "【💍 饰品】:\n"
-            for accessory in result["accessories"]:
-                message += f" - {accessory['item_name']} 精{accessory['refine_level']} (ID: {accessory['market_id']}) - 价格: {accessory['price']} 金币\n"
-                message += f" - 售卖人： {accessory['seller_nickname']}\n\n"
-        else:
-            message += "💍 市场中没有饰品可供购买。\n\n"
+            for accessory in result["accessories"][:15]:  # 限制饰品最多15件
+                all_items.append({
+                    "type": "饰品",
+                    "emoji": "💍",
+                    "name": f"{accessory['item_name']} 精{accessory['refine_level']}",
+                    "id": accessory['market_id'],
+                    "price": accessory['price'],
+                    "seller": accessory['seller_nickname']
+                })
+        
         if result["items"]:
-            message += "【🎁 道具】:\n"
-            for item in result["items"]:
-                message += f" - {item['item_name']} (ID: {item['market_id']}) - 价格: {item['price']} 金币\n"
-                message += f" - 售卖人： {item['seller_nickname']}\n\n"
-        else:
-            message += "🎁 市场中没有道具可供购买。\n"
-        yield event.plain_result(message)
+            for item in result["items"][:15]:  # 限制道具最多15件
+                all_items.append({
+                    "type": "道具",
+                    "emoji": "🎁",
+                    "name": item['item_name'],
+                    "id": item['market_id'],
+                    "price": item['price'],
+                    "seller": item['seller_nickname']
+                })
+        
+        if not all_items:
+            yield event.plain_result("🛒 市场中没有商品可供购买。")
+            return
+        
+        # 限制总显示数量为15件
+        display_count = min(len(all_items), 15)
+        all_items = all_items[:display_count]
+        
+        # 分页显示，每页最多8件商品
+        page_size = 8
+        total_pages = (display_count + page_size - 1) // page_size
+        
+        for page in range(total_pages):
+            start_idx = page * page_size
+            end_idx = min(start_idx + page_size, display_count)
+            page_items = all_items[start_idx:end_idx]
+            
+            message = f"【🛒 市场】第 {page + 1}/{total_pages} 页 (显示前 {display_count} 件商品)\n\n"
+            
+            for item in page_items:
+                message += f"【{item['emoji']} {item['type']}】:\n"
+                message += f" - {item['name']} (ID: {item['id']}) - 价格: {item['price']} 金币\n"
+                message += f" - 售卖人： {item['seller']}\n\n"
+            
+            yield event.plain_result(message)
     else:
         yield event.plain_result(f"❌ 出错啦！{result['message']}")
 
@@ -584,16 +635,34 @@ async def my_listings(self, event: AstrMessageEvent):
             yield event.plain_result("📦 您还没有在市场上架任何商品。")
             return
         
-        message = f"【🛒 我的上架商品】共 {result['count']} 件\n\n"
-        for listing in listings:
-            message += f"🆔 ID: {listing.market_id}\n"
-            message += f"📦 {listing.item_name}"
-            if listing.refine_level > 1:
-                message += f" 精{listing.refine_level}"
-            message += f"\n💰 价格: {listing.price} 金币\n"
-            message += f"📅 上架时间: {listing.listed_at.strftime('%Y-%m-%d %H:%M')}\n\n"
-        message += "💡 使用「下架 ID」命令下架指定商品"
-        yield event.plain_result(message)
+        total_count = len(listings)
+        
+        # 限制最多显示15件商品，超过则分多次发送
+        display_count = min(total_count, 15)
+        listings_to_show = listings[:display_count]
+        
+        # 分页显示，每页最多8件商品
+        page_size = 8
+        total_pages = (display_count + page_size - 1) // page_size
+        
+        for page in range(total_pages):
+            start_idx = page * page_size
+            end_idx = min(start_idx + page_size, display_count)
+            page_listings = listings_to_show[start_idx:end_idx]
+            
+            message = f"【🛒 我的上架商品】第 {page + 1}/{total_pages} 页 (共 {total_count} 件，显示前 {display_count} 件)\n\n"
+            
+            for listing in page_listings:
+                message += f"🆔 ID: {listing.market_id}\n"
+                message += f"📦 {listing.item_name}"
+                if listing.refine_level > 1:
+                    message += f" 精{listing.refine_level}"
+                message += f"\n💰 价格: {listing.price} 金币\n"
+                message += f"📅 上架时间: {listing.listed_at.strftime('%Y-%m-%d %H:%M')}\n\n"
+            
+            message += "💡 使用「下架 ID」命令下架指定商品"
+            
+            yield event.plain_result(message)
     else:
         yield event.plain_result(f"❌ 查询失败：{result['message']}")
 

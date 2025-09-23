@@ -142,10 +142,13 @@ async def gacha_history(self, event: AstrMessageEvent):
             if not history:
                 yield event.plain_result("📜 您还没有抽卡记录。")
                 return
-            message = "【📜 抽卡记录】\n\n"
+            total_count = len(history)
+            message = f"【📜 抽卡记录】共 {total_count} 条\n\n"
+            
             for record in history:
                 message += f"物品名称: {record['item_name']} (稀有度: {'⭐' * record['rarity']})\n"
                 message += f"时间: {safe_datetime_handler(record['timestamp'])}\n\n"
+            
             yield event.plain_result(message)
         else:
             yield event.plain_result(f"❌ 查看抽卡记录失败：{result['message']}")
