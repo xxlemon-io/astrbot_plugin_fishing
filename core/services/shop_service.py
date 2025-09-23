@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # 导入仓储接口
 from ..repositories.abstract_repository import (
@@ -193,8 +193,12 @@ class ShopService:
                     return {"success": False, "message": f"超过个人限购，还可购买 {remaining} 个"}
         
         if item.get("per_user_daily_limit") is not None and item["per_user_daily_limit"] > 0:
-            start_of_day = datetime(datetime.now().year, datetime.now().month, datetime.now().day)
-            purchased_today = self.shop_repo.get_user_purchased_count(user_id, item_id, since=start_of_day)
+            # 处理每日限购：数据库记录时间为UTC（SQLite CURRENT_TIMESTAMP），需将本地零点换算为UTC
+            now_utc = datetime.now(timezone.utc)
+            now_local = now_utc.astimezone(timezone(timedelta(hours=8)))
+            local_midnight = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+            start_of_day_utc = local_midnight.astimezone(timezone.utc).replace(tzinfo=None)
+            purchased_today = self.shop_repo.get_user_purchased_count(user_id, item_id, since=start_of_day_utc)
             if purchased_today + quantity > item["per_user_daily_limit"]:
                 remaining = item["per_user_daily_limit"] - purchased_today
                 if remaining <= 0:
