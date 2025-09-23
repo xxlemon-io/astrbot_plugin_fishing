@@ -52,41 +52,49 @@ class SqliteMarketRepository(AbstractMarketRepository):
         """获取单个市场商品"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            #  采用连表查询补全其他字段
-            # cursor.execute("SELECT * FROM market WHERE market_id = ?", (market_id,))
-            cursor.execute("""
+
+            # 检查表结构
+            cursor.execute("PRAGMA table_info(market)")
+            cols = [row[1] for row in cursor.fetchall()]
+            
+            # 动态构建查询
+            select_instance_id = "m.item_instance_id" if "item_instance_id" in cols else "NULL AS item_instance_id"
+            select_is_anonymous = "m.is_anonymous" if "is_anonymous" in cols else "0 AS is_anonymous"
+
+            query = f"""
                 SELECT
                     m.market_id,
                     m.user_id,
                     u.nickname AS seller_nickname,
                     m.item_type,
                     m.item_id,
-                    m.item_instance_id,
+                    {select_instance_id},
                     m.quantity,
                     m.price,
                     m.refine_level,
                     m.listed_at,
-                    m.is_anonymous,
+                    {select_is_anonymous},
                     CASE
                         WHEN m.item_type = 'rod' THEN r.name
                         WHEN m.item_type = 'accessory' THEN a.name
                         WHEN m.item_type = 'item' THEN i.name
                         ELSE '未知物品'
-                        END AS item_name,
-                        CASE
+                    END AS item_name,
+                    CASE
                         WHEN m.item_type = 'rod' THEN r.description
                         WHEN m.item_type = 'accessory' THEN a.description
                         WHEN m.item_type = 'item' THEN i.description
                         ELSE ''
-                        END AS item_description
-                        FROM market m
-                    JOIN users u ON m.user_id = u.user_id
-                    LEFT JOIN rods r ON m.item_type = 'rod' AND m.item_id = r.rod_id
-                    LEFT JOIN accessories a ON m.item_type = 'accessory' AND m.item_id = a.accessory_id
-                    LEFT JOIN items i ON m.item_type = 'item' AND m.item_id = i.item_id
-                    WHERE m.market_id = ?
-            """, (market_id,))
-
+                    END AS item_description
+                FROM market m
+                JOIN users u ON m.user_id = u.user_id
+                LEFT JOIN rods r ON m.item_type = 'rod' AND m.item_id = r.rod_id
+                LEFT JOIN accessories a ON m.item_type = 'accessory' AND m.item_id = a.accessory_id
+                LEFT JOIN items i ON m.item_type = 'item' AND m.item_id = i.item_id
+                WHERE m.market_id = ?
+            """
+            
+            cursor.execute(query, (market_id,))
             row = cursor.fetchone()
             return self._row_to_market_listing(row)
 
@@ -99,6 +107,14 @@ class SqliteMarketRepository(AbstractMarketRepository):
         """
         with self._get_connection() as conn:
             cursor = conn.cursor()
+
+            # 检查表结构
+            cursor.execute("PRAGMA table_info(market)")
+            cols = [row[1] for row in cursor.fetchall()]
+
+            # 动态构建查询
+            select_instance_id = "m.item_instance_id" if "item_instance_id" in cols else "NULL AS item_instance_id"
+            select_is_anonymous = "m.is_anonymous" if "is_anonymous" in cols else "0 AS is_anonymous"
             
             # 构建WHERE条件
             where_conditions = []
@@ -149,12 +165,12 @@ class SqliteMarketRepository(AbstractMarketRepository):
                     u.nickname AS seller_nickname,
                     m.item_type,
                     m.item_id,
-                    m.item_instance_id,
+                    {select_instance_id},
                     m.quantity,
                     m.price,
                     m.refine_level,
                     m.listed_at,
-                    m.is_anonymous,
+                    {select_is_anonymous},
                     CASE
                         WHEN m.item_type = 'rod' THEN r.name
                         WHEN m.item_type = 'accessory' THEN a.name
@@ -192,20 +208,72 @@ class SqliteMarketRepository(AbstractMarketRepository):
         """添加一个市场商品"""
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO market (user_id, item_type, item_id, quantity, price, listed_at, refine_level, is_anonymous, item_instance_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                listing.user_id,
-                listing.item_type,
-                listing.item_id,
-                listing.quantity,
-                listing.price,
-                listing.listed_at or datetime.now(),
-                listing.refine_level,
-                listing.is_anonymous,
-                listing.item_instance_id
-            ))
+            
+            # 检查表结构，确定哪些字段存在
+            cursor.execute("PRAGMA table_info(market)")
+            cols = [row[1] for row in cursor.fetchall()]
+            
+            # 构建动态的INSERT语句
+            if "is_anonymous" in cols and "item_instance_id" in cols:
+                # 新版本：包含所有字段
+                cursor.execute("""
+                    INSERT INTO market (user_id, item_type, item_id, quantity, price, listed_at, refine_level, is_anonymous, item_instance_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    listing.user_id,
+                    listing.item_type,
+                    listing.item_id,
+                    listing.quantity,
+                    listing.price,
+                    listing.listed_at or datetime.now(),
+                    listing.refine_level,
+                    listing.is_anonymous,
+                    listing.item_instance_id
+                ))
+            elif "is_anonymous" in cols:
+                # 只有is_anonymous字段
+                cursor.execute("""
+                    INSERT INTO market (user_id, item_type, item_id, quantity, price, listed_at, refine_level, is_anonymous)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    listing.user_id,
+                    listing.item_type,
+                    listing.item_id,
+                    listing.quantity,
+                    listing.price,
+                    listing.listed_at or datetime.now(),
+                    listing.refine_level,
+                    listing.is_anonymous
+                ))
+            elif "item_instance_id" in cols:
+                # 只有item_instance_id字段
+                cursor.execute("""
+                    INSERT INTO market (user_id, item_type, item_id, quantity, price, listed_at, refine_level, item_instance_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    listing.user_id,
+                    listing.item_type,
+                    listing.item_id,
+                    listing.quantity,
+                    listing.price,
+                    listing.listed_at or datetime.now(),
+                    listing.refine_level,
+                    listing.item_instance_id
+                ))
+            else:
+                # 旧版本：不包含新字段
+                cursor.execute("""
+                    INSERT INTO market (user_id, item_type, item_id, quantity, price, listed_at, refine_level)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    listing.user_id,
+                    listing.item_type,
+                    listing.item_id,
+                    listing.quantity,
+                    listing.price,
+                    listing.listed_at or datetime.now(),
+                    listing.refine_level
+                ))
             conn.commit()
 
     def remove_listing(self, market_id: int) -> None:
