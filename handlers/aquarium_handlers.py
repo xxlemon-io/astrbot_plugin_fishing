@@ -3,17 +3,26 @@ from ..utils import format_rarity_display
 
 
 async def aquarium(self, event: AstrMessageEvent):
-    """查看用户水族箱"""
+    """水族箱主命令：
+    - "水族箱": 显示水族箱列表
+    - "水族箱 帮助": 显示帮助
+    """
+    args = event.message_str.strip().split()
+    if len(args) >= 2 and args[1] in {"帮助", "help", "?"}:
+        async for r in aquarium_help(self, event):
+            yield r
+        return
+
     user_id = self._get_effective_user_id(event)
     result = self.aquarium_service.get_user_aquarium(user_id)
-    
+
     if not result["success"]:
         yield event.plain_result(f"❌ {result['message']}")
         return
 
     fishes = result["fishes"]
     stats = result["stats"]
-    
+
     if not fishes:
         yield event.plain_result("🐠 您的水族箱是空的，快去钓鱼吧！")
         return
@@ -28,7 +37,7 @@ async def aquarium(self, event: AstrMessageEvent):
 
     # 构造输出信息
     message = "【🐠 水族箱】：\n"
-    
+
     for rarity in sorted(fishes_by_rarity.keys(), reverse=True):
         fish_list = fishes_by_rarity[rarity]
         if fish_list:
@@ -37,11 +46,11 @@ async def aquarium(self, event: AstrMessageEvent):
                 fish_id = int(fish.get('fish_id', 0) or 0)
                 fcode = f"F{fish_id}" if fish_id else "F0"
                 message += f"  - {fish['name']} x  {fish['quantity']} （{fish['base_value']}金币 / 个） ID: {fcode}\n"
-    
+
     message += f"\n🐟 总鱼数：{stats['total_count']} / {stats['capacity']} 条\n"
     message += f"💰 总价值：{stats['total_value']} 金币\n"
     message += f"📦 剩余空间：{stats['available_space']} 条\n"
-    
+
     yield event.plain_result(message)
 
 
@@ -106,23 +115,7 @@ async def remove_from_aquarium(self, event: AstrMessageEvent):
 async def upgrade_aquarium(self, event: AstrMessageEvent):
     """升级水族箱容量"""
     user_id = self._get_effective_user_id(event)
-    
-    # 先检查是否可以升级
-    check_result = self.aquarium_service.can_afford_upgrade(user_id)
-    if not check_result["success"]:
-        yield event.plain_result(f"❌ {check_result['message']}")
-        return
-
-    if not check_result["can_afford"]:
-        message = "❌ 无法升级水族箱：\n"
-        if not check_result["can_afford_coins"]:
-            message += f"💰 金币不足：需要 {check_result['required_coins']}，当前 {check_result['user_coins']}\n"
-        if not check_result["can_afford_premium"]:
-            message += f"💎 钻石不足：需要 {check_result['required_premium']}，当前 {check_result['user_premium']}\n"
-        yield event.plain_result(message)
-        return
-
-    # 执行升级
+    # 直接尝试升级，失败时会返回具体原因（包含所需费用）
     result = self.aquarium_service.upgrade_aquarium(user_id)
     
     if result["success"]:
@@ -131,35 +124,7 @@ async def upgrade_aquarium(self, event: AstrMessageEvent):
         yield event.plain_result(f"❌ {result['message']}")
 
 
-async def aquarium_upgrade_info(self, event: AstrMessageEvent):
-    """查看水族箱升级信息"""
-    user_id = self._get_effective_user_id(event)
-    result = self.aquarium_service.get_aquarium_upgrade_info(user_id)
-    
-    if not result["success"]:
-        yield event.plain_result(f"❌ {result['message']}")
-        return
-
-    current_level = result["current_level"]
-    current_capacity = result["current_capacity"]
-    next_upgrade = result["next_upgrade"]
-
-    message = f"【🐠 水族箱升级信息】：\n"
-    message += f"当前等级：{current_level}\n"
-    message += f"当前容量：{current_capacity} 条\n"
-
-    if next_upgrade:
-        message += f"\n下一级升级：\n"
-        message += f"等级：{next_upgrade.level}\n"
-        message += f"容量：{next_upgrade.capacity} 条\n"
-        message += f"费用：{next_upgrade.cost_coins} 金币"
-        if next_upgrade.cost_premium > 0:
-            message += f" + {next_upgrade.cost_premium} 钻石"
-        message += f"\n描述：{next_upgrade.description}"
-    else:
-        message += "\n🎉 恭喜！您的水族箱已达到最高等级！"
-
-    yield event.plain_result(message)
+    # 过度信息命令删除：在升级操作中按需提示
 
 
 async def aquarium_help(self, event: AstrMessageEvent):

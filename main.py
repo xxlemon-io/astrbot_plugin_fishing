@@ -306,15 +306,7 @@ class FishingPlugin(Star):
         async for r in aquarium_handlers.upgrade_aquarium(self, event):
             yield r
 
-    @filter.command("水族箱升级信息", alias={"水族箱升级"})
-    async def aquarium_upgrade_info(self, event: AstrMessageEvent):
-        async for r in aquarium_handlers.aquarium_upgrade_info(self, event):
-            yield r
-
-    @filter.command("水族箱帮助", alias={"水族箱菜单"})
-    async def aquarium_help(self, event: AstrMessageEvent):
-        async for r in aquarium_handlers.aquarium_help(self, event):
-            yield r
+    # 提示：帮助入口整合到“水族箱 帮助”子命令中
 
     @filter.command("鱼竿")
     async def rod(self, event: AstrMessageEvent):
