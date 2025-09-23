@@ -49,12 +49,12 @@ async def sell_rod(self, event: AstrMessageEvent):
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要出售的鱼竿 ID，例如：/出售鱼竿 12")
+        yield event.plain_result("❌ 请指定要出售的鱼竿 ID，例如：/出售鱼竿 R1A2B")
         return
     token = args[1]
     instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
     if instance_id is None:
-        yield event.plain_result("❌ 无效的鱼竿ID，请输入数字或短码（如 R2N9C）。")
+        yield event.plain_result("❌ 无效的鱼竿ID，请输入短码（如 R2N9C）。")
         return
     if result := self.inventory_service.sell_rod(user_id, int(instance_id)):
         if result["success"]:
@@ -78,12 +78,12 @@ async def sell_accessories(self, event: AstrMessageEvent):
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要出售的饰品 ID，例如：/出售饰品 15")
+        yield event.plain_result("❌ 请指定要出售的饰品 ID，例如：/出售饰品 A3C4D")
         return
     token = args[1]
     instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
     if instance_id is None:
-        yield event.plain_result("❌ 无效的饰品ID，请输入数字或短码（如 A7K3Q）。")
+        yield event.plain_result("❌ 无效的饰品ID，请输入短码（如 A7K3Q）。")
         return
     result = self.inventory_service.sell_accessory(user_id, int(instance_id))
     if result:
@@ -472,35 +472,55 @@ async def market(self, event: AstrMessageEvent):
         
         if result["rods"]:
             for rod in result["rods"][:15]:  # 限制鱼竿最多15件
+                # 生成短码显示
+                display_code = self._get_display_code_for_market_item(rod)
+                # 检查是否为匿名商品
+                is_anonymous = rod.get('is_anonymous', False)
+                seller_display = "🎭 匿名卖家" if is_anonymous else rod['seller_nickname']
                 all_items.append({
                     "type": "鱼竿",
                     "emoji": "🎣",
                     "name": f"{rod['item_name']} 精{rod['refine_level']}",
                     "id": rod['market_id'],
+                    "display_code": display_code,
                     "price": rod['price'],
-                    "seller": rod['seller_nickname']
+                    "seller": seller_display,
+                    "is_anonymous": is_anonymous
                 })
         
         if result["accessories"]:
             for accessory in result["accessories"][:15]:  # 限制饰品最多15件
+                # 生成短码显示
+                display_code = self._get_display_code_for_market_item(accessory)
+                # 检查是否为匿名商品
+                is_anonymous = accessory.get('is_anonymous', False)
+                seller_display = "🎭 匿名卖家" if is_anonymous else accessory['seller_nickname']
                 all_items.append({
                     "type": "饰品",
                     "emoji": "💍",
                     "name": f"{accessory['item_name']} 精{accessory['refine_level']}",
                     "id": accessory['market_id'],
+                    "display_code": display_code,
                     "price": accessory['price'],
-                    "seller": accessory['seller_nickname']
+                    "seller": seller_display,
+                    "is_anonymous": is_anonymous
                 })
         
         if result["items"]:
             for item in result["items"][:15]:  # 限制道具最多15件
+                # 道具没有实例ID，使用市场ID
+                # 检查是否为匿名商品
+                is_anonymous = item.get('is_anonymous', False)
+                seller_display = "🎭 匿名卖家" if is_anonymous else item['seller_nickname']
                 all_items.append({
                     "type": "道具",
                     "emoji": "🎁",
                     "name": item['item_name'],
                     "id": item['market_id'],
+                    "display_code": f"M{item['market_id']}",  # 道具使用市场ID
                     "price": item['price'],
-                    "seller": item['seller_nickname']
+                    "seller": seller_display,
+                    "is_anonymous": is_anonymous
                 })
         
         if not all_items:
@@ -524,7 +544,7 @@ async def market(self, event: AstrMessageEvent):
             
             for item in page_items:
                 message += f"【{item['emoji']} {item['type']}】:\n"
-                message += f" - {item['name']} (ID: {item['id']}) - 价格: {item['price']} 金币\n"
+                message += f" - {item['name']} (ID: {item['display_code']}) - 价格: {item['price']} 金币\n"
                 message += f" - 售卖人： {item['seller']}\n\n"
             
             yield event.plain_result(message)
@@ -536,12 +556,12 @@ async def list_rod(self, event: AstrMessageEvent):
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 3:
-        yield event.plain_result("❌ 请指定要上架的鱼竿 ID和价格，例如：/上架鱼竿 12 1000")
+        yield event.plain_result("❌ 请指定要上架的鱼竿 ID和价格，例如：/上架鱼竿 R1A2B 1000")
         return
     token = args[1]
     instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
     if instance_id is None:
-        yield event.plain_result("❌ 无效的鱼竿ID，请输入数字或短码（如 R2N9C）。")
+        yield event.plain_result("❌ 无效的鱼竿ID，请输入短码（如 R2N9C）。")
         return
     price = args[2]
     if not price.isdigit() or int(price) <= 0:
@@ -561,12 +581,12 @@ async def list_accessories(self, event: AstrMessageEvent):
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 3:
-        yield event.plain_result("❌ 请指定要上架的饰品 ID和价格，例如：/上架饰品 15 1000")
+        yield event.plain_result("❌ 请指定要上架的饰品 ID和价格，例如：/上架饰品 A3C4D 1000")
         return
     token = args[1]
     instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
     if instance_id is None:
-        yield event.plain_result("❌ 无效的饰品ID，请输入数字或短码（如 A7K3Q）。")
+        yield event.plain_result("❌ 无效的饰品ID，请输入短码（如 A7K3Q）。")
         return
     price = args[2]
     if not price.isdigit() or int(price) <= 0:
@@ -605,18 +625,95 @@ async def list_item(self, event: AstrMessageEvent):
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
+async def anonymous_list_rod(self, event: AstrMessageEvent):
+    """匿名上架鱼竿到市场"""
+    user_id = self._get_effective_user_id(event)
+    args = event.message_str.split(" ")
+    if len(args) < 3:
+        yield event.plain_result("❌ 请指定要上架的鱼竿 ID和价格，例如：/匿名上架鱼竿 R1A2B 1000")
+        return
+    token = args[1]
+    instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
+    if instance_id is None:
+        yield event.plain_result("❌ 无效的鱼竿ID，请输入短码（如 R2N9C）。")
+        return
+    price = args[2]
+    if not price.isdigit() or int(price) <= 0:
+        yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
+        return
+    result = self.market_service.put_item_on_sale(user_id, "rod", int(instance_id), int(price), is_anonymous=True)
+    if result:
+        if result["success"]:
+            yield event.plain_result(f"🎭 {result['message']} (匿名上架)")
+        else:
+            yield event.plain_result(f"❌ 匿名上架鱼竿失败：{result['message']}")
+    else:
+        yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+async def anonymous_list_accessories(self, event: AstrMessageEvent):
+    """匿名上架饰品到市场"""
+    user_id = self._get_effective_user_id(event)
+    args = event.message_str.split(" ")
+    if len(args) < 3:
+        yield event.plain_result("❌ 请指定要上架的饰品 ID和价格，例如：/匿名上架饰品 A3C4D 1000")
+        return
+    token = args[1]
+    instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
+    if instance_id is None:
+        yield event.plain_result("❌ 无效的饰品ID，请输入数字或短码（如 A7K3Q）。")
+        return
+    price = args[2]
+    if not price.isdigit() or int(price) <= 0:
+        yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
+        return
+    result = self.market_service.put_item_on_sale(user_id, "accessory", int(instance_id), int(price), is_anonymous=True)
+    if result:
+        if result["success"]:
+            yield event.plain_result(f"🎭 {result['message']} (匿名上架)")
+        else:
+            yield event.plain_result(f"❌ 匿名上架饰品失败：{result['message']}")
+    else:
+        yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+async def anonymous_list_item(self, event: AstrMessageEvent):
+    """匿名上架道具到市场"""
+    user_id = self._get_effective_user_id(event)
+    args = event.message_str.split(" ")
+    if len(args) < 3:
+        yield event.plain_result("❌ 请指定要上架的道具 ID和价格，例如：/匿名上架道具 1 1000")
+        return
+    item_id = args[1]
+    if not item_id.isdigit():
+        yield event.plain_result("❌ 道具 ID 必须是数字，请检查后重试。")
+        return
+    price = args[2]
+    if not price.isdigit() or int(price) <= 0:
+        yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
+        return
+    result = self.market_service.put_item_on_sale(user_id, "item", int(item_id), int(price), is_anonymous=True)
+    if result:
+        if result["success"]:
+            yield event.plain_result(f"🎭 {result['message']} (匿名上架)")
+        else:
+            yield event.plain_result(f"❌ 匿名上架道具失败：{result['message']}")
+    else:
+        yield event.plain_result("❌ 出错啦！请稍后再试。")
+
 async def buy_item(self, event: AstrMessageEvent):
     """购买市场上的物品"""
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要购买的物品 ID，例如：/购买 12")
+        yield event.plain_result("❌ 请指定要购买的商品代码，例如：/购买 R1A2B\n💡 使用「市场」命令查看商品列表")
         return
-    item_instance_id = args[1]
-    if not item_instance_id.isdigit():
-        yield event.plain_result("❌ 物品 ID 必须是数字，请检查后重试。")
+    
+    try:
+        market_id = _parse_market_code(args[1], self.market_service)
+    except ValueError as e:
+        yield event.plain_result(f"❌ {e}\n💡 使用「市场」命令查看商品列表")
         return
-    result = self.market_service.buy_market_item(user_id, int(item_instance_id))
+    
+    result = self.market_service.buy_market_item(user_id, market_id)
     if result:
         if result["success"]:
             yield event.plain_result(result["message"])
@@ -686,3 +783,89 @@ async def delist_item(self, event: AstrMessageEvent):
             yield event.plain_result(f"❌ 下架失败：{result['message']}")
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+
+def _to_base36(n: int) -> str:
+    """将数字转换为base36字符串"""
+    if n < 0:
+        raise ValueError("n must be non-negative")
+    if n == 0:
+        return "0"
+    digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    out = []
+    while n:
+        n, rem = divmod(n, 36)
+        out.append(digits[rem])
+    return "".join(reversed(out))
+
+
+def _get_display_code_for_market_item(item: dict) -> str:
+    """为市场商品生成显示代码"""
+    item_type = item.get('item_type')
+    item_instance_id = item.get('item_instance_id')
+    
+    if item_type == "rod" and item_instance_id:
+        return f"R{_to_base36(item_instance_id)}"
+    elif item_type == "accessory" and item_instance_id:
+        return f"A{_to_base36(item_instance_id)}"
+    else:
+        # 道具或没有实例ID的情况，使用市场ID
+        return f"M{item['market_id']}"
+
+
+def _from_base36(s: str) -> int:
+    """将base36字符串转换为数字"""
+    if not s:
+        raise ValueError("Empty string")
+    s = s.upper()
+    result = 0
+    for char in s:
+        if char.isdigit():
+            result = result * 36 + int(char)
+        elif 'A' <= char <= 'Z':
+            result = result * 36 + ord(char) - ord('A') + 10
+        else:
+            raise ValueError(f"Invalid character: {char}")
+    return result
+
+
+def _parse_market_code(code: str, market_service=None) -> int:
+    """解析市场代码，返回市场ID"""
+    code = code.strip().upper()
+    
+    if code.startswith('M') and len(code) > 1:
+        # M开头的代码，后面是市场ID
+        try:
+            return int(code[1:])
+        except ValueError:
+            raise ValueError(f"无效的道具代码: {code}")
+    elif code.startswith('R') and len(code) > 1:
+        # R开头的代码，需要根据实例ID查找市场ID
+        try:
+            instance_id = _from_base36(code[1:])
+            if market_service:
+                market_id = market_service.get_market_id_by_instance_id("rod", instance_id)
+                if market_id is not None:
+                    return market_id
+                else:
+                    raise ValueError(f"未找到鱼竿代码 {code} 对应的市场商品")
+            else:
+                raise ValueError("无法解析鱼竿代码，请稍后重试")
+        except ValueError as e:
+            raise ValueError(f"无效的鱼竿代码: {code}")
+    elif code.startswith('A') and len(code) > 1:
+        # A开头的代码，需要根据实例ID查找市场ID
+        try:
+            instance_id = _from_base36(code[1:])
+            if market_service:
+                market_id = market_service.get_market_id_by_instance_id("accessory", instance_id)
+                if market_id is not None:
+                    return market_id
+                else:
+                    raise ValueError(f"未找到饰品代码 {code} 对应的市场商品")
+            else:
+                raise ValueError("无法解析饰品代码，请稍后重试")
+        except ValueError as e:
+            raise ValueError(f"无效的饰品代码: {code}")
+    else:
+        raise ValueError(f"无效的市场代码: {code}，请使用短码（如 R1A2B、A3C4D、M123）")

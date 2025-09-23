@@ -52,12 +52,10 @@ class InventoryService:
         return int(s, 36)
 
     def resolve_rod_instance_id(self, user_id: str, token: str) -> Optional[int]:
-        """将数字ID或短码(Rxxxx)解析为 rod_instance_id。大小写不敏感。"""
+        """将短码(Rxxxx)解析为 rod_instance_id。大小写不敏感。"""
         if token is None:
             return None
         tok = str(token).strip()
-        if tok.isdigit():
-            return int(tok)
         code = tok.upper()
         if not code.startswith("R"):
             return None
@@ -67,12 +65,10 @@ class InventoryService:
             return None
 
     def resolve_accessory_instance_id(self, user_id: str, token: str) -> Optional[int]:
-        """将数字ID或短码(Axxxx)解析为 accessory_instance_id。大小写不敏感。"""
+        """将短码(Axxxx)解析为 accessory_instance_id。大小写不敏感。"""
         if token is None:
             return None
         tok = str(token).strip()
-        if tok.isdigit():
-            return int(tok)
         code = tok.upper()
         if not code.startswith("A"):
             return None

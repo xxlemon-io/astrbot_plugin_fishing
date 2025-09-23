@@ -261,6 +261,7 @@ class MarketListing:
     seller_nickname: str
     item_type: str
     item_id: int
+    item_instance_id: Optional[int] = None  # 实例ID，用于显示短码
     item_name: str
     item_description: str
     quantity: int
@@ -268,6 +269,7 @@ class MarketListing:
     listed_at: datetime
     refine_level: int = 1
     expires_at: Optional[datetime] = None
+    is_anonymous: bool = False  # 是否为匿名上架
 
     def __getitem__(self, item):
         """允许通过属性名访问字段"""

@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime
 
 from astrbot.core.utils.pip_installer import logger
@@ -51,7 +51,7 @@ class MarketService:
         except Exception as e:
             return {"success": False, "message": f"获取市场列表失败: {e}"}
 
-    def put_item_on_sale(self, user_id: str, item_type: str, item_instance_id: int, price: int) -> Dict[str, Any]:
+    def put_item_on_sale(self, user_id: str, item_type: str, item_instance_id: int, price: int, is_anonymous: bool = False) -> Dict[str, Any]:
         """
         处理上架物品到市场的逻辑。
         """
@@ -148,16 +148,40 @@ class MarketService:
             seller_nickname=seller.nickname,
             item_type=item_type,
             item_id=item_template_id,
+            item_instance_id=item_instance_id if item_type != "item" else None,  # 道具没有实例ID
             quantity=1,
             item_name=item_name,
             item_description=item_description,
             price=price,
             listed_at=datetime.now(),
-            refine_level=item_refine_level
+            refine_level=item_refine_level,
+            is_anonymous=is_anonymous
         )
         self.market_repo.add_listing(new_listing)
 
         return {"success": True, "message": f"成功将物品上架市场，价格为 {price} 金币 (手续费: {tax_cost} 金币)"}
+
+    def get_market_id_by_instance_id(self, item_type: str, instance_id: int) -> Optional[int]:
+        """
+        根据实例ID查找市场ID
+        
+        Args:
+            item_type: 物品类型 ("rod" 或 "accessory")
+            instance_id: 实例ID
+            
+        Returns:
+            市场ID，如果未找到返回None
+        """
+        try:
+            listings, _ = self.market_repo.get_all_listings()
+            for listing in listings:
+                if (listing.item_type == item_type and 
+                    listing.item_instance_id == instance_id):
+                    return listing.market_id
+            return None
+        except Exception as e:
+            logger.error(f"查找市场ID失败: {e}")
+            return None
 
     def buy_market_item(self, buyer_id: str, market_id: int) -> Dict[str, Any]:
         """

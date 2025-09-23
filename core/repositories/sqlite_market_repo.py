@@ -61,10 +61,12 @@ class SqliteMarketRepository(AbstractMarketRepository):
                     u.nickname AS seller_nickname,
                     m.item_type,
                     m.item_id,
+                    m.item_instance_id,
                     m.quantity,
                     m.price,
                     m.refine_level,
                     m.listed_at,
+                    m.is_anonymous,
                     CASE
                         WHEN m.item_type = 'rod' THEN r.name
                         WHEN m.item_type = 'accessory' THEN a.name
@@ -147,10 +149,12 @@ class SqliteMarketRepository(AbstractMarketRepository):
                     u.nickname AS seller_nickname,
                     m.item_type,
                     m.item_id,
+                    m.item_instance_id,
                     m.quantity,
                     m.price,
                     m.refine_level,
                     m.listed_at,
+                    m.is_anonymous,
                     CASE
                         WHEN m.item_type = 'rod' THEN r.name
                         WHEN m.item_type = 'accessory' THEN a.name
@@ -189,8 +193,8 @@ class SqliteMarketRepository(AbstractMarketRepository):
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO market (user_id, item_type, item_id, quantity, price, listed_at, refine_level)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO market (user_id, item_type, item_id, quantity, price, listed_at, refine_level, is_anonymous, item_instance_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 listing.user_id,
                 listing.item_type,
@@ -198,7 +202,9 @@ class SqliteMarketRepository(AbstractMarketRepository):
                 listing.quantity,
                 listing.price,
                 listing.listed_at or datetime.now(),
-                listing.refine_level
+                listing.refine_level,
+                listing.is_anonymous,
+                listing.item_instance_id
             ))
             conn.commit()
 

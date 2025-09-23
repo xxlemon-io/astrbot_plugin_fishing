@@ -453,6 +453,21 @@ class FishingPlugin(Star):
         async for r in market_handlers.list_item(self, event):
             yield r
 
+    @filter.command("匿名上架鱼竿", alias={"匿名上架竿", "匿名挂竿"})
+    async def anonymous_list_rod(self, event: AstrMessageEvent):
+        async for r in market_handlers.anonymous_list_rod(self, event):
+            yield r
+
+    @filter.command("匿名上架饰品", alias={"匿名上架饰", "匿名挂饰"})
+    async def anonymous_list_accessories(self, event: AstrMessageEvent):
+        async for r in market_handlers.anonymous_list_accessories(self, event):
+            yield r
+
+    @filter.command("匿名上架道具", alias={"匿名上架物", "匿名挂物"})
+    async def anonymous_list_item(self, event: AstrMessageEvent):
+        async for r in market_handlers.anonymous_list_item(self, event):
+            yield r
+
     @filter.command("购买")
     async def buy_item(self, event: AstrMessageEvent):
         async for r in market_handlers.buy_item(self, event):
