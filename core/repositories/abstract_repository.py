@@ -5,9 +5,9 @@ from datetime import date, datetime
 # 从领域模型导入所有需要的实体
 from ..domain.models import (
     User, Fish, Rod, Bait, Accessory, Title, Achievement, Item,
-    UserRodInstance, UserAccessoryInstance, UserFishInventoryItem,
+    UserRodInstance, UserAccessoryInstance, UserFishInventoryItem, UserAquariumItem,
     FishingRecord, GachaRecord, WipeBombLog, MarketListing, TaxRecord,
-    GachaPool, GachaPoolItem, FishingZone, UserBuff,
+    GachaPool, GachaPoolItem, FishingZone, UserBuff, AquariumUpgrade,
     ShopOffer, ShopOfferCost, ShopOfferReward
 )
 
@@ -160,6 +160,38 @@ class AbstractInventoryRepository(ABC):
     # 清空用户鱼类库存
     @abstractmethod
     def clear_fish_inventory(self, user_id: str, rarity: Optional[int] = None) -> None: pass
+    # 更新用户鱼类库存数量
+    @abstractmethod
+    def update_fish_quantity(self, user_id: str, fish_id: int, delta: int) -> None: pass
+    
+    # --- 水族箱相关方法 ---
+    # 获取用户水族箱中的鱼
+    @abstractmethod
+    def get_aquarium_inventory(self, user_id: str) -> List[UserAquariumItem]: pass
+    # 获取用户水族箱中鱼的总价值
+    @abstractmethod
+    def get_aquarium_inventory_value(self, user_id: str, rarity: Optional[int] = None) -> int: pass
+    # 向用户水族箱添加鱼
+    @abstractmethod
+    def add_fish_to_aquarium(self, user_id: str, fish_id: int, quantity: int = 1) -> None: pass
+    # 从用户水族箱移除鱼
+    @abstractmethod
+    def remove_fish_from_aquarium(self, user_id: str, fish_id: int, quantity: int = 1) -> None: pass
+    # 更新用户水族箱中鱼的数量
+    @abstractmethod
+    def update_aquarium_fish_quantity(self, user_id: str, fish_id: int, delta: int) -> None: pass
+    # 清空用户水族箱
+    @abstractmethod
+    def clear_aquarium_inventory(self, user_id: str, rarity: Optional[int] = None) -> None: pass
+    # 获取用户水族箱中鱼的总数量
+    @abstractmethod
+    def get_aquarium_total_count(self, user_id: str) -> int: pass
+    # 获取所有水族箱升级配置
+    @abstractmethod
+    def get_aquarium_upgrades(self) -> List[AquariumUpgrade]: pass
+    # 根据等级获取水族箱升级配置
+    @abstractmethod
+    def get_aquarium_upgrade_by_level(self, level: int) -> Optional[AquariumUpgrade]: pass
     # 卖出所有鱼，每种保留一条
     @abstractmethod
     def sell_fish_keep_one(self, user_id: str) -> int: pass

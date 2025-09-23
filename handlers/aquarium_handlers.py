@@ -1,0 +1,160 @@
+from astrbot.api.event import AstrMessageEvent
+from ..utils import format_rarity_display
+
+
+async def aquarium(self, event: AstrMessageEvent):
+    """水族箱主命令：
+    - "水族箱": 显示水族箱列表
+    - "水族箱 帮助": 显示帮助
+    """
+    args = event.message_str.strip().split()
+    if len(args) >= 2 and args[1] == "帮助":
+        async for r in aquarium_help(self, event):
+            yield r
+        return
+
+    user_id = self._get_effective_user_id(event)
+    result = self.aquarium_service.get_user_aquarium(user_id)
+
+    if not result["success"]:
+        yield event.plain_result(f"❌ {result['message']}")
+        return
+
+    fishes = result["fishes"]
+    stats = result["stats"]
+
+    if not fishes:
+        yield event.plain_result("🐠 您的水族箱是空的，快去钓鱼吧！")
+        return
+
+    # 按稀有度分组
+    fishes_by_rarity = {}
+    for fish in fishes:
+        rarity = fish.get("rarity", "未知")
+        if rarity not in fishes_by_rarity:
+            fishes_by_rarity[rarity] = []
+        fishes_by_rarity[rarity].append(fish)
+
+    # 构造输出信息
+    message = "【🐠 水族箱】：\n"
+
+    for rarity in sorted(fishes_by_rarity.keys(), reverse=True):
+        fish_list = fishes_by_rarity[rarity]
+        if fish_list:
+            message += f"\n {format_rarity_display(rarity)}：\n"
+            for fish in fish_list:
+                fish_id = int(fish.get('fish_id', 0) or 0)
+                fcode = f"F{fish_id}" if fish_id else "F0"
+                message += f"  - {fish['name']} x  {fish['quantity']} （{fish['base_value']}金币 / 个） ID: {fcode}\n"
+
+    message += f"\n🐟 总鱼数：{stats['total_count']} / {stats['capacity']} 条\n"
+    message += f"💰 总价值：{stats['total_value']} 金币\n"
+    message += f"📦 剩余空间：{stats['available_space']} 条\n"
+
+    yield event.plain_result(message)
+
+
+async def add_to_aquarium(self, event: AstrMessageEvent):
+    """将鱼从鱼塘添加到水族箱"""
+    user_id = self._get_effective_user_id(event)
+    args = event.message_str.split(" ")
+    
+    if len(args) < 2:
+        yield event.plain_result("❌ 用法：/放入水族箱 <鱼ID> [数量]\n💡 使用「水族箱」命令查看水族箱中的鱼")
+        return
+
+    try:
+        # 解析鱼ID（支持F开头的短码）
+        fish_token = args[1].strip().upper()
+        if fish_token.startswith('F'):
+            fish_id = int(fish_token[1:])  # 去掉F前缀
+        else:
+            fish_id = int(fish_token)
+        
+        quantity = 1
+        if len(args) >= 3:
+            quantity = int(args[2])
+            if quantity <= 0:
+                yield event.plain_result("❌ 数量必须是正整数")
+                return
+    except ValueError:
+        yield event.plain_result("❌ 鱼ID格式错误！请使用F开头的短码（如F3）或纯数字ID")
+        return
+
+    result = self.aquarium_service.add_fish_to_aquarium(user_id, fish_id, quantity)
+    
+    if result["success"]:
+        yield event.plain_result(f"✅ {result['message']}")
+    else:
+        yield event.plain_result(f"❌ {result['message']}")
+
+
+async def remove_from_aquarium(self, event: AstrMessageEvent):
+    """将鱼从水族箱移回鱼塘"""
+    user_id = self._get_effective_user_id(event)
+    args = event.message_str.split(" ")
+    
+    if len(args) < 2:
+        yield event.plain_result("❌ 用法：/移出水族箱 <鱼ID> [数量]\n💡 使用「水族箱」命令查看水族箱中的鱼")
+        return
+
+    try:
+        # 解析鱼ID（支持F开头的短码）
+        fish_token = args[1].strip().upper()
+        if fish_token.startswith('F'):
+            fish_id = int(fish_token[1:])  # 去掉F前缀
+        else:
+            fish_id = int(fish_token)
+        
+        quantity = 1
+        if len(args) >= 3:
+            quantity = int(args[2])
+            if quantity <= 0:
+                yield event.plain_result("❌ 数量必须是正整数")
+                return
+    except ValueError:
+        yield event.plain_result("❌ 鱼ID格式错误！请使用F开头的短码（如F3）或纯数字ID")
+        return
+
+    result = self.aquarium_service.remove_fish_from_aquarium(user_id, fish_id, quantity)
+    
+    if result["success"]:
+        yield event.plain_result(f"✅ {result['message']}")
+    else:
+        yield event.plain_result(f"❌ {result['message']}")
+
+
+async def upgrade_aquarium(self, event: AstrMessageEvent):
+    """升级水族箱容量"""
+    user_id = self._get_effective_user_id(event)
+    # 直接尝试升级，失败时会返回具体原因（包含所需费用）
+    result = self.aquarium_service.upgrade_aquarium(user_id)
+    
+    if result["success"]:
+        yield event.plain_result(f"✅ {result['message']}")
+    else:
+        yield event.plain_result(f"❌ {result['message']}")
+
+
+    # 过度信息命令删除：在升级操作中按需提示
+
+
+async def aquarium_help(self, event: AstrMessageEvent):
+    """水族箱帮助信息"""
+    message = """【🐠 水族箱系统帮助】：
+
+🔹 水族箱是一个安全的存储空间，鱼放在里面不会被偷
+🔹 默认容量50条，可以通过升级增加容量
+🔹 从市场购买的鱼默认放入水族箱
+🔹 可以正常上架和购买
+
+📋 可用命令：
+• /水族箱 - 查看水族箱中的鱼
+• /放入水族箱 <鱼ID> [数量] - 将鱼从鱼塘放入水族箱
+• /移出水族箱 <鱼ID> [数量] - 将鱼从水族箱移回鱼塘
+• /升级水族箱 - 升级水族箱容量
+• /水族箱 帮助 - 显示此帮助信息
+
+💡 提示：使用「水族箱」命令查看鱼ID"""
+    
+    yield event.plain_result(message)

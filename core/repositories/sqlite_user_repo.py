@@ -56,6 +56,7 @@ class SqliteUserRepository(AbstractUserRepository):
             total_coins_earned=row["total_coins_earned"],
             consecutive_login_days=row["consecutive_login_days"],
             fish_pond_capacity=row["fish_pond_capacity"],
+            aquarium_capacity=row["aquarium_capacity"] if "aquarium_capacity" in row.keys() else 50,  # 默认值50，兼容旧数据
             created_at=parse_datetime(row["created_at"]),
             equipped_rod_instance_id=row["equipped_rod_instance_id"],
             equipped_accessory_instance_id=row["equipped_accessory_instance_id"],
@@ -97,12 +98,23 @@ class SqliteUserRepository(AbstractUserRepository):
     def update(self, user: User) -> None:
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            
+            # 首先检查 aquarium_capacity 字段是否存在
+            cursor.execute("PRAGMA table_info(users)")
+            columns = [column[1] for column in cursor.fetchall()]
+            has_aquarium_capacity = 'aquarium_capacity' in columns
+            
+            if not has_aquarium_capacity:
+                # 如果字段不存在，先添加字段
+                cursor.execute("ALTER TABLE users ADD COLUMN aquarium_capacity INTEGER DEFAULT 50")
+                conn.commit()
+            
             # 服务层负责在更新前获取最新的用户状态
             cursor.execute("""
                 UPDATE users SET
                     nickname = ?, coins = ?, premium_currency = ?,
                     total_fishing_count = ?, total_weight_caught = ?, total_coins_earned = ?,
-                    consecutive_login_days = ?, fish_pond_capacity = ?,
+                    consecutive_login_days = ?, fish_pond_capacity = ?, aquarium_capacity = ?,
                     equipped_rod_instance_id = ?, equipped_accessory_instance_id = ?,
                     current_title_id = ?, current_bait_id = ?, bait_start_time = ?,
                     auto_fishing_enabled = ?, last_fishing_time = ?, last_wipe_bomb_time = ?,
@@ -111,7 +123,7 @@ class SqliteUserRepository(AbstractUserRepository):
             """, (
                 user.nickname, user.coins, user.premium_currency,
                 user.total_fishing_count, user.total_weight_caught, user.total_coins_earned,
-                user.consecutive_login_days, user.fish_pond_capacity,
+                user.consecutive_login_days, user.fish_pond_capacity, user.aquarium_capacity,
                 user.equipped_rod_instance_id, user.equipped_accessory_instance_id,
                 user.current_title_id, user.current_bait_id, user.bait_start_time,
                 user.auto_fishing_enabled, user.last_fishing_time, user.last_wipe_bomb_time,
@@ -119,6 +131,11 @@ class SqliteUserRepository(AbstractUserRepository):
                 user.wipe_bomb_forecast, user.fishing_zone_id,
                 user.user_id
             ))
+            
+            # 验证更新是否成功
+            if cursor.rowcount == 0:
+                raise Exception(f"用户 {user.user_id} 更新失败，可能用户不存在")
+            
             conn.commit()
 
     def get_all_user_ids(self, auto_fishing_only: bool = False) -> List[str]:

@@ -37,7 +37,7 @@ from .core.database.migration import run_migrations
 # ==========================================================
 # 导入所有指令函数
 # ==========================================================
-from .handlers import admin_handlers, common_handlers, inventory_handlers, fishing_handlers, market_handlers, social_handlers, gacha_handlers
+from .handlers import admin_handlers, common_handlers, inventory_handlers, fishing_handlers, market_handlers, social_handlers, gacha_handlers, aquarium_handlers
 
 
 class FishingPlugin(Star):
@@ -141,6 +141,14 @@ class FishingPlugin(Star):
             self.buff_repo,
             self.fishing_zone_service,
             self.game_config,
+        )
+        
+        # 导入并初始化水族箱服务
+        from .core.services.aquarium_service import AquariumService
+        self.aquarium_service = AquariumService(
+            self.inventory_repo,
+            self.user_repo,
+            self.item_template_repo
         )
 
         # 3.2 实例化效果管理器并自动注册所有效果（需要在fishing_service之后）
@@ -276,6 +284,29 @@ class FishingPlugin(Star):
     async def upgrade_pond(self, event: AstrMessageEvent):
         async for r in inventory_handlers.upgrade_pond(self, event):
             yield r
+
+    # 水族箱相关命令
+    @filter.command("水族箱")
+    async def aquarium(self, event: AstrMessageEvent):
+        async for r in aquarium_handlers.aquarium(self, event):
+            yield r
+
+    @filter.command("放入水族箱", alias={"移入水族箱"})
+    async def add_to_aquarium(self, event: AstrMessageEvent):
+        async for r in aquarium_handlers.add_to_aquarium(self, event):
+            yield r
+
+    @filter.command("移出水族箱", alias={"移回鱼塘"})
+    async def remove_from_aquarium(self, event: AstrMessageEvent):
+        async for r in aquarium_handlers.remove_from_aquarium(self, event):
+            yield r
+
+    @filter.command("升级水族箱", alias={"水族箱升级"})
+    async def upgrade_aquarium(self, event: AstrMessageEvent):
+        async for r in aquarium_handlers.upgrade_aquarium(self, event):
+            yield r
+
+    # 提示：帮助入口整合到“水族箱 帮助”子命令中
 
     @filter.command("鱼竿")
     async def rod(self, event: AstrMessageEvent):
