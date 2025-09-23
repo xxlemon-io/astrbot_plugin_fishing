@@ -311,6 +311,7 @@ async def start_admin(self, event: AstrMessageEvent):
             "user_service": self.user_service,
             "market_service": self.market_service,
             "fishing_zone_service": self.fishing_zone_service,
+            "shop_service": self.shop_service,
         }
         app = create_app(
             secret_key=self.secret_key,
@@ -355,16 +356,14 @@ async def stop_admin(self, event: AstrMessageEvent):
         logger.error(f"关闭钓鱼后台管理时发生意外错误: {e}", exc_info=True)
         yield event.plain_result(f"❌ 关闭钓鱼后台管理失败: {e}")
 
-async def sync_items_from_initial_data(self, event: AstrMessageEvent):
-    """从 initial_data.py 同步道具数据到数据库。"""
+async def sync_initial_data(self, event: AstrMessageEvent):
+    """从 initial_data.py 同步所有初始设定（道具、商店等）。"""
     try:
-        self.data_setup_service.create_initial_items()
-        yield event.plain_result(
-            '✅ 成功执行初始道具同步操作。\n请检查后台或使用 /道具 命令确认数据。'
-        )
+        self.data_setup_service.sync_all_initial_data()
+        yield event.plain_result("✅ 所有初始设定数据同步成功！")
     except Exception as e:
-        logger.error(f"执行 sync_items_from_initial_data 命令时出错: {e}", exc_info=True)
-        yield event.plain_result(f"❌ 操作失败，请查看后台日志。错误: {e}")
+        logger.error(f"同步初始设定数据时出错: {e}")
+        yield event.plain_result(f"❌ 同步初始设定数据失败: {e}")
 
 async def impersonate_start(self, event: AstrMessageEvent):
     """管理员开始扮演一名用户。"""
@@ -402,3 +401,71 @@ async def impersonate_stop(self, event: AstrMessageEvent):
         yield event.plain_result("✅ 您已成功结束代理。")
     else:
         yield event.plain_result("❌ 您当前没有在代理任何用户。")
+
+async def reward_all_items(self, event: AstrMessageEvent):
+    """给所有注册用户发放道具"""
+    args = event.message_str.split(" ")
+    if len(args) < 4:
+        yield event.plain_result("❌ 请指定道具类型、道具ID和数量，例如：/全体发放道具 item 1 5")
+        return
+    
+    item_type = args[1]
+    item_id_str = args[2]
+    quantity_str = args[3]
+    
+    # 验证道具ID
+    if not item_id_str.isdigit():
+        yield event.plain_result("❌ 道具ID必须是数字，请检查后重试。")
+        return
+    item_id = int(item_id_str)
+    
+    # 验证数量
+    if not quantity_str.isdigit() or int(quantity_str) <= 0:
+        yield event.plain_result("❌ 数量必须是正整数，请检查后重试。")
+        return
+    quantity = int(quantity_str)
+    
+    # 验证道具类型
+    valid_types = ["item", "bait", "rod", "accessory"]
+    if item_type not in valid_types:
+        yield event.plain_result(f"❌ 不支持的道具类型。支持的类型：{', '.join(valid_types)}")
+        return
+    
+    # 验证道具是否存在
+    item_template = None
+    if item_type == "item":
+        item_template = self.item_template_repo.get_item_by_id(item_id)
+    elif item_type == "bait":
+        item_template = self.item_template_repo.get_bait_by_id(item_id)
+    elif item_type == "rod":
+        item_template = self.item_template_repo.get_rod_by_id(item_id)
+    elif item_type == "accessory":
+        item_template = self.item_template_repo.get_accessory_by_id(item_id)
+    
+    if not item_template:
+        yield event.plain_result(f"❌ 道具不存在，请检查道具ID和类型。")
+        return
+    
+    # 获取所有用户ID
+    user_ids = self.user_repo.get_all_user_ids()
+    if not user_ids:
+        yield event.plain_result("❌ 当前没有注册用户。")
+        return
+    
+    # 给所有用户发放道具
+    success_count = 0
+    failed_count = 0
+    
+    for user_id in user_ids:
+        try:
+            result = self.user_service.add_item_to_user_inventory(user_id, item_type, item_id, quantity)
+            if result.get("success", False):
+                success_count += 1
+            else:
+                failed_count += 1
+        except Exception as e:
+            failed_count += 1
+            logger.error(f"给用户 {user_id} 发放道具失败: {e}")
+    
+    item_name = getattr(item_template, 'name', f'ID:{item_id}')
+    yield event.plain_result(f"✅ 全体发放道具完成！\n📦 道具：{item_name} x{quantity}\n✅ 成功：{success_count} 位用户\n❌ 失败：{failed_count} 位用户")

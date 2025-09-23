@@ -339,3 +339,120 @@ class UserFishStat:
     min_weight: int
     total_caught: int
     total_weight: int
+
+# ---------------------------------
+# 商店实体 (Shop Entities) - 新设计
+# ---------------------------------
+
+@dataclass
+class Shop:
+    """商店实体"""
+    shop_id: int
+    name: str
+    description: Optional[str] = None
+    shop_type: str = "normal"  # 'normal' | 'premium' | 'limited'
+    is_active: bool = True
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    daily_start_time: Optional[str] = None  # 格式: "09:00"
+    daily_end_time: Optional[str] = None    # 格式: "18:00"
+    sort_order: int = 100
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+@dataclass
+class ShopItem:
+    """商店商品实体"""
+    item_id: int
+    shop_id: int
+    name: str
+    description: Optional[str] = None
+    category: str = "general"
+    stock_total: Optional[int] = None
+    stock_sold: int = 0
+    per_user_limit: Optional[int] = None
+    per_user_daily_limit: Optional[int] = None
+    is_active: bool = True
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    sort_order: int = 100
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+@dataclass
+class ShopItemCost:
+    """商店商品成本实体（支持AND/OR关系）"""
+    cost_id: int
+    item_id: int
+    cost_type: str  # 'coins' | 'premium' | 'item' | 'fish'
+    cost_amount: int
+    cost_item_id: Optional[int] = None
+    cost_relation: str = "and"  # 'and' | 'or'
+    group_id: Optional[int] = None
+
+
+@dataclass
+class ShopItemReward:
+    """商店商品奖励实体"""
+    reward_id: int
+    item_id: int
+    reward_type: str  # 'rod' | 'accessory' | 'bait' | 'item' | 'fish' | 'coins'
+    reward_item_id: Optional[int] = None
+    reward_quantity: int = 1
+    reward_refine_level: Optional[int] = None
+
+
+@dataclass
+class ShopPurchaseRecord:
+    """商店购买记录实体"""
+    record_id: int
+    user_id: str
+    item_id: int  # 现在引用 shop_items.item_id
+    quantity: int
+    timestamp: datetime
+
+
+# ---------------------------------
+# 兼容性模型（向后兼容旧系统）
+# ---------------------------------
+
+@dataclass
+class ShopOfferCost:
+    """商店消耗项（兼容旧接口）"""
+    cost_id: int
+    offer_id: int
+    cost_type: str  # 'coins' | 'premium' | 'item' | 'fish'
+    amount: int
+    item_id: Optional[int] = None
+
+
+@dataclass
+class ShopOffer:
+    """商店在售条目（兼容旧接口）"""
+    offer_id: int
+    name: str
+    category: Optional[str] = None
+    description: Optional[str] = None
+    is_active: bool = True
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    per_user_limit: Optional[int] = None
+    per_user_daily_limit: Optional[int] = None
+    stock_total: Optional[int] = None
+    stock_sold: int = 0
+    sort_order: int = 0
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+@dataclass
+class ShopOfferReward:
+    """商店奖励项（兼容旧接口）"""
+    reward_id: int
+    offer_id: int
+    item_type: str
+    item_id: int
+    quantity: int
+    refine_level: Optional[int] = None

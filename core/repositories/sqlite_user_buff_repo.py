@@ -1,4 +1,5 @@
 import sqlite3
+import threading
 import json
 from typing import List, Optional
 from datetime import datetime
@@ -13,20 +14,37 @@ DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 class SqliteUserBuffRepository(AbstractUserBuffRepository):
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self._local = threading.local()
 
-    def _get_connection(self):
-        return sqlite3.connect(self.db_path)
+    def _get_connection(self) -> sqlite3.Connection:
+        """获取一个线程安全的数据库连接。"""
+        conn = getattr(self._local, "connection", None)
+        if conn is None:
+            conn = sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys = ON;")
+            self._local.connection = conn
+        return conn
 
     def _to_domain(self, row: sqlite3.Row) -> UserBuff:
+        # 处理 started_at 字段
+        started_at = row['started_at']
+        if isinstance(started_at, str):
+            started_at = datetime.strptime(started_at, DATETIME_FORMAT)
+        
+        # 处理 expires_at 字段
+        expires_at = row['expires_at']
+        if expires_at is not None:
+            if isinstance(expires_at, str):
+                expires_at = datetime.strptime(expires_at, DATETIME_FORMAT)
+        
         return UserBuff(
-            id=row[0],
-            user_id=row[1],
-            buff_type=row[2],
-            payload=row[3],
-            started_at=datetime.strptime(row[4], DATETIME_FORMAT),
-            expires_at=(
-                datetime.strptime(row[5], DATETIME_FORMAT) if row[5] else None
-            ),
+            id=row['id'],
+            user_id=row['user_id'],
+            buff_type=row['buff_type'],
+            payload=row['payload'],
+            started_at=started_at,
+            expires_at=expires_at,
         )
 
     def add(self, buff: UserBuff):

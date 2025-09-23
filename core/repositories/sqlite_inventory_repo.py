@@ -7,6 +7,7 @@ import json
 # 导入抽象基类和领域模型
 from .abstract_repository import AbstractInventoryRepository
 from ..domain.models import UserFishInventoryItem, UserRodInstance, UserAccessoryInstance, FishingZone
+from ..database.connection_manager import DatabaseConnectionManager
 
 
 class SqliteInventoryRepository(AbstractInventoryRepository):
@@ -14,17 +15,11 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def __init__(self, db_path: str):
         self.db_path = db_path
-        self._local = threading.local()
+        self._connection_manager = DatabaseConnectionManager(db_path)
 
     def _get_connection(self) -> sqlite3.Connection:
         """获取一个线程安全的数据库连接。"""
-        conn = getattr(self._local, "connection", None)
-        if conn is None:
-            conn = sqlite3.connect(self.db_path, detect_types=sqlite3.PARSE_DECLTYPES)
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA foreign_keys = ON;")
-            self._local.connection = conn
-        return conn
+        return self._connection_manager._get_connection()
 
     # --- 私有映射辅助方法 ---
     def _row_to_fish_item(self, row: sqlite3.Row) -> Optional[UserFishInventoryItem]:
@@ -87,7 +82,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             return result[0] if result and result[0] is not None else 0
 
     def add_fish_to_inventory(self, user_id: str, fish_id: int, quantity: int = 1) -> None:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO user_fish_inventory (user_id, fish_id, quantity)

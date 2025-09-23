@@ -1209,3 +1209,445 @@ async def delete_zone_api(zone_id):
         logger.error(f"删除钓鱼区域失败: {e}")
         logger.error(traceback.format_exc())
         return jsonify({"success": False, "message": str(e)}), 500
+
+# --- 商店管理 (Shop Offers) - 已集成到商店详情页面 ---
+
+# ===== 商店管理（新设计：shops + shop_items） =====
+@admin_bp.route("/shops")
+@login_required
+async def manage_shops():
+    shop_service = current_app.config["SHOP_SERVICE"]
+    shops = shop_service.shop_repo.get_all_shops()
+    return await render_template("shops.html", shops=shops)
+
+@admin_bp.route("/shops/<int:shop_id>")
+@login_required
+async def manage_shop_details(shop_id):
+    shop_service = current_app.config["SHOP_SERVICE"]
+    item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
+    
+    # 获取商店信息
+    shop = shop_service.shop_repo.get_shop_by_id(shop_id)
+    if not shop:
+        return "商店不存在", 404
+    
+    # 获取商店内的商品
+    items = shop_service.shop_repo.get_shop_items(shop_id)
+    items_with_details = []
+    
+    for item in items:
+        # 获取成本和奖励
+        costs = shop_service.shop_repo.get_item_costs(item["item_id"])
+        rewards = shop_service.shop_repo.get_item_rewards(item["item_id"])
+        
+        items_with_details.append({
+            "item": item,
+            "costs": costs,
+            "rewards": rewards,
+        })
+    
+    # 获取所有可用的商品（兼容旧接口）
+    available_offers = shop_service.shop_repo.get_active_offers()
+    
+    # 可选物品下拉所需的全量模板数据
+    all_rods = item_template_service.get_all_rods()
+    all_baits = item_template_service.get_all_baits()
+    all_accessories = item_template_service.get_all_accessories()
+    all_items = item_template_service.get_all_items()
+    all_fish = item_template_service.get_all_fish()
+
+    return await render_template(
+        "shop_details.html",
+        shop=shop,
+        items=items_with_details,
+        available_offers=available_offers,
+        all_rods=all_rods,
+        all_baits=all_baits,
+        all_accessories=all_accessories,
+        all_items=all_items,
+        all_fish=all_fish,
+    )
+
+@admin_bp.route("/api/shops", methods=["GET"])
+@login_required
+async def api_list_shops():
+    shop_service = current_app.config["SHOP_SERVICE"]
+    shops = shop_service.shop_repo.get_all_shops()
+    return jsonify({"success": True, "shops": shops})
+
+@admin_bp.route("/shops/add", methods=["POST"])
+@login_required
+async def add_shop():
+    data = await request.form
+    shop_service = current_app.config["SHOP_SERVICE"]
+    
+    shop_data = {
+        "name": data.get("name"),
+        "description": data.get("description"),
+        "shop_type": data.get("shop_type", "normal"),
+        "is_active": data.get("is_active") == "on",
+        "start_time": data.get("start_time") or None,
+        "end_time": data.get("end_time") or None,
+        "daily_start_time": data.get("daily_start_time") or None,
+        "daily_end_time": data.get("daily_end_time") or None,
+        "sort_order": int(data.get("sort_order", 100)),
+    }
+    
+    created = shop_service.shop_repo.create_shop(shop_data)
+    return redirect(url_for("admin_bp.manage_shops"))
+
+@admin_bp.route("/shops/edit/<int:shop_id>", methods=["POST"])
+@login_required
+async def edit_shop(shop_id):
+    data = await request.form
+    shop_service = current_app.config["SHOP_SERVICE"]
+    
+    shop_data = {
+        "name": data.get("name"),
+        "description": data.get("description"),
+        "shop_type": data.get("shop_type", "normal"),
+        "is_active": data.get("is_active") == "on",
+        "start_time": data.get("start_time") or None,
+        "end_time": data.get("end_time") or None,
+        "daily_start_time": data.get("daily_start_time") or None,
+        "daily_end_time": data.get("daily_end_time") or None,
+        "sort_order": int(data.get("sort_order", 100)),
+    }
+    
+    shop_service.shop_repo.update_shop(shop_id, shop_data)
+    return redirect(url_for("admin_bp.manage_shops"))
+
+@admin_bp.route("/shops/delete/<int:shop_id>", methods=["POST"])
+@login_required
+async def delete_shop(shop_id):
+    shop_service = current_app.config["SHOP_SERVICE"]
+    shop_service.shop_repo.delete_shop(shop_id)
+    return redirect(url_for("admin_bp.manage_shops"))
+
+@admin_bp.route("/api/shops", methods=["POST"])
+@login_required
+async def api_create_shop():
+    payload = await request.get_json()
+    shop_service = current_app.config["SHOP_SERVICE"]
+    created = shop_service.shop_repo.create_shop(payload or {})
+    return jsonify({"success": True, "shop": created})
+
+@admin_bp.route("/api/shops/<int:shop_id>", methods=["PUT"])
+@login_required
+async def api_update_shop(shop_id):
+    payload = await request.get_json()
+    shop_service = current_app.config["SHOP_SERVICE"]
+    shop_service.shop_repo.update_shop(shop_id, payload or {})
+    return jsonify({"success": True})
+
+@admin_bp.route("/api/shops/<int:shop_id>", methods=["DELETE"])
+@login_required
+async def api_delete_shop(shop_id):
+    shop_service = current_app.config["SHOP_SERVICE"]
+    shop_service.shop_repo.delete_shop(shop_id)
+    return jsonify({"success": True})
+
+@admin_bp.route("/api/shops/<int:shop_id>/items", methods=["GET"])
+@login_required
+async def api_get_shop_items(shop_id):
+    shop_service = current_app.config["SHOP_SERVICE"]
+    items = shop_service.shop_repo.get_shop_items(shop_id)
+    return jsonify({"success": True, "items": items})
+
+@admin_bp.route("/shops/<int:shop_id>/items/add", methods=["POST"])
+@login_required
+async def add_shop_item(shop_id):
+    data = await request.form
+    shop_service = current_app.config["SHOP_SERVICE"]
+    
+    # 创建商品
+    item_data = {
+        "name": data.get("name") or "未命名商品",
+        "description": data.get("description") or "",
+        "category": data.get("category", "general"),
+        "stock_total": int(data.get("stock_total")) if data.get("stock_total") else None,
+        "stock_sold": int(data.get("stock_sold", 0)),
+        "per_user_limit": int(data.get("per_user_limit")) if data.get("per_user_limit") else None,
+        "per_user_daily_limit": int(data.get("per_user_daily_limit")) if data.get("per_user_daily_limit") else None,
+        "is_active": data.get("is_active") == "on",
+        "start_time": data.get("start_time") or None,
+        "end_time": data.get("end_time") or None,
+        "sort_order": int(data.get("sort_order", 100)),
+    }
+    
+    created_item = shop_service.shop_repo.create_shop_item(shop_id, item_data)
+    item_id = created_item["item_id"]
+    
+    # 解析并添加成本
+    cost_full_ids = data.getlist("cost_item_full_id") if hasattr(data, 'getlist') else []
+    cost_amounts = data.getlist("cost_amount") if hasattr(data, 'getlist') else []
+    cost_relations = data.getlist("cost_relation") if hasattr(data, 'getlist') else []
+    cost_groups = data.getlist("cost_group") if hasattr(data, 'getlist') else []
+    
+    for idx, full_id in enumerate(cost_full_ids):
+        if not full_id:
+            continue
+        amount_text = cost_amounts[idx] if idx < len(cost_amounts) else ""
+        if not amount_text:
+            continue
+        try:
+            amount_val = int(amount_text)
+        except Exception:
+            continue
+            
+        t, _, id_text = full_id.partition('-')
+        cost_data = {
+            "cost_type": t,
+            "cost_amount": amount_val,
+            "cost_relation": cost_relations[idx] if idx < len(cost_relations) else "and",
+            "group_id": int(cost_groups[idx]) if idx < len(cost_groups) and cost_groups[idx] else None,
+        }
+        
+        if t in ("fish", "item"):
+            try:
+                cost_data["cost_item_id"] = int(id_text)
+            except Exception:
+                continue
+        
+        shop_service.shop_repo.add_item_cost(item_id, cost_data)
+
+    # 解析并添加奖励
+    reward_full_ids = data.getlist("reward_item_full_id") if hasattr(data, 'getlist') else []
+    reward_quantities = data.getlist("reward_quantity") if hasattr(data, 'getlist') else []
+    reward_refine_levels = data.getlist("reward_refine_level") if hasattr(data, 'getlist') else []
+    
+    for idx, full_id in enumerate(reward_full_ids):
+        if not full_id:
+            continue
+        qty_text = reward_quantities[idx] if idx < len(reward_quantities) else "1"
+        try:
+            qty_val = int(qty_text or "1")
+        except Exception:
+            qty_val = 1
+            
+        t, _, id_text = full_id.partition('-')
+        reward_data = {
+            "reward_type": t,
+            "reward_quantity": qty_val,
+            "reward_refine_level": int(reward_refine_levels[idx]) if idx < len(reward_refine_levels) and reward_refine_levels[idx] else None,
+        }
+        
+        try:
+            reward_data["reward_item_id"] = int(id_text)
+        except Exception:
+            continue
+            
+        shop_service.shop_repo.add_item_reward(item_id, reward_data)
+    
+    return redirect(url_for("admin_bp.manage_shop_details", shop_id=shop_id))
+
+@admin_bp.route("/shops/<int:shop_id>/items/edit/<int:item_id>", methods=["POST"])
+@login_required
+async def edit_shop_item(shop_id, item_id):
+    data = await request.form
+    shop_service = current_app.config["SHOP_SERVICE"]
+    
+    # 更新商品信息
+    item_data = {
+        "name": data.get("name", ""),
+        "description": data.get("description", ""),
+        "category": data.get("category", "general"),
+        "stock_total": int(data.get("stock_total")) if data.get("stock_total") else None,
+        "stock_sold": int(data.get("stock_sold", 0)),
+        "per_user_limit": int(data.get("per_user_limit")) if data.get("per_user_limit") else None,
+        "per_user_daily_limit": int(data.get("per_user_daily_limit")) if data.get("per_user_daily_limit") else None,
+        "is_active": data.get("is_active") == "on",
+        "start_time": data.get("start_time") or None,
+        "end_time": data.get("end_time") or None,
+        "sort_order": int(data.get("sort_order", 100)),
+    }
+    
+    shop_service.shop_repo.update_shop_item(item_id, item_data)
+    
+    # 更新成本（先删除旧的，再添加新的）
+    # 这里简化处理，实际项目中可能需要更精细的更新逻辑
+    costs = shop_service.shop_repo.get_item_costs(item_id)
+    for cost in costs:
+        shop_service.shop_repo.delete_item_cost(cost["cost_id"])
+    
+    # 添加新成本
+    cost_full_ids = data.getlist("cost_item_full_id") if hasattr(data, 'getlist') else []
+    cost_amounts = data.getlist("cost_amount") if hasattr(data, 'getlist') else []
+    cost_relations = data.getlist("cost_relation") if hasattr(data, 'getlist') else []
+    cost_groups = data.getlist("cost_group") if hasattr(data, 'getlist') else []
+    
+    for idx, full_id in enumerate(cost_full_ids):
+        if not full_id:
+            continue
+        amount_text = cost_amounts[idx] if idx < len(cost_amounts) else ""
+        if not amount_text:
+            continue
+        try:
+            amount_val = int(amount_text)
+        except Exception:
+            continue
+            
+        t, _, id_text = full_id.partition('-')
+        cost_data = {
+            "cost_type": t,
+            "cost_amount": amount_val,
+            "cost_relation": cost_relations[idx] if idx < len(cost_relations) else "and",
+            "group_id": int(cost_groups[idx]) if idx < len(cost_groups) and cost_groups[idx] else None,
+        }
+        
+        if t in ("fish", "item"):
+            try:
+                cost_data["cost_item_id"] = int(id_text)
+            except Exception:
+                continue
+        
+        shop_service.shop_repo.add_item_cost(item_id, cost_data)
+    
+    # 更新奖励（先删除旧的，再添加新的）
+    rewards = shop_service.shop_repo.get_item_rewards(item_id)
+    for reward in rewards:
+        shop_service.shop_repo.delete_item_reward(reward["reward_id"])
+    
+    # 添加新奖励
+    reward_full_ids = data.getlist("reward_item_full_id") if hasattr(data, 'getlist') else []
+    reward_quantities = data.getlist("reward_quantity") if hasattr(data, 'getlist') else []
+    reward_refine_levels = data.getlist("reward_refine_level") if hasattr(data, 'getlist') else []
+    
+    for idx, full_id in enumerate(reward_full_ids):
+        if not full_id:
+            continue
+        qty_text = reward_quantities[idx] if idx < len(reward_quantities) else "1"
+        try:
+            qty_val = int(qty_text or "1")
+        except Exception:
+            qty_val = 1
+            
+        t, _, id_text = full_id.partition('-')
+        reward_data = {
+            "reward_type": t,
+            "reward_quantity": qty_val,
+            "reward_refine_level": int(reward_refine_levels[idx]) if idx < len(reward_refine_levels) and reward_refine_levels[idx] else None,
+        }
+        
+        try:
+            reward_data["reward_item_id"] = int(id_text)
+        except Exception:
+            continue
+            
+        shop_service.shop_repo.add_item_reward(item_id, reward_data)
+    
+    return redirect(url_for("admin_bp.manage_shop_details", shop_id=shop_id))
+
+@admin_bp.route("/shops/<int:shop_id>/items/remove/<int:item_id>", methods=["POST"])
+@login_required
+async def remove_shop_item(shop_id, item_id):
+    shop_service = current_app.config["SHOP_SERVICE"]
+    
+    # 删除商品（会自动删除相关的成本和奖励）
+    shop_service.shop_repo.delete_shop_item(item_id)
+    await flash("商品已删除", "success")
+    
+    return redirect(url_for("admin_bp.manage_shop_details", shop_id=shop_id))
+
+@admin_bp.route("/api/shops/<int:shop_id>/items", methods=["POST"])
+@login_required
+async def api_add_shop_item(shop_id):
+    payload = await request.get_json()
+    shop_service = current_app.config["SHOP_SERVICE"]
+    created = shop_service.shop_repo.create_shop_item(shop_id, payload or {})
+    return jsonify({"success": True, "item": created})
+
+@admin_bp.route("/api/shop/items/<int:item_id>", methods=["PUT"])
+@login_required
+async def api_update_shop_item(item_id):
+    payload = await request.get_json()
+    shop_service = current_app.config["SHOP_SERVICE"]
+    shop_service.shop_repo.update_shop_item(item_id, payload or {})
+    return jsonify({"success": True})
+
+@admin_bp.route("/api/shop/items/<int:item_id>", methods=["DELETE"])
+@login_required
+async def api_delete_shop_item(item_id):
+    shop_service = current_app.config["SHOP_SERVICE"]
+    shop_service.shop_repo.delete_shop_item(item_id)
+    return jsonify({"success": True})
+
+# 创建商品模板路由
+@admin_bp.route("/offers/create", methods=["POST"])
+@login_required
+async def create_offer():
+    """创建新的商品模板"""
+    data = await request.form
+    shop_service = current_app.config["SHOP_SERVICE"]
+    
+    try:
+        # 解析表单数据
+        offer_data = {
+            "name": data.get("name"),
+            "description": data.get("description"),
+            "category": "general",  # 添加默认分类
+            "is_active": data.get("is_active") == "on",
+            "start_time": data.get("start_time") or None,
+            "end_time": data.get("end_time") or None,
+            "per_user_limit": int(data.get("per_user_limit")) if data.get("per_user_limit") else None,
+            "per_user_daily_limit": int(data.get("per_user_daily_limit")) if data.get("per_user_daily_limit") else None,
+            "stock_total": int(data.get("stock_total")) if data.get("stock_total") else None,
+            "sort_order": int(data.get("sort_order", 100))
+        }
+        
+        # 解析成本
+        costs = []
+        cost_full_ids = data.getlist("cost_item_full_id") if hasattr(data, 'getlist') else []
+        cost_amounts = data.getlist("cost_amount") if hasattr(data, 'getlist') else []
+        for idx, full_id in enumerate(cost_full_ids):
+            if not full_id:
+                continue
+            amount_text = cost_amounts[idx] if idx < len(cost_amounts) else ""
+            if not amount_text:
+                continue
+            try:
+                amount_val = int(amount_text)
+            except Exception:
+                continue
+            t, _, id_text = full_id.partition('-')
+            if t in ("coins", "premium"):
+                costs.append({"cost_type": t, "item_id": None, "amount": amount_val})
+            elif t in ("fish", "item"):
+                try:
+                    item_id_val = int(id_text)
+                except Exception:
+                    continue
+                costs.append({"cost_type": t, "item_id": item_id_val, "amount": amount_val})
+        
+        # 解析奖励
+        rewards = []
+        reward_item_types = data.getlist("reward_item_type")
+        reward_item_ids = data.getlist("reward_item_id")
+        reward_quantities = data.getlist("reward_quantity")
+        reward_refine_levels = data.getlist("reward_refine_level")
+        
+        for i, item_type in enumerate(reward_item_types):
+            if item_type and reward_item_ids[i] and reward_quantities[i]:
+                reward_data = {
+                    "item_type": item_type,
+                    "item_id": int(reward_item_ids[i]),
+                    "quantity": int(reward_quantities[i])
+                }
+                if reward_refine_levels[i]:
+                    reward_data["refine_level"] = int(reward_refine_levels[i])
+                rewards.append(reward_data)
+        
+        # 创建商品
+        offer = shop_service.shop_repo.create_offer(offer_data, costs)
+        
+        # 添加奖励
+        for reward_data in rewards:
+            shop_service.shop_repo.add_reward(offer.offer_id, reward_data)
+        
+        return redirect(url_for("admin_bp.manage_shops"))
+        
+    except Exception as e:
+        logger.error(f"创建商品失败: {e}")
+        return redirect(url_for("admin_bp.manage_shops"))
+
+# 旧的商品管理API路由已移除，功能已集成到商店详情页面

@@ -14,7 +14,7 @@ from ..repositories.abstract_repository import (
     AbstractUserBuffRepository,
 )
 from ..domain.models import WipeBombLog
-from ...core.utils import get_now
+from ...core.utils import get_now, get_today
 
 if TYPE_CHECKING:
     from ..repositories.sqlite_user_repo import SqliteUserRepository
@@ -43,12 +43,15 @@ class GameMechanicsService:
     """封装特殊或独立的游戏机制"""
 
     FORTUNE_TIERS = {
-        "daikichi": {"min": 15.0, "max": 1000.0, "label": "大吉", "message": "🔮 沙漏中降下璀璨的星辉，预示着一笔泼天的横财即将到来。莫失良机！"},
-        "chukichi": {"min": 5.0, "max": 15.0, "label": "中吉", "message": "🔮 金色的流沙汇成满月之形，预示着时运亨通，机遇就在眼前。"},
-        "kichi":    {"min": 2.0, "max": 5.0, "label": "吉", "message": "🔮 沙漏中的光芒温暖而和煦，预示着前路顺遂，稳中有进。"},
-        "shokichi": {"min": 1.0, "max": 2.0, "label": "小吉", "message": "🔮 流沙平稳，波澜不惊。预示着平安喜乐，凡事皆顺。"},
-        "kyo":      {"min": 0.1, "max": 1.0, "label": "凶", "message": "🔮 沙漏中泛起一丝阴霾，预示着运势不佳，行事务必三思。"},
-        "daikyo":   {"min": 0.0, "max": 0.1, "label": "大凶", "message": "🔮 暗色的流沙汇成不祥之兆，警示着灾祸将至，请务必谨慎避让！"},
+        "kyokudaikichi": {"min": 200.0, "max": 1500.0, "label": "極大吉", "message": "🔮 沙漏中爆发出天界般的神圣光辉，预示着天降横财，这是上天的恩赐！"},
+        "chodaikichi": {"min": 50.0, "max": 200.0, "label": "超大吉", "message": "🔮 沙漏中爆发出神迹般的光芒，预示着传说中的财富即将降临！这是千载难逢的机会！"},
+        "daikichi": {"min": 15.0, "max": 50.0, "label": "大吉", "message": "🔮 沙漏中爆发出神圣的光芒，预示着天降横财，这是神明赐予的奇迹！"},
+        "chukichi": {"min": 6.0, "max": 15.0, "label": "中吉", "message": "🔮 沙漏中降下璀璨的星辉，预示着一笔泼天的横财即将到来。莫失良机！"},
+        "kichi": {"min": 3.0, "max": 6.0, "label": "吉", "message": "🔮 金色的流沙汇成满月之形，预示着时运亨通，机遇就在眼前。"},
+        "shokichi": {"min": 2.0, "max": 3.0, "label": "小吉", "message": "🔮 沙漏中的光芒温暖而和煦，预示着前路顺遂，稳中有进。"},
+        "suekichi": {"min": 1.2, "max": 2.0, "label": "末吉", "message": "🔮 流沙平稳，波澜不惊。预示着平安喜乐，凡事皆顺。"},
+        "kyo": {"min": 0.8, "max": 1.2, "label": "凶", "message": "🔮 沙漏中泛起一丝阴霾，预示着运势不佳，行事务必三思。"},
+        "daikyo": {"min": 0.0, "max": 0.8, "label": "大凶", "message": "🔮 暗色的流沙汇成不祥之兆，警示着灾祸将至，请务必谨慎避让！"},
     }
 
     def __init__(
@@ -66,15 +69,37 @@ class GameMechanicsService:
         self.item_template_repo = item_template_repo
         self.buff_repo = buff_repo
         self.config = config
+        # 服务器级别的抑制状态
+        self._server_suppressed = False
+        self._last_suppression_date = None
         self.thread_pool = ThreadPoolExecutor(max_workers=5)
 
+    def _check_server_suppression(self) -> bool:
+        """检查服务器级别的抑制状态，如果需要则重置"""
+        today = get_today()
+        
+        # 如果是新的一天，重置抑制状态
+        if self._last_suppression_date is None or self._last_suppression_date < today:
+            self._server_suppressed = False
+            self._last_suppression_date = today
+        
+        return self._server_suppressed
+    
+    def _trigger_server_suppression(self):
+        """触发服务器级别的抑制状态"""
+        self._server_suppressed = True
+        self._last_suppression_date = get_today()
+
     def _get_fortune_tier_for_multiplier(self, multiplier: float) -> str:
-        if multiplier >= 15.0: return "daikichi"
-        if multiplier >= 5.0: return "chukichi"
-        if multiplier >= 2.0: return "kichi"
-        if multiplier >= 1.0: return "shokichi"
-        if multiplier >= 0.1: return "kyo"
-        return "daikyo"
+        if multiplier >= 200.0: return "kyokudaikichi"    # 極大吉 (200-1500倍)
+        if multiplier >= 50.0: return "chodaikichi"       # 超大吉 (50-200倍)
+        if multiplier >= 15.0: return "daikichi"          # 大吉 (15-50倍)
+        if multiplier >= 6.0: return "chukichi"           # 中吉 (6-15倍)
+        if multiplier >= 3.0: return "kichi"              # 吉 (3-6倍)
+        if multiplier >= 2.0: return "shokichi"           # 小吉 (2-3倍)
+        if multiplier >= 1.2: return "suekichi"           # 末吉 (1.2-2倍)
+        if multiplier >= 0.8: return "kyo"                # 凶 (0.8-1.2倍)
+        return "daikyo"                                    # 大凶 (0-0.8倍)
 
     def forecast_wipe_bomb(self, user_id: str) -> Dict[str, Any]:
         """
@@ -90,20 +115,41 @@ class GameMechanicsService:
 
         # 模拟一次随机过程来决定结果
         wipe_bomb_config = self.config.get("wipe_bomb", {})
-        # 使用 perform_wipe_bomb 的默认概率表以确保一致性
+        # 使用与 perform_wipe_bomb 相同的新配置以确保一致性
+        # 使用与perform_wipe_bomb相同的权重系统
+        normal_ranges = [
+            (0.0, 0.2, 10000),     # 严重亏损
+            (0.2, 0.5, 18000),     # 普通亏损
+            (0.5, 0.8, 15000),     # 小亏损
+            (0.8, 1.2, 25000),     # 小赚
+            (1.2, 2.0, 14100),     # 中赚（修正）
+            (2.0, 3.0, 4230),      # 大赚（修正）
+            (3.0, 6.0, 705),       # 超大赚（修正）
+            (6.0, 15.0, 106),      # 高倍率（修正）
+            (15.0, 50.0, 21),      # 超级头奖（修正）
+            (50.0, 200.0, 7),      # 传说级奖励（修正）
+            (200.0, 1500.0, 1),    # 神话级奖励（修正）
+        ]
+        
+        suppressed_ranges = [
+            (0.0, 0.2, 10000),     # 严重亏损
+            (0.2, 0.5, 18000),     # 普通亏损
+            (0.5, 0.8, 15000),     # 小亏损
+            (0.8, 1.2, 25000),     # 小赚
+            (1.2, 2.0, 20000),     # 中赚
+            (2.0, 3.0, 6000),      # 大赚
+            (3.0, 6.0, 1000),      # 超大赚
+            (6.0, 15.0, 150),      # 高倍率
+            (15.0, 50.0, 0),       # 超级头奖（禁用）
+            (50.0, 200.0, 0),      # 传说级奖励（禁用）
+            (200.0, 1500.0, 0),    # 神话级奖励（禁用）
+        ]
+        
+        # 检查服务器级别的抑制状态
+        suppressed = self._check_server_suppression()
         ranges = wipe_bomb_config.get(
-            "reward_ranges",
-            [
-                (0.0, 0.1, 20),     # 灾难性亏损 - 提高权重
-                (0.1, 0.5, 40),     # 严重亏损 - 提高权重
-                (0.5, 1.0, 25),     # 普通亏损 - 提高权重
-                (1.0, 1.5, 10),     # 小赚 - 降低权重
-                (1.5, 2.0, 3),      # 中赚 - 大幅降低权重
-                (2.0, 3.0, 1.5),    # 大赚 - 大幅降低权重
-                (3.0, 5.0, 0.4),    # 超大赚 - 大幅降低权重
-                (5.0, 10.0, 0.1),   # 高倍率 - 极低概率
-                (10.0, 50.0, 0.01), # 超级头奖 - 极低概率
-            ],
+            "suppressed_ranges" if suppressed else "normal_ranges",
+            suppressed_ranges if suppressed else normal_ranges
         )
         
         # 模拟一次抽奖来决定运势
@@ -162,19 +208,44 @@ class GameMechanicsService:
 
         # 3. 计算随机奖励倍数 (使用加权随机)
         # 默认奖励范围和权重: (min_multiplier, max_multiplier, weight)
-        # 修复概率分布，降低盈利概率，提高亏损概率
-        default_ranges = [
-            (0.0, 0.1, 20),     # 灾难性亏损 - 提高权重
-            (0.1, 0.5, 40),     # 严重亏损 - 提高权重
-            (0.5, 1.0, 25),     # 普通亏损 - 提高权重
-            (1.0, 1.5, 10),     # 小赚 - 降低权重
-            (1.5, 2.0, 3),      # 中赚 - 大幅降低权重
-            (2.0, 3.0, 1.5),    # 大赚 - 大幅降低权重
-            (3.0, 5.0, 0.4),    # 超大赚 - 大幅降低权重
-            (5.0, 10.0, 0.1),   # 高倍率 - 极低概率
-            (10.0, 50.0, 0.01), # 超级头奖 - 极低概率
+        # 专家建议配置：根据计算结果重新调整的权重分布
+        # 使用整数权重（放大1000倍）避免小数计算
+        normal_ranges = [
+            (0.0, 0.2, 10000),     # 严重亏损
+            (0.2, 0.5, 18000),     # 普通亏损
+            (0.5, 0.8, 15000),     # 小亏损
+            (0.8, 1.2, 25000),     # 小赚
+            (1.2, 2.0, 14100),     # 中赚（增加）
+            (2.0, 3.0, 4230),      # 大赚（增加）
+            (3.0, 6.0, 705),       # 超大赚（增加）
+            (6.0, 15.0, 106),      # 高倍率（增加）
+            (15.0, 50.0, 21),      # 超级头奖（维持）
+            (50.0, 200.0, 7),      # 传说级奖励（维持）
+            (200.0, 1500.0, 1),    # 神话级奖励（维持）
         ]
-        ranges = wipe_bomb_config.get("reward_ranges", default_ranges)
+        
+        # 抑制模式：当一天内已开出≥15x高倍率后，禁用高倍率区间
+        suppressed_ranges = [
+            (0.0, 0.2, 10000),     # 严重亏损
+            (0.2, 0.5, 18000),     # 普通亏损
+            (0.5, 0.8, 15000),     # 小亏损
+            (0.8, 1.2, 25000),     # 小赚
+            (1.2, 2.0, 20000),     # 中赚
+            (2.0, 3.0, 6000),      # 大赚
+            (3.0, 6.0, 1000),      # 超大赚
+            (6.0, 15.0, 150),      # 高倍率
+            (15.0, 50.0, 0),       # 超级头奖（禁用）
+            (50.0, 200.0, 0),      # 传说级奖励（禁用）
+            (200.0, 1500.0, 0),    # 神话级奖励（禁用）
+        ]
+        # 检查服务器级别的抑制状态
+        suppressed = self._check_server_suppression()
+        
+        # 根据抑制状态选择权重表
+        if suppressed:
+            ranges = wipe_bomb_config.get("suppressed_ranges", suppressed_ranges)
+        else:
+            ranges = wipe_bomb_config.get("normal_ranges", normal_ranges)
 
         # 如果有预测结果，则强制使用对应区间的随机
         if user.wipe_bomb_forecast:
@@ -186,7 +257,7 @@ class GameMechanicsService:
                 # 筛选出所有与预测结果区间有重叠的原始概率区间
                 # 例如，如果预测是吉(2-5)，则需要包括原始的(2-3), (3-4), (4-5)区间
                 constrained_ranges = [
-                    r for r in default_ranges if max(r[0], min_val) < min(r[1], max_val)
+                    r for r in normal_ranges if max(r[0], min_val) < min(r[1], max_val)
                 ]
                 if constrained_ranges:
                     ranges = constrained_ranges
@@ -205,6 +276,10 @@ class GameMechanicsService:
         # 4. 计算最终金额并执行事务
         reward_amount = int(contribution_amount * reward_multiplier)
         profit = reward_amount - contribution_amount
+
+        # 检查是否触发服务器级别抑制（开出≥15x高倍率）
+        if reward_multiplier >= 15.0 and not suppressed:
+            self._trigger_server_suppression()
 
         user.coins += profit
         self.user_repo.update(user)

@@ -1054,7 +1054,47 @@ class InventoryService:
                     failure_type = self._determine_failure_type(instance, template)
                     
                     if failure_type == "downgrade":
-                        # 降级失败：装备等级-1，但保留装备
+                        # 降级失败：只有天命护符·神佑能防止降级
+                        try:
+                            user_items = self.inventory_repo.get_user_item_inventory(user.user_id)
+                        except Exception:
+                            user_items = {}
+
+                        # 查找天命护符·神佑（无max_rarity限制的keep模式护符）
+                        chosen_tpl = None
+                        try:
+                            all_items_tpl = self.item_template_repo.get_all_items()
+                            for tpl in all_items_tpl:
+                                if getattr(tpl, "effect_type", None) == "REFINE_DESTRUCTION_SHIELD":
+                                    qty = user_items.get(tpl.item_id, 0)
+                                    if qty <= 0:
+                                        continue
+                                    payload = {}
+                                    try:
+                                        payload = json.loads(tpl.effect_payload or "{}")
+                                    except Exception:
+                                        pass
+                                    mode = payload.get("mode", "keep")
+                                    max_rarity = payload.get("max_rarity")
+                                    
+                                    # 只有无max_rarity限制的keep模式护符（天命护符·神佑）能防止降级
+                                    if mode == "keep" and max_rarity is None:
+                                        chosen_tpl = tpl
+                                        break
+                        except Exception:
+                            pass
+
+                        if chosen_tpl is not None:
+                            # 自动消耗一个天命护符·神佑
+                            self.inventory_repo.decrease_item_quantity(user.user_id, chosen_tpl.item_id, 1)
+                            return {
+                                "success": False,
+                                "message": f"🛡 {chosen_tpl.name} 生效！避免了等级降级。",
+                                "failed": True,
+                                "destroyed": False
+                            }
+
+                        # 无天命护符：执行降级
                         instance.refine_level = max(1, instance.refine_level - 1)
                         if item_type == "rod":
                             self.inventory_repo.update_rod_instance(instance)
@@ -1361,9 +1401,6 @@ class InventoryService:
                 "message": f"找不到 {effect_type} 效果的处理器，请检查配置。",
             }
 
-        # 消耗道具
-        self.inventory_repo.decrease_item_quantity(user_id, item_id, quantity)
-
         try:
             payload = (
                 json.loads(item_template.effect_payload)
@@ -1374,9 +1411,16 @@ class InventoryService:
             # 传递 quantity 参数给效果处理器
             result = effect_handler.apply(user, item_template, payload, quantity=quantity)
 
-            # 确保返回的消息包含道具名称和数量
-            final_message = f"成功使用了 {quantity} 个【{item_template.name}】！{result.get('message', '')}"
-            result["message"] = final_message
+            # 只有在效果处理成功时才消耗道具
+            if result.get("success", False):
+                self.inventory_repo.decrease_item_quantity(user_id, item_id, quantity)
+                # 确保返回的消息包含道具名称和数量
+                final_message = f"成功使用了 {quantity} 个【{item_template.name}】！{result.get('message', '')}"
+                result["message"] = final_message
+            else:
+                # 效果处理失败，不消耗道具，但保持原始错误消息
+                result["message"] = f"❌ 使用道具失败：{result.get('message', '')}"
+            
             return result
 
         except Exception as e:

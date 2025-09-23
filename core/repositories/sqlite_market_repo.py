@@ -68,17 +68,20 @@ class SqliteMarketRepository(AbstractMarketRepository):
                     CASE
                         WHEN m.item_type = 'rod' THEN r.name
                         WHEN m.item_type = 'accessory' THEN a.name
+                        WHEN m.item_type = 'item' THEN i.name
                         ELSE '未知物品'
                         END AS item_name,
                         CASE
                         WHEN m.item_type = 'rod' THEN r.description
                         WHEN m.item_type = 'accessory' THEN a.description
+                        WHEN m.item_type = 'item' THEN i.description
                         ELSE ''
                         END AS item_description
                         FROM market m
                     JOIN users u ON m.user_id = u.user_id
                     LEFT JOIN rods r ON m.item_type = 'rod' AND m.item_id = r.rod_id
                     LEFT JOIN accessories a ON m.item_type = 'accessory' AND m.item_id = a.accessory_id
+                    LEFT JOIN items i ON m.item_type = 'item' AND m.item_id = i.item_id
                     WHERE m.market_id = ?
             """, (market_id,))
 

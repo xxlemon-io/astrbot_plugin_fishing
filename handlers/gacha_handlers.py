@@ -185,8 +185,13 @@ async def wipe_bomb(self, event: AstrMessageEvent):
             profit = result["profit"]
             remaining_today = result["remaining_today"]
             
-            # 格式化倍率，保留两位小数
-            multiplier_formatted = f"{multiplier:.2f}"
+            # 格式化倍率，智能精度显示
+            if multiplier < 0.01:
+                # 当倍率小于0.01时，显示4位小数以避免混淆
+                multiplier_formatted = f"{multiplier:.4f}"
+            else:
+                # 正常情况下保留两位小数
+                multiplier_formatted = f"{multiplier:.2f}"
 
             if multiplier >= 3:
                 message += f"🎰 大成功！你投入 {contribution} 金币，获得了 {multiplier_formatted} 倍奖励！\n 💰 奖励金额：{reward} 金币（盈利：+ {profit}）\n"

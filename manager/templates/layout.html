@@ -18,14 +18,15 @@
         <div class="collapse navbar-collapse" id="navbarColor01">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_users') }}"><i class="fas fa-users"></i> 用户管理</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_fish') }}"><i class="fas fa-water"></i> 鱼类管理</a></li>
                 <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_zones') }}"><i class="fas fa-map"></i> 钓鱼区域</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_fish') }}"><i class="fas fa-water"></i> 鱼类管理</a></li>
                 <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_rods') }}"><i class="fas fa-gavel"></i> 鱼竿管理</a></li>
                 <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_baits') }}"><i class="fas fa-bug"></i> 鱼饵管理</a></li>
                 <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_accessories') }}"><i class="fas fa-gem"></i> 饰品管理</a></li>
                 <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_items') }}"><i class="fas fa-box-open"></i> 道具管理</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_gacha') }}"><i class="fas fa-dice"></i> 抽卡管理</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_shops') }}"><i class="fas fa-shopping-cart"></i> 商店管理</a></li>
                 <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_market') }}"><i class="fas fa-store"></i> 市场管理</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_bp.manage_gacha') }}"><i class="fas fa-dice"></i> 抽卡管理</a></li>
             </ul>
             <a href="{{ url_for('admin_bp.logout') }}" class="btn btn-outline-light"><i class="fas fa-sign-out-alt"></i> 登出</a>
         </div>

@@ -14,6 +14,7 @@ from .core.repositories.sqlite_item_template_repo import SqliteItemTemplateRepos
 from .core.repositories.sqlite_inventory_repo import SqliteInventoryRepository
 from .core.repositories.sqlite_gacha_repo import SqliteGachaRepository
 from .core.repositories.sqlite_market_repo import SqliteMarketRepository
+from .core.repositories.sqlite_shop_repo import SqliteShopRepository
 from .core.repositories.sqlite_log_repo import SqliteLogRepository
 from .core.repositories.sqlite_achievement_repo import SqliteAchievementRepository
 from .core.repositories.sqlite_user_buff_repo import SqliteUserBuffRepository
@@ -103,6 +104,7 @@ class FishingPlugin(Star):
         self.inventory_repo = SqliteInventoryRepository(db_path)
         self.gacha_repo = SqliteGachaRepository(db_path)
         self.market_repo = SqliteMarketRepository(db_path)
+        self.shop_repo = SqliteShopRepository(db_path)
         self.log_repo = SqliteLogRepository(db_path)
         self.achievement_repo = SqliteAchievementRepository(db_path)
         self.buff_repo = SqliteUserBuffRepository(db_path)
@@ -126,7 +128,7 @@ class FishingPlugin(Star):
             self.game_mechanics_service,
             self.game_config,
         )
-        self.shop_service = ShopService(self.item_template_repo, self.inventory_repo, self.user_repo)
+        self.shop_service = ShopService(self.item_template_repo, self.inventory_repo, self.user_repo, self.shop_repo, self.game_config)
         self.market_service = MarketService(self.market_repo, self.inventory_repo, self.user_repo, self.log_repo,
                                            self.item_template_repo, self.game_config)
         self.achievement_service = AchievementService(self.achievement_repo, self.user_repo, self.inventory_repo,
@@ -165,13 +167,17 @@ class FishingPlugin(Star):
         self.achievement_service.start_achievement_check_task()
 
         # --- 5. 初始化核心游戏数据 ---
-        data_setup_service = DataSetupService(self.item_template_repo, self.gacha_repo)
+        data_setup_service = DataSetupService(
+            self.item_template_repo, self.gacha_repo, self.shop_repo
+        )
         data_setup_service.setup_initial_data()
         # 确保初始道具存在（在已有数据库上也可幂等执行）
         try:
             data_setup_service.create_initial_items()
         except Exception:
             pass
+
+        # 商店完全由后台管控，不再自动种子化
 
         # --- 6. (临时) 实例化数据服务，供调试命令使用 ---
         self.data_setup_service = data_setup_service
@@ -420,14 +426,11 @@ class FishingPlugin(Star):
         async for r in market_handlers.shop(self, event):
             yield r
 
-    @filter.command("购买鱼竿")
-    async def buy_rod(self, event: AstrMessageEvent):
-        async for r in market_handlers.buy_rod(self, event):
-            yield r
+    
 
-    @filter.command("购买鱼饵")
-    async def buy_bait(self, event: AstrMessageEvent):
-        async for r in market_handlers.buy_bait(self, event):
+    @filter.command("商店购买", alias={"购买商店商品", "购买商店"})
+    async def buy_in_shop(self, event: AstrMessageEvent):
+        async for r in market_handlers.buy_in_shop(self, event):
             yield r
 
     @filter.command("市场")
@@ -609,9 +612,9 @@ class FishingPlugin(Star):
             yield r
 
     @filter.permission_type(PermissionType.ADMIN)
-    @filter.command("同步道具", alias={"管理员 同步道具"})
-    async def sync_items_from_initial_data(self, event: AstrMessageEvent):
-        async for r in admin_handlers.sync_items_from_initial_data(self, event):
+    @filter.command("同步初始设定", alias={"同步设定", "同步数据", "同步"})
+    async def sync_initial_data(self, event: AstrMessageEvent):
+        async for r in admin_handlers.sync_initial_data(self, event):
             yield r
 
     @filter.permission_type(PermissionType.ADMIN)
@@ -624,6 +627,12 @@ class FishingPlugin(Star):
     @filter.command("代理下线", alias={"logout"})
     async def impersonate_stop(self, event: AstrMessageEvent):
         async for r in admin_handlers.impersonate_stop(self, event):
+            yield r
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("全体发放道具")
+    async def reward_all_items(self, event: AstrMessageEvent):
+        async for r in admin_handlers.reward_all_items(self, event):
             yield r
 
     async def _check_port_active(self):
