@@ -287,10 +287,6 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.refine_equipment(self, event):
             yield r
 
-    @filter.command("精炼鱼竿", alias={"鱼竿精炼"})
-    async def refine_rod(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.refine_rod(self, event):
-            yield r
 
     @filter.command("鱼饵")
     async def bait(self, event: AstrMessageEvent):
@@ -302,10 +298,6 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.items(self, event):
             yield r
 
-    @filter.command("使用道具")
-    async def use_item(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.use_item(self, event):
-            yield r
 
     @filter.command("开启全部钱袋", alias={"打开全部钱袋", "打开所有钱袋"})
     async def open_all_money_bags(self, event: AstrMessageEvent):
@@ -322,10 +314,6 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.accessories(self, event):
             yield r
 
-    @filter.command("精炼饰品", alias={"饰品精炼"})
-    async def refine_accessory(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.refine_accessory(self, event):
-            yield r
 
     @filter.command("精炼帮助", alias={"精炼说明"})
     async def refine_help(self, event: AstrMessageEvent):
@@ -342,45 +330,14 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.unlock_equipment(self, event):
             yield r
 
-    @filter.command("锁定鱼竿", alias={"鱼竿锁定"})
-    async def lock_rod(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.lock_rod(self, event):
-            yield r
-
-    @filter.command("解锁鱼竿", alias={"鱼竿解锁"})
-    async def unlock_rod(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.unlock_rod(self, event):
-            yield r
-
-    @filter.command("锁定饰品", alias={"饰品锁定"})
-    async def lock_accessory(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.lock_accessory(self, event):
-            yield r
-
-    @filter.command("解锁饰品", alias={"饰品解锁"})
-    async def unlock_accessory(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.unlock_accessory(self, event):
-            yield r
 
     @filter.command("使用", alias={"装备"})
     async def use_equipment(self, event: AstrMessageEvent):
         async for r in inventory_handlers.use_equipment(self, event):
             yield r
 
-    @filter.command("使用鱼竿", alias={"装备鱼竿"})
-    async def use_rod(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.use_rod(self, event):
-            yield r
 
-    @filter.command("使用鱼饵", alias={"装备鱼饵"})
-    async def use_bait(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.use_bait(self, event):
-            yield r
 
-    @filter.command("使用饰品", alias={"装备饰品"})
-    async def use_accessories(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.use_accessories(self, event):
-            yield r
 
     @filter.command("金币")
     async def coins(self, event: AstrMessageEvent):
@@ -468,39 +425,10 @@ class FishingPlugin(Star):
         async for r in market_handlers.list_any(self, event):
             yield r
 
-    @filter.command("上架鱼竿")
-    async def list_rod(self, event: AstrMessageEvent):
-        async for r in market_handlers.list_rod(self, event):
-            yield r
-
-    @filter.command("上架饰品")
-    async def list_accessories(self, event: AstrMessageEvent):
-        async for r in market_handlers.list_accessories(self, event):
-            yield r
-
-    @filter.command("上架道具")
-    async def list_item(self, event: AstrMessageEvent):
-        async for r in market_handlers.list_item(self, event):
-            yield r
-
-    @filter.command("匿名上架鱼竿", alias={"匿名上架竿", "匿名挂竿"})
-    async def anonymous_list_rod(self, event: AstrMessageEvent):
-        async for r in market_handlers.anonymous_list_rod(self, event):
-            yield r
 
     @filter.command("匿名上架")
     async def anonymous_list_any(self, event: AstrMessageEvent):
         async for r in market_handlers.anonymous_list_any(self, event):
-            yield r
-
-    @filter.command("匿名上架饰品", alias={"匿名上架饰", "匿名挂饰"})
-    async def anonymous_list_accessories(self, event: AstrMessageEvent):
-        async for r in market_handlers.anonymous_list_accessories(self, event):
-            yield r
-
-    @filter.command("匿名上架道具", alias={"匿名上架物", "匿名挂物"})
-    async def anonymous_list_item(self, event: AstrMessageEvent):
-        async for r in market_handlers.anonymous_list_item(self, event):
             yield r
 
     @filter.command("购买")

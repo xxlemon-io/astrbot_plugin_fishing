@@ -212,9 +212,23 @@ async def bait(self, event: AstrMessageEvent):
     if bait_info and bait_info["baits"]:
         # 构造输出信息,附带emoji
         message = "【🐟 鱼饵】：\n"
+        
+        def _to_base36(n: int) -> str:
+            if n < 0:
+                return "0"
+            if n == 0:
+                return "0"
+            digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            out = []
+            while n:
+                n, rem = divmod(n, 36)
+                out.append(digits[rem])
+            return "".join(reversed(out))
+        
         for bait in bait_info["baits"]:
-            message += f" - {bait['name']} x {bait['quantity']} (稀有度: {format_rarity_display(bait['rarity'])})\n"
-            message += f"   - ID: {bait['bait_id']}\n"
+            bait_id = int(bait.get('bait_id', 0) or 0)
+            bcode = f"B{_to_base36(bait_id)}" if bait_id else "B0"
+            message += f" - {bait['name']} x {bait['quantity']} (稀有度: {format_rarity_display(bait['rarity'])}) 代码: {bcode}\n"
             if bait["duration_minutes"] > 0:
                 message += f"   - 持续时间: {bait['duration_minutes']} 分钟\n"
             if bait["effect_description"]:
@@ -243,10 +257,10 @@ async def items(self, event: AstrMessageEvent):
             return "".join(reversed(out))
 
         for it in item_info["items"]:
+            item_id = int(it.get('item_id', 0) or 0)
+            dcode = f"D{_to_base36(item_id)}" if item_id else "D0"
             consumable_text = "消耗品" if it.get("is_consumable") else "非消耗"
-            message += f" - {it['name']} x {it['quantity']} (稀有度: {format_rarity_display(it['rarity'])}，{consumable_text})\n"
-            dcode = f"D{_to_base36(int(it['item_id']))}"
-            message += f"   - 代码: {dcode}\n"
+            message += f" - {it['name']} x {it['quantity']} (稀有度: {format_rarity_display(it['rarity'])}，{consumable_text}) 代码: {dcode}\n"
             if it.get("effect_description"):
                 message += f"   - 效果: {it['effect_description']}\n"
             message += "\n"
@@ -547,59 +561,106 @@ async def use_rod(self, event: AstrMessageEvent):
         yield r
 
 async def use_equipment(self, event: AstrMessageEvent, equipment_type: str = None):
-    """统一使用装备命令 - 根据短码前缀自动判断类型"""
+    """统一使用命令 - 根据短码前缀自动判断类型"""
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要使用的装备代码，例如：/使用 R1A2B 或 /使用 A3C4D")
+        yield event.plain_result("❌ 请指定要使用的物品代码，例如：/使用 R1A2B（鱼竿）、/使用 A3C4D（饰品）、/使用 D1Z（道具）、/使用 B2N（鱼饵）")
         return
 
     token = args[1].strip().upper()
     
-    # 根据前缀自动判断装备类型
+    # 根据前缀自动判断物品类型
     if token.startswith("R"):
         target_type = "rod"
         type_name = "鱼竿"
     elif token.startswith("A"):
         target_type = "accessory" 
         type_name = "饰品"
+    elif token.startswith("D"):
+        target_type = "item"
+        type_name = "道具"
+    elif token.startswith("B"):
+        target_type = "bait"
+        type_name = "鱼饵"
     else:
         # 如果没有前缀，使用传入的类型参数
         if equipment_type:
             target_type = equipment_type
             type_name = "鱼竿" if equipment_type == "rod" else "饰品"
         else:
-            yield event.plain_result("❌ 请使用正确的装备代码：R开头为鱼竿，A开头为饰品")
+            yield event.plain_result("❌ 请使用正确的物品代码：R开头为鱼竿，A开头为饰品，D开头为道具，B开头为鱼饵")
             return
 
-    # 检查用户是否有对应装备
-    if target_type == "rod":
-        equipment_info = self.inventory_service.get_user_rod_inventory(user_id)
-    else:
-        equipment_info = self.inventory_service.get_user_accessory_inventory(user_id)
-    
-    if not equipment_info or not equipment_info.get("rods" if target_type == "rod" else "accessories"):
-        yield event.plain_result(f"❌ 您还没有{type_name}，请先购买或抽奖获得。")
-        return
+    # 处理不同类型的物品
+    if target_type in ["rod", "accessory"]:
+        # 装备类物品
+        equipment_info = self.inventory_service.get_user_rod_inventory(user_id) if target_type == "rod" else self.inventory_service.get_user_accessory_inventory(user_id)
+        
+        if not equipment_info or not equipment_info.get("rods" if target_type == "rod" else "accessories"):
+            yield event.plain_result(f"❌ 您还没有{type_name}，请先购买或抽奖获得。")
+            return
 
-    # 解析实例ID
-    if target_type == "rod":
-        instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
-    else:
-        instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
-    
-    if instance_id is None:
-        yield event.plain_result(f"❌ 无效的{type_name}代码，请检查后重试。")
-        return
-
-    # 装备物品
-    if result := self.inventory_service.equip_item(user_id, int(instance_id), target_type):
-        if result["success"]:
-            yield event.plain_result(result["message"])
+        # 解析实例ID
+        if target_type == "rod":
+            instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
         else:
-            yield event.plain_result(f"❌ 使用{type_name}失败：{result['message']}")
-    else:
-        yield event.plain_result("❌ 出错啦！请稍后再试。")
+            instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
+        
+        if instance_id is None:
+            yield event.plain_result(f"❌ 无效的{type_name}代码，请检查后重试。")
+            return
+
+        # 装备物品
+        if result := self.inventory_service.equip_item(user_id, int(instance_id), target_type):
+            if result["success"]:
+                yield event.plain_result(result["message"])
+            else:
+                yield event.plain_result(f"❌ 使用{type_name}失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+    
+    elif target_type == "item":
+        # 道具类物品
+        def _from_base36(s: str) -> int:
+            s = (s or "").strip().upper()
+            return int(s, 36)
+        
+        try:
+            item_id = _from_base36(token[1:])
+        except Exception:
+            yield event.plain_result("❌ 无效的道具代码，请检查后重试。")
+            return
+        
+        # 使用道具
+        if result := self.inventory_service.use_item(user_id, int(item_id)):
+            if result["success"]:
+                yield event.plain_result(result["message"])
+            else:
+                yield event.plain_result(f"❌ 使用道具失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+    
+    elif target_type == "bait":
+        # 鱼饵类物品
+        def _from_base36(s: str) -> int:
+            s = (s or "").strip().upper()
+            return int(s, 36)
+        
+        try:
+            bait_id = _from_base36(token[1:])
+        except Exception:
+            yield event.plain_result("❌ 无效的鱼饵代码，请检查后重试。")
+            return
+        
+        # 使用鱼饵
+        if result := self.inventory_service.use_bait(user_id, int(bait_id)):
+            if result["success"]:
+                yield event.plain_result(result["message"])
+            else:
+                yield event.plain_result(f"❌ 使用鱼饵失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
 
 async def use_bait(self, event: AstrMessageEvent):
     """使用鱼饵"""

@@ -678,12 +678,27 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
                                  (x, y, x + card_width, y + card_height), 
                                  6, fill=card_bg)
             
-            # 鱼饵名称 和 ID
+            # 鱼饵名称 和 短码
             bait_name = bait['name'][:12] + "..." if len(bait['name']) > 12 else bait['name']
             name_w, _ = get_text_size(bait_name, small_font)
             draw.text((x + 15, y + 10), bait_name, font=small_font, fill=text_primary)
-            bait_id = bait.get('bait_id', 'N/A')
-            draw.text((x + 15 + name_w + 10, y + 12), f"ID: {bait_id}", font=tiny_font, fill=primary_light)
+            
+            # 生成B前缀短码
+            def _to_base36(n: int) -> str:
+                if n < 0:
+                    return "0"
+                if n == 0:
+                    return "0"
+                digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                out = []
+                while n:
+                    n, rem = divmod(n, 36)
+                    out.append(digits[rem])
+                return "".join(reversed(out))
+            
+            bait_id = int(bait.get('bait_id', 0) or 0)
+            bcode = f"B{_to_base36(bait_id)}" if bait_id else "B0"
+            draw.text((x + 15 + name_w + 10, y + 12), f"代码: {bcode}", font=tiny_font, fill=primary_light)
             
             # 稀有度
             rarity = bait.get('rarity', 1)
