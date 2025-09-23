@@ -423,12 +423,12 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             rod_name = rod['name'][:15] + "..." if len(rod['name']) > 15 else rod['name']
             display_code = rod.get('display_code', f"ID{rod.get('instance_id', 'N/A')}")
             
-            # 计算名称宽度，然后在其右边放置代码
+            # 计算名称宽度，然后在其右边放置ID
             name_w, _ = get_text_size(rod_name, content_font)
             draw.text((x + 15, y + 15), rod_name, font=content_font, fill=text_primary)
-            code_w, code_h = get_text_size("代码: 000000", tiny_font)
-            # 让代码与装备名底部对齐（y同基线高度）
-            draw.text((x + 15 + name_w + 10, y + 15 + (get_text_size(rod_name, content_font)[1] - code_h)), f"代码: {display_code}", font=tiny_font, fill=primary_light)
+            id_w, id_h = get_text_size("ID: 000000", tiny_font)
+            # 让ID与装备名底部对齐（y同基线高度）
+            draw.text((x + 15 + name_w + 10, y + 15 + (get_text_size(rod_name, content_font)[1] - id_h)), f"ID: {display_code}", font=tiny_font, fill=primary_light)
             
             # 锁定状态标识（右上角，参考道具消耗品位置）
             is_locked = rod.get('is_locked', False)
@@ -564,11 +564,11 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             acc_name = accessory['name'][:15] + "..." if len(accessory['name']) > 15 else accessory['name']
             display_code = accessory.get('display_code', f"ID{accessory.get('instance_id', 'N/A')}")
             
-            # 计算名称宽度，然后在其右边放置代码
+            # 计算名称宽度，然后在其右边放置ID
             name_w, _ = get_text_size(acc_name, content_font)
             draw.text((x + 15, y + 15), acc_name, font=content_font, fill=text_primary)
-            code_w, code_h = get_text_size("代码: 000000", tiny_font)
-            draw.text((x + 15 + name_w + 10, y + 15 + (get_text_size(acc_name, content_font)[1] - code_h)), f"代码: {display_code}", font=tiny_font, fill=primary_light)
+            id_w, id_h = get_text_size("ID: 000000", tiny_font)
+            draw.text((x + 15 + name_w + 10, y + 15 + (get_text_size(acc_name, content_font)[1] - id_h)), f"ID: {display_code}", font=tiny_font, fill=primary_light)
             
             # 锁定状态标识（右上角，参考道具消耗品位置）
             is_locked = accessory.get('is_locked', False)
