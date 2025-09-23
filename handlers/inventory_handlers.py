@@ -1,5 +1,6 @@
 import os
 from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.core.message.components import At
 from ..utils import to_percentage, format_accessory_or_rod, format_rarity_display
 
 async def user_backpack(self, event: AstrMessageEvent):
@@ -68,23 +69,28 @@ async def pond(self, event: AstrMessageEvent):
 async def peek_pond(self, event: AstrMessageEvent):
     """偷看他人鱼塘内的鱼"""
     user_id = self._get_effective_user_id(event)
-    
-    # 解析消息，提取目标用户ID
-    message_text = event.message_str.strip()
-    
-    # 简单的@用户解析，支持@用户ID或直接用户ID
+    message_obj = event.message_obj
     target_user_id = None
-    if message_text.startswith('@'):
-        # 提取@后面的用户ID
-        target_user_id = message_text[1:].strip()
-    elif len(message_text.split()) > 1:
-        # 支持 "偷看鱼塘 用户ID" 格式
-        parts = message_text.split()
-        if len(parts) >= 2:
-            target_user_id = parts[1].strip()
+    
+    # 首先尝试从@中获取用户ID
+    if hasattr(message_obj, "message"):
+        # 检查消息中是否有At对象
+        for comp in message_obj.message:
+            if isinstance(comp, At):
+                target_user_id = str(comp.qq)
+                break
+    
+    # 如果没有@，尝试从消息文本中解析
+    if target_user_id is None:
+        message_text = event.message_str.strip()
+        if len(message_text.split()) > 1:
+            # 支持 "偷看鱼塘 用户ID" 格式
+            parts = message_text.split()
+            if len(parts) >= 2:
+                target_user_id = parts[1].strip()
     
     if not target_user_id:
-        yield event.plain_result("❌ 请指定要查看的用户！\n用法：/偷看鱼塘 @用户ID 或 /偷看鱼塘 用户ID")
+        yield event.plain_result("❌ 请指定要查看的用户！\n用法：/偷看鱼塘 @用户 或 /偷看鱼塘 用户ID")
         return
     
     # 检查目标用户是否存在
