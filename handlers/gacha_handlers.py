@@ -203,6 +203,11 @@ async def wipe_bomb(self, event: AstrMessageEvent):
             else:
                 message += f"💥 你投入 {contribution} 金币，获得了 {multiplier_formatted} 倍奖励！\n 💰 奖励金额：{reward} 金币（亏损：- {abs(profit)})\n"
             message += f"剩余擦弹次数：{remaining_today} 次\n"
+            
+            # 如果触发了抑制模式，添加通知信息
+            if "suppression_notice" in result:
+                message += f"\n{result['suppression_notice']}"
+            
             yield event.plain_result(message)
         else:
             yield event.plain_result(f"⚠️ 擦弹失败：{result['message']}")

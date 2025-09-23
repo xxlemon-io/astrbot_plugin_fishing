@@ -253,10 +253,10 @@ class GameMechanicsService:
                 tier_info = self.FORTUNE_TIERS[forecast_key]
                 min_val, max_val = tier_info["min"], tier_info["max"]
                 
-                # 筛选出所有与预测结果区间有重叠的原始概率区间
-                # 例如，如果预测是吉(2-5)，则需要包括原始的(2-3), (3-4), (4-5)区间
+                # 筛选出完全包含在预测区间内的权重区间，确保100%准确
+                # 只选择权重区间的范围完全在预测区间内的区间，绝不使用重叠区间
                 constrained_ranges = [
-                    r for r in normal_ranges if max(r[0], min_val) < min(r[1], max_val)
+                    r for r in normal_ranges if r[0] >= min_val and r[1] <= max_val
                 ]
                 if constrained_ranges:
                     ranges = constrained_ranges
@@ -277,8 +277,10 @@ class GameMechanicsService:
         profit = reward_amount - contribution_amount
 
         # 检查是否触发服务器级别抑制（开出≥15x高倍率）
+        suppression_triggered = False
         if reward_multiplier >= 15.0 and not suppressed:
             self._trigger_server_suppression()
+            suppression_triggered = True
 
         user.coins += profit
         self.user_repo.update(user)
@@ -317,7 +319,8 @@ class GameMechanicsService:
         self.thread_pool.submit(upload_data_async)
 
 
-        return {
+        # 构建返回结果
+        result = {
             "success": True,
             "contribution": contribution_amount,
             "multiplier": reward_multiplier,
@@ -325,6 +328,12 @@ class GameMechanicsService:
             "profit": profit,
             "remaining_today": total_max_attempts - (attempts_today + 1),
         }
+        
+        # 如果触发了抑制模式，添加通知信息
+        if suppression_triggered:
+            result["suppression_notice"] = "✨ 天界之力降临！你的惊人运气触发了时空沙漏的平衡法则！为了避免时空扭曲，命运女神暂时调整了概率之流，但宝藏之门依然为你敞开！"
+        
+        return result
 
     def get_wipe_bomb_history(self, user_id: str, limit: int = 10) -> Dict[str, Any]:
         """
