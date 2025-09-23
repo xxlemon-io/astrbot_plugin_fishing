@@ -43,14 +43,42 @@
                         <td>
                             {% for cost in item.costs %}
                                 <span class="badge bg-info me-1">
-                                    {% if cost.cost_type == 'coins' %}金币{% elif cost.cost_type == 'premium' %}高级货币{% elif cost.cost_type == 'fish' %}鱼类{% elif cost.cost_type == 'item' %}道具{% else %}{{ cost.cost_type }}{% endif %} x{{ cost.cost_amount }}
+                                    {% if cost.cost_type == 'coins' %}
+                                        💰 金币 x{{ cost.cost_amount }}
+                                    {% elif cost.cost_type == 'premium' %}
+                                        💎 高级货币 x{{ cost.cost_amount }}
+                                    {% elif cost.cost_type == 'fish' %}
+                                        🐟 {{ cost.fish_name or ('鱼类#' + cost.cost_item_id|string) }} x{{ cost.cost_amount }}
+                                    {% elif cost.cost_type == 'item' %}
+                                        🎁 {{ cost.item_name or ('道具#' + cost.cost_item_id|string) }} x{{ cost.cost_amount }}
+                                    {% elif cost.cost_type == 'rod' %}
+                                        🎣 {{ cost.rod_name or ('鱼竿#' + cost.cost_item_id|string) }} x{{ cost.cost_amount }}
+                                    {% elif cost.cost_type == 'accessory' %}
+                                        💍 {{ cost.accessory_name or ('饰品#' + cost.cost_item_id|string) }} x{{ cost.cost_amount }}
+                                    {% else %}
+                                        {{ cost.cost_type }} x{{ cost.cost_amount }}
+                                    {% endif %}
                                 </span>
                             {% endfor %}
                         </td>
                         <td>
                             {% for reward in item.rewards %}
                                 <span class="badge bg-success me-1">
-                                    {% if reward.reward_type == 'rod' %}鱼竿{% elif reward.reward_type == 'bait' %}鱼饵{% elif reward.reward_type == 'accessory' %}饰品{% elif reward.reward_type == 'item' %}道具{% else %}{{ reward.reward_type }}{% endif %} x{{ reward.reward_quantity }}
+                                    {% if reward.reward_type == 'rod' %}
+                                        🎣 {{ reward.rod_name or ('鱼竿#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
+                                    {% elif reward.reward_type == 'bait' %}
+                                        🪱 {{ reward.bait_name or ('鱼饵#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
+                                    {% elif reward.reward_type == 'accessory' %}
+                                        💍 {{ reward.accessory_name or ('饰品#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
+                                    {% elif reward.reward_type == 'item' %}
+                                        🎁 {{ reward.item_name or ('道具#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
+                                    {% elif reward.reward_type == 'fish' %}
+                                        🐟 {{ reward.fish_name or ('鱼类#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
+                                    {% elif reward.reward_type == 'coins' %}
+                                        💰 金币 x{{ reward.reward_quantity }}
+                                    {% else %}
+                                        {{ reward.reward_type }} x{{ reward.reward_quantity }}
+                                    {% endif %}
                                 </span>
                             {% endfor %}
                         </td>

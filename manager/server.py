@@ -1240,6 +1240,39 @@ async def manage_shop_details(shop_id):
         costs = shop_service.shop_repo.get_item_costs(item["item_id"])
         rewards = shop_service.shop_repo.get_item_rewards(item["item_id"])
         
+        # 为成本添加物品名称
+        for cost in costs:
+            if cost["cost_type"] == "fish":
+                fish_template = item_template_service.get_fish_by_id(cost.get("cost_item_id"))
+                cost["fish_name"] = fish_template.name if fish_template else None
+            elif cost["cost_type"] == "item":
+                item_template = item_template_service.get_item_by_id(cost.get("cost_item_id"))
+                cost["item_name"] = item_template.name if item_template else None
+            elif cost["cost_type"] == "rod":
+                rod_template = item_template_service.get_rod_by_id(cost.get("cost_item_id"))
+                cost["rod_name"] = rod_template.name if rod_template else None
+            elif cost["cost_type"] == "accessory":
+                accessory_template = item_template_service.get_accessory_by_id(cost.get("cost_item_id"))
+                cost["accessory_name"] = accessory_template.name if accessory_template else None
+        
+        # 为奖励添加物品名称
+        for reward in rewards:
+            if reward["reward_type"] == "fish":
+                fish_template = item_template_service.get_fish_by_id(reward.get("reward_item_id"))
+                reward["fish_name"] = fish_template.name if fish_template else None
+            elif reward["reward_type"] == "item":
+                item_template = item_template_service.get_item_by_id(reward.get("reward_item_id"))
+                reward["item_name"] = item_template.name if item_template else None
+            elif reward["reward_type"] == "rod":
+                rod_template = item_template_service.get_rod_by_id(reward.get("reward_item_id"))
+                reward["rod_name"] = rod_template.name if rod_template else None
+            elif reward["reward_type"] == "accessory":
+                accessory_template = item_template_service.get_accessory_by_id(reward.get("reward_item_id"))
+                reward["accessory_name"] = accessory_template.name if accessory_template else None
+            elif reward["reward_type"] == "bait":
+                bait_template = item_template_service.get_bait_by_id(reward.get("reward_item_id"))
+                reward["bait_name"] = bait_template.name if bait_template else None
+        
         items_with_details.append({
             "item": item,
             "costs": costs,
