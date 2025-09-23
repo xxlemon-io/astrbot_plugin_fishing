@@ -34,13 +34,24 @@ class SqliteShopRepository(AbstractShopRepository):
         for k in ("is_active",):
             if k in data and isinstance(data[k], int):
                 data[k] = bool(data[k])
-        # 时间解析
+        # 时间解析（datetime类型）
         for k in ("start_time", "end_time", "created_at", "updated_at", "timestamp"):
             if k in data and data[k] and isinstance(data[k], str):
                 try:
                     data[k] = datetime.fromisoformat(data[k].replace("Z", "+00:00"))
                 except Exception:
                     pass
+        # 时间格式处理（TIME类型，保持字符串格式）
+        for k in ("daily_start_time", "daily_end_time"):
+            if k in data and data[k]:
+                # 确保时间格式为 HH:MM
+                if isinstance(data[k], str) and ':' in data[k]:
+                    # 如果包含秒数，去掉秒数部分
+                    if data[k].count(':') == 2:
+                        data[k] = data[k][:5]  # 只保留 HH:MM
+                elif hasattr(data[k], 'strftime'):
+                    # 如果是时间对象，转换为字符串
+                    data[k] = data[k].strftime('%H:%M')
         return data
 
     # ---- 商店管理（Shops） ----
