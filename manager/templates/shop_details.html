@@ -128,7 +128,7 @@
                         <label class="form-label">奖励设置</label>
                         <div id="rewards-list">
                             <div class="row g-2 mb-2">
-                                <div class="col-md-6">
+                                <div class="col-12 col-md-8">
                                     <select name="reward_item_full_id" class="form-select">
                                         <option value="">-- 请选择奖励 --</option>
                                         <optgroup label="鱼竿">
@@ -145,10 +145,10 @@
                                         </optgroup>
                                     </select>
                                 </div>
-                                <div class="col-md-5">
+                                <div class="col-6 col-md-3">
                                     <input name="reward_quantity" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
                                 </div>
-                                <div class="col-md-1 d-flex justify-content-center align-items-center">
+                                <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
                                     <button type="button" class="btn btn-outline-danger btn-sm remove-reward">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -163,7 +163,7 @@
                         <label class="form-label">消耗设置</label>
                         <div id="costs-list">
                             <div class="row g-2 mb-2">
-                                <div class="col-md-6">
+                                <div class="col-12 col-md-5">
                                     <select name="cost_item_full_id" class="form-select">
                                         <option value="">-- 请选择消耗 --</option>
                                         <optgroup label="货币">
@@ -178,19 +178,19 @@
                                         </optgroup>
                                     </select>
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-6 col-md-2">
                                     <input name="cost_amount" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
                                 </div>
-                                <div class="col-md-1">
+                                <div class="col-3 col-md-1">
                                     <select name="cost_relation" class="form-select">
                                         <option value="and">AND</option>
                                         <option value="or">OR</option>
                                     </select>
                                 </div>
-                                <div class="col-md-1">
+                                <div class="col-3 col-md-1">
                                     <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组" title="分组ID，同组内为OR关系">
                                 </div>
-                                <div class="col-md-1 d-flex justify-content-center align-items-center">
+                                <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
                                     <button type="button" class="btn btn-outline-danger btn-sm remove-cost">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -490,7 +490,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const row = document.createElement('div');
         row.className = 'row g-2 mb-2';
         row.innerHTML = `
-            <div class="col-md-6">
+            <div class="col-12 col-md-5">
                 <select name="cost_item_full_id" class="form-select">
                     <option value="">-- 请选择消耗 --</option>
                     <optgroup label="货币">
@@ -505,19 +505,19 @@ document.addEventListener('DOMContentLoaded', function () {
                     </optgroup>
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-2">
                 <input name="cost_amount" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
             </div>
-            <div class="col-md-1">
+            <div class="col-3 col-md-1">
                 <select name="cost_relation" class="form-select">
                     <option value="and">AND</option>
                     <option value="or">OR</option>
                 </select>
             </div>
-            <div class="col-md-1">
+            <div class="col-3 col-md-1">
                 <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组" title="分组ID，同组内为OR关系">
             </div>
-            <div class="col-md-1 d-flex justify-content-center align-items-center">
+            <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
                 <button type="button" class="btn btn-outline-danger btn-sm remove-cost">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -536,7 +536,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const row = document.createElement('div');
         row.className = 'row g-2 mb-2';
         row.innerHTML = `
-            <div class="col-md-6">
+            <div class="col-12 col-md-8">
                 <select name="reward_item_full_id" class="form-select">
                     <option value="">-- 请选择奖励 --</option>
                     <optgroup label="鱼竿">
@@ -553,10 +553,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     </optgroup>
                 </select>
             </div>
-            <div class="col-md-5">
+            <div class="col-6 col-md-3">
                 <input name="reward_quantity" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
             </div>
-            <div class="col-md-1 d-flex justify-content-center align-items-center">
+            <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
                 <button type="button" class="btn btn-outline-danger btn-sm remove-reward">
                     <i class="fas fa-trash"></i>
                 </button>
