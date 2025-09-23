@@ -523,7 +523,7 @@ async def use_equipment(self, event: AstrMessageEvent, equipment_type: str = Non
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要使用的物品ID，例如：/使用 R1A2B（鱼竿）、/使用 A3C4D（饰品）、/使用 D1（道具）、/使用 B2（鱼饵）")
+        yield event.plain_result("❌ 请指定要使用的物品ID，例如：/使用 R1A2B（鱼竿）、/使用 A3C4D（饰品）、/使用 D1（道具）、/使用 B2（鱼饵）\n💡 道具支持数量参数：/使用 D1 10（使用10个道具）")
         return
 
     token = args[1].strip().upper()
@@ -591,8 +591,16 @@ async def use_equipment(self, event: AstrMessageEvent, equipment_type: str = Non
             yield event.plain_result("❌ 无效的道具ID，请检查后重试。")
             return
         
+        # 处理数量参数
+        quantity = 1
+        if len(args) > 2 and args[2].isdigit():
+            quantity = int(args[2])
+            if quantity <= 0:
+                yield event.plain_result("❌ 数量必须是正整数。")
+                return
+        
         # 使用道具
-        if result := self.inventory_service.use_item(user_id, int(item_id)):
+        if result := self.inventory_service.use_item(user_id, int(item_id), quantity):
             if result["success"]:
                 yield event.plain_result(result["message"])
             else:
