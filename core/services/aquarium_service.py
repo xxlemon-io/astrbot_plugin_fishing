@@ -29,8 +29,7 @@ class AquariumService:
         # 为了丰富信息，可以从模板仓储获取鱼的详细信息
         enriched_items = []
         for item in aquarium_items:
-            fish_template = self.item_template_repo.get_fish_by_id(item.fish_id)
-            if fish_template:
+            if fish_template := self.item_template_repo.get_fish_by_id(item.fish_id):
                 enriched_items.append({
                     "fish_id": item.fish_id,
                     "name": fish_template.name,
@@ -174,10 +173,14 @@ class AquariumService:
     def _get_current_aquarium_level(self, capacity: int) -> int:
         """根据容量获取当前等级"""
         upgrades = self.get_aquarium_upgrades()
-        for upgrade in reversed(upgrades):  # 从高等级开始查找
-            if capacity >= upgrade.capacity:
-                return upgrade.level
-        return 1  # 默认等级1
+        return next(
+            (
+                upgrade.level
+                for upgrade in reversed(upgrades)
+                if capacity >= upgrade.capacity
+            ),
+            1,
+        )
 
     def get_aquarium_upgrade_info(self, user_id: str) -> Dict[str, Any]:
         """获取用户水族箱升级信息"""

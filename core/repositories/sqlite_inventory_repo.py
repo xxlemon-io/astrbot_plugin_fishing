@@ -10,6 +10,11 @@ from ..domain.models import UserFishInventoryItem, UserAquariumItem, UserRodInst
 from ..database.connection_manager import DatabaseConnectionManager
 
 
+class InsufficientFishQuantityError(Exception):
+    """鱼类数量不足异常"""
+    pass
+
+
 class SqliteInventoryRepository(AbstractInventoryRepository):
     """用户库存仓储的SQLite实现"""
 
@@ -28,14 +33,10 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         return UserFishInventoryItem(**row)
 
     def _row_to_aquarium_item(self, row: sqlite3.Row) -> Optional[UserAquariumItem]:
-        if not row:
-            return None
-        return UserAquariumItem(**row)
+        return None if not row else UserAquariumItem(**row)
 
     def _row_to_aquarium_upgrade(self, row: sqlite3.Row) -> Optional[AquariumUpgrade]:
-        if not row:
-            return None
-        return AquariumUpgrade(**row)
+        return None if not row else AquariumUpgrade(**row)
 
     def _row_to_rod_instance(self, row: sqlite3.Row) -> Optional[UserRodInstance]:
         if not row:
@@ -119,25 +120,34 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         """更新用户鱼类库存数量"""
         with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
-            if delta > 0:
-                cursor.execute("""
-                    INSERT INTO user_fish_inventory (user_id, fish_id, quantity)
-                    VALUES (?, ?, ?)
-                    ON CONFLICT(user_id, fish_id) DO UPDATE SET quantity = quantity + excluded.quantity
-                """, (user_id, fish_id, delta))
-            elif delta < 0:
-                cursor.execute("""
-                    UPDATE user_fish_inventory 
-                    SET quantity = quantity - ?
-                    WHERE user_id = ? AND fish_id = ? AND quantity >= ?
-                """, (-delta, user_id, fish_id, -delta))
-                
-                # 如果数量为0或负数，删除记录
-                cursor.execute("""
-                    DELETE FROM user_fish_inventory 
-                    WHERE user_id = ? AND fish_id = ? AND quantity <= 0
-                """, (user_id, fish_id))
-            conn.commit()
+            cursor.execute("BEGIN TRANSACTION")
+            try:
+                if delta > 0:
+                    cursor.execute("""
+                        INSERT INTO user_fish_inventory (user_id, fish_id, quantity)
+                        VALUES (?, ?, ?)
+                        ON CONFLICT(user_id, fish_id) DO UPDATE SET quantity = quantity + excluded.quantity
+                    """, (user_id, fish_id, delta))
+                elif delta < 0:
+                    # 使用原子操作确保数量不会变为负数
+                    cursor.execute("""
+                        UPDATE user_fish_inventory 
+                        SET quantity = quantity - ?
+                        WHERE user_id = ? AND fish_id = ? AND quantity >= ?
+                    """, (-delta, user_id, fish_id, -delta))
+                    
+                    if cursor.rowcount == 0:
+                        raise ValueError(f"用户 {user_id} 的鱼类 {fish_id} 数量不足，无法减少 {abs(delta)} 个")
+                    
+                    # 如果数量为0或负数，删除记录
+                    cursor.execute("""
+                        DELETE FROM user_fish_inventory 
+                        WHERE user_id = ? AND fish_id = ? AND quantity <= 0
+                    """, (user_id, fish_id))
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
 
     def sell_fish_keep_one(self, user_id: str) -> int:
         """
@@ -672,13 +682,14 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                 INSERT INTO user_aquarium (user_id, fish_id, quantity, added_at)
                 VALUES (?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(user_id, fish_id) DO UPDATE SET 
-                    quantity = quantity + excluded.quantity,
-                    added_at = CURRENT_TIMESTAMP
+                    quantity = quantity + excluded.quantity
             """, (user_id, fish_id, quantity))
             conn.commit()
 
     def remove_fish_from_aquarium(self, user_id: str, fish_id: int, quantity: int = 1) -> None:
-        """从用户水族箱移除鱼"""
+        """从用户水族箱移除鱼
+        Raises InsufficientFishQuantityError if not enough fish to remove.
+        """
         with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -686,6 +697,11 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                 SET quantity = quantity - ?
                 WHERE user_id = ? AND fish_id = ? AND quantity >= ?
             """, (quantity, user_id, fish_id, quantity))
+            
+            if cursor.rowcount == 0:
+                raise InsufficientFishQuantityError(
+                    f"用户 {user_id} 水族箱中没有足够的鱼类 {fish_id} 来移除 {quantity} 个"
+                )
             
             # 如果数量为0或负数，删除记录
             cursor.execute("""

@@ -39,8 +39,7 @@ async def aquarium(self, event: AstrMessageEvent):
     message = "【🐠 水族箱】：\n"
 
     for rarity in sorted(fishes_by_rarity.keys(), reverse=True):
-        fish_list = fishes_by_rarity[rarity]
-        if fish_list:
+        if fish_list := fishes_by_rarity[rarity]:
             message += f"\n {format_rarity_display(rarity)}：\n"
             for fish in fish_list:
                 fish_id = int(fish.get('fish_id', 0) or 0)
