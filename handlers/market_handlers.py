@@ -559,7 +559,8 @@ async def market(self, event: AstrMessageEvent):
                     refine_level_str = f" 精{refine_level}" if refine_level > 1 else ""
                     
                     message += f"【{emoji} {item_type}】：\n"
-                    message += f" - {item.item_name}{refine_level_str} (ID: {display_code}) - 价格: {item.price} 金币\n"
+                    quantity_text = f" x{item.quantity}" if item.quantity > 1 else ""
+                    message += f" - {item.item_name}{refine_level_str}{quantity_text} (ID: {display_code}) - 价格: {item.price} 金币\n"
                     message += f" - 售卖人： {seller_display}\n\n"
                 return message
 

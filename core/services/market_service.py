@@ -193,8 +193,11 @@ class MarketService:
         )
         self.market_repo.add_listing(new_listing)
 
-        quantity_text = f" x{quantity}" if quantity > 1 else ""
-        return {"success": True, "message": f"成功将物品上架市场{quantity_text}，单价 {price} 金币 (手续费: {tax_cost} 金币)"}
+        if quantity > 1:
+            total_price = price * quantity
+            return {"success": True, "message": f"成功将【{item_name}】上架市场 x{quantity}，总价 {total_price} 金币 (手续费: {tax_cost} 金币)"}
+        else:
+            return {"success": True, "message": f"成功将【{item_name}】上架市场，单价 {price} 金币 (手续费: {tax_cost} 金币)"}
 
     def get_market_id_by_instance_id(self, item_type: str, instance_id: int) -> Optional[int]:
         """
@@ -306,12 +309,16 @@ class MarketService:
             )
         elif listing.item_type == "item":
             # 给买家添加道具
-            self.inventory_repo.update_item_quantity(buyer_id, listing.item_id, 1)
+            self.inventory_repo.update_item_quantity(buyer_id, listing.item_id, listing.quantity)
+        elif listing.item_type == "fish":
+            # 给买家添加鱼类
+            self.inventory_repo.update_fish_quantity(buyer_id, listing.item_id, listing.quantity)
 
         # 4. 从市场移除该商品
         self.market_repo.remove_listing(market_id)
 
-        return {"success": True, "message": f"✅ 购买成功，花费 {listing.price} 金币！"}
+        quantity_text = f" x{listing.quantity}" if listing.quantity > 1 else ""
+        return {"success": True, "message": f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！"}
 
     def delist_item(self, user_id: str, market_id: int) -> Dict[str, Any]:
         """
