@@ -25,9 +25,6 @@ class AquariumService:
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
-        
-        # 调试：输出获取到的用户容量
-        print(f"DEBUG: get_user_aquarium 获取到的容量: {user.aquarium_capacity}")
 
         # 为了丰富信息，可以从模板仓储获取鱼的详细信息
         enriched_items = []
@@ -153,19 +150,26 @@ class AquariumService:
         user.premium_currency -= upgrade_config.cost_premium
         user.aquarium_capacity = upgrade_config.capacity
 
-        # 调试：输出升级前的容量
-        print(f"DEBUG: 升级前容量: {user.aquarium_capacity}")
-        
-        self.user_repo.update(user)
-        
-        # 调试：验证更新后的容量
-        updated_user = self.user_repo.get_by_id(user_id)
-        print(f"DEBUG: 更新后容量: {updated_user.aquarium_capacity if updated_user else 'None'}")
-
-        return {
-            "success": True,
-            "message": f"水族箱升级成功！新容量：{upgrade_config.capacity}，花费：{upgrade_config.cost_coins} 金币"
-        }
+        try:
+            self.user_repo.update(user)
+            
+            # 验证更新是否生效
+            updated_user = self.user_repo.get_by_id(user_id)
+            if updated_user and updated_user.aquarium_capacity != upgrade_config.capacity:
+                return {
+                    "success": False,
+                    "message": f"升级失败：数据库更新异常（当前容量：{updated_user.aquarium_capacity}，期望容量：{upgrade_config.capacity}）"
+                }
+            
+            return {
+                "success": True,
+                "message": f"水族箱升级成功！新容量：{upgrade_config.capacity}，花费：{upgrade_config.cost_coins} 金币"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"升级失败：{str(e)}"
+            }
 
     def _get_current_aquarium_level(self, capacity: int) -> int:
         """根据容量获取当前等级"""

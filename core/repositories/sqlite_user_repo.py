@@ -119,6 +119,11 @@ class SqliteUserRepository(AbstractUserRepository):
                 user.wipe_bomb_forecast, user.fishing_zone_id,
                 user.user_id
             ))
+            
+            # 验证更新是否成功
+            if cursor.rowcount == 0:
+                raise Exception(f"用户 {user.user_id} 更新失败，可能用户不存在")
+            
             conn.commit()
 
     def get_all_user_ids(self, auto_fishing_only: bool = False) -> List[str]:
