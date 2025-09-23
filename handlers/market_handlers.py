@@ -522,7 +522,7 @@ async def market(self, event: AstrMessageEvent):
                         "emoji": "🎁",
                         "name": item.item_name,
                         "id": item.market_id,
-                        "display_code": f"M{item.market_id}",  # 道具市场使用市场ID
+                        "display_code": f"M{_to_base36(item.market_id)}",  # 道具市场使用Base36编码的市场ID
                         "price": item.price,
                         "seller": seller_display,
                         "is_anonymous": is_anonymous
@@ -538,7 +538,7 @@ async def market(self, event: AstrMessageEvent):
                         "emoji": "🐟",
                         "name": fish_item.item_name,
                         "id": fish_item.market_id,
-                        "display_code": f"M{fish_item.market_id}",  # 鱼类市场使用市场ID
+                        "display_code": f"M{_to_base36(fish_item.market_id)}",  # 鱼类市场使用Base36编码的市场ID
                         "price": fish_item.price,
                         "seller": seller_display,
                         "is_anonymous": is_anonymous
@@ -806,7 +806,7 @@ async def buy_item(self, event: AstrMessageEvent):
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要购买的商品ID，例如：/购买 R1A2B\n💡 使用「市场」命令查看商品列表")
+        yield event.plain_result("❌ 请指定要购买的商品ID，例如：/购买 MC 或 /购买 R1A2B\n💡 使用「市场」命令查看商品列表")
         return
     
     try:
@@ -870,7 +870,7 @@ async def delist_item(self, event: AstrMessageEvent):
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要下架的商品 ID或ID，例如：/下架 M12 或 /下架 R2N9C\n💡 使用「我的上架」命令查看您的商品列表")
+        yield event.plain_result("❌ 请指定要下架的商品 ID或ID，例如：/下架 MC 或 /下架 R2N9C\n💡 使用「我的上架」命令查看您的商品列表")
         return
     code = args[1]
     # 支持 Mxxxx（市场）、Rxxxx/Axxxx（通过实例查当前用户上架）或纯数字
@@ -916,14 +916,14 @@ def _get_display_code_for_market_item(item) -> str:
     elif item_type == "accessory" and item_instance_id:
         return f"A{_to_base36(item_instance_id)}"
     elif item_type == "item":
-        # 道具在市场中使用市场ID（因为没有实例ID）
-        return f"M{item.market_id}"
+        # 道具在市场中使用Base36编码的市场ID
+        return f"M{_to_base36(item.market_id)}"
     elif item_type == "fish":
-        # 鱼类在市场中使用市场ID（因为没有实例ID）
-        return f"M{item.market_id}"
+        # 鱼类在市场中使用Base36编码的市场ID
+        return f"M{_to_base36(item.market_id)}"
     else:
-        # 其他情况，使用市场ID
-        return f"M{item.market_id}"
+        # 其他情况，使用Base36编码的市场ID
+        return f"M{_to_base36(item.market_id)}"
 
 
 def _from_base36(s: str) -> int:
@@ -947,9 +947,9 @@ def _parse_market_code(code: str, market_service=None) -> int:
     code = code.strip().upper()
     
     if code.startswith('M') and len(code) > 1:
-        # M开头的ID，后面是市场ID
+        # M开头的ID，后面是Base36编码的市场ID
         try:
-            return int(code[1:])
+            return _from_base36(code[1:])
         except ValueError:
             raise ValueError(f"无效的市场ID: {code}")
     elif code.startswith('R') and len(code) > 1:
@@ -981,4 +981,4 @@ def _parse_market_code(code: str, market_service=None) -> int:
         except ValueError as e:
             raise ValueError(f"无效的饰品ID: {code}")
     else:
-        raise ValueError(f"无效的市场ID: {code}，请使用短码（如 R1A2B、A3C4D、M123）")
+        raise ValueError(f"无效的市场ID: {code}，请使用短码（如 R1A2B、A3C4D、MC）")
