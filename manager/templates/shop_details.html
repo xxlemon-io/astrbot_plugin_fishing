@@ -22,19 +22,20 @@
                     <tr>
                         <th>商品ID</th>
                         <th>商品名称</th>
-                        <th>消耗</th>
+                        <th>消耗 (AND/OR)</th>
                         <th>奖励</th>
                         <th>库存</th>
                         <th>限购</th>
+                        <th>状态</th>
                         <th class="text-end">操作</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for item in items %}
                     <tr>
-                        <td>{{ item.offer_id }}</td>
+                        <td>{{ item.item.item_id }}</td>
                         <td>
-                            {{ item.name }}
+                            {{ item.item.name }}
                             {% if item.rewards and item.rewards[0].rarity %}
                                 <span class="text-warning">{{ '★' * item.rewards[0].rarity }}</span>
                             {% endif %}
@@ -42,30 +43,37 @@
                         <td>
                             {% for cost in item.costs %}
                                 <span class="badge bg-info me-1">
-                                    {% if cost.cost_type == 'coins' %}金币{% elif cost.cost_type == 'premium' %}高级货币{% elif cost.cost_type == 'fish' %}鱼类{% elif cost.cost_type == 'item' %}道具{% else %}{{ cost.cost_type }}{% endif %} x{{ cost.amount }}
+                                    {% if cost.cost_type == 'coins' %}金币{% elif cost.cost_type == 'premium' %}高级货币{% elif cost.cost_type == 'fish' %}鱼类{% elif cost.cost_type == 'item' %}道具{% else %}{{ cost.cost_type }}{% endif %} x{{ cost.cost_amount }}
                                 </span>
                             {% endfor %}
                         </td>
                         <td>
                             {% for reward in item.rewards %}
                                 <span class="badge bg-success me-1">
-                                    {% if reward.item_type == 'rod' %}鱼竿{% elif reward.item_type == 'bait' %}鱼饵{% elif reward.item_type == 'accessory' %}饰品{% elif reward.item_type == 'item' %}道具{% else %}{{ reward.item_type }}{% endif %} x{{ reward.quantity }}
+                                    {% if reward.reward_type == 'rod' %}鱼竿{% elif reward.reward_type == 'bait' %}鱼饵{% elif reward.reward_type == 'accessory' %}饰品{% elif reward.reward_type == 'item' %}道具{% else %}{{ reward.reward_type }}{% endif %} x{{ reward.reward_quantity }}
                                 </span>
                             {% endfor %}
                         </td>
                         <td>
-                            {% if item.stock_total %}
-                                {{ item.stock_sold or 0 }}/{{ item.stock_total }}
+                            {% if item.item.stock_total %}
+                                {{ item.item.stock_sold or 0 }}/{{ item.item.stock_total }}
                             {% else %}
                                 无限
                             {% endif %}
                         </td>
                         <td>
-                            {% if item.per_user_limit or item.per_user_daily_limit %}
-                                {% if item.per_user_limit %}总:{{ item.per_user_limit }}{% endif %}
-                                {% if item.per_user_daily_limit %} 日:{{ item.per_user_daily_limit }}{% endif %}
+                            {% if item.item.per_user_limit or item.item.per_user_daily_limit %}
+                                {% if item.item.per_user_limit %}总:{{ item.item.per_user_limit }}{% endif %}
+                                {% if item.item.per_user_daily_limit %} 日:{{ item.item.per_user_daily_limit }}{% endif %}
                             {% else %}
                                 无限制
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.item.is_active %}
+                                <span class="badge bg-success">启用</span>
+                            {% else %}
+                                <span class="badge bg-secondary">禁用</span>
                             {% endif %}
                         </td>
                         <td class="text-end">
@@ -75,7 +83,7 @@
                                     data-item-json='{{ item|tojson|safe }}'>
                                 <i class="fas fa-edit"></i> 编辑
                             </button>
-                            <form action="{{ url_for('admin_bp.remove_shop_item', inventory_id=item.inventory_id, shop_id=shop.shop_id) }}" method="post" class="d-inline" onsubmit="return confirm('确定要从商店中移除【{{ item.name }}】吗？');">
+                            <form action="{{ url_for('admin_bp.remove_shop_item', item_id=item.item.item_id, shop_id=shop.shop_id) }}" method="post" class="d-inline" onsubmit="return confirm('确定要从商店中移除【{{ item.item.name }}】吗？');">
                                 <button type="submit" class="btn btn-sm btn-danger">
                                     <i class="fas fa-trash"></i> 移除
                                 </button>
@@ -94,7 +102,7 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <form id="item-form" method="post">
-                <input type="hidden" name="offer_id" id="offer_id">
+                <input type="hidden" name="item_id" id="item_id">
                 <div class="modal-header">
                     <h5 class="modal-title" id="itemModalLabel">添加商品到商店</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -170,8 +178,17 @@
                                         </optgroup>
                                     </select>
                                 </div>
-                                <div class="col-md-5">
+                                <div class="col-md-3">
                                     <input name="cost_amount" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
+                                </div>
+                                <div class="col-md-1">
+                                    <select name="cost_relation" class="form-select">
+                                        <option value="and">AND</option>
+                                        <option value="or">OR</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-1">
+                                    <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组" title="分组ID，同组内为OR关系">
                                 </div>
                                 <div class="col-md-1 d-flex justify-content-center align-items-center">
                                     <button type="button" class="btn btn-outline-danger btn-sm remove-cost">
@@ -271,29 +288,29 @@ document.addEventListener('DOMContentLoaded', function () {
             button.addEventListener('click', function (e) {
                 e.preventDefault();
                 const data = JSON.parse(this.dataset.itemJson);
-                addItemModalTitle.textContent = `编辑商品: ${data.name}`;
-                addItemForm.action = `/admin/shops/{{ shop.shop_id }}/inventory/edit/${data.inventory_id}`;
+                addItemModalTitle.textContent = `编辑商品: ${data.item.name}`;
+                addItemForm.action = `/admin/shops/{{ shop.shop_id }}/items/edit/${data.item.item_id}`;
 
                 // 填充表单
                 if (addItemForm.elements['name']) {
-                    addItemForm.elements['name'].value = data.name || '';
+                    addItemForm.elements['name'].value = data.item.name || '';
                 }
                 if (addItemForm.elements['description']) {
-                    addItemForm.elements['description'].value = data.description || '';
+                    addItemForm.elements['description'].value = data.item.description || '';
                 }
-                if (addItemForm.elements['offer_id']) addItemForm.elements['offer_id'].value = data.offer_id;
-                if (addItemForm.elements['stock_total']) addItemForm.elements['stock_total'].value = data.stock_total || '';
-                if (addItemForm.elements['stock_sold']) addItemForm.elements['stock_sold'].value = data.stock_sold || 0;
-                if (addItemForm.elements['per_user_limit']) addItemForm.elements['per_user_limit'].value = data.per_user_limit || '';
-                if (addItemForm.elements['per_user_daily_limit']) addItemForm.elements['per_user_daily_limit'].value = data.per_user_daily_limit || '';
-                if (addItemForm.elements['is_active']) addItemForm.elements['is_active'].checked = !!data.is_active;
+                if (addItemForm.elements['item_id']) addItemForm.elements['item_id'].value = data.item.item_id;
+                if (addItemForm.elements['stock_total']) addItemForm.elements['stock_total'].value = data.item.stock_total || '';
+                if (addItemForm.elements['stock_sold']) addItemForm.elements['stock_sold'].value = data.item.stock_sold || 0;
+                if (addItemForm.elements['per_user_limit']) addItemForm.elements['per_user_limit'].value = data.item.per_user_limit || '';
+                if (addItemForm.elements['per_user_daily_limit']) addItemForm.elements['per_user_daily_limit'].value = data.item.per_user_daily_limit || '';
+                if (addItemForm.elements['is_active']) addItemForm.elements['is_active'].checked = !!data.item.is_active;
                 
                 // 时间字段
                 if (addItemForm.elements['start_time']) {
-                    addItemForm.elements['start_time'].value = data.start_time ? data.start_time.replace(' ', 'T') : '';
+                    addItemForm.elements['start_time'].value = data.item.start_time ? data.item.start_time.replace(' ', 'T') : '';
                 }
                 if (addItemForm.elements['end_time']) {
-                    addItemForm.elements['end_time'].value = data.end_time ? data.end_time.replace(' ', 'T') : '';
+                    addItemForm.elements['end_time'].value = data.item.end_time ? data.item.end_time.replace(' ', 'T') : '';
                 }
                 
                 // 填充消耗数据
@@ -322,19 +339,27 @@ document.addEventListener('DOMContentLoaded', function () {
                         const lastRow = costsList.lastElementChild;
                         const select = lastRow.querySelector('select[name="cost_item_full_id"]');
                         const amountInput = lastRow.querySelector('input[name="cost_amount"]');
+                        const relationSelect = lastRow.querySelector('select[name="cost_relation"]');
+                        const groupInput = lastRow.querySelector('input[name="cost_group"]');
                         
                         if (cost.cost_type === 'coins') {
                             select.value = 'coins-0';
                         } else if (cost.cost_type === 'premium') {
                             select.value = 'premium-0';
                         } else if (cost.cost_type === 'fish') {
-                            select.value = `fish-${cost.item_id}`;
+                            select.value = `fish-${cost.cost_item_id}`;
                         } else if (cost.cost_type === 'item') {
-                            select.value = `item-${cost.item_id}`;
+                            select.value = `item-${cost.cost_item_id}`;
                         }
                         
                         if (amountInput) {
-                            amountInput.value = cost.amount;
+                            amountInput.value = cost.cost_amount;
+                        }
+                        if (relationSelect) {
+                            relationSelect.value = cost.cost_relation || 'and';
+                        }
+                        if (groupInput && cost.group_id) {
+                            groupInput.value = cost.group_id;
                         }
                     });
                 }
@@ -369,21 +394,25 @@ document.addEventListener('DOMContentLoaded', function () {
                         const quantityInput = lastRow.querySelector('input[name="reward_quantity"]');
                         const refineInput = lastRow.querySelector('input[name="reward_refine_level"]');
                         
-                        if (reward.item_type === 'rod') {
-                            select.value = `rod-${reward.item_id}`;
-                        } else if (reward.item_type === 'bait') {
-                            select.value = `bait-${reward.item_id}`;
-                        } else if (reward.item_type === 'accessory') {
-                            select.value = `accessory-${reward.item_id}`;
-                        } else if (reward.item_type === 'item') {
-                            select.value = `item-${reward.item_id}`;
+                        if (reward.reward_type === 'rod') {
+                            select.value = `rod-${reward.reward_item_id}`;
+                        } else if (reward.reward_type === 'bait') {
+                            select.value = `bait-${reward.reward_item_id}`;
+                        } else if (reward.reward_type === 'accessory') {
+                            select.value = `accessory-${reward.reward_item_id}`;
+                        } else if (reward.reward_type === 'item') {
+                            select.value = `item-${reward.reward_item_id}`;
+                        } else if (reward.reward_type === 'fish') {
+                            select.value = `fish-${reward.reward_item_id}`;
+                        } else if (reward.reward_type === 'coins') {
+                            select.value = 'coins-0';
                         }
                         
                         if (quantityInput) {
-                            quantityInput.value = reward.quantity;
+                            quantityInput.value = reward.reward_quantity;
                         }
-                        if (refineInput && reward.refine_level) {
-                            refineInput.value = reward.refine_level;
+                        if (refineInput && reward.reward_refine_level) {
+                            refineInput.value = reward.reward_refine_level;
                         }
                     });
                 }
@@ -466,8 +495,17 @@ document.addEventListener('DOMContentLoaded', function () {
                     </optgroup>
                 </select>
             </div>
-            <div class="col-md-5">
+            <div class="col-md-3">
                 <input name="cost_amount" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
+            </div>
+            <div class="col-md-1">
+                <select name="cost_relation" class="form-select">
+                    <option value="and">AND</option>
+                    <option value="or">OR</option>
+                </select>
+            </div>
+            <div class="col-md-1">
+                <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组" title="分组ID，同组内为OR关系">
             </div>
             <div class="col-md-1 d-flex justify-content-center align-items-center">
                 <button type="button" class="btn btn-outline-danger btn-sm remove-cost">

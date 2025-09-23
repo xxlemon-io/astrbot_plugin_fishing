@@ -42,6 +42,18 @@
                     {% endif %}
                 </p>
                 {% endif %}
+                
+                {% if shop.daily_start_time or shop.daily_end_time %}
+                <p class="text-muted small">
+                    {% if shop.daily_start_time and shop.daily_end_time %}
+                        每日营业: {{ shop.daily_start_time }} - {{ shop.daily_end_time }}
+                    {% elif shop.daily_start_time %}
+                        每日开始: {{ shop.daily_start_time }}
+                    {% elif shop.daily_end_time %}
+                        每日结束: {{ shop.daily_end_time }}
+                    {% endif %}
+                </p>
+                {% endif %}
             </div>
             <div class="card-footer text-end">
                 <button class="btn btn-sm btn-info edit-btn"
@@ -101,6 +113,21 @@
                             </div>
                         </div>
                         <div class="form-text">限时商店需要设置开放时间范围</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label>每日营业时间</label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">每日开始时间</label>
+                                <input type="time" name="daily_start_time" class="form-control" placeholder="如: 09:00">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">每日结束时间</label>
+                                <input type="time" name="daily_end_time" class="form-control" placeholder="如: 18:00">
+                            </div>
+                        </div>
+                        <div class="form-text">设置商店每日的营业时间段（如 09:00-18:00）</div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -164,6 +191,14 @@ document.addEventListener('DOMContentLoaded', function () {
             }
             if (form.elements['end_time']) {
                 form.elements['end_time'].value = data.end_time ? data.end_time.replace(' ', 'T') : '';
+            }
+            
+            // 每日时间字段
+            if (form.elements['daily_start_time']) {
+                form.elements['daily_start_time'].value = data.daily_start_time || '';
+            }
+            if (form.elements['daily_end_time']) {
+                form.elements['daily_end_time'].value = data.daily_end_time || '';
             }
             
             updateTimeVisibility();
