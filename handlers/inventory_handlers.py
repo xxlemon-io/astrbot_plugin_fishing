@@ -91,8 +91,8 @@ async def rod(self, event: AstrMessageEvent):
             message += f"   -精炼等级: {rod.get('refine_level', 1)}\n"
         
         # 检查消息长度，如果太长则截断
-        if len(message) > 1000:
-            message = message[:1000] + "\n\n📝 消息过长已截断，建议使用「背包图片」命令查看完整信息。"
+        if len(message) > 3000:
+            message = message[:3000] + "\n\n📝 消息过长已截断，建议使用「背包图片」命令查看完整信息。"
         
         yield event.plain_result(message)
     else:
