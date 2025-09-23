@@ -224,12 +224,14 @@ class SqliteMarketRepository(AbstractMarketRepository):
             if "is_anonymous" in cols and "item_instance_id" in cols:
                 # 新版本：包含所有字段
                 cursor.execute("""
-                    INSERT INTO market (user_id, item_type, item_id, quantity, price, listed_at, refine_level, is_anonymous, item_instance_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, is_anonymous, item_instance_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     listing.user_id,
                     listing.item_type,
                     listing.item_id,
+                    listing.item_name,
+                    listing.item_description,
                     listing.quantity,
                     listing.price,
                     listing.listed_at or datetime.now(),
@@ -240,12 +242,14 @@ class SqliteMarketRepository(AbstractMarketRepository):
             elif "is_anonymous" in cols:
                 # 只有is_anonymous字段
                 cursor.execute("""
-                    INSERT INTO market (user_id, item_type, item_id, quantity, price, listed_at, refine_level, is_anonymous)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, is_anonymous)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     listing.user_id,
                     listing.item_type,
                     listing.item_id,
+                    listing.item_name,
+                    listing.item_description,
                     listing.quantity,
                     listing.price,
                     listing.listed_at or datetime.now(),
@@ -255,12 +259,14 @@ class SqliteMarketRepository(AbstractMarketRepository):
             elif "item_instance_id" in cols:
                 # 只有item_instance_id字段
                 cursor.execute("""
-                    INSERT INTO market (user_id, item_type, item_id, quantity, price, listed_at, refine_level, item_instance_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, item_instance_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     listing.user_id,
                     listing.item_type,
                     listing.item_id,
+                    listing.item_name,
+                    listing.item_description,
                     listing.quantity,
                     listing.price,
                     listing.listed_at or datetime.now(),
@@ -270,12 +276,14 @@ class SqliteMarketRepository(AbstractMarketRepository):
             else:
                 # 旧版本：不包含新字段
                 cursor.execute("""
-                    INSERT INTO market (user_id, item_type, item_id, quantity, price, listed_at, refine_level)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     listing.user_id,
                     listing.item_type,
                     listing.item_id,
+                    listing.item_name,
+                    listing.item_description,
                     listing.quantity,
                     listing.price,
                     listing.listed_at or datetime.now(),
