@@ -142,6 +142,14 @@ class FishingPlugin(Star):
             self.fishing_zone_service,
             self.game_config,
         )
+        
+        # 导入并初始化水族箱服务
+        from .core.services.aquarium_service import AquariumService
+        self.aquarium_service = AquariumService(
+            self.inventory_repo,
+            self.user_repo,
+            self.item_template_repo
+        )
 
         # 3.2 实例化效果管理器并自动注册所有效果（需要在fishing_service之后）
         self.effect_manager = EffectManager()
