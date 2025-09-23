@@ -43,7 +43,7 @@ async def pond(self, event: AstrMessageEvent):
         for rarity in sorted(fished_by_rarity.keys(), reverse=True):
             fish_list = fished_by_rarity[rarity]
             if fish_list:
-                message += f"\n {format_rarity_display(rarity)} 稀有度 {rarity}：\n"
+                message += f"\n {format_rarity_display(rarity)}：\n"
                 for fish in fish_list:
                     fish_id = int(fish.get('fish_id', 0) or 0)
                     fcode = f"F{fish_id}" if fish_id else "F0"
