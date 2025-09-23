@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 # 导入仓储接口和领域模型
 from ..repositories.abstract_repository import (
