@@ -1,18 +1,52 @@
 ![:astrbot_plugin_fish](https://count.getloli.com/@:astrbot_plugin_fish?theme=capoo-1)
 
-# AstrBot 钓鱼插件
+<div align="center">
+
+# 🎣 AstrBot 钓鱼插件
+
+## 🚀 重大更新通知 🚀
+
+<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 15px; margin: 20px 0; box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
+
+### ✨ **v2.0.0 震撼发布** ✨
+
+🎉 **史上最重大更新！**
+
+🔥 **全新商店系统** - 多商店类型，复杂商品机制，Web管理界面  
+🏷️ **统一短码系统** - 所有物品使用Base36编码，操作更便捷  
+🐟 **鱼类市场支持** - 鱼类可上架交易，支持匿名上架  
+🔍 **偷看鱼塘功能** - 查看他人鱼塘，社交互动升级  
+🎨 **稀有度颜色扩展** - 6-10星专属颜色，视觉效果更佳  
+⚡ **性能大幅优化** - 线程安全，消息保护，响应更快  
+
+**立即体验全新2.0版本，感受前所未有的钓鱼乐趣！** 🎊
+
+</div>
+
+</div>
 
 一个功能齐全的钓鱼游戏系统插件，为您的机器人添加有趣的钓鱼休闲游戏。
 
 [![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
+[![Version](https://img.shields.io/badge/Version-2.0.0-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
+[![Major Update](https://img.shields.io/badge/Major-Update-red.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
 
 ## ✨ 功能特点
 
+<div align="center">
+
+### 🆕 **v2.0.0 全新特性** 🆕
+
+</div>
+
 - **完整的钓鱼游戏系统**：多种鱼类和稀有度，丰富的钓鱼体验
 - **可扩展的稀有度系统**：支持1-10星稀有度，新增6-10星颜色映射
-- **全新商店系统**：多商店类型（普通、高级、限时），支持复杂商品机制和成本组合
+- **🆕 全新商店系统**：多商店类型（普通、高级、限时），支持复杂商品机制和成本组合
+- **🆕 统一短码系统**：所有物品使用Base36编码，操作更便捷
+- **🆕 鱼类市场支持**：鱼类可上架交易，支持匿名上架
+- **🆕 偷看鱼塘功能**：查看他人鱼塘，社交互动升级
 - **智能区域访问控制**：通行证机制，不同区域有不同的进入要求
 - **装备精炼系统**：鱼竿、饰品可精炼升级，提升属性加成
 - **装备保护系统**：锁定功能保护高级装备，防止意外操作
@@ -21,8 +55,8 @@
 - **抽卡系统**：多种卡池，限时活动，十连保底机制
 - **社交功能**：排行榜、偷鱼、成就称号系统
 - **后台管理**：Web管理界面，支持数据导入导出，灵活配置游戏参数
-- **线程安全优化**：DatabaseConnectionManager提供稳定的数据库连接管理
-- **消息保护机制**：自动截断超长消息，防止显示问题
+- **🆕 线程安全优化**：DatabaseConnectionManager提供稳定的数据库连接管理
+- **🆕 消息保护机制**：自动截断超长消息，防止显示问题
 - **数据兼容**：支持导入1.4.6版本数据，平滑升级体验
 
 ## 🔧 安装方法
