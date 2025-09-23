@@ -242,7 +242,9 @@ class ShopService:
             "coins": 0,
             "premium": 0,
             "items": {},
-            "fish": {}
+            "fish": {},
+            "rods": {},
+            "accessories": {}
         }
         
         # 处理每个组
@@ -265,6 +267,14 @@ class ShopService:
                     fish_id = cost.get("cost_item_id")
                     if fish_id:
                         total_costs["fish"][fish_id] = total_costs["fish"].get(fish_id, 0) + amount
+                elif cost_type == "rod":
+                    rod_id = cost.get("cost_item_id")
+                    if rod_id:
+                        total_costs["rods"][rod_id] = total_costs["rods"].get(rod_id, 0) + amount
+                elif cost_type == "accessory":
+                    accessory_id = cost.get("cost_item_id")
+                    if accessory_id:
+                        total_costs["accessories"][accessory_id] = total_costs["accessories"].get(accessory_id, 0) + amount
             else:
                 # 多个成本，检查关系
                 relation = group_costs[0].get("cost_relation", "and")
@@ -286,6 +296,14 @@ class ShopService:
                             fish_id = cost.get("cost_item_id")
                             if fish_id:
                                 total_costs["fish"][fish_id] = total_costs["fish"].get(fish_id, 0) + amount
+                        elif cost_type == "rod":
+                            rod_id = cost.get("cost_item_id")
+                            if rod_id:
+                                total_costs["rods"][rod_id] = total_costs["rods"].get(rod_id, 0) + amount
+                        elif cost_type == "accessory":
+                            accessory_id = cost.get("cost_item_id")
+                            if accessory_id:
+                                total_costs["accessories"][accessory_id] = total_costs["accessories"].get(accessory_id, 0) + amount
                 elif relation == "or":
                     # OR关系：选择最便宜的成本（这里简化处理，选择第一个）
                     cost = group_costs[0]
@@ -304,6 +322,14 @@ class ShopService:
                         fish_id = cost.get("cost_item_id")
                         if fish_id:
                             total_costs["fish"][fish_id] = total_costs["fish"].get(fish_id, 0) + amount
+                    elif cost_type == "rod":
+                        rod_id = cost.get("cost_item_id")
+                        if rod_id:
+                            total_costs["rods"][rod_id] = total_costs["rods"].get(rod_id, 0) + amount
+                    elif cost_type == "accessory":
+                        accessory_id = cost.get("cost_item_id")
+                        if accessory_id:
+                            total_costs["accessories"][accessory_id] = total_costs["accessories"].get(accessory_id, 0) + amount
         
         return {"success": True, "costs": total_costs}
 
@@ -337,6 +363,38 @@ class ShopService:
                     name = fish_tpl.name if fish_tpl else str(fish_id)
                     return {"success": False, "message": f"鱼类不足：{name} x{need_qty}"}
         
+        # 检查鱼竿（排除上锁和装备中的）
+        if costs.get("rods"):
+            user_rods = self.inventory_repo.get_user_rod_instances(user.user_id)
+            available_rods = {}
+            
+            for rod in user_rods:
+                if not rod.is_locked and not rod.is_equipped:  # 排除上锁和装备中的鱼竿
+                    rod_id = rod.rod_id
+                    available_rods[rod_id] = available_rods.get(rod_id, 0) + 1
+            
+            for rod_id, need_qty in costs["rods"].items():
+                if available_rods.get(rod_id, 0) < need_qty:
+                    rod_tpl = self.item_template_repo.get_rod_by_id(rod_id)
+                    name = rod_tpl.name if rod_tpl else str(rod_id)
+                    return {"success": False, "message": f"可用鱼竿不足：{name} x{need_qty}（已排除上锁和装备中的鱼竿）"}
+        
+        # 检查饰品（排除上锁和装备中的）
+        if costs.get("accessories"):
+            user_accessories = self.inventory_repo.get_user_accessory_instances(user.user_id)
+            available_accessories = {}
+            
+            for accessory in user_accessories:
+                if not accessory.is_locked and not accessory.is_equipped:  # 排除上锁和装备中的饰品
+                    accessory_id = accessory.accessory_id
+                    available_accessories[accessory_id] = available_accessories.get(accessory_id, 0) + 1
+            
+            for accessory_id, need_qty in costs["accessories"].items():
+                if available_accessories.get(accessory_id, 0) < need_qty:
+                    accessory_tpl = self.item_template_repo.get_accessory_by_id(accessory_id)
+                    name = accessory_tpl.name if accessory_tpl else str(accessory_id)
+                    return {"success": False, "message": f"可用饰品不足：{name} x{need_qty}（已排除上锁和装备中的饰品）"}
+        
         return {"success": True}
 
     def _deduct_costs(self, user: Any, costs: Dict[str, Any]) -> None:
@@ -361,6 +419,36 @@ class ShopService:
         if costs.get("fish"):
             for fish_id, need_qty in costs["fish"].items():
                 self.inventory_repo.update_fish_quantity(user.user_id, fish_id, -need_qty)
+        
+        # 扣除鱼竿（排除上锁和装备中的）
+        if costs.get("rods"):
+            user_rods = self.inventory_repo.get_user_rod_instances(user.user_id)
+            for rod_id, need_qty in costs["rods"].items():
+                remaining_qty = need_qty
+                for rod in user_rods:
+                    if remaining_qty <= 0:
+                        break
+                    if (rod.rod_id == rod_id and 
+                        not rod.is_locked and 
+                        not rod.is_equipped):
+                        # 删除这个鱼竿实例
+                        self.inventory_repo.delete_rod_instance(rod.rod_instance_id)
+                        remaining_qty -= 1
+        
+        # 扣除饰品（排除上锁和装备中的）
+        if costs.get("accessories"):
+            user_accessories = self.inventory_repo.get_user_accessory_instances(user.user_id)
+            for accessory_id, need_qty in costs["accessories"].items():
+                remaining_qty = need_qty
+                for accessory in user_accessories:
+                    if remaining_qty <= 0:
+                        break
+                    if (accessory.accessory_id == accessory_id and 
+                        not accessory.is_locked and 
+                        not accessory.is_equipped):
+                        # 删除这个饰品实例
+                        self.inventory_repo.delete_accessory_instance(accessory.accessory_instance_id)
+                        remaining_qty -= 1
 
     def _give_rewards(self, user_id: str, rewards: List[Dict[str, Any]], quantity: int) -> List[str]:
         """发放奖励并返回获得的物品列表"""
