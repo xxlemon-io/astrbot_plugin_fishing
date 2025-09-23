@@ -63,8 +63,15 @@ class ShopService:
                 start_time_today = datetime.combine(now.date(), datetime.min.time().replace(hour=start_hour, minute=start_min))
                 end_time_today = datetime.combine(now.date(), datetime.min.time().replace(hour=end_hour, minute=end_min))
                 
-                if not (start_time_today <= now <= end_time_today):
-                    return f"商店营业时间：{daily_start}-{daily_end}"
+                # 处理跨日情况（如21:00-04:00）
+                if start_time_today <= end_time_today:
+                    # 同一天内的时间段
+                    if not (start_time_today <= now <= end_time_today):
+                        return f"商店营业时间：{daily_start}-{daily_end}"
+                else:
+                    # 跨日的时间段
+                    if not (now >= start_time_today or now <= end_time_today):
+                        return f"商店营业时间：{daily_start}-{daily_end}"
             except (ValueError, IndexError):
                 pass  # 忽略时间格式错误
         

@@ -78,11 +78,11 @@ class SqliteShopRepository(AbstractShopRepository):
         where.append("(end_time IS NULL OR end_time >= ?)")
         params.extend([now, now])
         
-        # 每日时段检查
-        current_time = datetime.now().time().isoformat()
-        where.append("(daily_start_time IS NULL OR daily_start_time <= ?)")
-        where.append("(daily_end_time IS NULL OR daily_end_time >= ?)")
-        params.extend([current_time, current_time])
+        # 每日时段检查 - 处理跨日情况
+        current_time = datetime.now().time().strftime("%H:%M")
+        # 对于跨日营业时间（如21:00-04:00），需要特殊处理
+        where.append("(daily_start_time IS NULL OR daily_end_time IS NULL OR (daily_start_time <= daily_end_time AND daily_start_time <= ? AND daily_end_time >= ?) OR (daily_start_time > daily_end_time AND (daily_start_time <= ? OR daily_end_time >= ?)))")
+        params.extend([current_time, current_time, current_time, current_time])
         
         if shop_type:
             where.append("shop_type = ?")
