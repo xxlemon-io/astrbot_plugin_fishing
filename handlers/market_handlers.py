@@ -521,7 +521,7 @@ async def market(self, event: AstrMessageEvent):
                     "emoji": "🎁",
                     "name": item.item_name,
                     "id": item.market_id,
-                    "display_code": f"M{item.market_id}",  # 道具使用市场ID
+                    "display_code": f"M{item.market_id}",  # 道具市场使用市场ID
                     "price": item.price,
                     "seller": seller_display,
                     "is_anonymous": is_anonymous
@@ -529,21 +529,7 @@ async def market(self, event: AstrMessageEvent):
 
         if fish:
             for fish_item in fish[:15]:  # 限制鱼类最多15件
-                # 生成鱼类短码显示
-                def _to_base36(n: int) -> str:
-                    if n < 0:
-                        return "0"
-                    if n == 0:
-                        return "0"
-                    digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                    out = []
-                    while n:
-                        n, rem = divmod(n, 36)
-                        out.append(digits[rem])
-                    return "".join(reversed(out))
-                
-                fish_id = fish_item.item_id
-                fcode = f"F{_to_base36(fish_id)}" if fish_id else "F0"
+                # 生成鱼类短码显示（市场ID）
                 is_anonymous = fish_item.is_anonymous
                 seller_display = "🎭 匿名卖家" if is_anonymous else fish_item.seller_nickname
                 all_items.append({
@@ -551,7 +537,7 @@ async def market(self, event: AstrMessageEvent):
                     "emoji": "🐟",
                     "name": fish_item.item_name,
                     "id": fish_item.market_id,
-                    "display_code": fcode,
+                    "display_code": f"M{fish_item.market_id}",  # 鱼类市场使用市场ID
                     "price": fish_item.price,
                     "seller": seller_display,
                     "is_anonymous": is_anonymous
@@ -730,7 +716,7 @@ async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
 
     # 检查是否为数字ID（旧格式）
     if token.isdigit():
-        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n• D开头：道具（如 D1Z）\n• F开头：鱼类（如 F3A）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n• D开头：道具（如 D1）\n• F开头：鱼类（如 F3）\n\n💡 提示：使用 /背包 查看您的物品短码")
         return
 
     def _from_base36(s: str) -> int:
@@ -752,14 +738,14 @@ async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
         result = self.market_service.put_item_on_sale(user_id, "accessory", int(instance_id), price, is_anonymous=is_anonymous)
     elif token.startswith('D'):
         try:
-            item_id = _from_base36(token[1:])
+            item_id = int(token[1:])
         except Exception:
             yield event.plain_result("❌ 无效的道具ID，请检查后重试。")
             return
         result = self.market_service.put_item_on_sale(user_id, "item", int(item_id), price, is_anonymous=is_anonymous)
     elif token.startswith('F'):
         try:
-            fish_id = _from_base36(token[1:])
+            fish_id = int(token[1:])
         except Exception:
             yield event.plain_result("❌ 无效的鱼类ID，请检查后重试。")
             return
@@ -972,8 +958,14 @@ def _get_display_code_for_market_item(item) -> str:
         return f"R{_to_base36(item_instance_id)}"
     elif item_type == "accessory" and item_instance_id:
         return f"A{_to_base36(item_instance_id)}"
+    elif item_type == "item":
+        # 道具在市场中使用市场ID（因为没有实例ID）
+        return f"M{item.market_id}"
+    elif item_type == "fish":
+        # 鱼类在市场中使用市场ID（因为没有实例ID）
+        return f"M{item.market_id}"
     else:
-        # 道具或没有实例ID的情况，使用市场ID
+        # 其他情况，使用市场ID
         return f"M{item.market_id}"
 
 
@@ -1031,19 +1023,5 @@ def _parse_market_code(code: str, market_service=None) -> int:
                 raise ValueError("无法解析饰品ID，请稍后重试")
         except ValueError as e:
             raise ValueError(f"无效的饰品ID: {code}")
-    elif code.startswith('F') and len(code) > 1:
-        # F开头的ID，需要根据鱼类ID查找市场ID
-        try:
-            fish_id = _from_base36(code[1:])
-            if market_service:
-                market_id = market_service.get_market_id_by_fish_id(fish_id)
-                if market_id is not None:
-                    return market_id
-                else:
-                    raise ValueError(f"未找到鱼类ID {code} 对应的市场商品")
-            else:
-                raise ValueError("无法解析鱼类ID，请稍后重试")
-        except ValueError as e:
-            raise ValueError(f"无效的鱼类ID: {code}")
     else:
-        raise ValueError(f"无效的市场ID: {code}，请使用短码（如 R1A2B、A3C4D、F3A、M123）")
+        raise ValueError(f"无效的市场ID: {code}，请使用短码（如 R1A2B、A3C4D、M123）")

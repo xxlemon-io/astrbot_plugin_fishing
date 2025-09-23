@@ -40,25 +40,13 @@ async def pond(self, event: AstrMessageEvent):
         # 构造输出信息
         message = "【🐠 鱼塘】：\n"
         
-        def _to_base36(n: int) -> str:
-            if n < 0:
-                return "0"
-            if n == 0:
-                return "0"
-            digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            out = []
-            while n:
-                n, rem = divmod(n, 36)
-                out.append(digits[rem])
-            return "".join(reversed(out))
-        
         for rarity in sorted(fished_by_rarity.keys(), reverse=True):
             fish_list = fished_by_rarity[rarity]
             if fish_list:
                 message += f"\n {format_rarity_display(rarity)} 稀有度 {rarity}：\n"
                 for fish in fish_list:
                     fish_id = int(fish.get('fish_id', 0) or 0)
-                    fcode = f"F{_to_base36(fish_id)}" if fish_id else "F0"
+                    fcode = f"F{fish_id}" if fish_id else "F0"
                     message += f"  - {fish['name']} x  {fish['quantity']} （{fish['base_value']}金币 / 个） ID: {fcode}\n"
         message += f"\n🐟 总鱼数：{pond_fish['stats']['total_count']} 条\n"
         message += f"💰 总价值：{pond_fish['stats']['total_value']} 金币\n"
@@ -113,25 +101,13 @@ async def peek_pond(self, event: AstrMessageEvent):
         # 构造输出信息
         message = f"【🔍 偷看 {target_user.nickname} 的鱼塘】：\n"
         
-        def _to_base36(n: int) -> str:
-            if n < 0:
-                return "0"
-            if n == 0:
-                return "0"
-            digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            out = []
-            while n:
-                n, rem = divmod(n, 36)
-                out.append(digits[rem])
-            return "".join(reversed(out))
-        
         for rarity in sorted(fished_by_rarity.keys(), reverse=True):
             fish_list = fished_by_rarity[rarity]
             if fish_list:
                 message += f"\n {format_rarity_display(rarity)} 稀有度 {rarity}：\n"
                 for fish in fish_list:
                     fish_id = int(fish.get('fish_id', 0) or 0)
-                    fcode = f"F{_to_base36(fish_id)}" if fish_id else "F0"
+                    fcode = f"F{fish_id}" if fish_id else "F0"
                     message += f"  - {fish['name']} x  {fish['quantity']} （{fish['base_value']}金币 / 个） ID: {fcode}\n"
         message += f"\n🐟 总鱼数：{pond_fish['stats']['total_count']} 条\n"
         message += f"💰 总价值：{pond_fish['stats']['total_value']} 金币\n"
@@ -219,21 +195,9 @@ async def bait(self, event: AstrMessageEvent):
         # 构造输出信息,附带emoji
         message = "【🐟 鱼饵】：\n"
         
-        def _to_base36(n: int) -> str:
-            if n < 0:
-                return "0"
-            if n == 0:
-                return "0"
-            digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            out = []
-            while n:
-                n, rem = divmod(n, 36)
-                out.append(digits[rem])
-            return "".join(reversed(out))
-        
         for bait in bait_info["baits"]:
             bait_id = int(bait.get('bait_id', 0) or 0)
-            bcode = f"B{_to_base36(bait_id)}" if bait_id else "B0"
+            bcode = f"B{bait_id}" if bait_id else "B0"
             message += f" - {bait['name']} x {bait['quantity']} (稀有度: {format_rarity_display(bait['rarity'])}) ID: {bcode}\n"
             if bait["duration_minutes"] > 0:
                 message += f"   - 持续时间: {bait['duration_minutes']} 分钟\n"
@@ -250,21 +214,9 @@ async def items(self, event: AstrMessageEvent):
     item_info = self.inventory_service.get_user_item_inventory(user_id)
     if item_info and item_info.get("items"):
         message = "【📦 道具】：\n"
-        def _to_base36(n: int) -> str:
-            if n < 0:
-                return "0"
-            if n == 0:
-                return "0"
-            digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            out = []
-            while n:
-                n, rem = divmod(n, 36)
-                out.append(digits[rem])
-            return "".join(reversed(out))
-
         for it in item_info["items"]:
             item_id = int(it.get('item_id', 0) or 0)
-            dcode = f"D{_to_base36(item_id)}" if item_id else "D0"
+            dcode = f"D{item_id}" if item_id else "D0"
             consumable_text = "消耗品" if it.get("is_consumable") else "非消耗"
             message += f" - {it['name']} x {it['quantity']} (稀有度: {format_rarity_display(it['rarity'])}，{consumable_text}) ID: {dcode}\n"
             if it.get("effect_description"):
@@ -571,14 +523,14 @@ async def use_equipment(self, event: AstrMessageEvent, equipment_type: str = Non
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要使用的物品ID，例如：/使用 R1A2B（鱼竿）、/使用 A3C4D（饰品）、/使用 D1Z（道具）、/使用 B2N（鱼饵）")
+        yield event.plain_result("❌ 请指定要使用的物品ID，例如：/使用 R1A2B（鱼竿）、/使用 A3C4D（饰品）、/使用 D1（道具）、/使用 B2（鱼饵）")
         return
 
     token = args[1].strip().upper()
     
     # 检查是否为数字ID（旧格式）
     if token.isdigit():
-        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n• D开头：道具（如 D1Z）\n• B开头：鱼饵（如 B2N）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n• D开头：道具（如 D1）\n• B开头：鱼饵（如 B2）\n\n💡 提示：使用 /背包 查看您的物品短码")
         return
     
     # 根据前缀自动判断物品类型
@@ -632,13 +584,9 @@ async def use_equipment(self, event: AstrMessageEvent, equipment_type: str = Non
             yield event.plain_result("❌ 出错啦！请稍后再试。")
     
     elif target_type == "item":
-        # 道具类物品
-        def _from_base36(s: str) -> int:
-            s = (s or "").strip().upper()
-            return int(s, 36)
-        
+        # 道具类物品（简单数字ID）
         try:
-            item_id = _from_base36(token[1:])
+            item_id = int(token[1:])
         except Exception:
             yield event.plain_result("❌ 无效的道具ID，请检查后重试。")
             return
@@ -653,13 +601,9 @@ async def use_equipment(self, event: AstrMessageEvent, equipment_type: str = Non
             yield event.plain_result("❌ 出错啦！请稍后再试。")
     
     elif target_type == "bait":
-        # 鱼饵类物品
-        def _from_base36(s: str) -> int:
-            s = (s or "").strip().upper()
-            return int(s, 36)
-        
+        # 鱼饵类物品（简单数字ID）
         try:
-            bait_id = _from_base36(token[1:])
+            bait_id = int(token[1:])
         except Exception:
             yield event.plain_result("❌ 无效的鱼饵ID，请检查后重试。")
             return

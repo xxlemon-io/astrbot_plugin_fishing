@@ -225,6 +225,27 @@ class MarketService:
             logger.error(f"查找鱼类市场ID失败: {e}")
             return None
 
+    def get_market_id_by_item_id(self, item_id: int) -> Optional[int]:
+        """
+        根据道具ID查找市场ID
+        
+        Args:
+            item_id: 道具ID
+            
+        Returns:
+            市场ID，如果未找到返回None
+        """
+        try:
+            listings, _ = self.market_repo.get_all_listings()
+            for listing in listings:
+                if (listing.item_type == "item" and 
+                    listing.item_id == item_id):
+                    return listing.market_id
+            return None
+        except Exception as e:
+            logger.error(f"查找道具市场ID失败: {e}")
+            return None
+
     def buy_market_item(self, buyer_id: str, market_id: int) -> Dict[str, Any]:
         """
         处理从市场购买物品的逻辑。

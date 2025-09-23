@@ -683,21 +683,9 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             name_w, _ = get_text_size(bait_name, small_font)
             draw.text((x + 15, y + 10), bait_name, font=small_font, fill=text_primary)
             
-            # 生成B前缀短码
-            def _to_base36(n: int) -> str:
-                if n < 0:
-                    return "0"
-                if n == 0:
-                    return "0"
-                digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                out = []
-                while n:
-                    n, rem = divmod(n, 36)
-                    out.append(digits[rem])
-                return "".join(reversed(out))
-            
+            # 生成B前缀短码（简单数字ID）
             bait_id = int(bait.get('bait_id', 0) or 0)
-            bcode = f"B{_to_base36(bait_id)}" if bait_id else "B0"
+            bcode = f"B{bait_id}" if bait_id else "B0"
             draw.text((x + 15 + name_w + 10, y + 12), f"ID: {bcode}", font=tiny_font, fill=primary_light)
             
             # 稀有度
@@ -779,20 +767,9 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             item_name = item['name'][:12] + "..." if len(item['name']) > 12 else item['name']
             name_w, _ = get_text_size(item_name, small_font)
             draw.text((x + 15, y + 10), item_name, font=small_font, fill=text_primary)
-            # 显示 D 前缀短码
-            def _to_base36(n: int) -> str:
-                if n < 0:
-                    return "0"
-                if n == 0:
-                    return "0"
-                digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                out = []
-                while n:
-                    n, rem = divmod(n, 36)
-                    out.append(digits[rem])
-                return "".join(reversed(out))
+            # 显示 D 前缀短码（简单数字ID）
             item_id = int(item.get('item_id', 0) or 0)
-            dcode = f"D{_to_base36(item_id)}" if item_id else "D0"
+            dcode = f"D{item_id}" if item_id else "D0"
             draw.text((x + 15 + name_w + 10, y + 12), f"ID: {dcode}", font=tiny_font, fill=primary_light)
             # 消耗品标识（右上角）
             label_text = "消耗" if item.get('is_consumable') else "非消耗"
