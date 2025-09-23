@@ -245,26 +245,6 @@ async def open_all_money_bags(self, event: AstrMessageEvent):
         error_message = result.get('message', '未知错误') if result else '未知错误'
         yield event.plain_result(f"❌ 开启钱袋失败：{error_message}")
 
-async def sell_item(self, event: AstrMessageEvent):
-    """出售道具：/出售道具 <ID> [数量]，数量缺省为1"""
-    user_id = self._get_effective_user_id(event)
-    parts = event.message_str.strip().split()
-    if len(parts) < 2:
-        yield event.plain_result("❌ 用法：/出售道具 <道具ID> [数量]")
-        return
-    if not parts[1].isdigit():
-        yield event.plain_result("❌ 道具ID必须是数字")
-        return
-    item_id = int(parts[1])
-    qty = int(parts[2]) if len(parts) >= 3 and parts[2].isdigit() else 1
-    if qty <= 0:
-        yield event.plain_result("❌ 数量必须是正整数")
-        return
-    result = self.inventory_service.sell_item(user_id, item_id, qty)
-    if result.get("success"):
-        yield event.plain_result(result["message"])
-    else:
-        yield event.plain_result(result.get("message", "操作失败"))
 
 async def accessories(self, event: AstrMessageEvent):
     """查看用户饰品信息"""
@@ -576,36 +556,67 @@ async def refine_equipment(self, event: AstrMessageEvent, equipment_type: str = 
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
 async def sell_equipment(self, event: AstrMessageEvent, equipment_type: str = None):
-    """统一出售装备命令 - 根据短码前缀自动判断类型"""
+    """统一出售物品命令 - 根据短码前缀自动判断类型"""
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要出售的装备ID，例如：/出售 R1A2B 或 /出售 A3C4D")
+        yield event.plain_result("❌ 请指定要出售的物品ID，例如：/出售 R1A2B（鱼竿）、/出售 A3C4D（饰品）、/出售 D1（道具）\n💡 道具支持数量参数：/出售 D1 10（出售10个道具）")
         return
 
     token = args[1].strip().upper()
     
     # 检查是否为数字ID（旧格式）
     if token.isdigit():
-        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n• D开头：道具（如 D1）\n\n💡 提示：使用 /背包 查看您的物品短码")
         return
     
-    # 根据前缀自动判断装备类型
+    # 根据前缀自动判断物品类型
     if token.startswith("R"):
         target_type = "rod"
         type_name = "鱼竿"
     elif token.startswith("A"):
         target_type = "accessory"
         type_name = "饰品"
+    elif token.startswith("D"):
+        target_type = "item"
+        type_name = "道具"
     else:
         # 如果没有前缀，使用传入的类型参数
         if equipment_type:
             target_type = equipment_type
             type_name = "鱼竿" if equipment_type == "rod" else "饰品"
         else:
-            yield event.plain_result("❌ 请使用正确的装备ID：R开头为鱼竿，A开头为饰品")
+            yield event.plain_result("❌ 请使用正确的物品ID：R开头为鱼竿，A开头为饰品，D开头为道具")
             return
 
+    # 处理道具的特殊情况（需要解析数量参数）
+    if target_type == "item":
+        # 解析道具ID
+        try:
+            item_id = int(token[1:])
+        except ValueError:
+            yield event.plain_result("❌ 无效的道具ID，请检查后重试。")
+            return
+        
+        # 解析数量参数
+        quantity = 1
+        if len(args) >= 3 and args[2].isdigit():
+            quantity = int(args[2])
+            if quantity <= 0:
+                yield event.plain_result("❌ 数量必须是正整数")
+                return
+        
+        # 出售道具
+        if result := self.inventory_service.sell_item(user_id, item_id, quantity):
+            if result["success"]:
+                yield event.plain_result(result["message"])
+            else:
+                yield event.plain_result(f"❌ 出售失败：{result['message']}")
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+        return
+
+    # 处理装备（鱼竿和饰品）
     # 解析实例ID
     if target_type == "rod":
         instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
