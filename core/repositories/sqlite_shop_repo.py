@@ -429,17 +429,17 @@ class SqliteShopRepository(AbstractShopRepository):
         """获取活跃商品（兼容旧接口）"""
         conn = self._get_connection()
         cursor = conn.cursor()
-        where = ["is_active = 1"]
+        where = ["si.is_active = 1"]
         params: List[Any] = []
         
         # 时间检查
         now = datetime.now().isoformat(sep=" ")
-        where.append("(start_time IS NULL OR start_time <= ?)")
-        where.append("(end_time IS NULL OR end_time >= ?)")
+        where.append("(si.start_time IS NULL OR si.start_time <= ?)")
+        where.append("(si.end_time IS NULL OR si.end_time >= ?)")
         params.extend([now, now])
         
         if category:
-            where.append("category = ?")
+            where.append("si.category = ?")
             params.append(category)
             
         sql = f"""
