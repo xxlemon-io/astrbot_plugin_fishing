@@ -698,7 +698,7 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             
             bait_id = int(bait.get('bait_id', 0) or 0)
             bcode = f"B{_to_base36(bait_id)}" if bait_id else "B0"
-            draw.text((x + 15 + name_w + 10, y + 12), f"代码: {bcode}", font=tiny_font, fill=primary_light)
+            draw.text((x + 15 + name_w + 10, y + 12), f"ID: {bcode}", font=tiny_font, fill=primary_light)
             
             # 稀有度
             rarity = bait.get('rarity', 1)
@@ -793,7 +793,7 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
                 return "".join(reversed(out))
             item_id = int(item.get('item_id', 0) or 0)
             dcode = f"D{_to_base36(item_id)}" if item_id else "D0"
-            draw.text((x + 15 + name_w + 10, y + 12), f"代码: {dcode}", font=tiny_font, fill=primary_light)
+            draw.text((x + 15 + name_w + 10, y + 12), f"ID: {dcode}", font=tiny_font, fill=primary_light)
             # 消耗品标识（右上角）
             label_text = "消耗" if item.get('is_consumable') else "非消耗"
             lw, lh = get_text_size(label_text, tiny_font)

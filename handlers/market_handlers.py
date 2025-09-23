@@ -705,7 +705,7 @@ async def list_item(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
 async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
-    """统一上架命令：/上架 <代码> <价格> [匿名]
+    """统一上架命令：/上架 <ID> <价格> [匿名]
     - Rxxxx: 鱼竿实例
     - Axxxx: 饰品实例
     - Dxxxx: 道具模板
@@ -714,7 +714,7 @@ async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 3:
-        yield event.plain_result("❌ 用法：/上架 代码 价格 [匿名]\n示例：/上架 R2N9C 1000、/上架 A7K3Q 2000 匿名")
+        yield event.plain_result("❌ 用法：/上架 ID 价格 [匿名]\n示例：/上架 R2N9C 1000、/上架 A7K3Q 2000 匿名")
         return
     token = args[1].strip().upper()
     price = args[2]
@@ -730,7 +730,7 @@ async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
 
     # 检查是否为数字ID（旧格式）
     if token.isdigit():
-        yield event.plain_result("❌ 请使用正确的物品代码！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n• D开头：道具（如 D1Z）\n• F开头：鱼类（如 F3A）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n• D开头：道具（如 D1Z）\n• F开头：鱼类（如 F3A）\n\n💡 提示：使用 /背包 查看您的物品短码")
         return
 
     def _from_base36(s: str) -> int:
@@ -741,31 +741,31 @@ async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
     if token.startswith('R'):
         instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
         if instance_id is None:
-            yield event.plain_result("❌ 无效的鱼竿代码，请检查后重试。")
+            yield event.plain_result("❌ 无效的鱼竿ID，请检查后重试。")
             return
         result = self.market_service.put_item_on_sale(user_id, "rod", int(instance_id), price, is_anonymous=is_anonymous)
     elif token.startswith('A'):
         instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
         if instance_id is None:
-            yield event.plain_result("❌ 无效的饰品代码，请检查后重试。")
+            yield event.plain_result("❌ 无效的饰品ID，请检查后重试。")
             return
         result = self.market_service.put_item_on_sale(user_id, "accessory", int(instance_id), price, is_anonymous=is_anonymous)
     elif token.startswith('D'):
         try:
             item_id = _from_base36(token[1:])
         except Exception:
-            yield event.plain_result("❌ 无效的道具代码，请检查后重试。")
+            yield event.plain_result("❌ 无效的道具ID，请检查后重试。")
             return
         result = self.market_service.put_item_on_sale(user_id, "item", int(item_id), price, is_anonymous=is_anonymous)
     elif token.startswith('F'):
         try:
             fish_id = _from_base36(token[1:])
         except Exception:
-            yield event.plain_result("❌ 无效的鱼类代码，请检查后重试。")
+            yield event.plain_result("❌ 无效的鱼类ID，请检查后重试。")
             return
         result = self.market_service.put_item_on_sale(user_id, "fish", int(fish_id), price, is_anonymous=is_anonymous)
     else:
-        yield event.plain_result("❌ 无效代码，请使用以 R/A/D/F 开头的短码")
+        yield event.plain_result("❌ 无效ID，请使用以 R/A/D/F 开头的短码")
         return
 
     if result:
@@ -863,7 +863,7 @@ async def buy_item(self, event: AstrMessageEvent):
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要购买的商品代码，例如：/购买 R1A2B\n💡 使用「市场」命令查看商品列表")
+        yield event.plain_result("❌ 请指定要购买的商品ID，例如：/购买 R1A2B\n💡 使用「市场」命令查看商品列表")
         return
     
     try:
@@ -927,7 +927,7 @@ async def delist_item(self, event: AstrMessageEvent):
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要下架的商品 代码或ID，例如：/下架 M12 或 /下架 R2N9C\n💡 使用「我的上架」命令查看您的商品列表")
+        yield event.plain_result("❌ 请指定要下架的商品 ID或ID，例如：/下架 M12 或 /下架 R2N9C\n💡 使用「我的上架」命令查看您的商品列表")
         return
     code = args[1]
     # 支持 Mxxxx（市场）、Rxxxx/Axxxx（通过实例查当前用户上架）或纯数字
@@ -964,7 +964,7 @@ def _to_base36(n: int) -> str:
 
 
 def _get_display_code_for_market_item(item) -> str:
-    """为市场商品生成显示代码"""
+    """为市场商品生成显示ID"""
     item_type = item.item_type
     item_instance_id = item.item_instance_id
     
@@ -994,17 +994,17 @@ def _from_base36(s: str) -> int:
 
 
 def _parse_market_code(code: str, market_service=None) -> int:
-    """解析市场代码，返回市场ID"""
+    """解析市场ID，返回市场ID"""
     code = code.strip().upper()
     
     if code.startswith('M') and len(code) > 1:
-        # M开头的代码，后面是市场ID
+        # M开头的ID，后面是市场ID
         try:
             return int(code[1:])
         except ValueError:
-            raise ValueError(f"无效的市场代码: {code}")
+            raise ValueError(f"无效的市场ID: {code}")
     elif code.startswith('R') and len(code) > 1:
-        # R开头的代码，需要根据实例ID查找市场ID
+        # R开头的ID，需要根据实例ID查找市场ID
         try:
             instance_id = _from_base36(code[1:])
             if market_service:
@@ -1012,13 +1012,13 @@ def _parse_market_code(code: str, market_service=None) -> int:
                 if market_id is not None:
                     return market_id
                 else:
-                    raise ValueError(f"未找到鱼竿代码 {code} 对应的市场商品")
+                    raise ValueError(f"未找到鱼竿ID {code} 对应的市场商品")
             else:
-                raise ValueError("无法解析鱼竿代码，请稍后重试")
+                raise ValueError("无法解析鱼竿ID，请稍后重试")
         except ValueError as e:
-            raise ValueError(f"无效的鱼竿代码: {code}")
+            raise ValueError(f"无效的鱼竿ID: {code}")
     elif code.startswith('A') and len(code) > 1:
-        # A开头的代码，需要根据实例ID查找市场ID
+        # A开头的ID，需要根据实例ID查找市场ID
         try:
             instance_id = _from_base36(code[1:])
             if market_service:
@@ -1026,13 +1026,13 @@ def _parse_market_code(code: str, market_service=None) -> int:
                 if market_id is not None:
                     return market_id
                 else:
-                    raise ValueError(f"未找到饰品代码 {code} 对应的市场商品")
+                    raise ValueError(f"未找到饰品ID {code} 对应的市场商品")
             else:
-                raise ValueError("无法解析饰品代码，请稍后重试")
+                raise ValueError("无法解析饰品ID，请稍后重试")
         except ValueError as e:
-            raise ValueError(f"无效的饰品代码: {code}")
+            raise ValueError(f"无效的饰品ID: {code}")
     elif code.startswith('F') and len(code) > 1:
-        # F开头的代码，需要根据鱼类ID查找市场ID
+        # F开头的ID，需要根据鱼类ID查找市场ID
         try:
             fish_id = _from_base36(code[1:])
             if market_service:
@@ -1040,10 +1040,10 @@ def _parse_market_code(code: str, market_service=None) -> int:
                 if market_id is not None:
                     return market_id
                 else:
-                    raise ValueError(f"未找到鱼类代码 {code} 对应的市场商品")
+                    raise ValueError(f"未找到鱼类ID {code} 对应的市场商品")
             else:
-                raise ValueError("无法解析鱼类代码，请稍后重试")
+                raise ValueError("无法解析鱼类ID，请稍后重试")
         except ValueError as e:
-            raise ValueError(f"无效的鱼类代码: {code}")
+            raise ValueError(f"无效的鱼类ID: {code}")
     else:
-        raise ValueError(f"无效的市场代码: {code}，请使用短码（如 R1A2B、A3C4D、F3A、M123）")
+        raise ValueError(f"无效的市场ID: {code}，请使用短码（如 R1A2B、A3C4D、F3A、M123）")
