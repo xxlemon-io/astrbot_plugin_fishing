@@ -56,6 +56,7 @@ class SqliteUserRepository(AbstractUserRepository):
             total_coins_earned=row["total_coins_earned"],
             consecutive_login_days=row["consecutive_login_days"],
             fish_pond_capacity=row["fish_pond_capacity"],
+            aquarium_capacity=row["aquarium_capacity"] if "aquarium_capacity" in row.keys() else 50,  # 默认值50，兼容旧数据
             created_at=parse_datetime(row["created_at"]),
             equipped_rod_instance_id=row["equipped_rod_instance_id"],
             equipped_accessory_instance_id=row["equipped_accessory_instance_id"],
