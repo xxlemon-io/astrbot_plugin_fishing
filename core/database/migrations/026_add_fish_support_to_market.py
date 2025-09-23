@@ -34,6 +34,8 @@ def up(cursor: sqlite3.Cursor):
             seller_nickname TEXT,
             item_name TEXT,
             item_description TEXT,
+            item_instance_id INTEGER,
+            is_anonymous INTEGER DEFAULT 0,
             FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
         )
     """)
@@ -45,7 +47,7 @@ def up(cursor: sqlite3.Cursor):
     
     # 构建动态的INSERT语句
     base_columns = ['market_id', 'user_id', 'item_type', 'item_id', 'quantity', 'price', 'listed_at', 'expires_at']
-    new_columns = ['refine_level', 'seller_nickname', 'item_name', 'item_description']
+    new_columns = ['refine_level', 'seller_nickname', 'item_name', 'item_description', 'item_instance_id', 'is_anonymous']
     
     # 选择存在的字段
     select_fields = []
@@ -57,9 +59,19 @@ def up(cursor: sqlite3.Cursor):
     
     for col in new_columns:
         if col in existing_columns:
-            select_fields.append(f"COALESCE({col}, {get_default_value(col)}) as {col}")
+            if col == 'is_anonymous':
+                # 处理可能的 BOOLEAN 字段名问题
+                if 'BOOLEAN' in existing_columns and 'is_anonymous' not in existing_columns:
+                    select_fields.append("BOOLEAN as is_anonymous")
+                else:
+                    select_fields.append(f"COALESCE({col}, 0) as {col}")
+            else:
+                select_fields.append(f"COALESCE({col}, {get_default_value(col)}) as {col}")
         else:
-            select_fields.append(f"{get_default_value(col)} as {col}")
+            if col == 'is_anonymous':
+                select_fields.append("0 as is_anonymous")
+            else:
+                select_fields.append(f"{get_default_value(col)} as {col}")
     
     select_sql = f"SELECT {', '.join(select_fields)} FROM market"
     print(f"复制数据SQL: {select_sql}")
@@ -68,7 +80,7 @@ def up(cursor: sqlite3.Cursor):
         INSERT INTO market_new (
             market_id, user_id, item_type, item_id, quantity, price, 
             listed_at, expires_at, refine_level, seller_nickname, 
-            item_name, item_description
+            item_name, item_description, item_instance_id, is_anonymous
         )
         {select_sql}
     """)
@@ -109,6 +121,8 @@ def down(cursor: sqlite3.Cursor):
             seller_nickname TEXT,
             item_name TEXT,
             item_description TEXT,
+            item_instance_id INTEGER,
+            is_anonymous INTEGER DEFAULT 0,
             FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
         )
     """)
@@ -120,7 +134,7 @@ def down(cursor: sqlite3.Cursor):
     
     # 构建动态的INSERT语句
     base_columns = ['market_id', 'user_id', 'item_type', 'item_id', 'quantity', 'price', 'listed_at', 'expires_at']
-    new_columns = ['refine_level', 'seller_nickname', 'item_name', 'item_description']
+    new_columns = ['refine_level', 'seller_nickname', 'item_name', 'item_description', 'item_instance_id', 'is_anonymous']
     
     # 选择存在的字段
     select_fields = []
@@ -132,9 +146,19 @@ def down(cursor: sqlite3.Cursor):
     
     for col in new_columns:
         if col in existing_columns:
-            select_fields.append(f"COALESCE({col}, {get_default_value(col)}) as {col}")
+            if col == 'is_anonymous':
+                # 处理可能的 BOOLEAN 字段名问题
+                if 'BOOLEAN' in existing_columns and 'is_anonymous' not in existing_columns:
+                    select_fields.append("BOOLEAN as is_anonymous")
+                else:
+                    select_fields.append(f"COALESCE({col}, 0) as {col}")
+            else:
+                select_fields.append(f"COALESCE({col}, {get_default_value(col)}) as {col}")
         else:
-            select_fields.append(f"{get_default_value(col)} as {col}")
+            if col == 'is_anonymous':
+                select_fields.append("0 as is_anonymous")
+            else:
+                select_fields.append(f"{get_default_value(col)} as {col}")
     
     select_sql = f"SELECT {', '.join(select_fields)} FROM market WHERE item_type IN ('rod', 'accessory', 'item')"
     print(f"复制数据SQL: {select_sql}")
@@ -143,7 +167,7 @@ def down(cursor: sqlite3.Cursor):
         INSERT INTO market_rollback (
             market_id, user_id, item_type, item_id, quantity, price, 
             listed_at, expires_at, refine_level, seller_nickname, 
-            item_name, item_description
+            item_name, item_description, item_instance_id, is_anonymous
         )
         {select_sql}
     """)
