@@ -35,12 +35,22 @@ class SqliteShopRepository(AbstractShopRepository):
             if k in data and isinstance(data[k], int):
                 data[k] = bool(data[k])
         # 时间解析（datetime类型）
-        for k in ("start_time", "end_time", "created_at", "updated_at", "timestamp"):
+        for k in ("created_at", "updated_at", "timestamp"):
             if k in data and data[k] and isinstance(data[k], str):
                 try:
                     data[k] = datetime.fromisoformat(data[k].replace("Z", "+00:00"))
                 except Exception:
                     pass
+        
+        # 时间字段保持字符串格式（用于前端表单）
+        for k in ("start_time", "end_time"):
+            if k in data and data[k]:
+                if isinstance(data[k], str):
+                    # 确保格式正确
+                    data[k] = data[k]
+                elif hasattr(data[k], 'strftime'):
+                    # 如果是datetime对象，转换为字符串
+                    data[k] = data[k].strftime('%Y-%m-%d %H:%M:%S')
         # 时间格式处理（TIME类型，保持字符串格式）
         for k in ("daily_start_time", "daily_end_time"):
             if k in data and data[k]:

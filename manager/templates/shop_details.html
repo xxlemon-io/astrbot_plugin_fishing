@@ -307,10 +307,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 
                 // 时间字段
                 if (addItemForm.elements['start_time']) {
-                    addItemForm.elements['start_time'].value = data.item.start_time ? data.item.start_time.replace(' ', 'T') : '';
+                    if (data.item.start_time) {
+                        // 转换为 datetime-local 格式 (YYYY-MM-DDTHH:MM)
+                        addItemForm.elements['start_time'].value = data.item.start_time.replace(' ', 'T').substring(0, 16);
+                    } else {
+                        addItemForm.elements['start_time'].value = '';
+                    }
                 }
                 if (addItemForm.elements['end_time']) {
-                    addItemForm.elements['end_time'].value = data.item.end_time ? data.item.end_time.replace(' ', 'T') : '';
+                    if (data.item.end_time) {
+                        // 转换为 datetime-local 格式 (YYYY-MM-DDTHH:MM)
+                        addItemForm.elements['end_time'].value = data.item.end_time.replace(' ', 'T').substring(0, 16);
+                    } else {
+                        addItemForm.elements['end_time'].value = '';
+                    }
                 }
                 
                 // 填充消耗数据
