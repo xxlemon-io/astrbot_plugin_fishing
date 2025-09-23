@@ -1,5 +1,5 @@
 from astrbot.api.event import AstrMessageEvent
-from ..draw.utils import format_rarity_display
+from ..utils import format_rarity_display
 
 
 async def aquarium(self, event: AstrMessageEvent):
