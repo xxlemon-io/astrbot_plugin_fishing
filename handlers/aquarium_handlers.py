@@ -8,7 +8,7 @@ async def aquarium(self, event: AstrMessageEvent):
     - "水族箱 帮助": 显示帮助
     """
     args = event.message_str.strip().split()
-    if len(args) >= 2 and args[1] in {"帮助", "help", "?"}:
+    if len(args) >= 2 and args[1] == "帮助":
         async for r in aquarium_help(self, event):
             yield r
         return
