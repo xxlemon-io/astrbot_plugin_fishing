@@ -311,7 +311,12 @@ class MarketService:
         self.market_repo.remove_listing(market_id)
 
         quantity_text = f" x{listing.quantity}" if listing.quantity > 1 else ""
-        return {"success": True, "message": f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！"}
+        
+        # 如果是鱼类，提示用户去水族箱查收
+        if listing.item_type == "fish":
+            return {"success": True, "message": f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！\n🐠 请前往水族箱查收您的鱼类！"}
+        else:
+            return {"success": True, "message": f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！"}
 
     def delist_item(self, user_id: str, market_id: int) -> Dict[str, Any]:
         """
