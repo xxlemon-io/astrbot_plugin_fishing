@@ -622,6 +622,23 @@ async def market(self, event: AstrMessageEvent):
                     message = "【🎁 市场 - 道具】\n\n"
                     message += format_item_list(items, "道具", "🎁")
                     yield event.plain_result(message)
+
+            # Fish
+            if fish:
+                if len(fish) > page_size:
+                    total_pages = (len(fish) + page_size - 1) // page_size
+                    for page in range(total_pages):
+                        start_idx = page * page_size
+                        end_idx = min(start_idx + page_size, len(fish))
+                        page_items = fish[start_idx:end_idx]
+                        
+                        message = f"【🐟 市场 - 鱼类】第 {page + 1}/{total_pages} 页\n\n"
+                        message += format_item_list(page_items, "鱼类", "🐟")
+                        yield event.plain_result(message)
+                else:
+                    message = "【🐟 市场 - 鱼类】\n\n"
+                    message += format_item_list(fish, "鱼类", "🐟")
+                    yield event.plain_result(message)
         else:
             # 处理市场服务返回失败的情况
             error_message = result.get("message", "获取市场列表失败")
