@@ -311,8 +311,8 @@ class MarketService:
             # 给买家添加道具
             self.inventory_repo.update_item_quantity(buyer_id, listing.item_id, listing.quantity)
         elif listing.item_type == "fish":
-            # 给买家添加鱼类
-            self.inventory_repo.update_fish_quantity(buyer_id, listing.item_id, listing.quantity)
+            # 给买家添加鱼类到水族箱（默认放入水族箱）
+            self.inventory_repo.add_fish_to_aquarium(buyer_id, listing.item_id, listing.quantity)
 
         # 4. 从市场移除该商品
         self.market_repo.remove_listing(market_id)

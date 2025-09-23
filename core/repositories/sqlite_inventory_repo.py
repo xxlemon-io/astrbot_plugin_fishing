@@ -6,7 +6,7 @@ import json
 
 # 导入抽象基类和领域模型
 from .abstract_repository import AbstractInventoryRepository
-from ..domain.models import UserFishInventoryItem, UserRodInstance, UserAccessoryInstance, FishingZone
+from ..domain.models import UserFishInventoryItem, UserAquariumItem, UserRodInstance, UserAccessoryInstance, FishingZone, AquariumUpgrade
 from ..database.connection_manager import DatabaseConnectionManager
 
 
@@ -26,6 +26,16 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         if not row:
             return None
         return UserFishInventoryItem(**row)
+
+    def _row_to_aquarium_item(self, row: sqlite3.Row) -> Optional[UserAquariumItem]:
+        if not row:
+            return None
+        return UserAquariumItem(**row)
+
+    def _row_to_aquarium_upgrade(self, row: sqlite3.Row) -> Optional[AquariumUpgrade]:
+        if not row:
+            return None
+        return AquariumUpgrade(**row)
 
     def _row_to_rod_instance(self, row: sqlite3.Row) -> Optional[UserRodInstance]:
         if not row:
@@ -98,11 +108,35 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                 cursor.execute("DELETE FROM user_fish_inventory WHERE user_id = ?", (user_id,))
             else:
                 cursor.execute("""
-                    DELETE FROM user_fish_inventory
+                    DELETE FROM user_fish_inventory 
                     WHERE user_id = ? AND fish_id IN (
                         SELECT fish_id FROM fish WHERE rarity = ?
                     )
                 """, (user_id, rarity))
+            conn.commit()
+
+    def update_fish_quantity(self, user_id: str, fish_id: int, delta: int) -> None:
+        """更新用户鱼类库存数量"""
+        with self._connection_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            if delta > 0:
+                cursor.execute("""
+                    INSERT INTO user_fish_inventory (user_id, fish_id, quantity)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(user_id, fish_id) DO UPDATE SET quantity = quantity + excluded.quantity
+                """, (user_id, fish_id, delta))
+            elif delta < 0:
+                cursor.execute("""
+                    UPDATE user_fish_inventory 
+                    SET quantity = quantity - ?
+                    WHERE user_id = ? AND fish_id = ? AND quantity >= ?
+                """, (-delta, user_id, fish_id, -delta))
+                
+                # 如果数量为0或负数，删除记录
+                cursor.execute("""
+                    DELETE FROM user_fish_inventory 
+                    WHERE user_id = ? AND fish_id = ? AND quantity <= 0
+                """, (user_id, fish_id))
             conn.commit()
 
     def sell_fish_keep_one(self, user_id: str) -> int:
@@ -598,3 +632,119 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                 WHERE user_id = ? AND accessory_id = ?
             """, (user_id, accessory_id))
             return [self._row_to_accessory_instance(row) for row in cursor.fetchall()]
+
+    # --- 水族箱相关方法 ---
+    def get_aquarium_inventory(self, user_id: str) -> List[UserAquariumItem]:
+        """获取用户水族箱中的鱼"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT user_id, fish_id, quantity, added_at 
+                FROM user_aquarium 
+                WHERE user_id = ? AND quantity > 0
+            """, (user_id,))
+            return [self._row_to_aquarium_item(row) for row in cursor.fetchall()]
+
+    def get_aquarium_inventory_value(self, user_id: str, rarity: Optional[int] = None) -> int:
+        """获取用户水族箱中鱼的总价值"""
+        query = """
+            SELECT SUM(f.base_value * ua.quantity)
+            FROM user_aquarium ua
+            JOIN fish f ON ua.fish_id = f.fish_id
+            WHERE ua.user_id = ?
+        """
+        params = [user_id]
+        if rarity is not None:
+            query += " AND f.rarity = ?"
+            params.append(rarity)
+
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            result = cursor.fetchone()
+            return result[0] if result and result[0] is not None else 0
+
+    def add_fish_to_aquarium(self, user_id: str, fish_id: int, quantity: int = 1) -> None:
+        """向用户水族箱添加鱼"""
+        with self._connection_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO user_aquarium (user_id, fish_id, quantity, added_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_id, fish_id) DO UPDATE SET 
+                    quantity = quantity + excluded.quantity,
+                    added_at = CURRENT_TIMESTAMP
+            """, (user_id, fish_id, quantity))
+            conn.commit()
+
+    def remove_fish_from_aquarium(self, user_id: str, fish_id: int, quantity: int = 1) -> None:
+        """从用户水族箱移除鱼"""
+        with self._connection_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE user_aquarium 
+                SET quantity = quantity - ?
+                WHERE user_id = ? AND fish_id = ? AND quantity >= ?
+            """, (quantity, user_id, fish_id, quantity))
+            
+            # 如果数量为0或负数，删除记录
+            cursor.execute("""
+                DELETE FROM user_aquarium 
+                WHERE user_id = ? AND fish_id = ? AND quantity <= 0
+            """, (user_id, fish_id))
+            conn.commit()
+
+    def update_aquarium_fish_quantity(self, user_id: str, fish_id: int, delta: int) -> None:
+        """更新用户水族箱中鱼的数量"""
+        if delta > 0:
+            self.add_fish_to_aquarium(user_id, fish_id, delta)
+        elif delta < 0:
+            self.remove_fish_from_aquarium(user_id, fish_id, -delta)
+
+    def clear_aquarium_inventory(self, user_id: str, rarity: Optional[int] = None) -> None:
+        """清空用户水族箱"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            if rarity is None:
+                cursor.execute("DELETE FROM user_aquarium WHERE user_id = ?", (user_id,))
+            else:
+                cursor.execute("""
+                    DELETE FROM user_aquarium 
+                    WHERE user_id = ? AND fish_id IN (
+                        SELECT fish_id FROM fish WHERE rarity = ?
+                    )
+                """, (user_id, rarity))
+            conn.commit()
+
+    def get_aquarium_total_count(self, user_id: str) -> int:
+        """获取用户水族箱中鱼的总数量"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT SUM(quantity) FROM user_aquarium WHERE user_id = ?
+            """, (user_id,))
+            result = cursor.fetchone()
+            return result[0] if result and result[0] is not None else 0
+
+    def get_aquarium_upgrades(self) -> List[AquariumUpgrade]:
+        """获取所有水族箱升级配置"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT upgrade_id, level, capacity, cost_coins, cost_premium, description, created_at
+                FROM aquarium_upgrades 
+                ORDER BY level
+            """)
+            return [self._row_to_aquarium_upgrade(row) for row in cursor.fetchall()]
+
+    def get_aquarium_upgrade_by_level(self, level: int) -> Optional[AquariumUpgrade]:
+        """根据等级获取水族箱升级配置"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT upgrade_id, level, capacity, cost_coins, cost_premium, description, created_at
+                FROM aquarium_upgrades 
+                WHERE level = ?
+            """, (level,))
+            row = cursor.fetchone()
+            return self._row_to_aquarium_upgrade(row) if row else None

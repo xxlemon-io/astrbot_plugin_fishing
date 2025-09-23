@@ -178,6 +178,7 @@ class User:
     total_coins_earned: int = 0
     consecutive_login_days: int = 0
     fish_pond_capacity: int = 480
+    aquarium_capacity: int = 50  # 水族箱容量
     fishing_zone_id: int = 1  # 默认钓鱼区域ID
 
     # 装备信息
@@ -210,6 +211,25 @@ class UserFishInventoryItem:
     user_id: str
     fish_id: int
     quantity: int
+
+@dataclass
+class UserAquariumItem:
+    """用户水族箱中的一项"""
+    user_id: str
+    fish_id: int
+    quantity: int
+    added_at: Optional[datetime] = None
+
+@dataclass
+class AquariumUpgrade:
+    """水族箱升级配置"""
+    upgrade_id: int
+    level: int
+    capacity: int
+    cost_coins: int
+    cost_premium: int = 0
+    description: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 @dataclass
 class FishingRecord:
