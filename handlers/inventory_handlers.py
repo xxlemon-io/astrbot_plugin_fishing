@@ -570,6 +570,11 @@ async def use_equipment(self, event: AstrMessageEvent, equipment_type: str = Non
 
     token = args[1].strip().upper()
     
+    # 检查是否为数字ID（旧格式）
+    if token.isdigit():
+        yield event.plain_result("❌ 请使用正确的物品代码！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n• D开头：道具（如 D1Z）\n• B开头：鱼饵（如 B2N）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        return
+    
     # 根据前缀自动判断物品类型
     if token.startswith("R"):
         target_type = "rod"
@@ -700,6 +705,11 @@ async def refine_equipment(self, event: AstrMessageEvent, equipment_type: str = 
 
     token = args[1].strip().upper()
     
+    # 检查是否为数字ID（旧格式）
+    if token.isdigit():
+        yield event.plain_result("❌ 请使用正确的物品代码！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        return
+    
     # 根据前缀自动判断装备类型
     if token.startswith("R"):
         target_type = "rod"
@@ -744,6 +754,11 @@ async def lock_equipment(self, event: AstrMessageEvent, equipment_type: str = No
         return
 
     token = args[1].strip().upper()
+    
+    # 检查是否为数字ID（旧格式）
+    if token.isdigit():
+        yield event.plain_result("❌ 请使用正确的物品代码！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        return
     
     # 根据前缀自动判断装备类型
     if token.startswith("R"):
@@ -791,6 +806,11 @@ async def unlock_equipment(self, event: AstrMessageEvent, equipment_type: str = 
         return
 
     token = args[1].strip().upper()
+    
+    # 检查是否为数字ID（旧格式）
+    if token.isdigit():
+        yield event.plain_result("❌ 请使用正确的物品代码！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        return
     
     # 根据前缀自动判断装备类型
     if token.startswith("R"):

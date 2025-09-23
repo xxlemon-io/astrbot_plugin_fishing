@@ -426,10 +426,6 @@ class FishingPlugin(Star):
             yield r
 
 
-    @filter.command("匿名上架")
-    async def anonymous_list_any(self, event: AstrMessageEvent):
-        async for r in market_handlers.anonymous_list_any(self, event):
-            yield r
 
     @filter.command("购买")
     async def buy_item(self, event: AstrMessageEvent):
