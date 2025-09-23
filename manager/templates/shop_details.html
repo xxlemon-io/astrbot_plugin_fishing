@@ -173,6 +173,12 @@
                                         <optgroup label="鱼类">
                                             {% for fish in all_fish %}<option value="fish-{{ fish.fish_id }}">{{ fish.name }} {{ '★' * fish.rarity }}</option>{% endfor %}
                                         </optgroup>
+                                        <optgroup label="鱼竿">
+                                            {% for rod in all_rods %}<option value="rod-{{ rod.rod_id }}">{{ rod.name }} {{ '★' * rod.rarity }}</option>{% endfor %}
+                                        </optgroup>
+                                        <optgroup label="饰品">
+                                            {% for accessory in all_accessories %}<option value="accessory-{{ accessory.accessory_id }}">{{ accessory.name }} {{ '★' * accessory.rarity }}</option>{% endfor %}
+                                        </optgroup>
                                         <optgroup label="道具">
                                             {% for item in all_items %}<option value="item-{{ item.item_id }}">{{ item.name }} {{ '★' * item.rarity }}</option>{% endfor %}
                                         </optgroup>
@@ -519,6 +525,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     </optgroup>
                     <optgroup label="鱼类">
                         {% for fish in all_fish %}<option value="fish-{{ fish.fish_id }}">{{ fish.name }} {{ '★' * fish.rarity }}</option>{% endfor %}
+                    </optgroup>
+                    <optgroup label="鱼竿">
+                        {% for rod in all_rods %}<option value="rod-{{ rod.rod_id }}">{{ rod.name }} {{ '★' * rod.rarity }}</option>{% endfor %}
+                    </optgroup>
+                    <optgroup label="饰品">
+                        {% for accessory in all_accessories %}<option value="accessory-{{ accessory.accessory_id }}">{{ accessory.name }} {{ '★' * accessory.rarity }}</option>{% endfor %}
                     </optgroup>
                     <optgroup label="道具">
                         {% for item in all_items %}<option value="item-{{ item.item_id }}">{{ item.name }} {{ '★' * item.rarity }}</option>{% endfor %}

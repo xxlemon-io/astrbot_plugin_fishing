@@ -386,7 +386,7 @@ class ShopItemCost:
     """商店商品成本实体（支持AND/OR关系）"""
     cost_id: int
     item_id: int
-    cost_type: str  # 'coins' | 'premium' | 'item' | 'fish'
+    cost_type: str  # 'coins' | 'premium' | 'item' | 'fish' | 'rod' | 'accessory'
     cost_amount: int
     cost_item_id: Optional[int] = None
     cost_relation: str = "and"  # 'and' | 'or'

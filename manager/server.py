@@ -1403,7 +1403,7 @@ async def add_shop_item(shop_id):
             "group_id": int(cost_groups[idx]) if idx < len(cost_groups) and cost_groups[idx] else None,
         }
         
-        if t in ("fish", "item"):
+        if t in ("fish", "item", "rod", "accessory"):
             try:
                 cost_data["cost_item_id"] = int(id_text)
             except Exception:
@@ -1495,7 +1495,7 @@ async def edit_shop_item(shop_id, item_id):
             "group_id": int(cost_groups[idx]) if idx < len(cost_groups) and cost_groups[idx] else None,
         }
         
-        if t in ("fish", "item"):
+        if t in ("fish", "item", "rod", "accessory"):
             try:
                 cost_data["cost_item_id"] = int(id_text)
             except Exception:
