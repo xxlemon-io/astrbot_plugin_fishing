@@ -262,7 +262,7 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.pond(self, event):
             yield r
 
-    @filter.command("偷看鱼塘", alias={"查看鱼塘"}, alias={"偷看"})
+    @filter.command("偷看鱼塘", alias={"查看鱼塘", "偷看"})
     async def peek_pond(self, event: AstrMessageEvent):
         async for r in inventory_handlers.peek_pond(self, event):
             yield r
