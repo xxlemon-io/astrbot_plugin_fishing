@@ -379,6 +379,7 @@
 - **消息格式优化**：简化擦弹结果消息，突出关键信息
 - **抑制通知**：添加服务器级别抑制状态检查，避免消息刷屏
 - **智能显示**：根据擦弹结果智能调整消息长度和内容
+<img width="828" height="631" alt="image" src="https://github.com/user-attachments/assets/53339029-b2dd-450c-bf7f-2a9cb69a226e" />
 
 ### 👥 社交功能
 
