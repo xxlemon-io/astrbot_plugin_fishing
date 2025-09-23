@@ -97,6 +97,17 @@ class SqliteUserRepository(AbstractUserRepository):
     def update(self, user: User) -> None:
         with self._get_connection() as conn:
             cursor = conn.cursor()
+            
+            # 首先检查 aquarium_capacity 字段是否存在
+            cursor.execute("PRAGMA table_info(users)")
+            columns = [column[1] for column in cursor.fetchall()]
+            has_aquarium_capacity = 'aquarium_capacity' in columns
+            
+            if not has_aquarium_capacity:
+                # 如果字段不存在，先添加字段
+                cursor.execute("ALTER TABLE users ADD COLUMN aquarium_capacity INTEGER DEFAULT 50")
+                conn.commit()
+            
             # 服务层负责在更新前获取最新的用户状态
             cursor.execute("""
                 UPDATE users SET
