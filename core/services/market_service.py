@@ -131,17 +131,10 @@ class MarketService:
             item_description = item_template.description if item_template else None
             item_refine_level = 1  # 道具没有精炼等级
         elif item_type == "fish":
-            # 鱼类上架逻辑
-            user_fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
-            # 查找指定鱼类的库存
-            fish_item = next((item for item in user_fish_inventory if item.fish_id == item_instance_id), None)
-            if not fish_item or fish_item.quantity <= 0:
-                return {"success": False, "message": "鱼类不存在或数量不足"}
-            
-            # 检查鱼类数量
-            current_quantity = fish_item.quantity
-            if current_quantity < quantity:
-                return {"success": False, "message": f"鱼类数量不足，当前有 {current_quantity} 条，需要 {quantity} 条"}
+            # 鱼类上架逻辑 - 检查鱼塘和水族箱的总数量
+            total_fish_quantity = self.inventory_repo.get_user_total_fish_count(user_id, item_instance_id)
+            if total_fish_quantity < quantity:
+                return {"success": False, "message": f"鱼类数量不足，当前有 {total_fish_quantity} 条，需要 {quantity} 条"}
             
             item_template_id = item_instance_id  # 对于鱼类，instance_id就是template_id
             fish_template = self.item_template_repo.get_fish_by_id(item_template_id)
@@ -161,8 +154,8 @@ class MarketService:
             # 减少道具数量
             self.inventory_repo.update_item_quantity(user_id, item_instance_id, -quantity)
         elif item_type == "fish":
-            # 减少鱼类数量
-            self.inventory_repo.update_fish_quantity(user_id, item_instance_id, -quantity)
+            # 智能扣除鱼类数量（优先从鱼塘，然后从水族箱）
+            self.inventory_repo.deduct_fish_smart(user_id, item_instance_id, quantity)
 
         # 2. 扣除税费
         seller.coins -= tax_cost
