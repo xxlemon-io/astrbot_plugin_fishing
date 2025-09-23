@@ -277,6 +277,11 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.rod(self, event):
             yield r
 
+    @filter.command("精炼", alias={"强化"})
+    async def refine_equipment(self, event: AstrMessageEvent):
+        async for r in inventory_handlers.refine_equipment(self, event):
+            yield r
+
     @filter.command("精炼鱼竿", alias={"鱼竿精炼"})
     async def refine_rod(self, event: AstrMessageEvent):
         async for r in inventory_handlers.refine_rod(self, event):
@@ -317,9 +322,19 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.refine_accessory(self, event):
             yield r
 
-    @filter.command("精炼帮助", alias={"精炼说明", "精炼"})
+    @filter.command("精炼帮助", alias={"精炼说明"})
     async def refine_help(self, event: AstrMessageEvent):
         async for r in inventory_handlers.refine_help(self, event):
+            yield r
+
+    @filter.command("锁定", alias={"上锁"})
+    async def lock_equipment(self, event: AstrMessageEvent):
+        async for r in inventory_handlers.lock_equipment(self, event):
+            yield r
+
+    @filter.command("解锁", alias={"开锁"})
+    async def unlock_equipment(self, event: AstrMessageEvent):
+        async for r in inventory_handlers.unlock_equipment(self, event):
             yield r
 
     @filter.command("锁定鱼竿", alias={"鱼竿锁定"})
@@ -342,7 +357,12 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.unlock_accessory(self, event):
             yield r
 
-    @filter.command("使用鱼竿 ", alias={"装备鱼竿"})
+    @filter.command("使用", alias={"装备"})
+    async def use_equipment(self, event: AstrMessageEvent):
+        async for r in inventory_handlers.use_equipment(self, event):
+            yield r
+
+    @filter.command("使用鱼竿", alias={"装备鱼竿"})
     async def use_rod(self, event: AstrMessageEvent):
         async for r in inventory_handlers.use_rod(self, event):
             yield r
@@ -438,6 +458,11 @@ class FishingPlugin(Star):
         async for r in market_handlers.market(self, event):
             yield r
 
+    @filter.command("上架")
+    async def list_any(self, event: AstrMessageEvent):
+        async for r in market_handlers.list_any(self, event):
+            yield r
+
     @filter.command("上架鱼竿")
     async def list_rod(self, event: AstrMessageEvent):
         async for r in market_handlers.list_rod(self, event):
@@ -456,6 +481,11 @@ class FishingPlugin(Star):
     @filter.command("匿名上架鱼竿", alias={"匿名上架竿", "匿名挂竿"})
     async def anonymous_list_rod(self, event: AstrMessageEvent):
         async for r in market_handlers.anonymous_list_rod(self, event):
+            yield r
+
+    @filter.command("匿名上架")
+    async def anonymous_list_any(self, event: AstrMessageEvent):
+        async for r in market_handlers.anonymous_list_any(self, event):
             yield r
 
     @filter.command("匿名上架饰品", alias={"匿名上架饰", "匿名挂饰"})

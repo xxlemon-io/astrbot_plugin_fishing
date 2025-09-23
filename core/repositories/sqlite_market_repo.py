@@ -137,11 +137,13 @@ class SqliteMarketRepository(AbstractMarketRepository):
                 search_condition = """(
                     (m.item_type = 'rod' AND r.name LIKE ?) OR
                     (m.item_type = 'accessory' AND a.name LIKE ?) OR
+                    (m.item_type = 'item' AND i.name LIKE ?) OR
+                    (m.item_type = 'fish' AND f.name LIKE ?) OR
                     u.nickname LIKE ?
                 )"""
                 where_conditions.append(search_condition)
                 search_param = f"%{search}%"
-                params.extend([search_param, search_param, search_param])
+                params.extend([search_param, search_param, search_param, search_param, search_param])
             
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
             
@@ -152,6 +154,8 @@ class SqliteMarketRepository(AbstractMarketRepository):
                 JOIN users u ON m.user_id = u.user_id
                 LEFT JOIN rods r ON m.item_type = 'rod' AND m.item_id = r.rod_id
                 LEFT JOIN accessories a ON m.item_type = 'accessory' AND m.item_id = a.accessory_id
+                LEFT JOIN items i ON m.item_type = 'item' AND m.item_id = i.item_id
+                LEFT JOIN fish f ON m.item_type = 'fish' AND m.item_id = f.fish_id
                 WHERE {where_clause}
             """
             cursor.execute(count_query, params)
@@ -175,12 +179,14 @@ class SqliteMarketRepository(AbstractMarketRepository):
                         WHEN m.item_type = 'rod' THEN r.name
                         WHEN m.item_type = 'accessory' THEN a.name
                         WHEN m.item_type = 'item' THEN i.name
+                        WHEN m.item_type = 'fish' THEN f.name
                         ELSE '未知物品'
                     END AS item_name,
                     CASE
                         WHEN m.item_type = 'rod' THEN r.description
                         WHEN m.item_type = 'accessory' THEN a.description
                         WHEN m.item_type = 'item' THEN i.description
+                        WHEN m.item_type = 'fish' THEN f.description
                         ELSE ''
                     END AS item_description
                 FROM market m
@@ -188,6 +194,7 @@ class SqliteMarketRepository(AbstractMarketRepository):
                 LEFT JOIN rods r ON m.item_type = 'rod' AND m.item_id = r.rod_id
                 LEFT JOIN accessories a ON m.item_type = 'accessory' AND m.item_id = a.accessory_id
                 LEFT JOIN items i ON m.item_type = 'item' AND m.item_id = i.item_id
+                LEFT JOIN fish f ON m.item_type = 'fish' AND m.item_id = f.fish_id
                 WHERE {where_clause}
                 ORDER BY m.listed_at DESC
             """

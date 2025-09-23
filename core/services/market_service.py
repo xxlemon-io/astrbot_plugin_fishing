@@ -42,11 +42,13 @@ class MarketService:
             rods = [item for item in listings if item.item_type == "rod"]
             accessories = [item for item in listings if item.item_type == "accessory"]
             items = [item for item in listings if item.item_type == "item"]
+            fish = [item for item in listings if item.item_type == "fish"]
             return {
                 "success": True,
                 "rods": rods,
                 "accessories": accessories,
-                "items": items
+                "items": items,
+                "fish": fish
             }
         except Exception as e:
             return {"success": False, "message": f"获取市场列表失败: {e}"}
@@ -117,6 +119,22 @@ class MarketService:
             item_name = item_template.name if item_template else None
             item_description = item_template.description if item_template else None
             item_refine_level = 1  # 道具没有精炼等级
+        elif item_type == "fish":
+            # 鱼类上架逻辑
+            user_fish_pond = self.inventory_repo.get_user_fish_pond(user_id)
+            if not user_fish_pond or item_instance_id not in user_fish_pond or user_fish_pond[item_instance_id] <= 0:
+                return {"success": False, "message": "鱼类不存在或数量不足"}
+            
+            # 检查鱼类数量
+            current_quantity = user_fish_pond[item_instance_id]
+            if current_quantity < 1:
+                return {"success": False, "message": "鱼类数量不足，无法上架"}
+            
+            item_template_id = item_instance_id  # 对于鱼类，instance_id就是template_id
+            fish_template = self.item_template_repo.get_fish_by_id(item_template_id)
+            item_name = fish_template.name if fish_template else None
+            item_description = fish_template.description if fish_template else None
+            item_refine_level = 1  # 鱼类没有精炼等级
         else:
             return {"success": False, "message": "该类型的物品无法上架"}
 
@@ -129,6 +147,9 @@ class MarketService:
         elif item_type == "item":
             # 减少道具数量
             self.inventory_repo.update_item_quantity(user_id, item_instance_id, -1)
+        elif item_type == "fish":
+            # 减少鱼类数量
+            self.inventory_repo.update_fish_quantity(user_id, item_instance_id, -1)
 
         # 2. 扣除税费
         seller.coins -= tax_cost
@@ -181,6 +202,27 @@ class MarketService:
             return None
         except Exception as e:
             logger.error(f"查找市场ID失败: {e}")
+            return None
+
+    def get_market_id_by_fish_id(self, fish_id: int) -> Optional[int]:
+        """
+        根据鱼类ID查找市场ID
+        
+        Args:
+            fish_id: 鱼类ID
+            
+        Returns:
+            市场ID，如果未找到返回None
+        """
+        try:
+            listings, _ = self.market_repo.get_all_listings()
+            for listing in listings:
+                if (listing.item_type == "fish" and 
+                    listing.item_id == fish_id):
+                    return listing.market_id
+            return None
+        except Exception as e:
+            logger.error(f"查找鱼类市场ID失败: {e}")
             return None
 
     def buy_market_item(self, buyer_id: str, market_id: int) -> Dict[str, Any]:
@@ -354,7 +396,8 @@ class MarketService:
                 "total_value": sum(item.price for item in listings),
                 "rod_count": len([item for item in all_listings if item.item_type == "rod"]),
                 "accessory_count": len([item for item in all_listings if item.item_type == "accessory"]),
-                "item_count": len([item for item in all_listings if item.item_type == "item"])
+                "item_count": len([item for item in all_listings if item.item_type == "item"]),
+                "fish_count": len([item for item in all_listings if item.item_type == "fish"])
             }
             
             return {

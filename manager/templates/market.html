@@ -72,7 +72,7 @@
     </div>
 </div>
 
-<!-- 新增道具统计行 -->
+<!-- 新增道具和鱼类统计行 -->
 <div class="row mb-4">
     <div class="col-md-3">
         <div class="card bg-secondary text-white">
@@ -84,6 +84,21 @@
                     </div>
                     <div class="align-self-center">
                         <i class="fas fa-gift fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ stats.fish_count }}</h4>
+                        <p class="card-text">鱼类数量</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-fish fa-2x"></i>
                     </div>
                 </div>
             </div>
@@ -105,6 +120,8 @@
                         <option value="">全部类型</option>
                         <option value="rod" {% if filters.item_type == 'rod' %}selected{% endif %}>鱼竿</option>
                         <option value="accessory" {% if filters.item_type == 'accessory' %}selected{% endif %}>饰品</option>
+                        <option value="item" {% if filters.item_type == 'item' %}selected{% endif %}>道具</option>
+                        <option value="fish" {% if filters.item_type == 'fish' %}selected{% endif %}>鱼类</option>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -183,6 +200,10 @@
                                 <span class="badge bg-primary"><i class="fas fa-gavel"></i> 鱼竿</span>
                             {% elif listing.item_type == 'accessory' %}
                                 <span class="badge bg-warning"><i class="fas fa-gem"></i> 饰品</span>
+                            {% elif listing.item_type == 'item' %}
+                                <span class="badge bg-secondary"><i class="fas fa-gift"></i> 道具</span>
+                            {% elif listing.item_type == 'fish' %}
+                                <span class="badge bg-info"><i class="fas fa-fish"></i> 鱼类</span>
                             {% else %}
                                 <span class="badge bg-secondary">{{ listing.item_type }}</span>
                             {% endif %}
