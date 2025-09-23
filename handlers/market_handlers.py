@@ -116,6 +116,10 @@ async def shop(self, event: AstrMessageEvent):
         if not shops:
             yield event.plain_result("🛒 当前没有开放的商店。")
             return
+        
+        # 对商店列表进行排序：按 sort_order 升序，然后按 shop_id 升序
+        shops.sort(key=lambda x: (x.get("sort_order", 999), x.get("shop_id", 999)))
+        
         msg = "【🛒 商店列表】\n"
         for s in shops:
             stype = s.get("shop_type", "normal")

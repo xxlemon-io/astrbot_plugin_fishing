@@ -1218,6 +1218,8 @@ async def delete_zone_api(zone_id):
 async def manage_shops():
     shop_service = current_app.config["SHOP_SERVICE"]
     shops = shop_service.shop_repo.get_all_shops()
+    # 对商店列表进行排序：按 sort_order 升序，然后按 shop_id 升序
+    shops.sort(key=lambda x: (x.get("sort_order", 999), x.get("shop_id", 999)))
     return await render_template("shops.html", shops=shops)
 
 @admin_bp.route("/shops/<int:shop_id>")
@@ -1306,6 +1308,8 @@ async def manage_shop_details(shop_id):
 async def api_list_shops():
     shop_service = current_app.config["SHOP_SERVICE"]
     shops = shop_service.shop_repo.get_all_shops()
+    # 对商店列表进行排序：按 sort_order 升序，然后按 shop_id 升序
+    shops.sort(key=lambda x: (x.get("sort_order", 999), x.get("shop_id", 999)))
     return jsonify({"success": True, "shops": shops})
 
 @admin_bp.route("/shops/add", methods=["POST"])
