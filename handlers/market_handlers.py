@@ -465,156 +465,164 @@ async def buy_in_shop(self, event: AstrMessageEvent):
 
 async def market(self, event: AstrMessageEvent):
     """查看市场"""
-    result = self.market_service.get_market_listings()
-    if result["success"]:
-        # 收集所有商品并限制总数
-        all_items = []
-        
-        rods = result["rods"]
-        accessories = result["accessories"]
-        items = result["items"]
-        fish = result.get("fish", [])
-
-        if rods:
-            for rod in rods[:15]:  # 限制鱼竿最多15件
-                # 生成短码显示
-                display_code = _get_display_code_for_market_item(rod)
-                # 检查是否为匿名商品
-                is_anonymous = rod.is_anonymous
-                seller_display = "🎭 匿名卖家" if is_anonymous else rod.seller_nickname
-                all_items.append({
-                    "type": "鱼竿",
-                    "emoji": "🎣",
-                    "name": f"{rod.item_name} 精{rod.refine_level}",
-                    "id": rod.market_id,
-                    "display_code": display_code,
-                    "price": rod.price,
-                    "seller": seller_display,
-                    "is_anonymous": is_anonymous
-                })
-        
-        if accessories:
-            for accessory in accessories[:15]:  # 限制饰品最多15件
-                # 生成短码显示
-                display_code = _get_display_code_for_market_item(accessory)
-                # 检查是否为匿名商品
-                is_anonymous = accessory.is_anonymous
-                seller_display = "🎭 匿名卖家" if is_anonymous else accessory.seller_nickname
-                all_items.append({
-                    "type": "饰品",
-                    "emoji": "💍",
-                    "name": f"{accessory.item_name} 精{accessory.refine_level}",
-                    "id": accessory.market_id,
-                    "display_code": display_code,
-                    "price": accessory.price,
-                    "seller": seller_display,
-                    "is_anonymous": is_anonymous
-                })
-        
-        if items:
-            for item in items[:15]:  # 限制道具最多15件
-                # 道具没有实例ID，使用市场ID
-                is_anonymous = item.is_anonymous
-                seller_display = "🎭 匿名卖家" if is_anonymous else item.seller_nickname
-                all_items.append({
-                    "type": "道具",
-                    "emoji": "🎁",
-                    "name": item.item_name,
-                    "id": item.market_id,
-                    "display_code": f"M{item.market_id}",  # 道具市场使用市场ID
-                    "price": item.price,
-                    "seller": seller_display,
-                    "is_anonymous": is_anonymous
-                })
-
-        if fish:
-            for fish_item in fish[:15]:  # 限制鱼类最多15件
-                # 生成鱼类短码显示（市场ID）
-                is_anonymous = fish_item.is_anonymous
-                seller_display = "🎭 匿名卖家" if is_anonymous else fish_item.seller_nickname
-                all_items.append({
-                    "type": "鱼类",
-                    "emoji": "🐟",
-                    "name": fish_item.item_name,
-                    "id": fish_item.market_id,
-                    "display_code": f"M{fish_item.market_id}",  # 鱼类市场使用市场ID
-                    "price": fish_item.price,
-                    "seller": seller_display,
-                    "is_anonymous": is_anonymous
-                })
-        
-        if not all_items:
-            yield event.plain_result("🛒 市场中没有商品可供购买。")
-            return
-
-    # Helper function to format a list of items
-    def format_item_list(item_list, item_type, emoji):
-        message = ""
-        for item in item_list:
-            display_code = _get_display_code_for_market_item(item)
-            is_anonymous = getattr(item, 'is_anonymous', False)
-            seller_display = "🎭 匿名卖家" if is_anonymous else item.seller_nickname
-            refine_level = getattr(item, 'refine_level', 1)
-            refine_level_str = f" 精{refine_level}" if refine_level > 1 else ""
+    try:
+        result = self.market_service.get_market_listings()
+        if result["success"]:
+            # 收集所有商品并限制总数
+            all_items = []
             
-            message += f"【{emoji} {item_type}】：\n"
-            message += f" - {item.item_name}{refine_level_str} (ID: {display_code}) - 价格: {item.price} 金币\n"
-            message += f" - 售卖人： {seller_display}\n\n"
-        return message
+            rods = result["rods"]
+            accessories = result["accessories"]
+            items = result["items"]
+            fish = result.get("fish", [])
 
-    # Process each category
-    page_size = 15
+            if rods:
+                for rod in rods[:15]:  # 限制鱼竿最多15件
+                    # 生成短码显示
+                    display_code = _get_display_code_for_market_item(rod)
+                    # 检查是否为匿名商品
+                    is_anonymous = rod.is_anonymous
+                    seller_display = "🎭 匿名卖家" if is_anonymous else rod.seller_nickname
+                    all_items.append({
+                        "type": "鱼竿",
+                        "emoji": "🎣",
+                        "name": f"{rod.item_name} 精{rod.refine_level}",
+                        "id": rod.market_id,
+                        "display_code": display_code,
+                        "price": rod.price,
+                        "seller": seller_display,
+                        "is_anonymous": is_anonymous
+                    })
+            
+            if accessories:
+                for accessory in accessories[:15]:  # 限制饰品最多15件
+                    # 生成短码显示
+                    display_code = _get_display_code_for_market_item(accessory)
+                    # 检查是否为匿名商品
+                    is_anonymous = accessory.is_anonymous
+                    seller_display = "🎭 匿名卖家" if is_anonymous else accessory.seller_nickname
+                    all_items.append({
+                        "type": "饰品",
+                        "emoji": "💍",
+                        "name": f"{accessory.item_name} 精{accessory.refine_level}",
+                        "id": accessory.market_id,
+                        "display_code": display_code,
+                        "price": accessory.price,
+                        "seller": seller_display,
+                        "is_anonymous": is_anonymous
+                    })
+            
+            if items:
+                for item in items[:15]:  # 限制道具最多15件
+                    # 道具没有实例ID，使用市场ID
+                    is_anonymous = item.is_anonymous
+                    seller_display = "🎭 匿名卖家" if is_anonymous else item.seller_nickname
+                    all_items.append({
+                        "type": "道具",
+                        "emoji": "🎁",
+                        "name": item.item_name,
+                        "id": item.market_id,
+                        "display_code": f"M{item.market_id}",  # 道具市场使用市场ID
+                        "price": item.price,
+                        "seller": seller_display,
+                        "is_anonymous": is_anonymous
+                    })
 
-    # Rods
-    if rods:
-        if len(rods) > page_size:
-            total_pages = (len(rods) + page_size - 1) // page_size
-            for page in range(total_pages):
-                start_idx = page * page_size
-                end_idx = min(start_idx + page_size, len(rods))
-                page_items = rods[start_idx:end_idx]
-                
-                message = f"【🎣 市场 - 鱼竿】第 {page + 1}/{total_pages} 页\n\n"
-                message += format_item_list(page_items, "鱼竿", "🎣")
-                yield event.plain_result(message)
+            if fish:
+                for fish_item in fish[:15]:  # 限制鱼类最多15件
+                    # 生成鱼类短码显示（市场ID）
+                    is_anonymous = fish_item.is_anonymous
+                    seller_display = "🎭 匿名卖家" if is_anonymous else fish_item.seller_nickname
+                    all_items.append({
+                        "type": "鱼类",
+                        "emoji": "🐟",
+                        "name": fish_item.item_name,
+                        "id": fish_item.market_id,
+                        "display_code": f"M{fish_item.market_id}",  # 鱼类市场使用市场ID
+                        "price": fish_item.price,
+                        "seller": seller_display,
+                        "is_anonymous": is_anonymous
+                    })
+            
+            if not all_items:
+                yield event.plain_result("🛒 市场中没有商品可供购买。")
+                return
+
+            # Helper function to format a list of items
+            def format_item_list(item_list, item_type, emoji):
+                message = ""
+                for item in item_list:
+                    display_code = _get_display_code_for_market_item(item)
+                    is_anonymous = getattr(item, 'is_anonymous', False)
+                    seller_display = "🎭 匿名卖家" if is_anonymous else item.seller_nickname
+                    refine_level = getattr(item, 'refine_level', 1)
+                    refine_level_str = f" 精{refine_level}" if refine_level > 1 else ""
+                    
+                    message += f"【{emoji} {item_type}】：\n"
+                    message += f" - {item.item_name}{refine_level_str} (ID: {display_code}) - 价格: {item.price} 金币\n"
+                    message += f" - 售卖人： {seller_display}\n\n"
+                return message
+
+            # Process each category
+            page_size = 15
+
+            # Rods
+            if rods:
+                if len(rods) > page_size:
+                    total_pages = (len(rods) + page_size - 1) // page_size
+                    for page in range(total_pages):
+                        start_idx = page * page_size
+                        end_idx = min(start_idx + page_size, len(rods))
+                        page_items = rods[start_idx:end_idx]
+                        
+                        message = f"【🎣 市场 - 鱼竿】第 {page + 1}/{total_pages} 页\n\n"
+                        message += format_item_list(page_items, "鱼竿", "🎣")
+                        yield event.plain_result(message)
+                else:
+                    message = "【🎣 市场 - 鱼竿】\n\n"
+                    message += format_item_list(rods, "鱼竿", "🎣")
+                    yield event.plain_result(message)
+
+            # Accessories
+            if accessories:
+                if len(accessories) > page_size:
+                    total_pages = (len(accessories) + page_size - 1) // page_size
+                    for page in range(total_pages):
+                        start_idx = page * page_size
+                        end_idx = min(start_idx + page_size, len(accessories))
+                        page_items = accessories[start_idx:end_idx]
+                        
+                        message = f"【💍 市场 - 饰品】第 {page + 1}/{total_pages} 页\n\n"
+                        message += format_item_list(page_items, "饰品", "💍")
+                        yield event.plain_result(message)
+                else:
+                    message = "【💍 市场 - 饰品】\n\n"
+                    message += format_item_list(accessories, "饰品", "💍")
+                    yield event.plain_result(message)
+
+            # Items
+            if items:
+                if len(items) > page_size:
+                    total_pages = (len(items) + page_size - 1) // page_size
+                    for page in range(total_pages):
+                        start_idx = page * page_size
+                        end_idx = min(start_idx + page_size, len(items))
+                        page_items = items[start_idx:end_idx]
+                        
+                        message = f"【🎁 市场 - 道具】第 {page + 1}/{total_pages} 页\n\n"
+                        message += format_item_list(page_items, "道具", "🎁")
+                        yield event.plain_result(message)
+                else:
+                    message = "【🎁 市场 - 道具】\n\n"
+                    message += format_item_list(items, "道具", "🎁")
+                    yield event.plain_result(message)
         else:
-            message = "【🎣 市场 - 鱼竿】\n\n"
-            message += format_item_list(rods, "鱼竿", "🎣")
-            yield event.plain_result(message)
-
-    # Accessories
-    if accessories:
-        if len(accessories) > page_size:
-            total_pages = (len(accessories) + page_size - 1) // page_size
-            for page in range(total_pages):
-                start_idx = page * page_size
-                end_idx = min(start_idx + page_size, len(accessories))
-                page_items = accessories[start_idx:end_idx]
-                
-                message = f"【💍 市场 - 饰品】第 {page + 1}/{total_pages} 页\n\n"
-                message += format_item_list(page_items, "饰品", "💍")
-                yield event.plain_result(message)
-        else:
-            message = "【💍 市场 - 饰品】\n\n"
-            message += format_item_list(accessories, "饰品", "💍")
-            yield event.plain_result(message)
-
-    # Items
-    if items:
-        if len(items) > page_size:
-            total_pages = (len(items) + page_size - 1) // page_size
-            for page in range(total_pages):
-                start_idx = page * page_size
-                end_idx = min(start_idx + page_size, len(items))
-                page_items = items[start_idx:end_idx]
-                
-                message = f"【🎁 市场 - 道具】第 {page + 1}/{total_pages} 页\n\n"
-                message += format_item_list(page_items, "道具", "🎁")
-                yield event.plain_result(message)
-        else:
-            message = "【🎁 市场 - 道具】\n\n"
-            message += format_item_list(items, "道具", "🎁")
-            yield event.plain_result(message)
+            # 处理市场服务返回失败的情况
+            error_message = result.get("message", "获取市场列表失败")
+            yield event.plain_result(f"❌ 查看市场失败：{error_message}")
+    except Exception as e:
+        # 处理其他异常情况
+        yield event.plain_result(f"❌ 查看市场时发生错误：{str(e)}")
 
 async def list_rod(self, event: AstrMessageEvent):
     """上架鱼竿到市场"""
