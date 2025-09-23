@@ -64,7 +64,13 @@ async def add_to_aquarium(self, event: AstrMessageEvent):
         return
 
     try:
-        fish_id = int(args[1])
+        # 解析鱼ID（支持F开头的短码）
+        fish_token = args[1].strip().upper()
+        if fish_token.startswith('F'):
+            fish_id = int(fish_token[1:])  # 去掉F前缀
+        else:
+            fish_id = int(fish_token)
+        
         quantity = 1
         if len(args) >= 3:
             quantity = int(args[2])
@@ -72,7 +78,7 @@ async def add_to_aquarium(self, event: AstrMessageEvent):
                 yield event.plain_result("❌ 数量必须是正整数")
                 return
     except ValueError:
-        yield event.plain_result("❌ 鱼ID和数量必须是数字")
+        yield event.plain_result("❌ 鱼ID格式错误！请使用F开头的短码（如F3）或纯数字ID")
         return
 
     result = self.aquarium_service.add_fish_to_aquarium(user_id, fish_id, quantity)
@@ -93,7 +99,13 @@ async def remove_from_aquarium(self, event: AstrMessageEvent):
         return
 
     try:
-        fish_id = int(args[1])
+        # 解析鱼ID（支持F开头的短码）
+        fish_token = args[1].strip().upper()
+        if fish_token.startswith('F'):
+            fish_id = int(fish_token[1:])  # 去掉F前缀
+        else:
+            fish_id = int(fish_token)
+        
         quantity = 1
         if len(args) >= 3:
             quantity = int(args[2])
@@ -101,7 +113,7 @@ async def remove_from_aquarium(self, event: AstrMessageEvent):
                 yield event.plain_result("❌ 数量必须是正整数")
                 return
     except ValueError:
-        yield event.plain_result("❌ 鱼ID和数量必须是数字")
+        yield event.plain_result("❌ 鱼ID格式错误！请使用F开头的短码（如F3）或纯数字ID")
         return
 
     result = self.aquarium_service.remove_fish_from_aquarium(user_id, fish_id, quantity)
@@ -141,8 +153,7 @@ async def aquarium_help(self, event: AstrMessageEvent):
 • /放入水族箱 <鱼ID> [数量] - 将鱼从鱼塘放入水族箱
 • /移出水族箱 <鱼ID> [数量] - 将鱼从水族箱移回鱼塘
 • /升级水族箱 - 升级水族箱容量
-• /水族箱升级信息 - 查看升级信息
-• /水族箱帮助 - 显示此帮助信息
+• /水族箱 帮助 - 显示此帮助信息
 
 💡 提示：使用「水族箱」命令查看鱼ID"""
     

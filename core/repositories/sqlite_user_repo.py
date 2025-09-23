@@ -102,7 +102,7 @@ class SqliteUserRepository(AbstractUserRepository):
                 UPDATE users SET
                     nickname = ?, coins = ?, premium_currency = ?,
                     total_fishing_count = ?, total_weight_caught = ?, total_coins_earned = ?,
-                    consecutive_login_days = ?, fish_pond_capacity = ?,
+                    consecutive_login_days = ?, fish_pond_capacity = ?, aquarium_capacity = ?,
                     equipped_rod_instance_id = ?, equipped_accessory_instance_id = ?,
                     current_title_id = ?, current_bait_id = ?, bait_start_time = ?,
                     auto_fishing_enabled = ?, last_fishing_time = ?, last_wipe_bomb_time = ?,
@@ -111,7 +111,7 @@ class SqliteUserRepository(AbstractUserRepository):
             """, (
                 user.nickname, user.coins, user.premium_currency,
                 user.total_fishing_count, user.total_weight_caught, user.total_coins_earned,
-                user.consecutive_login_days, user.fish_pond_capacity,
+                user.consecutive_login_days, user.fish_pond_capacity, user.aquarium_capacity,
                 user.equipped_rod_instance_id, user.equipped_accessory_instance_id,
                 user.current_title_id, user.current_bait_id, user.bait_start_time,
                 user.auto_fishing_enabled, user.last_fishing_time, user.last_wipe_bomb_time,
