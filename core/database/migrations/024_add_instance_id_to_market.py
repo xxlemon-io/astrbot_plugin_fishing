@@ -15,8 +15,12 @@ def up(cursor: sqlite3.Cursor):
     # 添加 item_instance_id 字段
     _ensure_column(cursor, "market", "item_instance_id", "INTEGER")
     
-    # 为现有数据设置默认值（暂时设为NULL，因为无法确定原始实例ID）
-    cursor.execute("UPDATE market SET item_instance_id = NULL WHERE item_instance_id IS NULL")
+    # 检查字段是否成功添加，如果添加成功则设置默认值
+    cursor.execute("PRAGMA table_info(market)")
+    cols = [row[1] for row in cursor.fetchall()]
+    if "item_instance_id" in cols:
+        # 为现有数据设置默认值（暂时设为NULL，因为无法确定原始实例ID）
+        cursor.execute("UPDATE market SET item_instance_id = NULL WHERE item_instance_id IS NULL")
 
 
 def down(cursor: sqlite3.Cursor):

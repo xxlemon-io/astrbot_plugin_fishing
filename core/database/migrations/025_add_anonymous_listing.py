@@ -15,8 +15,13 @@ def up(cursor: sqlite3.Cursor):
     # 添加 is_anonymous 字段，默认为 False（非匿名）
     _ensure_column(cursor, "market", "is_anonymous", "BOOLEAN DEFAULT 0")
     
-    # 为现有数据设置默认值（非匿名）
-    cursor.execute("UPDATE market SET is_anonymous = 0 WHERE is_anonymous IS NULL")
+    # 检查字段是否成功添加，如果添加成功则设置默认值
+    cursor.execute("PRAGMA table_info(market)")
+    cols = [row[1] for row in cursor.fetchall()]
+    if "is_anonymous" in cols:
+        # 为现有数据设置默认值（非匿名）
+        # 注意：SQLite中BOOLEAN实际上是INTEGER，所以使用0和1
+        cursor.execute("UPDATE market SET is_anonymous = 0 WHERE is_anonymous IS NULL")
 
 
 def down(cursor: sqlite3.Cursor):
