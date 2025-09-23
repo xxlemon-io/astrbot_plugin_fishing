@@ -96,11 +96,12 @@ async def refine_rod(self, event: AstrMessageEvent):
     if len(args) < 2:
         yield event.plain_result("❌ 请指定要精炼的鱼竿 ID，例如：/精炼鱼竿 12")
         return
-    rod_instance_id = args[1]
-    if not rod_instance_id.isdigit():
-        yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
+    token = args[1]
+    instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
+    if instance_id is None:
+        yield event.plain_result("❌ 无效的鱼竿ID，请输入数字或短码（如 R2N9C）。")
         return
-    if result := self.inventory_service.refine(user_id, int(rod_instance_id), "rod"):
+    if result := self.inventory_service.refine(user_id, int(instance_id), "rod"):
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
@@ -232,11 +233,12 @@ async def refine_accessory(self, event: AstrMessageEvent):
     if len(args) < 2:
         yield event.plain_result("❌ 请指定要精炼的饰品 ID，例如：/精炼饰品 15")
         return
-    accessory_instance_id = args[1]
-    if not accessory_instance_id.isdigit():
-        yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
+    token = args[1]
+    instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
+    if instance_id is None:
+        yield event.plain_result("❌ 无效的饰品ID，请输入数字或短码（如 A7K3Q）。")
         return
-    if result := self.inventory_service.refine(user_id, int(accessory_instance_id), "accessory"):
+    if result := self.inventory_service.refine(user_id, int(instance_id), "accessory"):
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
@@ -345,12 +347,13 @@ async def lock_rod(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 请指定要锁定的鱼竿 ID，例如：/锁定鱼竿 15")
         return
     
-    rod_instance_id = args[1]
-    if not rod_instance_id.isdigit():
-        yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
+    token = args[1]
+    instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
+    if instance_id is None:
+        yield event.plain_result("❌ 无效的鱼竿ID，请输入数字或短码（如 R2N9C）。")
         return
     
-    result = self.inventory_service.lock_rod(user_id, int(rod_instance_id))
+    result = self.inventory_service.lock_rod(user_id, int(instance_id))
     if result["success"]:
         yield event.plain_result(result["message"])
     else:
@@ -364,12 +367,13 @@ async def unlock_rod(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 请指定要解锁的鱼竿 ID，例如：/解锁鱼竿 15")
         return
     
-    rod_instance_id = args[1]
-    if not rod_instance_id.isdigit():
-        yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
+    token = args[1]
+    instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
+    if instance_id is None:
+        yield event.plain_result("❌ 无效的鱼竿ID，请输入数字或短码（如 R2N9C）。")
         return
     
-    result = self.inventory_service.unlock_rod(user_id, int(rod_instance_id))
+    result = self.inventory_service.unlock_rod(user_id, int(instance_id))
     if result["success"]:
         yield event.plain_result(result["message"])
     else:
@@ -383,12 +387,13 @@ async def lock_accessory(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 请指定要锁定的饰品 ID，例如：/锁定饰品 15")
         return
     
-    accessory_instance_id = args[1]
-    if not accessory_instance_id.isdigit():
-        yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
+    token = args[1]
+    instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
+    if instance_id is None:
+        yield event.plain_result("❌ 无效的饰品ID，请输入数字或短码（如 A7K3Q）。")
         return
     
-    result = self.inventory_service.lock_accessory(user_id, int(accessory_instance_id))
+    result = self.inventory_service.lock_accessory(user_id, int(instance_id))
     if result["success"]:
         yield event.plain_result(result["message"])
     else:
@@ -402,12 +407,13 @@ async def unlock_accessory(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 请指定要解锁的饰品 ID，例如：/解锁饰品 15")
         return
     
-    accessory_instance_id = args[1]
-    if not accessory_instance_id.isdigit():
-        yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
+    token = args[1]
+    instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
+    if instance_id is None:
+        yield event.plain_result("❌ 无效的饰品ID，请输入数字或短码（如 A7K3Q）。")
         return
     
-    result = self.inventory_service.unlock_accessory(user_id, int(accessory_instance_id))
+    result = self.inventory_service.unlock_accessory(user_id, int(instance_id))
     if result["success"]:
         yield event.plain_result(result["message"])
     else:
@@ -425,11 +431,12 @@ async def use_rod(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 请指定要使用的鱼竿 ID，例如：/使用鱼竿 12")
         return
 
-    rod_instance_id = args[1]
-    if not rod_instance_id.isdigit():
-        yield event.plain_result("❌ 鱼竿 ID 必须是数字，请检查后重试。")
+    token = args[1]
+    instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
+    if instance_id is None:
+        yield event.plain_result("❌ 无效的鱼竿ID，请输入数字或短码（如 R2N9C）。")
         return
-    if result := self.inventory_service.equip_item(user_id, int(rod_instance_id), "rod"):
+    if result := self.inventory_service.equip_item(user_id, int(instance_id), "rod"):
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
@@ -471,11 +478,12 @@ async def use_accessories(self, event: AstrMessageEvent):
     if len(args) < 2:
         yield event.plain_result("❌ 请指定要使用的饰品 ID，例如：/使用饰品 15")
         return
-    accessory_instance_id = args[1]
-    if not accessory_instance_id.isdigit():
-        yield event.plain_result("❌ 饰品 ID 必须是数字，请检查后重试。")
+    token = args[1]
+    instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
+    if instance_id is None:
+        yield event.plain_result("❌ 无效的饰品ID，请输入数字或短码（如 A7K3Q）。")
         return
-    if result := self.inventory_service.equip_item(user_id, int(accessory_instance_id), "accessory"):
+    if result := self.inventory_service.equip_item(user_id, int(instance_id), "accessory"):
         if result["success"]:
             yield event.plain_result(result["message"])
         else:

@@ -32,6 +32,55 @@ class InventoryService:
         self.game_mechanics_service = game_mechanics_service
         self.config = config
 
+    # === 短码解析 ===
+    def _to_base36(self, n: int) -> str:
+        if n < 0:
+            raise ValueError("n must be non-negative")
+        if n == 0:
+            return "0"
+        digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        out = []
+        while n:
+            n, rem = divmod(n, 36)
+            out.append(digits[rem])
+        return "".join(reversed(out))
+
+    def _from_base36(self, s: str) -> int:
+        s = (s or "").strip().upper()
+        if not s:
+            raise ValueError("empty")
+        return int(s, 36)
+
+    def resolve_rod_instance_id(self, user_id: str, token: str) -> Optional[int]:
+        """将数字ID或短码(Rxxxx)解析为 rod_instance_id。大小写不敏感。"""
+        if token is None:
+            return None
+        tok = str(token).strip()
+        if tok.isdigit():
+            return int(tok)
+        code = tok.upper()
+        if not code.startswith("R"):
+            return None
+        try:
+            return self._from_base36(code[1:])
+        except Exception:
+            return None
+
+    def resolve_accessory_instance_id(self, user_id: str, token: str) -> Optional[int]:
+        """将数字ID或短码(Axxxx)解析为 accessory_instance_id。大小写不敏感。"""
+        if token is None:
+            return None
+        tok = str(token).strip()
+        if tok.isdigit():
+            return int(tok)
+        code = tok.upper()
+        if not code.startswith("A"):
+            return None
+        try:
+            return self._from_base36(code[1:])
+        except Exception:
+            return None
+
     def get_user_fish_pond(self, user_id: str) -> Dict[str, Any]:
         """
         获取用户的鱼塘信息（鱼类库存）。
@@ -82,6 +131,7 @@ class InventoryService:
                     "name": rod_template.name,
                     "rarity": rod_template.rarity,
                     "instance_id": rod_instance.rod_instance_id,
+                    "display_code": getattr(rod_instance, 'display_code', f"R{self._to_base36(rod_instance.rod_instance_id)}"),
                     "description": rod_template.description,
                     "is_equipped": rod_instance.is_equipped,
                     "is_locked": rod_instance.is_locked,
@@ -142,6 +192,7 @@ class InventoryService:
                     "name": accessory_template.name,
                     "rarity": accessory_template.rarity,
                     "instance_id": accessory_instance.accessory_instance_id,
+                    "display_code": getattr(accessory_instance, 'display_code', f"A{self._to_base36(accessory_instance.accessory_instance_id)}"),
                     "description": accessory_template.description,
                     "is_equipped": accessory_instance.is_equipped,
                     "is_locked": accessory_instance.is_locked,

@@ -223,7 +223,9 @@ def format_rarity_display(rarity: int) -> str:
 
 def format_accessory_or_rod(accessory_or_rod: dict) -> str:
     """格式化配件信息"""
-    message =  f" - ID: {accessory_or_rod['instance_id']}\n"
+    # 显示短码而非数字ID
+    display_code = accessory_or_rod.get('display_code', f"ID{accessory_or_rod['instance_id']}")
+    message =  f" - 代码: {display_code}\n"
     message += f" - {accessory_or_rod['name']} (稀有度: {format_rarity_display(accessory_or_rod['rarity'])})\n"
     if accessory_or_rod.get("is_equipped", False):
         message += f"   - {'✅ 已装备'}\n"
