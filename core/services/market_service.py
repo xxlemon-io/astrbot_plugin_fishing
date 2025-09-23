@@ -121,12 +121,14 @@ class MarketService:
             item_refine_level = 1  # 道具没有精炼等级
         elif item_type == "fish":
             # 鱼类上架逻辑
-            user_fish_pond = self.inventory_repo.get_user_fish_pond(user_id)
-            if not user_fish_pond or item_instance_id not in user_fish_pond or user_fish_pond[item_instance_id] <= 0:
+            user_fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
+            # 查找指定鱼类的库存
+            fish_item = next((item for item in user_fish_inventory if item.fish_id == item_instance_id), None)
+            if not fish_item or fish_item.quantity <= 0:
                 return {"success": False, "message": "鱼类不存在或数量不足"}
             
             # 检查鱼类数量
-            current_quantity = user_fish_pond[item_instance_id]
+            current_quantity = fish_item.quantity
             if current_quantity < 1:
                 return {"success": False, "message": "鱼类数量不足，无法上架"}
             
