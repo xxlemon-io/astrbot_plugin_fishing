@@ -180,14 +180,20 @@ class ShopService:
             purchased_total = self.shop_repo.get_user_purchased_count(user_id, item_id)
             if purchased_total + quantity > item["per_user_limit"]:
                 remaining = item["per_user_limit"] - purchased_total
-                return {"success": False, "message": f"超过个人限购，还可购买 {remaining} 个"}
+                if remaining <= 0:
+                    return {"success": False, "message": f"该商品限购 {item['per_user_limit']} 个，您已购买完毕"}
+                else:
+                    return {"success": False, "message": f"超过个人限购，还可购买 {remaining} 个"}
         
         if item.get("per_user_daily_limit") is not None and item["per_user_daily_limit"] > 0:
             start_of_day = datetime(datetime.now().year, datetime.now().month, datetime.now().day)
             purchased_today = self.shop_repo.get_user_purchased_count(user_id, item_id, since=start_of_day)
             if purchased_today + quantity > item["per_user_daily_limit"]:
                 remaining = item["per_user_daily_limit"] - purchased_today
-                return {"success": False, "message": f"超过今日限购，今日还可购买 {remaining} 个"}
+                if remaining <= 0:
+                    return {"success": False, "message": f"该商品每日限购 {item['per_user_daily_limit']} 个，您今日已购买完毕"}
+                else:
+                    return {"success": False, "message": f"超过今日限购，今日还可购买 {remaining} 个"}
         
         # 计算成本
         costs = self.shop_repo.get_item_costs(item_id)

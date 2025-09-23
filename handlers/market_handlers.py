@@ -401,7 +401,12 @@ async def buy_in_shop(self, event: AstrMessageEvent):
     if result.get("success"):
         yield event.plain_result(result["message"])
     else:
-        yield event.plain_result(f"❌ {result.get('message','购买失败')}")
+        error_message = result.get('message', '购买失败')
+        # 检查错误消息是否已经包含❌符号，避免重复添加
+        if error_message.startswith("❌"):
+            yield event.plain_result(error_message)
+        else:
+            yield event.plain_result(f"❌ {error_message}")
 
 
 async def market(self, event: AstrMessageEvent):
