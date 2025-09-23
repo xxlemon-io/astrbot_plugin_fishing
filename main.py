@@ -262,6 +262,11 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.pond(self, event):
             yield r
 
+    @filter.command("偷看鱼塘", alias={"查看鱼塘"})
+    async def peek_pond(self, event: AstrMessageEvent):
+        async for r in inventory_handlers.peek_pond(self, event):
+            yield r
+
     @filter.command("鱼塘容量")
     async def pond_capacity(self, event: AstrMessageEvent):
         async for r in inventory_handlers.pond_capacity(self, event):

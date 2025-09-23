@@ -65,6 +65,74 @@ async def pond(self, event: AstrMessageEvent):
     else:
         yield event.plain_result("🐟 您的鱼塘是空的，快去钓鱼吧！")
 
+async def peek_pond(self, event: AstrMessageEvent):
+    """偷看他人鱼塘内的鱼"""
+    user_id = self._get_effective_user_id(event)
+    
+    # 解析消息，提取目标用户ID
+    message_text = event.message_str.strip()
+    
+    # 简单的@用户解析，支持@用户ID或直接用户ID
+    target_user_id = None
+    if message_text.startswith('@'):
+        # 提取@后面的用户ID
+        target_user_id = message_text[1:].strip()
+    elif len(message_text.split()) > 1:
+        # 支持 "偷看鱼塘 用户ID" 格式
+        parts = message_text.split()
+        if len(parts) >= 2:
+            target_user_id = parts[1].strip()
+    
+    if not target_user_id:
+        yield event.plain_result("❌ 请指定要查看的用户！\n用法：/偷看鱼塘 @用户ID 或 /偷看鱼塘 用户ID")
+        return
+    
+    # 检查目标用户是否存在
+    target_user = self.user_repo.get_by_id(target_user_id)
+    if not target_user:
+        yield event.plain_result(f"❌ 用户 {target_user_id} 不存在！")
+        return
+    
+    # 获取目标用户的鱼塘信息
+    if pond_fish := self.inventory_service.get_user_fish_pond(target_user_id):
+        fishes = pond_fish["fishes"]
+        # 把fishes按稀有度分组
+        fished_by_rarity = {}
+        for fish in fishes:
+            rarity = fish.get("rarity", "未知")
+            if rarity not in fished_by_rarity:
+                fished_by_rarity[rarity] = []
+            fished_by_rarity[rarity].append(fish)
+        
+        # 构造输出信息
+        message = f"【🔍 偷看 {target_user.nickname} 的鱼塘】：\n"
+        
+        def _to_base36(n: int) -> str:
+            if n < 0:
+                return "0"
+            if n == 0:
+                return "0"
+            digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            out = []
+            while n:
+                n, rem = divmod(n, 36)
+                out.append(digits[rem])
+            return "".join(reversed(out))
+        
+        for rarity in sorted(fished_by_rarity.keys(), reverse=True):
+            fish_list = fished_by_rarity[rarity]
+            if fish_list:
+                message += f"\n {format_rarity_display(rarity)} 稀有度 {rarity}：\n"
+                for fish in fish_list:
+                    fish_id = int(fish.get('fish_id', 0) or 0)
+                    fcode = f"F{_to_base36(fish_id)}" if fish_id else "F0"
+                    message += f"  - {fish['name']} x  {fish['quantity']} （{fish['base_value']}金币 / 个） 代码: {fcode}\n"
+        message += f"\n🐟 总鱼数：{pond_fish['stats']['total_count']} 条\n"
+        message += f"💰 总价值：{pond_fish['stats']['total_value']} 金币\n"
+        yield event.plain_result(message)
+    else:
+        yield event.plain_result(f"🐟 {target_user.nickname} 的鱼塘是空的！")
+
 async def pond_capacity(self, event: AstrMessageEvent):
     """查看用户鱼塘容量"""
     user_id = self._get_effective_user_id(event)
