@@ -25,6 +25,9 @@ class AquariumService:
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
+        
+        # 调试：输出获取到的用户容量
+        print(f"DEBUG: get_user_aquarium 获取到的容量: {user.aquarium_capacity}")
 
         # 为了丰富信息，可以从模板仓储获取鱼的详细信息
         enriched_items = []
@@ -150,7 +153,14 @@ class AquariumService:
         user.premium_currency -= upgrade_config.cost_premium
         user.aquarium_capacity = upgrade_config.capacity
 
+        # 调试：输出升级前的容量
+        print(f"DEBUG: 升级前容量: {user.aquarium_capacity}")
+        
         self.user_repo.update(user)
+        
+        # 调试：验证更新后的容量
+        updated_user = self.user_repo.get_by_id(user_id)
+        print(f"DEBUG: 更新后容量: {updated_user.aquarium_capacity if updated_user else 'None'}")
 
         return {
             "success": True,
