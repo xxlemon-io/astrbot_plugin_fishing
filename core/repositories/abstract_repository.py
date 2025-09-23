@@ -186,6 +186,12 @@ class AbstractInventoryRepository(ABC):
     # 获取用户水族箱中鱼的总数量
     @abstractmethod
     def get_aquarium_total_count(self, user_id: str) -> int: pass
+    # 获取用户指定鱼类的总数量（包括鱼塘和水族箱）
+    @abstractmethod
+    def get_user_total_fish_count(self, user_id: str, fish_id: int) -> int: pass
+    # 智能扣除鱼类：优先从鱼塘扣除，不足时从水族箱扣除
+    @abstractmethod
+    def deduct_fish_smart(self, user_id: str, fish_id: int, quantity: int) -> None: pass
     # 获取所有水族箱升级配置
     @abstractmethod
     def get_aquarium_upgrades(self) -> List[AquariumUpgrade]: pass

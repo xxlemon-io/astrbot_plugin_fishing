@@ -742,6 +742,85 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             result = cursor.fetchone()
             return result[0] if result and result[0] is not None else 0
 
+    def get_user_total_fish_count(self, user_id: str, fish_id: int) -> int:
+        """获取用户指定鱼类的总数量（包括鱼塘和水族箱）"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 获取鱼塘中的数量
+            cursor.execute("""
+                SELECT COALESCE(SUM(quantity), 0) FROM user_fish_inventory 
+                WHERE user_id = ? AND fish_id = ?
+            """, (user_id, fish_id))
+            pond_count = cursor.fetchone()[0]
+            
+            # 获取水族箱中的数量
+            cursor.execute("""
+                SELECT COALESCE(SUM(quantity), 0) FROM user_aquarium 
+                WHERE user_id = ? AND fish_id = ?
+            """, (user_id, fish_id))
+            aquarium_count = cursor.fetchone()[0]
+            
+            return pond_count + aquarium_count
+
+    def deduct_fish_smart(self, user_id: str, fish_id: int, quantity: int) -> None:
+        """智能扣除鱼类：优先从鱼塘扣除，不足时从水族箱扣除"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("BEGIN TRANSACTION")
+            try:
+                # 先获取鱼塘中的数量
+                cursor.execute("""
+                    SELECT COALESCE(SUM(quantity), 0) FROM user_fish_inventory 
+                    WHERE user_id = ? AND fish_id = ?
+                """, (user_id, fish_id))
+                pond_count = cursor.fetchone()[0]
+                
+                remaining_qty = quantity
+                
+                # 优先从鱼塘扣除
+                if pond_count > 0:
+                    deduct_from_pond = min(pond_count, remaining_qty)
+                    if deduct_from_pond > 0:
+                        cursor.execute("""
+                            UPDATE user_fish_inventory 
+                            SET quantity = quantity - ?
+                            WHERE user_id = ? AND fish_id = ? AND quantity >= ?
+                        """, (deduct_from_pond, user_id, fish_id, deduct_from_pond))
+                        
+                        if cursor.rowcount == 0:
+                            raise ValueError(f"鱼塘中鱼类 {fish_id} 数量不足")
+                        
+                        # 删除数量为0的记录
+                        cursor.execute("""
+                            DELETE FROM user_fish_inventory 
+                            WHERE user_id = ? AND fish_id = ? AND quantity <= 0
+                        """, (user_id, fish_id))
+                        
+                        remaining_qty -= deduct_from_pond
+                
+                # 如果还需要更多，从水族箱扣除
+                if remaining_qty > 0:
+                    cursor.execute("""
+                        UPDATE user_aquarium 
+                        SET quantity = quantity - ?
+                        WHERE user_id = ? AND fish_id = ? AND quantity >= ?
+                    """, (remaining_qty, user_id, fish_id, remaining_qty))
+                    
+                    if cursor.rowcount == 0:
+                        raise ValueError(f"水族箱中鱼类 {fish_id} 数量不足")
+                    
+                    # 删除数量为0的记录
+                    cursor.execute("""
+                        DELETE FROM user_aquarium 
+                        WHERE user_id = ? AND fish_id = ? AND quantity <= 0
+                    """, (user_id, fish_id))
+                
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+
     def get_aquarium_upgrades(self) -> List[AquariumUpgrade]:
         """获取所有水族箱升级配置"""
         with self._get_connection() as conn:

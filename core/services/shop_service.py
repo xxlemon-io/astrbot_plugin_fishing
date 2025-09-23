@@ -359,13 +359,11 @@ class ShopService:
                     name = tpl.name if tpl else str(item_id)
                     return {"success": False, "message": f"道具不足：{name} x{need_qty}"}
         
-        # 检查鱼类
+        # 检查鱼类（包括鱼塘和水族箱）
         if costs.get("fish"):
-            inv_fish = self.inventory_repo.get_fish_inventory(user.user_id)
-            fish_counts = {fish_item.fish_id: fish_item.quantity for fish_item in inv_fish}
-            
             for fish_id, need_qty in costs["fish"].items():
-                if fish_counts.get(fish_id, 0) < need_qty:
+                total_count = self.inventory_repo.get_user_total_fish_count(user.user_id, fish_id)
+                if total_count < need_qty:
                     fish_tpl = self.item_template_repo.get_fish_by_id(fish_id)
                     name = fish_tpl.name if fish_tpl else str(fish_id)
                     return {"success": False, "message": f"鱼类不足：{name} x{need_qty}"}
@@ -422,10 +420,10 @@ class ShopService:
             for item_id, need_qty in costs["items"].items():
                 self.inventory_repo.decrease_item_quantity(user.user_id, item_id, need_qty)
         
-        # 扣除鱼类
+        # 扣除鱼类（智能扣除：优先从鱼塘，不足时从水族箱）
         if costs.get("fish"):
             for fish_id, need_qty in costs["fish"].items():
-                self.inventory_repo.update_fish_quantity(user.user_id, fish_id, -need_qty)
+                self.inventory_repo.deduct_fish_smart(user.user_id, fish_id, need_qty)
         
         # 扣除鱼竿（排除上锁和装备中的）
         if costs.get("rods"):
