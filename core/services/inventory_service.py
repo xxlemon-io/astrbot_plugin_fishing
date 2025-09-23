@@ -90,6 +90,7 @@ class InventoryService:
             fish_template = self.item_template_repo.get_fish_by_id(item.fish_id)
             if fish_template:
                 enriched_items.append({
+                    "fish_id": item.fish_id,  # 添加fish_id字段
                     "name": fish_template.name,
                     "rarity": fish_template.rarity,
                     "base_value": fish_template.base_value,
