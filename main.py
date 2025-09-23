@@ -14,6 +14,7 @@ from .core.repositories.sqlite_item_template_repo import SqliteItemTemplateRepos
 from .core.repositories.sqlite_inventory_repo import SqliteInventoryRepository
 from .core.repositories.sqlite_gacha_repo import SqliteGachaRepository
 from .core.repositories.sqlite_market_repo import SqliteMarketRepository
+from .core.repositories.sqlite_shop_repo import SqliteShopRepository
 from .core.repositories.sqlite_log_repo import SqliteLogRepository
 from .core.repositories.sqlite_achievement_repo import SqliteAchievementRepository
 from .core.repositories.sqlite_user_buff_repo import SqliteUserBuffRepository
@@ -103,6 +104,7 @@ class FishingPlugin(Star):
         self.inventory_repo = SqliteInventoryRepository(db_path)
         self.gacha_repo = SqliteGachaRepository(db_path)
         self.market_repo = SqliteMarketRepository(db_path)
+        self.shop_repo = SqliteShopRepository(db_path)
         self.log_repo = SqliteLogRepository(db_path)
         self.achievement_repo = SqliteAchievementRepository(db_path)
         self.buff_repo = SqliteUserBuffRepository(db_path)
@@ -126,7 +128,7 @@ class FishingPlugin(Star):
             self.game_mechanics_service,
             self.game_config,
         )
-        self.shop_service = ShopService(self.item_template_repo, self.inventory_repo, self.user_repo)
+        self.shop_service = ShopService(self.item_template_repo, self.inventory_repo, self.user_repo, self.shop_repo, self.game_config)
         self.market_service = MarketService(self.market_repo, self.inventory_repo, self.user_repo, self.log_repo,
                                            self.item_template_repo, self.game_config)
         self.achievement_service = AchievementService(self.achievement_repo, self.user_repo, self.inventory_repo,
@@ -165,13 +167,17 @@ class FishingPlugin(Star):
         self.achievement_service.start_achievement_check_task()
 
         # --- 5. 初始化核心游戏数据 ---
-        data_setup_service = DataSetupService(self.item_template_repo, self.gacha_repo)
+        data_setup_service = DataSetupService(
+            self.item_template_repo, self.gacha_repo, self.shop_repo
+        )
         data_setup_service.setup_initial_data()
         # 确保初始道具存在（在已有数据库上也可幂等执行）
         try:
             data_setup_service.create_initial_items()
         except Exception:
             pass
+
+        # 商店完全由后台管控，不再自动种子化
 
         # --- 6. (临时) 实例化数据服务，供调试命令使用 ---
         self.data_setup_service = data_setup_service
@@ -256,6 +262,11 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.pond(self, event):
             yield r
 
+    @filter.command("偷看鱼塘", alias={"查看鱼塘", "偷看"})
+    async def peek_pond(self, event: AstrMessageEvent):
+        async for r in inventory_handlers.peek_pond(self, event):
+            yield r
+
     @filter.command("鱼塘容量")
     async def pond_capacity(self, event: AstrMessageEvent):
         async for r in inventory_handlers.pond_capacity(self, event):
@@ -271,10 +282,11 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.rod(self, event):
             yield r
 
-    @filter.command("精炼鱼竿", alias={"鱼竿精炼"})
-    async def refine_rod(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.refine_rod(self, event):
+    @filter.command("精炼", alias={"强化"})
+    async def refine_equipment(self, event: AstrMessageEvent):
+        async for r in inventory_handlers.refine_equipment(self, event):
             yield r
+
 
     @filter.command("鱼饵")
     async def bait(self, event: AstrMessageEvent):
@@ -286,12 +298,8 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.items(self, event):
             yield r
 
-    @filter.command("使用道具")
-    async def use_item(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.use_item(self, event):
-            yield r
 
-    @filter.command("开启全部钱袋", alias={"打开全部钱袋"})
+    @filter.command("开启全部钱袋", alias={"打开全部钱袋", "打开所有钱袋"})
     async def open_all_money_bags(self, event: AstrMessageEvent):
         async for r in inventory_handlers.open_all_money_bags(self, event):
             yield r
@@ -306,50 +314,30 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.accessories(self, event):
             yield r
 
-    @filter.command("精炼饰品", alias={"饰品精炼"})
-    async def refine_accessory(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.refine_accessory(self, event):
-            yield r
 
-    @filter.command("精炼帮助", alias={"精炼说明", "精炼"})
+    @filter.command("精炼帮助", alias={"精炼说明"})
     async def refine_help(self, event: AstrMessageEvent):
         async for r in inventory_handlers.refine_help(self, event):
             yield r
 
-    @filter.command("锁定鱼竿", alias={"鱼竿锁定"})
-    async def lock_rod(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.lock_rod(self, event):
+    @filter.command("锁定", alias={"上锁"})
+    async def lock_equipment(self, event: AstrMessageEvent):
+        async for r in inventory_handlers.lock_equipment(self, event):
             yield r
 
-    @filter.command("解锁鱼竿", alias={"鱼竿解锁"})
-    async def unlock_rod(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.unlock_rod(self, event):
+    @filter.command("解锁", alias={"开锁"})
+    async def unlock_equipment(self, event: AstrMessageEvent):
+        async for r in inventory_handlers.unlock_equipment(self, event):
             yield r
 
-    @filter.command("锁定饰品", alias={"饰品锁定"})
-    async def lock_accessory(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.lock_accessory(self, event):
+
+    @filter.command("使用", alias={"装备"})
+    async def use_equipment(self, event: AstrMessageEvent):
+        async for r in inventory_handlers.use_equipment(self, event):
             yield r
 
-    @filter.command("解锁饰品", alias={"饰品解锁"})
-    async def unlock_accessory(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.unlock_accessory(self, event):
-            yield r
 
-    @filter.command("使用鱼竿 ", alias={"装备鱼竿"})
-    async def use_rod(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.use_rod(self, event):
-            yield r
 
-    @filter.command("使用鱼饵", alias={"装备鱼饵"})
-    async def use_bait(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.use_bait(self, event):
-            yield r
-
-    @filter.command("使用饰品", alias={"装备饰品"})
-    async def use_accessories(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.use_accessories(self, event):
-            yield r
 
     @filter.command("金币")
     async def coins(self, event: AstrMessageEvent):
@@ -420,14 +408,11 @@ class FishingPlugin(Star):
         async for r in market_handlers.shop(self, event):
             yield r
 
-    @filter.command("购买鱼竿")
-    async def buy_rod(self, event: AstrMessageEvent):
-        async for r in market_handlers.buy_rod(self, event):
-            yield r
+    
 
-    @filter.command("购买鱼饵")
-    async def buy_bait(self, event: AstrMessageEvent):
-        async for r in market_handlers.buy_bait(self, event):
+    @filter.command("商店购买", alias={"购买商店商品", "购买商店"})
+    async def buy_in_shop(self, event: AstrMessageEvent):
+        async for r in market_handlers.buy_in_shop(self, event):
             yield r
 
     @filter.command("市场")
@@ -435,20 +420,12 @@ class FishingPlugin(Star):
         async for r in market_handlers.market(self, event):
             yield r
 
-    @filter.command("上架鱼竿")
-    async def list_rod(self, event: AstrMessageEvent):
-        async for r in market_handlers.list_rod(self, event):
+    @filter.command("上架")
+    async def list_any(self, event: AstrMessageEvent):
+        async for r in market_handlers.list_any(self, event):
             yield r
 
-    @filter.command("上架饰品")
-    async def list_accessories(self, event: AstrMessageEvent):
-        async for r in market_handlers.list_accessories(self, event):
-            yield r
 
-    @filter.command("上架道具")
-    async def list_item(self, event: AstrMessageEvent):
-        async for r in market_handlers.list_item(self, event):
-            yield r
 
     @filter.command("购买")
     async def buy_item(self, event: AstrMessageEvent):
@@ -609,9 +586,9 @@ class FishingPlugin(Star):
             yield r
 
     @filter.permission_type(PermissionType.ADMIN)
-    @filter.command("同步道具", alias={"管理员 同步道具"})
-    async def sync_items_from_initial_data(self, event: AstrMessageEvent):
-        async for r in admin_handlers.sync_items_from_initial_data(self, event):
+    @filter.command("同步初始设定", alias={"同步设定", "同步数据", "同步"})
+    async def sync_initial_data(self, event: AstrMessageEvent):
+        async for r in admin_handlers.sync_initial_data(self, event):
             yield r
 
     @filter.permission_type(PermissionType.ADMIN)
@@ -624,6 +601,12 @@ class FishingPlugin(Star):
     @filter.command("代理下线", alias={"logout"})
     async def impersonate_stop(self, event: AstrMessageEvent):
         async for r in admin_handlers.impersonate_stop(self, event):
+            yield r
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("全体发放道具")
+    async def reward_all_items(self, event: AstrMessageEvent):
+        async for r in admin_handlers.reward_all_items(self, event):
             yield r
 
     async def _check_port_active(self):

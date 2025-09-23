@@ -1,6 +1,7 @@
 from ..repositories.abstract_repository import (
     AbstractItemTemplateRepository,
     AbstractGachaRepository,
+    AbstractShopRepository,
 )
 from ..initial_data import (
     FISH_DATA,
@@ -10,6 +11,7 @@ from ..initial_data import (
     TITLE_DATA,
     GACHA_POOL,
     ITEM_DATA,
+    SHOP_DATA,
 )
 from ..domain.models import Item
 from astrbot.api import logger
@@ -18,15 +20,23 @@ from astrbot.api import logger
 class DataSetupService:
     """负责在首次启动时初始化游戏基础数据。"""
 
-    def __init__(self, item_template_repo: AbstractItemTemplateRepository, gacha_repo: AbstractGachaRepository):
+    def __init__(
+        self,
+        item_template_repo: AbstractItemTemplateRepository,
+        gacha_repo: AbstractGachaRepository,
+        shop_repo: AbstractShopRepository,
+    ):
         """
         初始化数据设置服务。
 
         Args:
             item_template_repo: 物品模板仓储的实例，用于与数据库交互。
+            gacha_repo: 抽卡仓储的实例。
+            shop_repo: 商店仓储的实例。
         """
         self.gacha_repo = gacha_repo
         self.item_template_repo = item_template_repo
+        self.shop_repo = shop_repo
 
     def setup_initial_data(self):
         """
@@ -135,7 +145,168 @@ class DataSetupService:
             self.gacha_repo.add_pool_item(2, {"item_type": "accessory", "item_id": 3, "quantity": 1, "weight": 15}) # 丰收号角
             self.gacha_repo.add_pool_item(2, {"item_type": "coins", "item_id": 0, "quantity": 20000, "weight": 80})
 
+        # --- 填充初始商店 ---
+        if not self.shop_repo.get_all_shops():
+            logger.info("正在初始化商店...")
+            for shop_data in SHOP_DATA:
+                self.shop_repo.create_shop({
+                    "name": shop_data[1],
+                    "description": shop_data[2],
+                    "shop_type": shop_data[3],
+                    "is_active": shop_data[4],
+                    "start_time": shop_data[5],
+                    "end_time": shop_data[6],
+                    "sort_order": shop_data[7],
+                })
+            
+            # 使用统一的方法填充商店1商品
+            self._ensure_shop1_default_items()
+            logger.info("初始商店与商品填充完成。")
+
         logger.info("核心游戏数据初始化完成。")
+
+    def sync_shops_from_initial_data(self):
+        """
+        手动从 initial_data.py 同步商店和基础商品到数据库。
+        这是一个幂等操作，可以安全地多次调用。
+        """
+        logger.info("正在从 initial_data.py 同步商店...")
+        
+        # 先确保基础数据已初始化
+        self.setup_initial_data()
+        
+        # --- 填充初始商店 ---
+        all_shops = self.shop_repo.get_all_shops()
+        existing_shop_names = {s['name'] for s in all_shops}
+        
+        for shop_data in SHOP_DATA:
+            if shop_data[1] not in existing_shop_names:
+                self.shop_repo.create_shop({
+                    "name": shop_data[1],
+                    "description": shop_data[2],
+                    "shop_type": shop_data[3],
+                    "is_active": shop_data[4],
+                    "start_time": shop_data[5],
+                    "end_time": shop_data[6],
+                    "sort_order": shop_data[7],
+                })
+                logger.info(f"创建新商店: {shop_data[1]}")
+
+        # --- 为海鸥港杂货铺添加初始商品 ---
+        self._ensure_shop1_default_items()
+
+        logger.info("商店数据同步完成。")
+
+    def _ensure_shop1_default_items(self):
+        """确保商店1有默认商品（新设计：直接创建shop_items）"""
+        logger.info("正在确保商店1有默认商品...")
+        
+        # 获取商店1的现有商品
+        shop1_items = self.shop_repo.get_shop_items(1)
+        existing_item_names = {item["name"] for item in shop1_items}
+
+        # 添加所有3星以下的鱼竿到商店1
+        rod_items = []
+        for rod_data in ROD_DATA:
+            if rod_data[2] <= 3 and rod_data[3] == "shop" and rod_data[4] and rod_data[4] > 0:  # rarity <= 3, source=shop, has cost
+                rod_items.append(rod_data)
+        
+        for rod_data in rod_items:
+            rod_name = rod_data[0]
+            rod_id = ROD_DATA.index(rod_data) + 1
+            
+            # 检查是否已存在同名商品
+            if rod_name in existing_item_names:
+                logger.info(f"鱼竿商品已存在: {rod_name}")
+                continue
+            
+            # 创建新商品
+            rod_description = rod_data[1] if len(rod_data) > 1 else ""
+            logger.info(f"创建鱼竿商品: {rod_name}, 描述: {rod_description}")
+            
+            # 创建商品
+            item_data = {
+                "name": rod_name,
+                "description": rod_description,
+                "category": "basic",
+                "is_active": True,
+                "sort_order": rod_data[2] * 10,  # 按稀有度排序
+            }
+            created_item = self.shop_repo.create_shop_item(1, item_data)
+            item_id = created_item["item_id"]
+            
+            # 添加成本
+            self.shop_repo.add_item_cost(item_id, {
+                "cost_type": "coins",
+                "cost_amount": rod_data[4],
+                "cost_relation": "and",
+            })
+            
+            # 添加奖励
+            self.shop_repo.add_item_reward(item_id, {
+                "reward_type": "rod",
+                "reward_item_id": rod_id,
+                "reward_quantity": 1,
+                "reward_refine_level": 1,
+            })
+            
+            logger.info(f"已上架鱼竿: {rod_name}")
+
+        # 添加所有有成本的鱼饵到商店1
+        bait_items = []
+        for bait_data in BAIT_DATA:
+            if bait_data[5] > 0:  # has cost > 0
+                bait_items.append(bait_data)
+        
+        for bait_data in bait_items:
+            bait_name = bait_data[0]
+            bait_id = BAIT_DATA.index(bait_data) + 1
+            
+            # 检查是否已存在同名商品
+            if bait_name in existing_item_names:
+                logger.info(f"鱼饵商品已存在: {bait_name}")
+                continue
+            
+            # 创建新商品
+            bait_description = bait_data[1] if len(bait_data) > 1 else ""
+            logger.info(f"创建鱼饵商品: {bait_name}, 描述: {bait_description}")
+            
+            # 创建商品
+            item_data = {
+                "name": bait_name,
+                "description": bait_description,
+                "category": "basic",
+                "is_active": True,
+                "sort_order": bait_data[2] * 10 + 100,  # 鱼饵排在鱼竿后面
+            }
+            created_item = self.shop_repo.create_shop_item(1, item_data)
+            item_id = created_item["item_id"]
+            
+            # 添加成本
+            self.shop_repo.add_item_cost(item_id, {
+                "cost_type": "coins",
+                "cost_amount": bait_data[5],
+                "cost_relation": "and",
+            })
+            
+            # 添加奖励
+            self.shop_repo.add_item_reward(item_id, {
+                "reward_type": "bait",
+                "reward_item_id": bait_id,
+                "reward_quantity": 1,
+                "reward_refine_level": 1,
+            })
+            
+            logger.info(f"已上架鱼饵: {bait_name}")
+
+    def sync_all_initial_data(self):
+        """
+        手动从 initial_data.py 同步所有设计为可同步的数据（如道具、商店）。
+        """
+        logger.info("--- 开始同步所有初始设定 ---")
+        self.create_initial_items()
+        self.sync_shops_from_initial_data()
+        logger.info("--- 所有初始设定同步完成 ---")
 
     def create_initial_items(self):
         """创建初始的道具"""

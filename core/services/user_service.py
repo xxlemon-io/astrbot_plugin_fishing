@@ -17,6 +17,19 @@ from ..utils import get_now, get_today
 class UserService:
     """封装与用户相关的业务逻辑"""
 
+    @staticmethod
+    def _to_base36(n: int) -> str:
+        if n < 0:
+            raise ValueError("n must be non-negative")
+        if n == 0:
+            return "0"
+        digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        out = []
+        while n:
+            n, rem = divmod(n, 36)
+            out.append(digits[rem])
+        return "".join(reversed(out))
+
     def __init__(
         self,
         user_repo: AbstractUserRepository,
@@ -499,6 +512,7 @@ class UserService:
                 if rod_template:
                     rod_data.append({
                         "instance_id": instance.rod_instance_id,
+                        "display_code": getattr(instance, 'display_code', f"R{self._to_base36(instance.rod_instance_id)}"),
                         "rod_id": instance.rod_id,
                         "name": rod_template.name,
                         "rarity": rod_template.rarity,
@@ -516,6 +530,7 @@ class UserService:
                 if accessory_template:
                     accessory_data.append({
                         "instance_id": instance.accessory_instance_id,
+                        "display_code": getattr(instance, 'display_code', f"A{self._to_base36(instance.accessory_instance_id)}"),
                         "accessory_id": instance.accessory_id,
                         "name": accessory_template.name,
                         "rarity": accessory_template.rarity,

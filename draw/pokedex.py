@@ -140,7 +140,12 @@ async def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], 
         draw.text((left_pane_x, name_y), fish.get("name", "未知鱼"), font=FONT_FISH_NAME, fill=text_primary)
         # 稀有度星星 - 向上移动，使用背包颜色
         rarity_text = "★" * fish.get("rarity", 1)
-        rarity_color = COLOR_RARITY_MAP.get(fish.get("rarity", 1), text_secondary)
+        rarity = fish.get("rarity", 1)
+        # 对于高于5星的鱼，使用稀有红色；对于超过10星的鱼，也使用10星的颜色
+        if rarity > 5:
+            rarity_color = (220, 20, 60)  # 稀有红色
+        else:
+            rarity_color = COLOR_RARITY_MAP.get(rarity, text_secondary)
         draw.text((left_pane_x, name_y + 25), rarity_text, font=FONT_FISH_NAME, fill=rarity_color)
         # 右侧统计信息 - 进一步向右移动
         stats_x = PADDING + 440

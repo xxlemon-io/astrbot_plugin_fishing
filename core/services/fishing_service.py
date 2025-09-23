@@ -672,13 +672,16 @@ class FishingService:
         每日检查：若用户当前所在钓鱼区域需要通行证，但其背包中已无对应道具，
         则将用户传送回 1 号钓鱼地，并通过群聊@通知相关玩家。
         """
+        logger.info("开始执行每日区域通行证检查...")
         try:
             all_user_ids = self.user_repo.get_all_user_ids()
-        except Exception:
-            # 如果仓储异常，不影响主循环
+            logger.info(f"找到 {len(all_user_ids)} 个用户需要检查")
+        except Exception as e:
+            logger.error(f"获取用户列表失败: {e}")
             return
 
         relocated_users = []  # 存储被传送的用户信息
+        consumed_users = []  # 存储消耗道具的用户信息
 
         for user_id in all_user_ids:
             try:
@@ -713,10 +716,33 @@ class FishingService:
                         "zone_name": zone.name,
                         "item_name": item_name
                     })
+                else:
+                    # 用户有道具，扣除一个通行证
+                    self.inventory_repo.decrease_item_quantity(user_id, zone.required_item_id, 1)
+                    
+                    # 记录日志
+                    try:
+                        item_template = self.item_template_repo.get_item_by_id(zone.required_item_id)
+                        item_name = item_template.name if item_template else f"道具ID{zone.required_item_id}"
+                    except Exception:
+                        item_name = f"道具ID{zone.required_item_id}"
+                    self.log_repo.add_log(user_id, "daily_pass_consumption", f"每日消耗 {item_name} 继续留在 {zone.name}")
+                    
+                    # 收集消耗道具用户信息
+                    consumed_users.append({
+                        "user_id": user_id,
+                        "nickname": user.nickname,
+                        "zone_name": zone.name,
+                        "item_name": item_name
+                    })
+                    logger.info(f"用户 {user.nickname} 消耗 {item_name} 继续留在 {zone.name}")
             except Exception:
                 # 单个用户异常不影响其他用户
                 continue
 
+        # 记录检查结果
+        logger.info(f"每日检查完成：{len(relocated_users)} 个用户被传送，{len(consumed_users)} 个用户消耗道具")
+        
         # 如果有被传送的用户，发送群聊通知
         if relocated_users and self._notifier:
             try:
@@ -791,16 +817,21 @@ class FishingService:
                 if today != self.today:
                     # 如果今天日期变了，重置今日稀有鱼捕获数量
                     self.today = today
+                    logger.info(f"检测到日期变更，从 {self.today} 到 {today}，开始执行每日任务...")
+                    
                     # 重置所有受配额限制区域的稀有鱼计数（4星及以上）
                     all_zones = self.inventory_repo.get_all_zones()
                     for zone in all_zones:
                         if zone.daily_rare_fish_quota > 0:  # 只重置有配额的区域
                             zone.rare_fish_caught_today = 0
                             self.inventory_repo.update_fishing_zone(zone)
+                    
                     # 每次循环开始时检查是否需要应用每日税收
                     self.apply_daily_taxes()
+                    
                     # 每日检查：需要通行证的区域玩家是否仍持有通行证
                     self.enforce_zone_pass_requirements_for_all_users()
+                
                 # 获取所有开启自动钓鱼的用户
                 auto_users_ids = self.user_repo.get_all_user_ids(auto_fishing_only=True)
 

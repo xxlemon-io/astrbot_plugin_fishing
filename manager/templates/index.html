@@ -22,6 +22,18 @@
     </div>
 
     <div class="col-lg-4 col-md-6 mb-4">
+        <a href="{{ url_for('admin_bp.manage_zones') }}" class="dashboard-card">
+            <div class="card text-white h-100" style="background-color: #e83e8c;">
+                <div class="card-body text-center">
+                    <i class="fas fa-map-marker-alt d-block mb-3"></i>
+                    <h4 class="card-title">钓鱼区域</h4>
+                    <p class="card-text">管理钓鱼区域，配置稀有度分布和限定鱼类。</p>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-lg-4 col-md-6 mb-4">
         <a href="{{ url_for('admin_bp.manage_fish') }}" class="dashboard-card">
             <div class="card text-white bg-primary h-100">
                 <div class="card-body text-center">
@@ -70,12 +82,24 @@
     </div>
 
     <div class="col-lg-4 col-md-6 mb-4">
-        <a href="{{ url_for('admin_bp.manage_gacha') }}" class="dashboard-card">
-            <div class="card text-white bg-success h-100">
+        <a href="{{ url_for('admin_bp.manage_items') }}" class="dashboard-card">
+            <div class="card text-white h-100" style="background-color: #fd7e14;">
                 <div class="card-body text-center">
-                    <i class="fas fa-dice d-block mb-3"></i>
-                    <h4 class="card-title">管理抽卡池</h4>
-                    <p class="card-text">设计奖池并配置其中的奖品与权重。</p>
+                    <i class="fas fa-box-open d-block mb-3"></i>
+                    <h4 class="card-title">道具管理</h4>
+                    <p class="card-text">管理背包道具，配置特殊效果和使用逻辑。</p>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-lg-4 col-md-6 mb-4">
+        <a href="{{ url_for('admin_bp.manage_shops') }}" class="dashboard-card">
+            <div class="card text-white h-100" style="background-color: #28a745;">
+                <div class="card-body text-center">
+                    <i class="fas fa-shopping-cart d-block mb-3"></i>
+                    <h4 class="card-title">商店管理</h4>
+                    <p class="card-text">管理游戏商店，配置商品、价格与限购规则。</p>
                 </div>
             </div>
         </a>
@@ -94,24 +118,12 @@
     </div>
 
     <div class="col-lg-4 col-md-6 mb-4">
-        <a href="{{ url_for('admin_bp.manage_zones') }}" class="dashboard-card">
-            <div class="card text-white h-100" style="background-color: #e83e8c;">
+        <a href="{{ url_for('admin_bp.manage_gacha') }}" class="dashboard-card">
+            <div class="card text-white bg-success h-100">
                 <div class="card-body text-center">
-                    <i class="fas fa-map-marker-alt d-block mb-3"></i>
-                    <h4 class="card-title">钓鱼区域</h4>
-                    <p class="card-text">管理钓鱼区域，配置稀有度分布和限定鱼类。</p>
-                </div>
-            </div>
-        </a>
-    </div>
-
-    <div class="col-lg-4 col-md-6 mb-4">
-        <a href="{{ url_for('admin_bp.manage_items') }}" class="dashboard-card">
-            <div class="card text-white h-100" style="background-color: #fd7e14;">
-                <div class="card-body text-center">
-                    <i class="fas fa-box-open d-block mb-3"></i>
-                    <h4 class="card-title">道具管理</h4>
-                    <p class="card-text">管理背包道具，配置特殊效果和使用逻辑。</p>
+                    <i class="fas fa-dice d-block mb-3"></i>
+                    <h4 class="card-title">管理抽卡池</h4>
+                    <p class="card-text">设计奖池并配置其中的奖品与权重。</p>
                 </div>
             </div>
         </a>

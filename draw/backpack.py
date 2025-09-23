@@ -421,14 +421,14 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             
             # 鱼竿名称和ID在同一行
             rod_name = rod['name'][:15] + "..." if len(rod['name']) > 15 else rod['name']
-            instance_id = rod.get('instance_id', 'N/A')
+            display_code = rod.get('display_code', f"ID{rod.get('instance_id', 'N/A')}")
             
             # 计算名称宽度，然后在其右边放置ID
             name_w, _ = get_text_size(rod_name, content_font)
             draw.text((x + 15, y + 15), rod_name, font=content_font, fill=text_primary)
             id_w, id_h = get_text_size("ID: 000000", tiny_font)
             # 让ID与装备名底部对齐（y同基线高度）
-            draw.text((x + 15 + name_w + 10, y + 15 + (get_text_size(rod_name, content_font)[1] - id_h)), f"ID: {instance_id}", font=tiny_font, fill=primary_light)
+            draw.text((x + 15 + name_w + 10, y + 15 + (get_text_size(rod_name, content_font)[1] - id_h)), f"ID: {display_code}", font=tiny_font, fill=primary_light)
             
             # 锁定状态标识（右上角，参考道具消耗品位置）
             is_locked = rod.get('is_locked', False)
@@ -562,13 +562,13 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             
             # 饰品名称和ID在同一行
             acc_name = accessory['name'][:15] + "..." if len(accessory['name']) > 15 else accessory['name']
-            instance_id = accessory.get('instance_id', 'N/A')
+            display_code = accessory.get('display_code', f"ID{accessory.get('instance_id', 'N/A')}")
             
             # 计算名称宽度，然后在其右边放置ID
             name_w, _ = get_text_size(acc_name, content_font)
             draw.text((x + 15, y + 15), acc_name, font=content_font, fill=text_primary)
             id_w, id_h = get_text_size("ID: 000000", tiny_font)
-            draw.text((x + 15 + name_w + 10, y + 15 + (get_text_size(acc_name, content_font)[1] - id_h)), f"ID: {instance_id}", font=tiny_font, fill=primary_light)
+            draw.text((x + 15 + name_w + 10, y + 15 + (get_text_size(acc_name, content_font)[1] - id_h)), f"ID: {display_code}", font=tiny_font, fill=primary_light)
             
             # 锁定状态标识（右上角，参考道具消耗品位置）
             is_locked = accessory.get('is_locked', False)
@@ -678,12 +678,15 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
                                  (x, y, x + card_width, y + card_height), 
                                  6, fill=card_bg)
             
-            # 鱼饵名称 和 ID
+            # 鱼饵名称 和 短码
             bait_name = bait['name'][:12] + "..." if len(bait['name']) > 12 else bait['name']
             name_w, _ = get_text_size(bait_name, small_font)
             draw.text((x + 15, y + 10), bait_name, font=small_font, fill=text_primary)
-            bait_id = bait.get('bait_id', 'N/A')
-            draw.text((x + 15 + name_w + 10, y + 12), f"ID: {bait_id}", font=tiny_font, fill=primary_light)
+            
+            # 生成B前缀短码（简单数字ID）
+            bait_id = int(bait.get('bait_id', 0) or 0)
+            bcode = f"B{bait_id}" if bait_id else "B0"
+            draw.text((x + 15 + name_w + 10, y + 12), f"ID: {bcode}", font=tiny_font, fill=primary_light)
             
             # 稀有度
             rarity = bait.get('rarity', 1)
@@ -764,8 +767,10 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             item_name = item['name'][:12] + "..." if len(item['name']) > 12 else item['name']
             name_w, _ = get_text_size(item_name, small_font)
             draw.text((x + 15, y + 10), item_name, font=small_font, fill=text_primary)
-            item_id = item.get('item_id', 'N/A')
-            draw.text((x + 15 + name_w + 10, y + 12), f"ID: {item_id}", font=tiny_font, fill=primary_light)
+            # 显示 D 前缀短码（简单数字ID）
+            item_id = int(item.get('item_id', 0) or 0)
+            dcode = f"D{item_id}" if item_id else "D0"
+            draw.text((x + 15 + name_w + 10, y + 12), f"ID: {dcode}", font=tiny_font, fill=primary_light)
             # 消耗品标识（右上角）
             label_text = "消耗" if item.get('is_consumable') else "非消耗"
             lw, lh = get_text_size(label_text, tiny_font)

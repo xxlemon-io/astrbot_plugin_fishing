@@ -7,7 +7,8 @@ from ..domain.models import (
     User, Fish, Rod, Bait, Accessory, Title, Achievement, Item,
     UserRodInstance, UserAccessoryInstance, UserFishInventoryItem,
     FishingRecord, GachaRecord, WipeBombLog, MarketListing, TaxRecord,
-    GachaPool, GachaPoolItem, FishingZone, UserBuff
+    GachaPool, GachaPoolItem, FishingZone, UserBuff,
+    ShopOffer, ShopOfferCost, ShopOfferReward
 )
 
 # 定义用户成就进度的数据结构
@@ -450,4 +451,139 @@ class AbstractUserBuffRepository(ABC):
 
     @abstractmethod
     def delete(self, buff_id: int):
+        pass
+
+
+class AbstractShopRepository(ABC):
+    """商店系统仓储接口（新设计：shops + shop_items + shop_item_costs + shop_item_rewards）"""
+
+    # ---- 商店管理（Shops） ----
+    @abstractmethod
+    def get_active_shops(self, shop_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        """获取活跃的商店列表"""
+        pass
+
+    @abstractmethod
+    def get_all_shops(self) -> List[Dict[str, Any]]:
+        """获取所有商店列表"""
+        pass
+
+    @abstractmethod
+    def get_shop_by_id(self, shop_id: int) -> Optional[Dict[str, Any]]:
+        """根据ID获取商店信息"""
+        pass
+
+    @abstractmethod
+    def create_shop(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """创建新商店"""
+        pass
+
+    @abstractmethod
+    def update_shop(self, shop_id: int, data: Dict[str, Any]) -> None:
+        """更新商店信息"""
+        pass
+
+    @abstractmethod
+    def delete_shop(self, shop_id: int) -> None:
+        """删除商店"""
+        pass
+
+    # ---- 商店商品管理（Shop Items） ----
+    @abstractmethod
+    def get_shop_items(self, shop_id: int) -> List[Dict[str, Any]]:
+        """获取商店的所有商品"""
+        pass
+
+    @abstractmethod
+    def get_shop_item_by_id(self, item_id: int) -> Optional[Dict[str, Any]]:
+        """根据ID获取商店商品"""
+        pass
+
+    @abstractmethod
+    def create_shop_item(self, shop_id: int, item_data: Dict[str, Any]) -> Dict[str, Any]:
+        """创建商店商品"""
+        pass
+
+    @abstractmethod
+    def update_shop_item(self, item_id: int, data: Dict[str, Any]) -> None:
+        """更新商店商品"""
+        pass
+
+    @abstractmethod
+    def delete_shop_item(self, item_id: int) -> None:
+        """删除商店商品"""
+        pass
+
+    @abstractmethod
+    def increase_item_sold(self, item_id: int, delta: int) -> None:
+        """增加商品销量"""
+        pass
+
+    # ---- 商品成本管理（Shop Item Costs） ----
+    @abstractmethod
+    def get_item_costs(self, item_id: int) -> List[Dict[str, Any]]:
+        """获取商品的所有成本"""
+        pass
+
+    @abstractmethod
+    def add_item_cost(self, item_id: int, cost_data: Dict[str, Any]) -> None:
+        """添加商品成本"""
+        pass
+
+    @abstractmethod
+    def update_item_cost(self, cost_id: int, data: Dict[str, Any]) -> None:
+        """更新商品成本"""
+        pass
+
+    @abstractmethod
+    def delete_item_cost(self, cost_id: int) -> None:
+        """删除商品成本"""
+        pass
+
+    # ---- 商品奖励管理（Shop Item Rewards） ----
+    @abstractmethod
+    def get_item_rewards(self, item_id: int) -> List[Dict[str, Any]]:
+        """获取商品的所有奖励"""
+        pass
+
+    @abstractmethod
+    def add_item_reward(self, item_id: int, reward_data: Dict[str, Any]) -> None:
+        """添加商品奖励"""
+        pass
+
+    @abstractmethod
+    def update_item_reward(self, reward_id: int, data: Dict[str, Any]) -> None:
+        """更新商品奖励"""
+        pass
+
+    @abstractmethod
+    def delete_item_reward(self, reward_id: int) -> None:
+        """删除商品奖励"""
+        pass
+
+    # ---- 购买记录管理（Shop Purchase Records） ----
+    @abstractmethod
+    def add_purchase_record(self, user_id: str, item_id: int, quantity: int) -> None:
+        """记录购买"""
+        pass
+
+    @abstractmethod
+    def get_user_purchased_count(self, user_id: str, item_id: int, since: Optional[datetime] = None) -> int:
+        """获取用户购买数量（用于限购检查）"""
+        pass
+
+    @abstractmethod
+    def get_user_purchase_history(self, user_id: str, limit: int = 50) -> List[Dict[str, Any]]:
+        """获取用户购买历史"""
+        pass
+
+    # ---- 兼容性方法（向后兼容） ----
+    @abstractmethod
+    def get_active_offers(self, category: Optional[str] = None) -> List[Dict[str, Any]]:
+        """获取活跃商品（兼容旧接口）"""
+        pass
+
+    @abstractmethod
+    def get_offer_by_id(self, offer_id: int) -> Optional[Dict[str, Any]]:
+        """根据ID获取商品（兼容旧接口）"""
         pass

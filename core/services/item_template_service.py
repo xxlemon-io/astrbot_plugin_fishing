@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from ..repositories.abstract_repository import AbstractItemTemplateRepository, AbstractGachaRepository
 from ..domain.models import Fish, Rod, Bait, Accessory, GachaPool, Item
 
@@ -15,6 +15,9 @@ class ItemTemplateService:
         self.gacha_repo = gacha_repo
 
     # --- Fish Methods ---
+    def get_fish_by_id(self, fish_id: int) -> Optional[Fish]:
+        return self.item_template_repo.get_fish_by_id(fish_id)
+
     def get_all_fish(self) -> List[Fish]:
         return self.item_template_repo.get_all_fish()
 
@@ -29,6 +32,9 @@ class ItemTemplateService:
         self.item_template_repo.delete_fish_template(fish_id)
 
     # --- Rod Methods ---
+    def get_rod_by_id(self, rod_id: int) -> Optional[Rod]:
+        return self.item_template_repo.get_rod_by_id(rod_id)
+
     def get_all_rods(self) -> List[Rod]:
         return self.item_template_repo.get_all_rods()
 
@@ -42,6 +48,9 @@ class ItemTemplateService:
         self.item_template_repo.delete_rod_template(rod_id)
 
     # --- Bait Methods ---
+    def get_bait_by_id(self, bait_id: int) -> Optional[Bait]:
+        return self.item_template_repo.get_bait_by_id(bait_id)
+
     def get_all_baits(self) -> List[Bait]:
         return self.item_template_repo.get_all_baits()
 
@@ -55,6 +64,9 @@ class ItemTemplateService:
         self.item_template_repo.delete_bait_template(bait_id)
 
     # --- Accessory Methods ---
+    def get_accessory_by_id(self, accessory_id: int) -> Optional[Accessory]:
+        return self.item_template_repo.get_accessory_by_id(accessory_id)
+
     def get_all_accessories(self) -> List[Accessory]:
         return self.item_template_repo.get_all_accessories()
 
@@ -68,6 +80,9 @@ class ItemTemplateService:
         self.item_template_repo.delete_accessory_template(accessory_id)
 
     # --- Item Methods ---
+    def get_item_by_id(self, item_id: int) -> Optional[Item]:
+        return self.item_template_repo.get_item_by_id(item_id)
+
     def get_all_items(self) -> List[Item]:
         return self.item_template_repo.get_all_items()
 

@@ -1,0 +1,219 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="fas fa-shopping-cart"></i> 商店管理</h2>
+    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#shopModal" id="addShopBtn">
+        <i class="fas fa-plus"></i> 添加新商店
+    </button>
+</div>
+
+<div class="row">
+    {% for shop in shops %}
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ shop.name }} (ID: {{ shop.shop_id }})</h5>
+                <p class="card-text">{{ shop.description or '无描述' }}</p>
+                
+                <p>
+                    {% if shop.shop_type == 'premium' %}
+                        <span class="badge bg-warning text-dark me-2">高级商店</span>
+                    {% elif shop.shop_type == 'limited' %}
+                        <span class="badge bg-danger me-2">限时商店</span>
+                    {% else %}
+                        <span class="badge bg-primary me-2">普通商店</span>
+                    {% endif %}
+                    
+                    {% if shop.is_active %}
+                        <span class="badge bg-success">营业中</span>
+                    {% else %}
+                        <span class="badge bg-secondary">已关闭</span>
+                    {% endif %}
+                </p>
+                
+                {% if shop.start_time or shop.end_time %}
+                <p class="text-muted small">
+                    {% if shop.start_time %}
+                        开放时间: {{ shop.start_time }}
+                    {% endif %}
+                    {% if shop.end_time %}
+                        <br>结束时间: {{ shop.end_time }}
+                    {% endif %}
+                </p>
+                {% endif %}
+                
+                {% if shop.daily_start_time or shop.daily_end_time %}
+                <p class="text-muted small">
+                    {% if shop.daily_start_time and shop.daily_end_time %}
+                        每日营业: {{ shop.daily_start_time }} - {{ shop.daily_end_time }}
+                    {% elif shop.daily_start_time %}
+                        每日开始: {{ shop.daily_start_time }}
+                    {% elif shop.daily_end_time %}
+                        每日结束: {{ shop.daily_end_time }}
+                    {% endif %}
+                </p>
+                {% endif %}
+            </div>
+            <div class="card-footer text-end">
+                <button class="btn btn-sm btn-info edit-btn"
+                        data-bs-toggle="modal"
+                        data-bs-target="#shopModal"
+                        data-shop-json='{{ shop|tojson|safe }}'>
+                    <i class="fas fa-edit"></i> 编辑
+                </button>
+                <a href="{{ url_for('admin_bp.manage_shop_details', shop_id=shop.shop_id) }}" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-cogs"></i> 管理商品
+                </a>
+                <form action="{{ url_for('admin_bp.delete_shop', shop_id=shop.shop_id) }}" method="post" class="d-inline" onsubmit="return confirm('确定要删除【{{ shop.name }}】及其所有商品吗？');">
+                    <button type="submit" class="btn btn-sm btn-danger">
+                        <i class="fas fa-trash"></i> 删除
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <p>还没有创建任何商店。</p>
+    {% endfor %}
+</div>
+
+<div class="modal fade" id="shopModal" tabindex="-1" aria-labelledby="shopModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="shop-form" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="shopModalLabel">管理商店</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3"><label>名称</label><input type="text" name="name" class="form-control" required></div>
+                    <div class="mb-3"><label>描述</label><textarea name="description" class="form-control" rows="2"></textarea></div>
+                    <div class="mb-3">
+                        <label>商店类型</label>
+                        <select name="shop_type" class="form-select">
+                            <option value="normal">普通商店</option>
+                            <option value="premium">高级商店</option>
+                            <option value="limited">限时商店</option>
+                        </select>
+                    </div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="isActive" name="is_active">
+                        <label class="form-check-label" for="isActive">启用商店</label>
+                    </div>
+                    <div class="mb-3" id="timeContainer">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label>开始时间</label>
+                                <input type="datetime-local" name="start_time" class="form-control">
+                            </div>
+                            <div class="col-md-6">
+                                <label>结束时间</label>
+                                <input type="datetime-local" name="end_time" class="form-control">
+                            </div>
+                        </div>
+                        <div class="form-text">限时商店需要设置开放时间范围</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label>每日营业时间</label>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">每日开始时间</label>
+                                <input type="time" name="daily_start_time" class="form-control" placeholder="如: 09:00">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">每日结束时间</label>
+                                <input type="time" name="daily_end_time" class="form-control" placeholder="如: 18:00">
+                            </div>
+                        </div>
+                        <div class="form-text">设置商店每日的营业时间段（如 09:00-18:00）</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const shopModal = document.getElementById('shopModal');
+    const modalTitle = shopModal.querySelector('.modal-title');
+    const form = shopModal.querySelector('#shop-form');
+    const shopTypeSelect = form.elements['shop_type'];
+    const timeContainer = document.getElementById('timeContainer');
+
+    function updateTimeVisibility() {
+        const isLimitedTime = shopTypeSelect.value === 'limited';
+        if (isLimitedTime) {
+            timeContainer.style.display = '';
+        } else {
+            timeContainer.style.display = 'none';
+        }
+    }
+
+    // 初始化显示状态
+    updateTimeVisibility();
+    // 监听切换
+    shopTypeSelect.addEventListener('change', updateTimeVisibility);
+
+    document.getElementById('addShopBtn').addEventListener('click', function () {
+        modalTitle.textContent = '添加新商店';
+        form.action = "{{ url_for('admin_bp.add_shop') }}";
+        form.reset();
+        if (form.elements['shop_type']) form.elements['shop_type'].value = 'normal';
+        if (form.elements['is_active']) form.elements['is_active'].checked = true;
+        updateTimeVisibility();
+    });
+
+    document.querySelectorAll('.edit-btn').forEach(button => {
+        button.addEventListener('click', function () {
+            const data = JSON.parse(this.dataset.shopJson);
+            modalTitle.textContent = `编辑商店: ${data.name}`;
+            form.action = `/admin/shops/edit/${data.shop_id}`;
+            
+            // 填充表单
+            if (form.elements['name']) form.elements['name'].value = data.name || '';
+            if (form.elements['description']) form.elements['description'].value = data.description || '';
+            if (form.elements['shop_type']) form.elements['shop_type'].value = data.shop_type || 'normal';
+            if (form.elements['is_active']) form.elements['is_active'].checked = !!data.is_active;
+            
+            // 时间字段
+            if (form.elements['start_time']) {
+                if (data.start_time) {
+                    // 转换为 datetime-local 格式 (YYYY-MM-DDTHH:MM)
+                    form.elements['start_time'].value = data.start_time.replace(' ', 'T').substring(0, 16);
+                } else {
+                    form.elements['start_time'].value = '';
+                }
+            }
+            if (form.elements['end_time']) {
+                if (data.end_time) {
+                    // 转换为 datetime-local 格式 (YYYY-MM-DDTHH:MM)
+                    form.elements['end_time'].value = data.end_time.replace(' ', 'T').substring(0, 16);
+                } else {
+                    form.elements['end_time'].value = '';
+                }
+            }
+            
+            // 每日时间字段
+            if (form.elements['daily_start_time']) {
+                form.elements['daily_start_time'].value = data.daily_start_time || '';
+            }
+            if (form.elements['daily_end_time']) {
+                form.elements['daily_end_time'].value = data.daily_end_time || '';
+            }
+            
+            updateTimeVisibility();
+        });
+    });
+});
+</script>
+{% endblock %}

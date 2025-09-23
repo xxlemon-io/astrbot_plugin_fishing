@@ -209,7 +209,7 @@
                         <tbody>
                             {% for item in inventory.rod_inventory %}
                             <tr>
-                                <td>{{ item.instance_id }}</td>
+                                <td>{{ item.display_code if item.display_code else item.instance_id }}</td>
                                 <td>{{ item.name }}</td>
                                 <td>{{ '★' * item.rarity }}</td>
                                 <td>{{ item.refine_level }}</td>
@@ -275,7 +275,7 @@
                         <tbody>
                             {% for item in inventory.accessory_inventory %}
                             <tr>
-                                <td>{{ item.instance_id }}</td>
+                                <td>{{ item.display_code if item.display_code else item.instance_id }}</td>
                                 <td>{{ item.name }}</td>
                                 <td>{{ '★' * item.rarity }}</td>
                                 <td>{{ item.refine_level }}</td>

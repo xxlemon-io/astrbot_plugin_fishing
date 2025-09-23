@@ -142,10 +142,13 @@ async def gacha_history(self, event: AstrMessageEvent):
             if not history:
                 yield event.plain_result("📜 您还没有抽卡记录。")
                 return
-            message = "【📜 抽卡记录】\n\n"
+            total_count = len(history)
+            message = f"【📜 抽卡记录】共 {total_count} 条\n\n"
+            
             for record in history:
                 message += f"物品名称: {record['item_name']} (稀有度: {'⭐' * record['rarity']})\n"
                 message += f"时间: {safe_datetime_handler(record['timestamp'])}\n\n"
+            
             yield event.plain_result(message)
         else:
             yield event.plain_result(f"❌ 查看抽卡记录失败：{result['message']}")
@@ -185,8 +188,13 @@ async def wipe_bomb(self, event: AstrMessageEvent):
             profit = result["profit"]
             remaining_today = result["remaining_today"]
             
-            # 格式化倍率，保留两位小数
-            multiplier_formatted = f"{multiplier:.2f}"
+            # 格式化倍率，智能精度显示
+            if multiplier < 0.01:
+                # 当倍率小于0.01时，显示4位小数以避免混淆
+                multiplier_formatted = f"{multiplier:.4f}"
+            else:
+                # 正常情况下保留两位小数
+                multiplier_formatted = f"{multiplier:.2f}"
 
             if multiplier >= 3:
                 message += f"🎰 大成功！你投入 {contribution} 金币，获得了 {multiplier_formatted} 倍奖励！\n 💰 奖励金额：{reward} 金币（盈利：+ {profit}）\n"
@@ -195,6 +203,11 @@ async def wipe_bomb(self, event: AstrMessageEvent):
             else:
                 message += f"💥 你投入 {contribution} 金币，获得了 {multiplier_formatted} 倍奖励！\n 💰 奖励金额：{reward} 金币（亏损：- {abs(profit)})\n"
             message += f"剩余擦弹次数：{remaining_today} 次\n"
+            
+            # 如果触发了抑制模式，添加通知信息
+            if "suppression_notice" in result:
+                message += f"\n{result['suppression_notice']}"
+            
             yield event.plain_result(message)
         else:
             yield event.plain_result(f"⚠️ 擦弹失败：{result['message']}")

@@ -1,0 +1,655 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <a href="{{ url_for('admin_bp.manage_shops') }}" class="btn btn-outline-secondary mb-2"><i class="fas fa-arrow-left"></i> 返回商店列表</a>
+        <h2><i class="fas fa-shopping-cart"></i> {{ shop.name }} - 商品管理</h2>
+    </div>
+    <div>
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addItemModal" id="addItemBtn">
+            <i class="fas fa-plus"></i> 添加商品
+        </button>
+    </div>
+</div>
+
+<div class="card border-primary">
+    <div class="card-header">"{{ shop.name }}"中的商品列表</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>商品ID</th>
+                        <th>商品名称</th>
+                        <th>消耗 (AND/OR)</th>
+                        <th>奖励</th>
+                        <th>库存</th>
+                        <th>限购</th>
+                        <th>状态</th>
+                        <th class="text-end">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                    <tr>
+                        <td>{{ item.item.item_id }}</td>
+                        <td>
+                            {{ item.item.name }}
+                            {% if item.rewards and item.rewards[0].rarity %}
+                                <span class="text-warning">{{ '★' * item.rewards[0].rarity }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% for cost in item.costs %}
+                                <span class="badge bg-info me-1">
+                                    {% if cost.cost_type == 'coins' %}
+                                        💰 金币 x{{ cost.cost_amount }}
+                                    {% elif cost.cost_type == 'premium' %}
+                                        💎 高级货币 x{{ cost.cost_amount }}
+                                    {% elif cost.cost_type == 'fish' %}
+                                        🐟 {{ cost.fish_name or ('鱼类#' + cost.cost_item_id|string) }} x{{ cost.cost_amount }}
+                                    {% elif cost.cost_type == 'item' %}
+                                        🎁 {{ cost.item_name or ('道具#' + cost.cost_item_id|string) }} x{{ cost.cost_amount }}
+                                    {% elif cost.cost_type == 'rod' %}
+                                        🎣 {{ cost.rod_name or ('鱼竿#' + cost.cost_item_id|string) }} x{{ cost.cost_amount }}
+                                    {% elif cost.cost_type == 'accessory' %}
+                                        💍 {{ cost.accessory_name or ('饰品#' + cost.cost_item_id|string) }} x{{ cost.cost_amount }}
+                                    {% else %}
+                                        {{ cost.cost_type }} x{{ cost.cost_amount }}
+                                    {% endif %}
+                                </span>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            {% for reward in item.rewards %}
+                                <span class="badge bg-success me-1">
+                                    {% if reward.reward_type == 'rod' %}
+                                        🎣 {{ reward.rod_name or ('鱼竿#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
+                                    {% elif reward.reward_type == 'bait' %}
+                                        🪱 {{ reward.bait_name or ('鱼饵#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
+                                    {% elif reward.reward_type == 'accessory' %}
+                                        💍 {{ reward.accessory_name or ('饰品#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
+                                    {% elif reward.reward_type == 'item' %}
+                                        🎁 {{ reward.item_name or ('道具#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
+                                    {% elif reward.reward_type == 'fish' %}
+                                        🐟 {{ reward.fish_name or ('鱼类#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
+                                    {% elif reward.reward_type == 'coins' %}
+                                        💰 金币 x{{ reward.reward_quantity }}
+                                    {% else %}
+                                        {{ reward.reward_type }} x{{ reward.reward_quantity }}
+                                    {% endif %}
+                                </span>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            {% if item.item.stock_total %}
+                                {{ item.item.stock_sold or 0 }}/{{ item.item.stock_total }}
+                            {% else %}
+                                无限
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.item.per_user_limit or item.item.per_user_daily_limit %}
+                                {% if item.item.per_user_limit %}总:{{ item.item.per_user_limit }}{% endif %}
+                                {% if item.item.per_user_daily_limit %} 日:{{ item.item.per_user_daily_limit }}{% endif %}
+                            {% else %}
+                                无限制
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.item.is_active %}
+                                <span class="badge bg-success">启用</span>
+                            {% else %}
+                                <span class="badge bg-secondary">禁用</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-info edit-btn"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#addItemModal"
+                                    data-item-json='{{ item|tojson|safe }}'>
+                                <i class="fas fa-edit"></i> 编辑
+                            </button>
+                            <form action="{{ url_for('admin_bp.remove_shop_item', item_id=item.item.item_id, shop_id=shop.shop_id) }}" method="post" class="d-inline" onsubmit="return confirm('确定要从商店中移除【{{ item.item.name }}】吗？');">
+                                <button type="submit" class="btn btn-sm btn-danger">
+                                    <i class="fas fa-trash"></i> 移除
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 添加商品到商店模态框 -->
+<div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="item-form" method="post">
+                <input type="hidden" name="item_id" id="item_id">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="itemModalLabel">添加商品到商店</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">商品名称 *</label>
+                                <input type="text" name="name" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">商品描述</label>
+                                <input type="text" name="description" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 奖励设置 -->
+                    <div class="mb-3">
+                        <label class="form-label">奖励设置</label>
+                        <div id="rewards-list">
+                            <div class="row g-2 mb-2">
+                                <div class="col-12 col-md-8">
+                                    <select name="reward_item_full_id" class="form-select">
+                                        <option value="">-- 请选择奖励 --</option>
+                                        <optgroup label="鱼竿">
+                                            {% for rod in all_rods %}<option value="rod-{{ rod.rod_id }}" data-cost="{{ rod.purchase_cost or 0 }}" data-name="{{ rod.name }}" data-desc="{{ rod.description or '' }}">{{ rod.name }} {{ '★' * rod.rarity }}</option>{% endfor %}
+                                        </optgroup>
+                                        <optgroup label="鱼饵">
+                                            {% for bait in all_baits %}<option value="bait-{{ bait.bait_id }}" data-cost="{{ bait.cost or 0 }}" data-name="{{ bait.name }}" data-desc="{{ bait.description or '' }}">{{ bait.name }} {{ '★' * bait.rarity }}</option>{% endfor %}
+                                        </optgroup>
+                                        <optgroup label="饰品">
+                                            {% for accessory in all_accessories %}<option value="accessory-{{ accessory.accessory_id }}" data-cost="{{ accessory.cost or 0 }}" data-name="{{ accessory.name }}" data-desc="{{ accessory.description or '' }}">{{ accessory.name }} {{ '★' * accessory.rarity }}</option>{% endfor %}
+                                        </optgroup>
+                                        <optgroup label="道具">
+                                            {% for item in all_items %}<option value="item-{{ item.item_id }}" data-cost="{{ item.cost or 0 }}" data-name="{{ item.name }}" data-desc="{{ item.description or '' }}">{{ item.name }} {{ '★' * item.rarity }}</option>{% endfor %}
+                                        </optgroup>
+                                    </select>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <input name="reward_quantity" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
+                                </div>
+                                <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
+                                    <button type="button" class="btn btn-outline-danger btn-sm remove-reward">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="add-reward">添加奖励</button>
+                    </div>
+                    
+                    <!-- 消耗设置 -->
+                    <div class="mb-3">
+                        <label class="form-label">消耗设置</label>
+                        <div id="costs-list">
+                            <div class="row g-2 mb-2">
+                                <div class="col-12 col-md-5">
+                                    <select name="cost_item_full_id" class="form-select">
+                                        <option value="">-- 请选择消耗 --</option>
+                                        <optgroup label="货币">
+                                            <option value="coins-0">金币</option>
+                                            <option value="premium-0">高级货币</option>
+                                        </optgroup>
+                                        <optgroup label="鱼类">
+                                            {% for fish in all_fish %}<option value="fish-{{ fish.fish_id }}">{{ fish.name }} {{ '★' * fish.rarity }}</option>{% endfor %}
+                                        </optgroup>
+                                        <optgroup label="鱼竿">
+                                            {% for rod in all_rods %}<option value="rod-{{ rod.rod_id }}">{{ rod.name }} {{ '★' * rod.rarity }}</option>{% endfor %}
+                                        </optgroup>
+                                        <optgroup label="饰品">
+                                            {% for accessory in all_accessories %}<option value="accessory-{{ accessory.accessory_id }}">{{ accessory.name }} {{ '★' * accessory.rarity }}</option>{% endfor %}
+                                        </optgroup>
+                                        <optgroup label="道具">
+                                            {% for item in all_items %}<option value="item-{{ item.item_id }}">{{ item.name }} {{ '★' * item.rarity }}</option>{% endfor %}
+                                        </optgroup>
+                                    </select>
+                                </div>
+                                <div class="col-6 col-md-2">
+                                    <input name="cost_amount" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
+                                </div>
+                                <div class="col-3 col-md-2">
+                                    <select name="cost_relation" class="form-select">
+                                        <option value="and">AND</option>
+                                        <option value="or">OR</option>
+                                    </select>
+                                </div>
+            <div class="col-3 col-md-2">
+                <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组ID" title="分组ID使用说明：
+
+基本规则：
+• 相同组ID + OR关系 = 多选一（用户只需满足其中任意一个）
+• 不同组ID = 必须同时满足（AND关系）
+• AND关系 = 必须提供（无论组ID如何）
+
+配置示例：
+1. 高级货币 OR 创世神鳞：
+   - 行1: 高级货币x10, OR, 组ID=1
+   - 行2: 创世神鳞x1, OR, 组ID=1
+
+2. 高级货币 AND 创世神鳞：
+   - 行1: 高级货币x10, AND, 组ID=1
+   - 行2: 创世神鳞x1, AND, 组ID=2
+
+3. 复杂组合：(高级货币 OR 金币) AND (创世神鳞 OR 世界之鱼)：
+   - 行1: 高级货币x10, OR, 组ID=1
+   - 行2: 金币x1000, OR, 组ID=1
+   - 行3: 创世神鳞x1, OR, 组ID=2
+   - 行4: 世界之鱼x1, OR, 组ID=2">
+            </div>
+                                <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
+                                    <button type="button" class="btn btn-outline-danger btn-sm remove-cost">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="add-cost">添加消耗</button>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">商店库存</label>
+                                <input type="number" name="stock_total" class="form-control" placeholder="留空表示无限">
+                                <div class="form-text">该商店内此商品的独立库存</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">已售数量</label>
+                                <input type="number" name="stock_sold" class="form-control" value="0" min="0">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">每用户总限购</label>
+                                <input type="number" name="per_user_limit" class="form-control" placeholder="留空表示无限制">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">每用户每日限购</label>
+                                <input type="number" name="per_user_daily_limit" class="form-control" placeholder="留空表示无限制">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">开始时间</label>
+                                <input type="datetime-local" name="start_time" class="form-control">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">结束时间</label>
+                                <input type="datetime-local" name="end_time" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="isActive" name="is_active" checked>
+                            <label class="form-check-label" for="isActive">在商店中启用</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // 添加商品到商店模态框
+    const addItemModal = document.getElementById('addItemModal');
+    const addItemModalTitle = addItemModal.querySelector('.modal-title');
+    const addItemForm = addItemModal.querySelector('#item-form');
+    const addItemBtn = document.getElementById('addItemBtn');
+    const editItemBtns = document.querySelectorAll('.edit-btn');
+
+    if(addItemBtn) {
+        addItemBtn.addEventListener('click', function () {
+            addItemModalTitle.textContent = '添加商品到商店';
+            addItemForm.action = "{{ url_for('admin_bp.add_shop_item', shop_id=shop.shop_id) }}";
+            addItemForm.reset();
+            if (addItemForm.elements['is_active']) addItemForm.elements['is_active'].checked = true;
+        });
+    }
+
+    if(editItemBtns) {
+        editItemBtns.forEach(button => {
+            button.addEventListener('click', function (e) {
+                e.preventDefault();
+                const data = JSON.parse(this.dataset.itemJson);
+                addItemModalTitle.textContent = `编辑商品: ${data.item.name}`;
+                addItemForm.action = `/admin/shops/{{ shop.shop_id }}/items/edit/${data.item.item_id}`;
+
+                // 填充表单
+                if (addItemForm.elements['name']) {
+                    addItemForm.elements['name'].value = data.item.name || '';
+                }
+                if (addItemForm.elements['description']) {
+                    addItemForm.elements['description'].value = data.item.description || '';
+                }
+                if (addItemForm.elements['item_id']) addItemForm.elements['item_id'].value = data.item.item_id;
+                if (addItemForm.elements['stock_total']) addItemForm.elements['stock_total'].value = data.item.stock_total || '';
+                if (addItemForm.elements['stock_sold']) addItemForm.elements['stock_sold'].value = data.item.stock_sold || 0;
+                if (addItemForm.elements['per_user_limit']) addItemForm.elements['per_user_limit'].value = data.item.per_user_limit || '';
+                if (addItemForm.elements['per_user_daily_limit']) addItemForm.elements['per_user_daily_limit'].value = data.item.per_user_daily_limit || '';
+                if (addItemForm.elements['is_active']) addItemForm.elements['is_active'].checked = !!data.item.is_active;
+                
+                // 时间字段
+                if (addItemForm.elements['start_time']) {
+                    if (data.item.start_time) {
+                        // 转换为 datetime-local 格式 (YYYY-MM-DDTHH:MM)
+                        addItemForm.elements['start_time'].value = data.item.start_time.replace(' ', 'T').substring(0, 16);
+                    } else {
+                        addItemForm.elements['start_time'].value = '';
+                    }
+                }
+                if (addItemForm.elements['end_time']) {
+                    if (data.item.end_time) {
+                        // 转换为 datetime-local 格式 (YYYY-MM-DDTHH:MM)
+                        addItemForm.elements['end_time'].value = data.item.end_time.replace(' ', 'T').substring(0, 16);
+                    } else {
+                        addItemForm.elements['end_time'].value = '';
+                    }
+                }
+                
+                // 填充消耗数据
+                const costsList = document.getElementById('costs-list');
+                if (costsList && data.costs) {
+                    // 保留第一行用于自动填充，清空其他行
+                    const existingRows = costsList.querySelectorAll('.row.g-2.mb-2');
+                    existingRows.forEach((row, index) => {
+                        if (index > 0) { // 保留第一行
+                            row.remove();
+                        }
+                    });
+                    
+                    // 清空第一行的值
+                    const firstRow = costsList.querySelector('.row.g-2.mb-2');
+                    if (firstRow) {
+                        const firstSelect = firstRow.querySelector('select[name="cost_item_full_id"]');
+                        const firstAmount = firstRow.querySelector('input[name="cost_amount"]');
+                        if (firstSelect) firstSelect.value = '';
+                        if (firstAmount) firstAmount.value = '';
+                    }
+                    
+                    // 添加消耗行
+                    data.costs.forEach(cost => {
+                        addCostRow();
+                        const lastRow = costsList.lastElementChild;
+                        const select = lastRow.querySelector('select[name="cost_item_full_id"]');
+                        const amountInput = lastRow.querySelector('input[name="cost_amount"]');
+                        const relationSelect = lastRow.querySelector('select[name="cost_relation"]');
+                        const groupInput = lastRow.querySelector('input[name="cost_group"]');
+                        
+                        if (cost.cost_type === 'coins') {
+                            select.value = 'coins-0';
+                        } else if (cost.cost_type === 'premium') {
+                            select.value = 'premium-0';
+                        } else if (cost.cost_type === 'fish') {
+                            select.value = `fish-${cost.cost_item_id}`;
+                        } else if (cost.cost_type === 'item') {
+                            select.value = `item-${cost.cost_item_id}`;
+                        }
+                        
+                        if (amountInput) {
+                            amountInput.value = cost.cost_amount;
+                        }
+                        if (relationSelect) {
+                            relationSelect.value = cost.cost_relation || 'and';
+                        }
+                        if (groupInput && cost.group_id) {
+                            groupInput.value = cost.group_id;
+                        }
+                    });
+                }
+                
+                // 填充奖励数据
+                const rewardsList = document.getElementById('rewards-list');
+                if (rewardsList && data.rewards) {
+                    // 保留第一行用于自动填充，清空其他行
+                    const existingRows = rewardsList.querySelectorAll('.row.g-2.mb-2');
+                    existingRows.forEach((row, index) => {
+                        if (index > 0) { // 保留第一行
+                            row.remove();
+                        }
+                    });
+                    
+                    // 清空第一行的值
+                    const firstRow = rewardsList.querySelector('.row.g-2.mb-2');
+                    if (firstRow) {
+                        const firstSelect = firstRow.querySelector('select[name="reward_item_full_id"]');
+                        const firstQuantity = firstRow.querySelector('input[name="reward_quantity"]');
+                        const firstRefine = firstRow.querySelector('input[name="reward_refine_level"]');
+                        if (firstSelect) firstSelect.value = '';
+                        if (firstQuantity) firstQuantity.value = '1';
+                        if (firstRefine) firstRefine.value = '';
+                    }
+                    
+                    // 添加奖励行
+                    data.rewards.forEach(reward => {
+                        addRewardRow();
+                        const lastRow = rewardsList.lastElementChild;
+                        const select = lastRow.querySelector('select[name="reward_item_full_id"]');
+                        const quantityInput = lastRow.querySelector('input[name="reward_quantity"]');
+                        const refineInput = lastRow.querySelector('input[name="reward_refine_level"]');
+                        
+                        if (reward.reward_type === 'rod') {
+                            select.value = `rod-${reward.reward_item_id}`;
+                        } else if (reward.reward_type === 'bait') {
+                            select.value = `bait-${reward.reward_item_id}`;
+                        } else if (reward.reward_type === 'accessory') {
+                            select.value = `accessory-${reward.reward_item_id}`;
+                        } else if (reward.reward_type === 'item') {
+                            select.value = `item-${reward.reward_item_id}`;
+                        } else if (reward.reward_type === 'fish') {
+                            select.value = `fish-${reward.reward_item_id}`;
+                        } else if (reward.reward_type === 'coins') {
+                            select.value = 'coins-0';
+                        }
+                        
+                        if (quantityInput) {
+                            quantityInput.value = reward.reward_quantity;
+                        }
+                        if (refineInput && reward.reward_refine_level) {
+                            refineInput.value = reward.reward_refine_level;
+                        }
+                    });
+                }
+                
+                // 显示 Modal
+                try {
+                    const modal = bootstrap.Modal.getOrCreateInstance(addItemModal);
+                    modal.show();
+                } catch (error) {
+                    console.error('Modal 初始化失败:', error);
+                    // 备用方案：直接显示模态框
+                    addItemModal.style.display = 'block';
+                    addItemModal.classList.add('show');
+                    document.body.classList.add('modal-open');
+                }
+            });
+        });
+    }
+
+
+
+    // 动态添加消耗和奖励行
+    document.getElementById('add-cost')?.addEventListener('click', addCostRow);
+    document.getElementById('add-reward')?.addEventListener('click', addRewardRow);
+
+    // 自动填充商品名称/描述与金币成本 - 简化版但实用
+    function setupAutoFill() {
+        const nameInput = document.querySelector('input[name="name"]');
+        const descriptionInput = document.querySelector('input[name="description"]');
+        
+        // 监听第一个奖励选择的变化
+        const firstRewardSelect = document.querySelector('select[name="reward_item_full_id"]');
+        if (firstRewardSelect) {
+            firstRewardSelect.addEventListener('change', function() {
+                if (!this.value) return;
+                const selectedOption = this.options[this.selectedIndex];
+
+                // 1) 自动填充名称与描述（仅当为空）
+                const itemName = selectedOption.dataset.name || selectedOption.textContent.trim();
+                const itemDesc = selectedOption.dataset.desc || '';
+                if (!nameInput.value && itemName) {
+                    nameInput.value = itemName;
+                }
+                if (!descriptionInput.value && itemDesc) {
+                    descriptionInput.value = itemDesc;
+                }
+
+                // 2) 自动填充金币成本到第一个消耗行
+                const price = Number(selectedOption.dataset.cost || 0);
+                if (price > 0) {
+                    const firstCostSelect = document.querySelector('#costs-list select[name="cost_item_full_id"]');
+                    const firstCostAmount = document.querySelector('#costs-list input[name="cost_amount"]');
+                    if (firstCostSelect) firstCostSelect.value = 'coins-0';
+                    if (firstCostAmount) firstCostAmount.value = String(price);
+                }
+            });
+        }
+    }
+
+    // 初始化自动填充
+    setupAutoFill();
+
+    function addCostRow() {
+        const container = document.getElementById('costs-list');
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2';
+        row.innerHTML = `
+            <div class="col-12 col-md-5">
+                <select name="cost_item_full_id" class="form-select">
+                    <option value="">-- 请选择消耗 --</option>
+                    <optgroup label="货币">
+                        <option value="coins-0">金币</option>
+                        <option value="premium-0">高级货币</option>
+                    </optgroup>
+                    <optgroup label="鱼类">
+                        {% for fish in all_fish %}<option value="fish-{{ fish.fish_id }}">{{ fish.name }} {{ '★' * fish.rarity }}</option>{% endfor %}
+                    </optgroup>
+                    <optgroup label="鱼竿">
+                        {% for rod in all_rods %}<option value="rod-{{ rod.rod_id }}">{{ rod.name }} {{ '★' * rod.rarity }}</option>{% endfor %}
+                    </optgroup>
+                    <optgroup label="饰品">
+                        {% for accessory in all_accessories %}<option value="accessory-{{ accessory.accessory_id }}">{{ accessory.name }} {{ '★' * accessory.rarity }}</option>{% endfor %}
+                    </optgroup>
+                    <optgroup label="道具">
+                        {% for item in all_items %}<option value="item-{{ item.item_id }}">{{ item.name }} {{ '★' * item.rarity }}</option>{% endfor %}
+                    </optgroup>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <input name="cost_amount" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
+            </div>
+            <div class="col-3 col-md-2">
+                <select name="cost_relation" class="form-select">
+                    <option value="and">AND</option>
+                    <option value="or">OR</option>
+                </select>
+            </div>
+            <div class="col-3 col-md-2">
+                <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组ID" title="分组ID使用说明：
+
+基本规则：
+• 相同组ID + OR关系 = 多选一（用户只需满足其中任意一个）
+• 不同组ID = 必须同时满足（AND关系）
+• AND关系 = 必须提供（无论组ID如何）
+
+配置示例：
+1. 高级货币 OR 创世神鳞：
+   - 行1: 高级货币x10, OR, 组ID=1
+   - 行2: 创世神鳞x1, OR, 组ID=1
+
+2. 高级货币 AND 创世神鳞：
+   - 行1: 高级货币x10, AND, 组ID=1
+   - 行2: 创世神鳞x1, AND, 组ID=2
+
+3. 复杂组合：(高级货币 OR 金币) AND (创世神鳞 OR 世界之鱼)：
+   - 行1: 高级货币x10, OR, 组ID=1
+   - 行2: 金币x1000, OR, 组ID=1
+   - 行3: 创世神鳞x1, OR, 组ID=2
+   - 行4: 世界之鱼x1, OR, 组ID=2">
+            </div>
+            <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
+                <button type="button" class="btn btn-outline-danger btn-sm remove-cost">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        `;
+        container.appendChild(row);
+        
+        row.querySelector('.remove-cost').addEventListener('click', function() {
+            row.remove();
+        });
+        
+    }
+
+    function addRewardRow() {
+        const container = document.getElementById('rewards-list');
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2';
+        row.innerHTML = `
+            <div class="col-12 col-md-8">
+                <select name="reward_item_full_id" class="form-select">
+                    <option value="">-- 请选择奖励 --</option>
+                    <optgroup label="鱼竿">
+                        {% for rod in all_rods %}<option value="rod-{{ rod.rod_id }}" data-cost="{{ rod.purchase_cost or 0 }}" data-name="{{ rod.name }}" data-desc="{{ rod.description or '' }}">{{ rod.name }} {{ '★' * rod.rarity }}</option>{% endfor %}
+                    </optgroup>
+                    <optgroup label="鱼饵">
+                        {% for bait in all_baits %}<option value="bait-{{ bait.bait_id }}" data-cost="{{ bait.cost or 0 }}" data-name="{{ bait.name }}" data-desc="{{ bait.description or '' }}">{{ bait.name }} {{ '★' * bait.rarity }}</option>{% endfor %}
+                    </optgroup>
+                    <optgroup label="饰品">
+                        {% for accessory in all_accessories %}<option value="accessory-{{ accessory.accessory_id }}" data-cost="{{ accessory.cost or 0 }}" data-name="{{ accessory.name }}" data-desc="{{ accessory.description or '' }}">{{ accessory.name }} {{ '★' * accessory.rarity }}</option>{% endfor %}
+                    </optgroup>
+                    <optgroup label="道具">
+                        {% for item in all_items %}<option value="item-{{ item.item_id }}" data-cost="{{ item.cost or 0 }}" data-name="{{ item.name }}" data-desc="{{ item.description or '' }}">{{ item.name }} {{ '★' * item.rarity }}</option>{% endfor %}
+                    </optgroup>
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <input name="reward_quantity" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
+            </div>
+            <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
+                <button type="button" class="btn btn-outline-danger btn-sm remove-reward">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        `;
+        container.appendChild(row);
+        
+        row.querySelector('.remove-reward').addEventListener('click', function() {
+            row.remove();
+        });
+        
+        
+    }
+});
+</script>
+{% endblock %}
