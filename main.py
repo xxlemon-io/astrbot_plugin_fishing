@@ -315,10 +315,6 @@ class FishingPlugin(Star):
             yield r
 
 
-    @filter.command("精炼帮助", alias={"精炼说明"})
-    async def refine_help(self, event: AstrMessageEvent):
-        async for r in inventory_handlers.refine_help(self, event):
-            yield r
 
     @filter.command("锁定", alias={"上锁"})
     async def lock_equipment(self, event: AstrMessageEvent):

@@ -449,6 +449,7 @@ async def buy_in_shop(self, event: AstrMessageEvent):
     if not shop_id.isdigit() or not item_id.isdigit():
         yield event.plain_result("❌ 商店ID与商品ID必须是数字")
         return
+    # 默认购买1个，如果指定了数量则使用指定数量
     qty = 1
     if len(args) >= 4:
         if not args[3].isdigit() or int(args[3]) <= 0:
@@ -629,88 +630,8 @@ async def market(self, event: AstrMessageEvent):
         # 处理其他异常情况
         yield event.plain_result(f"❌ 查看市场时发生错误：{str(e)}")
 
-async def list_rod(self, event: AstrMessageEvent):
-    """上架鱼竿到市场"""
-    user_id = self._get_effective_user_id(event)
-    args = event.message_str.split(" ")
-    if len(args) < 3:
-        yield event.plain_result("❌ 请指定要上架的鱼竿 ID和价格，例如：/上架鱼竿 R1A2B 1000")
-        return
-    token = args[1]
-    instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
-    if instance_id is None:
-        yield event.plain_result("❌ 无效的鱼竿ID，请输入短码（如 R2N9C）。")
-        return
-    price = args[2]
-    if not price.isdigit() or int(price) <= 0:
-        yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
-        return
-    result = self.market_service.put_item_on_sale(user_id, "rod", int(instance_id), int(price))
-    if result:
-        if result["success"]:
-            yield event.plain_result(result["message"])
-        else:
-            yield event.plain_result(f"❌ 上架鱼竿失败：{result['message']}")
-    else:
-        yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-async def list_accessories(self, event: AstrMessageEvent):
-    """上架饰品到市场"""
-    user_id = self._get_effective_user_id(event)
-    args = event.message_str.split(" ")
-    if len(args) < 3:
-        yield event.plain_result("❌ 请指定要上架的饰品 ID和价格，例如：/上架饰品 A3C4D 1000")
-        return
-    token = args[1]
-    instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
-    if instance_id is None:
-        yield event.plain_result("❌ 无效的饰品ID，请输入短码（如 A7K3Q）。")
-        return
-    price = args[2]
-    if not price.isdigit() or int(price) <= 0:
-        yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
-        return
-    result = self.market_service.put_item_on_sale(user_id, "accessory", int(instance_id), int(price))
-    if result:
-        if result["success"]:
-            yield event.plain_result(result["message"])
-        else:
-            yield event.plain_result(f"❌ 上架饰品失败：{result['message']}")
-    else:
-        yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-async def list_item(self, event: AstrMessageEvent):
-    """上架道具到市场：/上架道具 <ID> <价格> [数量]"""
-    user_id = self._get_effective_user_id(event)
-    args = event.message_str.split(" ")
-    if len(args) < 3:
-        yield event.plain_result("❌ 请指定要上架的道具 ID和价格，例如：/上架道具 1 1000 或 /上架道具 1 1000 10")
-        return
-    item_id = args[1]
-    if not item_id.isdigit():
-        yield event.plain_result("❌ 道具 ID 必须是数字，请检查后重试。")
-        return
-    price = args[2]
-    if not price.isdigit() or int(price) <= 0:
-        yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
-        return
-    
-    # 处理数量参数
-    quantity = 1
-    if len(args) > 3 and args[3].isdigit():
-        quantity = int(args[3])
-        if quantity <= 0:
-            yield event.plain_result("❌ 数量必须是正整数。")
-            return
-    
-    result = self.market_service.put_item_on_sale(user_id, "item", int(item_id), int(price), quantity=quantity)
-    if result:
-        if result["success"]:
-            yield event.plain_result(result["message"])
-        else:
-            yield event.plain_result(f"❌ 上架道具失败：{result['message']}")
-    else:
-        yield event.plain_result("❌ 出错啦！请稍后再试。")
 
 async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
     """统一上架命令：/上架 <ID> <价格> [数量] [匿名]
