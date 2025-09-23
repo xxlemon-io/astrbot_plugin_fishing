@@ -318,6 +318,10 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.refine_equipment(self, event):
             yield r
 
+    @filter.command("出售", alias={"卖出"})
+    async def sell_equipment(self, event: AstrMessageEvent):
+        async for r in inventory_handlers.sell_equipment(self, event):
+            yield r
 
     @filter.command("鱼饵")
     async def bait(self, event: AstrMessageEvent):
@@ -410,19 +414,9 @@ class FishingPlugin(Star):
         async for r in market_handlers.sell_by_rarity(self, event):
             yield r
 
-    @filter.command("出售鱼竿", alias={"卖出鱼竿"})
-    async def sell_rod(self, event: AstrMessageEvent):
-        async for r in market_handlers.sell_rod(self, event):
-            yield r
-
     @filter.command("出售所有鱼竿", alias={"出售全部鱼竿", "卖出所有鱼竿", "卖出全部鱼竿", "清空鱼竿"})
     async def sell_all_rods(self, event: AstrMessageEvent):
         async for r in market_handlers.sell_all_rods(self, event):
-            yield r
-
-    @filter.command("出售饰品", alias={"卖出饰品", "卖饰品", "卖掉饰品"})
-    async def sell_accessories(self, event: AstrMessageEvent):
-        async for r in market_handlers.sell_accessories(self, event):
             yield r
 
     @filter.command("出售所有饰品", alias={"出售全部饰品", "卖出所有饰品", "卖出全部饰品", "清空饰品"})

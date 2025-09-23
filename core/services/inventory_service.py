@@ -628,6 +628,22 @@ class InventoryService:
 
         return {"success": True, "message": f"💰 成功卖出所有饰品，获得 {total_value} 金币"}
 
+    def sell_equipment(self, user_id: str, instance_id: int, item_type: str) -> Dict[str, Any]:
+        """
+        统一出售装备方法 - 根据类型自动调用对应的出售方法
+        
+        Args:
+            user_id: 用户ID
+            instance_id: 物品实例ID
+            item_type: 物品类型，"rod"或"accessory"
+        """
+        if item_type == "rod":
+            return self.sell_rod(user_id, instance_id)
+        elif item_type == "accessory":
+            return self.sell_accessory(user_id, instance_id)
+        else:
+            return {"success": False, "message": "❌ 不支持的装备类型"}
+
     def equip_item(self, user_id: str, instance_id: int, item_type: str) -> Dict[str, Any]:
         """
         装备一个物品（鱼竿或饰品）。

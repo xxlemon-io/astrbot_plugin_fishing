@@ -44,53 +44,12 @@ async def sell_by_rarity(self, event: AstrMessageEvent):
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-async def sell_rod(self, event: AstrMessageEvent):
-    """出售鱼竿"""
-    user_id = self._get_effective_user_id(event)
-    args = event.message_str.split(" ")
-    if len(args) < 2:
-        yield event.plain_result("❌ 请指定要出售的鱼竿 ID，例如：/出售鱼竿 R1A2B")
-        return
-    token = args[1]
-    instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
-    if instance_id is None:
-        yield event.plain_result("❌ 无效的鱼竿ID，请输入短码（如 R2N9C）。")
-        return
-    if result := self.inventory_service.sell_rod(user_id, int(instance_id)):
-        if result["success"]:
-            yield event.plain_result(result["message"])
-        else:
-            yield event.plain_result(f"❌ 出售鱼竿失败：{result['message']}")
-    else:
-        yield event.plain_result("❌ 出错啦！请稍后再试。")
-
 async def sell_all_rods(self, event: AstrMessageEvent):
     """出售用户所有鱼竿"""
     user_id = self._get_effective_user_id(event)
     result = self.inventory_service.sell_all_rods(user_id)
     if result:
         yield event.plain_result(result["message"])
-    else:
-        yield event.plain_result("❌ 出错啦！请稍后再试。")
-
-async def sell_accessories(self, event: AstrMessageEvent):
-    """出售饰品"""
-    user_id = self._get_effective_user_id(event)
-    args = event.message_str.split(" ")
-    if len(args) < 2:
-        yield event.plain_result("❌ 请指定要出售的饰品 ID，例如：/出售饰品 A3C4D")
-        return
-    token = args[1]
-    instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
-    if instance_id is None:
-        yield event.plain_result("❌ 无效的饰品ID，请输入短码（如 A7K3Q）。")
-        return
-    result = self.inventory_service.sell_accessory(user_id, int(instance_id))
-    if result:
-        if result["success"]:
-            yield event.plain_result(result["message"])
-        else:
-            yield event.plain_result(f"❌ 出售饰品失败：{result['message']}")
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 

@@ -575,6 +575,56 @@ async def refine_equipment(self, event: AstrMessageEvent, equipment_type: str = 
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
+async def sell_equipment(self, event: AstrMessageEvent, equipment_type: str = None):
+    """统一出售装备命令 - 根据短码前缀自动判断类型"""
+    user_id = self._get_effective_user_id(event)
+    args = event.message_str.split(" ")
+    if len(args) < 2:
+        yield event.plain_result("❌ 请指定要出售的装备ID，例如：/出售 R1A2B 或 /出售 A3C4D")
+        return
+
+    token = args[1].strip().upper()
+    
+    # 检查是否为数字ID（旧格式）
+    if token.isdigit():
+        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        return
+    
+    # 根据前缀自动判断装备类型
+    if token.startswith("R"):
+        target_type = "rod"
+        type_name = "鱼竿"
+    elif token.startswith("A"):
+        target_type = "accessory"
+        type_name = "饰品"
+    else:
+        # 如果没有前缀，使用传入的类型参数
+        if equipment_type:
+            target_type = equipment_type
+            type_name = "鱼竿" if equipment_type == "rod" else "饰品"
+        else:
+            yield event.plain_result("❌ 请使用正确的装备ID：R开头为鱼竿，A开头为饰品")
+            return
+
+    # 解析实例ID
+    if target_type == "rod":
+        instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
+    else:
+        instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
+    
+    if instance_id is None:
+        yield event.plain_result(f"❌ 无效的{type_name}ID，请检查后重试。")
+        return
+
+    # 出售物品
+    if result := self.inventory_service.sell_equipment(user_id, int(instance_id), target_type):
+        if result["success"]:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result(f"❌ 出售失败：{result['message']}")
+    else:
+        yield event.plain_result("❌ 出错啦！请稍后再试。")
+
 async def lock_equipment(self, event: AstrMessageEvent, equipment_type: str = None):
     """统一锁定装备命令 - 根据短码前缀自动判断类型"""
     user_id = self._get_effective_user_id(event)
