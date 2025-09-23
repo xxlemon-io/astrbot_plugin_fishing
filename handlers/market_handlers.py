@@ -675,11 +675,11 @@ async def list_accessories(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
 async def list_item(self, event: AstrMessageEvent):
-    """上架道具到市场"""
+    """上架道具到市场：/上架道具 <ID> <价格> [数量]"""
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 3:
-        yield event.plain_result("❌ 请指定要上架的道具 ID和价格，例如：/上架道具 1 1000")
+        yield event.plain_result("❌ 请指定要上架的道具 ID和价格，例如：/上架道具 1 1000 或 /上架道具 1 1000 10")
         return
     item_id = args[1]
     if not item_id.isdigit():
@@ -689,7 +689,16 @@ async def list_item(self, event: AstrMessageEvent):
     if not price.isdigit() or int(price) <= 0:
         yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
         return
-    result = self.market_service.put_item_on_sale(user_id, "item", int(item_id), int(price))
+    
+    # 处理数量参数
+    quantity = 1
+    if len(args) > 3 and args[3].isdigit():
+        quantity = int(args[3])
+        if quantity <= 0:
+            yield event.plain_result("❌ 数量必须是正整数。")
+            return
+    
+    result = self.market_service.put_item_on_sale(user_id, "item", int(item_id), int(price), quantity=quantity)
     if result:
         if result["success"]:
             yield event.plain_result(result["message"])
@@ -699,7 +708,7 @@ async def list_item(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
 async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
-    """统一上架命令：/上架 <ID> <价格> [匿名]
+    """统一上架命令：/上架 <ID> <价格> [数量] [匿名]
     - Rxxxx: 鱼竿实例
     - Axxxx: 饰品实例
     - Dxxxx: 道具模板
@@ -708,14 +717,33 @@ async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 3:
-        yield event.plain_result("❌ 用法：/上架 ID 价格 [匿名]\n示例：/上架 R2N9C 1000、/上架 A7K3Q 2000 匿名")
+        yield event.plain_result("❌ 用法：/上架 ID 价格 [数量] [匿名]\n示例：/上架 R2N9C 1000、/上架 D1 100 10、/上架 F3 50 5 匿名\n💡 匿名参数必须在最后")
         return
     token = args[1].strip().upper()
     price = args[2]
     
-    # 检查是否有匿名参数
-    if len(args) > 3 and args[3].strip().lower() in ['匿名', 'anonymous']:
-        is_anonymous = True
+    # 解析数量和匿名参数
+    quantity = 1
+    is_anonymous = is_anonymous  # 保持传入的匿名状态
+    
+    # 检查最后一个参数是否为匿名参数
+    if len(args) > 3:
+        last_arg = args[-1].strip().lower()
+        if last_arg in ['匿名', 'anonymous']:
+            is_anonymous = True
+            # 如果最后一个参数是匿名，那么数量参数在倒数第二个位置
+            if len(args) > 4 and args[-2].isdigit():
+                quantity = int(args[-2])
+                if quantity <= 0:
+                    yield event.plain_result("❌ 数量必须是正整数。")
+                    return
+        else:
+            # 如果最后一个参数不是匿名，那么它就是数量参数
+            if args[-1].isdigit():
+                quantity = int(args[-1])
+                if quantity <= 0:
+                    yield event.plain_result("❌ 数量必须是正整数。")
+                    return
     
     if not price.isdigit() or int(price) <= 0:
         yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
@@ -737,27 +765,27 @@ async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
         if instance_id is None:
             yield event.plain_result("❌ 无效的鱼竿ID，请检查后重试。")
             return
-        result = self.market_service.put_item_on_sale(user_id, "rod", int(instance_id), price, is_anonymous=is_anonymous)
+        result = self.market_service.put_item_on_sale(user_id, "rod", int(instance_id), price, is_anonymous=is_anonymous, quantity=quantity)
     elif token.startswith('A'):
         instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
         if instance_id is None:
             yield event.plain_result("❌ 无效的饰品ID，请检查后重试。")
             return
-        result = self.market_service.put_item_on_sale(user_id, "accessory", int(instance_id), price, is_anonymous=is_anonymous)
+        result = self.market_service.put_item_on_sale(user_id, "accessory", int(instance_id), price, is_anonymous=is_anonymous, quantity=quantity)
     elif token.startswith('D'):
         try:
             item_id = int(token[1:])
         except Exception:
             yield event.plain_result("❌ 无效的道具ID，请检查后重试。")
             return
-        result = self.market_service.put_item_on_sale(user_id, "item", int(item_id), price, is_anonymous=is_anonymous)
+        result = self.market_service.put_item_on_sale(user_id, "item", int(item_id), price, is_anonymous=is_anonymous, quantity=quantity)
     elif token.startswith('F'):
         try:
             fish_id = int(token[1:])
         except Exception:
             yield event.plain_result("❌ 无效的鱼类ID，请检查后重试。")
             return
-        result = self.market_service.put_item_on_sale(user_id, "fish", int(fish_id), price, is_anonymous=is_anonymous)
+        result = self.market_service.put_item_on_sale(user_id, "fish", int(fish_id), price, is_anonymous=is_anonymous, quantity=quantity)
     else:
         yield event.plain_result("❌ 无效ID，请使用以 R/A/D/F 开头的短码")
         return
@@ -770,85 +798,6 @@ async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
             yield event.plain_result(message)
         else:
             yield event.plain_result(f"❌ 上架失败：{result['message']}")
-    else:
-        yield event.plain_result("❌ 出错啦！请稍后再试。")
-
-async def anonymous_list_any(self, event: AstrMessageEvent):
-    """匿名上架命令：调用统一上架命令并设置匿名参数"""
-    async for r in list_any(event, is_anonymous=True):
-        yield r
-
-async def anonymous_list_rod(self, event: AstrMessageEvent):
-    """匿名上架鱼竿到市场"""
-    user_id = self._get_effective_user_id(event)
-    args = event.message_str.split(" ")
-    if len(args) < 3:
-        yield event.plain_result("❌ 请指定要上架的鱼竿 ID和价格，例如：/匿名上架鱼竿 R1A2B 1000")
-        return
-    token = args[1]
-    instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
-    if instance_id is None:
-        yield event.plain_result("❌ 无效的鱼竿ID，请输入短码（如 R2N9C）。")
-        return
-    price = args[2]
-    if not price.isdigit() or int(price) <= 0:
-        yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
-        return
-    result = self.market_service.put_item_on_sale(user_id, "rod", int(instance_id), int(price), is_anonymous=True)
-    if result:
-        if result["success"]:
-            yield event.plain_result(f"🎭 {result['message']} (匿名上架)")
-        else:
-            yield event.plain_result(f"❌ 匿名上架鱼竿失败：{result['message']}")
-    else:
-        yield event.plain_result("❌ 出错啦！请稍后再试。")
-
-async def anonymous_list_accessories(self, event: AstrMessageEvent):
-    """匿名上架饰品到市场"""
-    user_id = self._get_effective_user_id(event)
-    args = event.message_str.split(" ")
-    if len(args) < 3:
-        yield event.plain_result("❌ 请指定要上架的饰品 ID和价格，例如：/匿名上架饰品 A3C4D 1000")
-        return
-    token = args[1]
-    instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
-    if instance_id is None:
-        yield event.plain_result("❌ 无效的饰品ID，请输入数字或短码（如 A7K3Q）。")
-        return
-    price = args[2]
-    if not price.isdigit() or int(price) <= 0:
-        yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
-        return
-    result = self.market_service.put_item_on_sale(user_id, "accessory", int(instance_id), int(price), is_anonymous=True)
-    if result:
-        if result["success"]:
-            yield event.plain_result(f"🎭 {result['message']} (匿名上架)")
-        else:
-            yield event.plain_result(f"❌ 匿名上架饰品失败：{result['message']}")
-    else:
-        yield event.plain_result("❌ 出错啦！请稍后再试。")
-
-async def anonymous_list_item(self, event: AstrMessageEvent):
-    """匿名上架道具到市场"""
-    user_id = self._get_effective_user_id(event)
-    args = event.message_str.split(" ")
-    if len(args) < 3:
-        yield event.plain_result("❌ 请指定要上架的道具 ID和价格，例如：/匿名上架道具 1 1000")
-        return
-    item_id = args[1]
-    if not item_id.isdigit():
-        yield event.plain_result("❌ 道具 ID 必须是数字，请检查后重试。")
-        return
-    price = args[2]
-    if not price.isdigit() or int(price) <= 0:
-        yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
-        return
-    result = self.market_service.put_item_on_sale(user_id, "item", int(item_id), int(price), is_anonymous=True)
-    if result:
-        if result["success"]:
-            yield event.plain_result(f"🎭 {result['message']} (匿名上架)")
-        else:
-            yield event.plain_result(f"❌ 匿名上架道具失败：{result['message']}")
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
