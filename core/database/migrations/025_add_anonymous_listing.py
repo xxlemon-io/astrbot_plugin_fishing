@@ -5,7 +5,7 @@ def _ensure_column(cursor: sqlite3.Cursor, table: str, column: str, ddl: str):
     cursor.execute(f"PRAGMA table_info({table})")
     cols = [row[1] for row in cursor.fetchall()]
     if column not in cols:
-        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
 
 def up(cursor: sqlite3.Cursor):
