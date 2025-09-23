@@ -247,23 +247,52 @@ async def shop(self, event: AstrMessageEvent):
             if rarity > 10:
                 rarity_stars += "+"
         
-        cost_parts = []
+        # 按组ID分组成本
+        cost_groups = {}
         for c in costs:
-            if c["cost_type"] == "coins":
-                cost_parts.append(f"{c['cost_amount']} 金币")
-            elif c["cost_type"] == "premium":
-                cost_parts.append(f"{c['cost_amount']} 高级货币")
-            elif c["cost_type"] == "item":
-                # 获取道具名称
-                item_template = self.item_template_repo.get_by_id(c.get("cost_item_id"))
-                item_name = item_template.name if item_template else f"道具#{c.get('cost_item_id')}"
-                cost_parts.append(f"🎁 {item_name} x{c['cost_amount']}")
-            elif c["cost_type"] == "fish":
-                # 获取鱼类名称
-                fish_template = self.item_template_repo.get_fish_by_id(c.get("cost_item_id"))
-                fish_name = fish_template.name if fish_template else f"鱼类#{c.get('cost_item_id')}"
-                cost_parts.append(f"🐟 {fish_name} x{c['cost_amount']}")
-        cost_str = " + ".join(cost_parts) if cost_parts else "免费"
+            group_id = c.get("group_id", 1)  # 默认组ID为1
+            if group_id not in cost_groups:
+                cost_groups[group_id] = []
+            cost_groups[group_id].append(c)
+        
+        # 构建成本字符串
+        group_parts = []
+        for group_id in sorted(cost_groups.keys()):
+            group_costs = cost_groups[group_id]
+            group_parts_inner = []
+            
+            for c in group_costs:
+                cost_text = ""
+                if c["cost_type"] == "coins":
+                    cost_text = f"💰 {c['cost_amount']} 金币"
+                elif c["cost_type"] == "premium":
+                    cost_text = f"💎 {c['cost_amount']} 高级货币"
+                elif c["cost_type"] == "item":
+                    # 获取道具名称
+                    item_template = self.item_template_repo.get_by_id(c.get("cost_item_id"))
+                    item_name = item_template.name if item_template else f"道具#{c.get('cost_item_id')}"
+                    cost_text = f"🎁 {item_name} x{c['cost_amount']}"
+                elif c["cost_type"] == "fish":
+                    # 获取鱼类名称
+                    fish_template = self.item_template_repo.get_fish_by_id(c.get("cost_item_id"))
+                    fish_name = fish_template.name if fish_template else f"鱼类#{c.get('cost_item_id')}"
+                    cost_text = f"🐟 {fish_name} x{c['cost_amount']}"
+                
+                group_parts_inner.append(cost_text)
+            
+            # 根据组内关系连接
+            if len(group_parts_inner) == 1:
+                group_parts.append(group_parts_inner[0])
+            else:
+                # 检查组内关系
+                relation = group_costs[0].get("cost_relation", "and")
+                if relation == "or":
+                    group_parts.append(f"({' OR '.join(group_parts_inner)})")
+                else:  # and
+                    group_parts.append(" + ".join(group_parts_inner))
+        
+        # 连接不同组（组间是AND关系）
+        cost_str = " + ".join(group_parts) if group_parts else "免费"
         stock_str = "无限" if item.get("stock_total") is None else f"{item.get('stock_sold',0)}/{item.get('stock_total')}"
         
         # 获取限购信息

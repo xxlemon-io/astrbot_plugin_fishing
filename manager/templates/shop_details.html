@@ -187,9 +187,29 @@
                                         <option value="or">OR</option>
                                     </select>
                                 </div>
-                                <div class="col-3 col-md-2">
-                                    <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组" title="分组ID，同组内为OR关系">
-                                </div>
+            <div class="col-3 col-md-2">
+                <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组ID" title="分组ID使用说明：
+
+基本规则：
+• 相同组ID + OR关系 = 多选一（用户只需满足其中任意一个）
+• 不同组ID = 必须同时满足（AND关系）
+• AND关系 = 必须提供（无论组ID如何）
+
+配置示例：
+1. 高级货币 OR 创世神鳞：
+   - 行1: 高级货币x10, OR, 组ID=1
+   - 行2: 创世神鳞x1, OR, 组ID=1
+
+2. 高级货币 AND 创世神鳞：
+   - 行1: 高级货币x10, AND, 组ID=1
+   - 行2: 创世神鳞x1, AND, 组ID=2
+
+3. 复杂组合：(高级货币 OR 金币) AND (创世神鳞 OR 世界之鱼)：
+   - 行1: 高级货币x10, OR, 组ID=1
+   - 行2: 金币x1000, OR, 组ID=1
+   - 行3: 创世神鳞x1, OR, 组ID=2
+   - 行4: 世界之鱼x1, OR, 组ID=2">
+            </div>
                                 <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
                                     <button type="button" class="btn btn-outline-danger btn-sm remove-cost">
                                         <i class="fas fa-trash"></i>
@@ -515,7 +535,27 @@ document.addEventListener('DOMContentLoaded', function () {
                 </select>
             </div>
             <div class="col-3 col-md-2">
-                <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组" title="分组ID，同组内为OR关系">
+                <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组ID" title="分组ID使用说明：
+
+基本规则：
+• 相同组ID + OR关系 = 多选一（用户只需满足其中任意一个）
+• 不同组ID = 必须同时满足（AND关系）
+• AND关系 = 必须提供（无论组ID如何）
+
+配置示例：
+1. 高级货币 OR 创世神鳞：
+   - 行1: 高级货币x10, OR, 组ID=1
+   - 行2: 创世神鳞x1, OR, 组ID=1
+
+2. 高级货币 AND 创世神鳞：
+   - 行1: 高级货币x10, AND, 组ID=1
+   - 行2: 创世神鳞x1, AND, 组ID=2
+
+3. 复杂组合：(高级货币 OR 金币) AND (创世神鳞 OR 世界之鱼)：
+   - 行1: 高级货币x10, OR, 组ID=1
+   - 行2: 金币x1000, OR, 组ID=1
+   - 行3: 创世神鳞x1, OR, 组ID=2
+   - 行4: 世界之鱼x1, OR, 组ID=2">
             </div>
             <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
                 <button type="button" class="btn btn-outline-danger btn-sm remove-cost">
