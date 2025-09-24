@@ -31,7 +31,7 @@
 [![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
-[![Version](https://img.shields.io/badge/Version-2.0.8-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.8)
+[![Version](https://img.shields.io/badge/Version-2.0.9-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.9)
 [![Major Update](https://img.shields.io/badge/Major-Update-red.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
 
 ## ✨ 功能特点
@@ -95,6 +95,13 @@
 如果您有功能建议或发现问题，欢迎在 [Issues](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues) 中提出！
  
 ## 📦 更新记录
+
+#### v2.0.9 (沙漏预测系统Bug修复)
+
+- **🔧 修复沙漏预测Bug**：修复了沙漏预测到高倍率时必定获得高倍率奖励的严重bug
+- **⚖️ 恢复预测本质**：预测功能现在只提前告知结果，不再影响实际擦弹概率分布
+- **🎯 保持游戏平衡**：无论预测结果如何，实际擦弹都按照原始概率进行，确保游戏公平性
+- **🙏 致歉说明**：对于上个版本中沙漏预测功能影响游戏平衡的问题，深表歉意，现已完全修复
 
 #### v2.0.8 (沙漏预测系统平衡性调整)
 
