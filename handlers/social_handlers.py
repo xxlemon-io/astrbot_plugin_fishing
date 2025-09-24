@@ -33,12 +33,23 @@ async def steal_fish(self, event: AstrMessageEvent):
             if isinstance(comp, At):
                 target_id = comp.qq
                 break
+
+    # 如果没有@，尝试从消息文本中解析
     if target_id is None:
-        yield event.plain_result("请在消息中@要偷鱼的用户")
+        message_text = event.message_str.strip()
+        if len(message_text.split()) > 1:
+            # 支持 "偷鱼 用户ID" 格式
+            parts = message_text.split()
+            if len(parts) >= 2:
+                target_id = parts[1].strip()
+
+    if not target_id:
+        yield event.plain_result("❌ 请指定偷鱼的用户！\n用法：/偷鱼 @用户 或 /偷鱼 用户ID")
         return
     if int(target_id) == int(user_id):
         yield event.plain_result("不能偷自己的鱼哦！")
         return
+
     result = self.game_mechanics_service.steal_fish(user_id, target_id)
     if result:
         if result["success"]:
