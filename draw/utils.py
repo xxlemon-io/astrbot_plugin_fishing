@@ -64,7 +64,7 @@ async def get_user_avatar(user_id: str, data_dir: str, avatar_size: int = 50) ->
 
 def avatar_postprocess(avatar_image: Image.Image, size: int) -> Image.Image:
     """
-    将头像处理为指定大小的圆角头像，使用numpy加速抗锯齿处理
+    将头像处理为指定大小的圆角头像
     """
     # 调整头像大小
     avatar_image = avatar_image.resize((size, size), Image.Resampling.LANCZOS)
