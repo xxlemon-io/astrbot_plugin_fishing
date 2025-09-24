@@ -5,7 +5,6 @@ def up(cursor: sqlite3.Cursor):
     """
     为鱼竿和饰品添加锁定保护功能
     """
-    print("正在执行 017_add_lock_protection: 为鱼竿和饰品添加锁定保护字段...")
     
     # 为 user_rods 表添加 is_locked 字段
     cursor.execute("""
@@ -22,14 +21,12 @@ def up(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_accessories_locked ON user_accessories(user_id, is_locked)")
     
     cursor.connection.commit()
-    print("锁定保护字段添加完成")
 
 
 def down(cursor: sqlite3.Cursor):
     """
     回滚：移除锁定保护字段
     """
-    print("正在回滚 017_add_lock_protection: 移除锁定保护字段...")
     
     # SQLite不支持直接删除列，需要重建表
     # 重建 user_rods 表（移除 is_locked 字段）
@@ -57,4 +54,3 @@ def down(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_accessories_user ON user_accessories(user_id)")
     
     cursor.connection.commit()
-    print("锁定保护字段回滚完成")

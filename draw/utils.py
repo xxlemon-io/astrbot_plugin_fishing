@@ -1,6 +1,7 @@
 import os
 from typing import Optional
 from PIL import Image, ImageDraw
+from astrbot.api import logger
 
 async def get_user_avatar(user_id: str, data_dir: str, avatar_size: int = 50) -> Optional[Image.Image]:
     """
@@ -38,13 +39,20 @@ async def get_user_avatar(user_id: str, data_dir: str, avatar_size: int = 50) ->
         # 如果没有缓存或缓存过期，重新下载
         if avatar_image is None:
             avatar_url = f"https://q4.qlogo.cn/headimg_dl?dst_uin={user_id}&spec=640"
-            async with aiohttp.ClientSession() as session:
-                async with session.get(avatar_url, timeout=2) as response:
-                    if response.status == 200:
-                        content = await response.read()
-                        avatar_image = Image.open(BytesIO(content)).convert('RGBA')
-                        # 保存到缓存
-                        avatar_image.save(avatar_cache_path, 'PNG')
+            try:
+                # 增加超时时间并添加重试机制
+                timeout = aiohttp.ClientTimeout(total=10, connect=5)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(avatar_url) as response:
+                        if response.status == 200:
+                            content = await response.read()
+                            avatar_image = Image.open(BytesIO(content)).convert('RGBA')
+                            # 保存到缓存
+                            avatar_image.save(avatar_cache_path, 'PNG')
+            except Exception as e:
+                # 如果下载失败，记录日志但不抛出异常
+                logger.warning(f"头像下载失败: {e}")
+                return None
         
         if avatar_image:
             return avatar_postprocess(avatar_image, avatar_size)
@@ -56,7 +64,7 @@ async def get_user_avatar(user_id: str, data_dir: str, avatar_size: int = 50) ->
 
 def avatar_postprocess(avatar_image: Image.Image, size: int) -> Image.Image:
     """
-    将头像处理为指定大小的圆角头像，抗锯齿效果
+    将头像处理为指定大小的圆角头像，使用numpy加速抗锯齿处理
     """
     # 调整头像大小
     avatar_image = avatar_image.resize((size, size), Image.Resampling.LANCZOS)

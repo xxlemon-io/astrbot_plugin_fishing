@@ -103,24 +103,27 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
     Returns:
         PIL.Image.Image: 生成的背包图像
     """
+    import asyncio
+    
+    # 设置超时时间为30秒
+    try:
+        return await asyncio.wait_for(_draw_backpack_image_impl(user_data, data_dir), timeout=30.0)
+    except asyncio.TimeoutError:
+        # 超时时返回简化版本
+        return _create_fallback_image(user_data)
+
+
+async def _draw_backpack_image_impl(user_data: Dict[str, Any], data_dir: str) -> Image.Image:
+    """
+    背包图片生成的实际实现
+    """
     # 画布尺寸 - 使用动态高度
     width = 800
     # 先计算需要的高度
     height = calculate_dynamic_height(user_data)
     
-    # 1. 创建渐变背景
-    def create_vertical_gradient(w, h, top_color, bottom_color):
-        base = Image.new('RGB', (w, h), top_color)
-        top_r, top_g, top_b = top_color
-        bot_r, bot_g, bot_b = bottom_color
-        draw = ImageDraw.Draw(base)
-        for y in range(h):
-            ratio = y / (h - 1)
-            r = int(top_r + (bot_r - top_r) * ratio)
-            g = int(top_g + (bot_g - top_g) * ratio)
-            b = int(top_b + (bot_b - top_b) * ratio)
-            draw.line([(0, y), (w, y)], fill=(r, g, b))
-        return base
+    # 导入优化的渐变生成函数
+    from .gradient_utils import create_vertical_gradient
 
     bg_top = (174, 214, 241)  # 柔和天蓝色
     bg_bot = (245, 251, 255)  # 温和淡蓝色
@@ -157,29 +160,19 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
     gold_color = COLOR_GOLD
     rare_color = COLOR_RARE
 
-    # 4. 获取文本尺寸的辅助函数
-    def get_text_size(text, font):
-        bbox = draw.textbbox((0, 0), text, font=font)
-        return bbox[2] - bbox[0], bbox[3] - bbox[1]
+    # 导入优化的文本处理函数
+    from .text_utils import get_text_size_cached, wrap_text_by_width_optimized, create_text_cache
     
-    # 文本按像素宽度换行，确保不超出卡片
+    # 创建文本测量缓存
+    text_cache = create_text_cache()
+    
+    # 4. 获取文本尺寸的辅助函数（使用缓存）
+    def get_text_size(text, font):
+        return get_text_size_cached(text, font, text_cache)
+    
+    # 文本按像素宽度换行，确保不超出卡片（使用优化版本）
     def wrap_text_by_width(text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list:
-        if not text:
-            return []
-        lines = []
-        current = ""
-        for ch in text:
-            test = current + ch
-            w, _ = get_text_size(test, font)
-            if w <= max_width:
-                current = test
-            else:
-                if current:
-                    lines.append(current)
-                current = ch
-        if current:
-            lines.append(current)
-        return lines
+        return wrap_text_by_width_optimized(text, font, max_width, text_cache)
 
     # 动态扩展画布高度，避免被裁剪
     def ensure_height(needed_height: int):
@@ -866,3 +859,54 @@ def get_user_backpack_data(inventory_service, user_id: str) -> Dict[str, Any]:
         'baits': baits,
         'items': items
     }
+
+
+def _create_fallback_image(user_data: Dict[str, Any]) -> Image.Image:
+    """
+    创建简化的回退图像，当主生成过程超时时使用
+    """
+    from datetime import datetime
+    
+    # 创建简单的白色背景
+    width, height = 800, 600
+    image = Image.new('RGB', (width, height), (255, 255, 255))
+    draw = ImageDraw.Draw(image)
+    
+    # 加载字体
+    title_font = load_font(32)
+    content_font = load_font(18)
+    small_font = load_font(16)
+    
+    # 颜色定义
+    primary_dark = (52, 73, 94)
+    text_secondary = (120, 144, 156)
+    
+    # 绘制标题
+    title_text = "📦 用户背包"
+    title_w, title_h = draw.textbbox((0, 0), title_text, font=title_font)[2:4]
+    draw.text(((width - title_w) // 2, 50), title_text, font=title_font, fill=primary_dark)
+    
+    # 用户信息
+    nickname = user_data.get('nickname', '未知用户')
+    user_text = f"用户: {nickname}"
+    draw.text((50, 120), user_text, font=content_font, fill=primary_dark)
+    
+    # 统计信息
+    rods_count = len(user_data.get('rods', []))
+    accessories_count = len(user_data.get('accessories', []))
+    baits_count = len(user_data.get('baits', []))
+    items_count = len(user_data.get('items', []))
+    
+    stats_text = f"鱼竿: {rods_count} | 饰品: {accessories_count} | 鱼饵: {baits_count} | 道具: {items_count}"
+    draw.text((50, 160), stats_text, font=content_font, fill=text_secondary)
+    
+    # 提示信息
+    notice_text = "⚠️ 图片生成超时，请及时清理背包杂物！"
+    draw.text((50, 200), notice_text, font=small_font, fill=(255, 165, 0))
+    
+    # 底部时间
+    footer_text = f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    footer_w, footer_h = draw.textbbox((0, 0), footer_text, font=small_font)[2:4]
+    draw.text(((width - footer_w) // 2, height - 50), footer_text, font=small_font, fill=text_secondary)
+    
+    return image
