@@ -53,6 +53,7 @@ class GameMechanicsService:
         "kyo": {"min": 0.0, "max": 1.0, "label": "凶", "message": "🔮 沙漏中泛起一丝阴霾，预示着运势不佳，行事务必三思。"},
         "daikyo": {"min": 0.0, "max": 0.8, "label": "大凶", "message": "🔮 暗色的流沙汇成不祥之兆，警示着灾祸将至，请务必谨慎避让！"},
     }
+    
 
     def __init__(
         self,
@@ -99,10 +100,12 @@ class GameMechanicsService:
         if multiplier >= 2.0: return "shokichi"           # 小吉 (2-3倍)
         if multiplier >= 1.0: return "suekichi"           # 末吉 (1.0-2倍)
         return "kyo"                                       # 凶 (0-1倍)
+    
 
     def forecast_wipe_bomb(self, user_id: str) -> Dict[str, Any]:
         """
-        预知下一次擦弹的结果是“吉”还是“凶”。
+        预知下一次擦弹的结果是"吉"还是"凶"。
+        削弱版本：33.3%准确率 + 33.3%占卜失败 + 33.4%错误预测，保持详细等级
         """
         user = self.user_repo.get_by_id(user_id)
         if not user:
@@ -159,15 +162,44 @@ class GameMechanicsService:
             logger.error(f"擦弹预测时随机选择出错: {e}", exc_info=True)
             return {"success": False, "message": "占卜失败，似乎天机不可泄露..."}
 
-        # 根据模拟结果确定运势等级
-        tier_key = self._get_fortune_tier_for_multiplier(simulated_multiplier)
+        # 获取真实的运势等级
+        real_tier_key = self._get_fortune_tier_for_multiplier(simulated_multiplier)
+        
+        # 削弱机制：33.3%准确率 + 33.3%占卜失败
+        prediction_accuracy = 0.333  # 33.3%准确率
+        divination_failure_rate = 0.333  # 33.3%占卜失败率
+        random_value = random.random()
+        
+        if random_value < divination_failure_rate:
+            # 占卜失败：无法获得预测结果
+            user.wipe_bomb_forecast = None
+            message = "❌ 占卜失败,"
+            failure_messages = [
+                "🔮 沙漏中的流沙突然变得混乱不堪，天机被遮蔽，无法窥探未来...",
+                "🔮 沙漏中泛起诡异的迷雾，占卜之力被干扰，预测失败...",
+                "🔮 沙漏中的光芒瞬间熄灭，似乎有什么力量阻止了预知...",
+                "🔮 沙漏中的流沙停滞不前，占卜仪式未能完成...",
+                "🔮 沙漏中传来低沉的嗡鸣声，预知之力被封印，占卜失败..."
+            ]
+            message += random.choice(failure_messages)
+        elif random_value < divination_failure_rate + prediction_accuracy:
+            # 准确预测：使用真实的详细运势等级
+            user.wipe_bomb_forecast = real_tier_key
+            message = self.FORTUNE_TIERS[real_tier_key]["message"]
+        else:
+            # 错误预测：随机选择一个错误的详细运势等级
+            all_tiers = list(self.FORTUNE_TIERS.keys())
+            # 排除真实结果，随机选择其他结果
+            wrong_tiers = [t for t in all_tiers if t != real_tier_key]
+            wrong_tier_key = random.choice(wrong_tiers)
+            user.wipe_bomb_forecast = wrong_tier_key
+            message = self.FORTUNE_TIERS[wrong_tier_key]["message"]
+            # 在消息中添加不确定性提示
+            message += "\n\n⚠️ 注意：沙漏的样子有些奇怪，似乎是坏掉了..."
         
         # 保存预测结果
-        user.wipe_bomb_forecast = tier_key
         self.user_repo.update(user)
         
-        # 返回对应的占卜信息
-        message = self.FORTUNE_TIERS[tier_key]["message"]
         return {"success": True, "message": message}
 
     def perform_wipe_bomb(self, user_id: str, contribution_amount: int) -> Dict[str, Any]:
