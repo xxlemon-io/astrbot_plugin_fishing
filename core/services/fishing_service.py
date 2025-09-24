@@ -761,49 +761,10 @@ class FishingService:
         # 记录检查结果
         logger.info(f"每日检查完成：{len(relocated_users)} 个用户被传送，{len(consumed_users)} 个用户消耗道具")
         
-        # 如果有被传送的用户，发送群聊通知
-        if relocated_users and self._notifier:
-            try:
-                self._send_relocation_notification(relocated_users)
-            except Exception as e:
-                logger.error(f"发送传送通知失败: {e}")
+        # 记录被传送用户信息（不发送通知，避免凌晨打扰玩家）
+        if relocated_users:
+            logger.info(f"被传送用户详情：{relocated_users}")
 
-    def _send_relocation_notification(self, relocated_users: list) -> None:
-        """
-        发送传送通知到群聊，以符合世界观的方式@相关玩家。
-        """
-        if not relocated_users:
-            return
-
-        try:
-            if self._notifier:
-                group_message = self._build_relocation_notification_message(relocated_users)
-                self._notifier(self._notification_target, group_message)
-        except Exception as e:
-            logger.error(f"发送传送通知失败: {e}")
-
-    def _build_relocation_notification_message(self, relocated_users: list) -> str:
-        """构建每日传送通知的消息文本。"""
-        # 动态获取 1 号区域名称（读取失败时回退为“区域一”）
-        try:
-            home_zone = self.inventory_repo.get_zone_by_id(1)
-            home_zone_name = home_zone.name if home_zone and getattr(home_zone, "name", None) else "区域一"
-        except Exception:
-            home_zone_name = "区域一"
-
-        message_parts = [
-            "🌅【每日区域检查】🌅\n",
-            "黎明时分，钓鱼协会的巡查员开始检查各区域的准入资格...\n\n",
-            f"以下玩家因缺少必要的通行证，已被安全传送回{home_zone_name}：\n",
-        ]
-
-        for user_info in relocated_users:
-            message_parts.extend([
-                f"• @{user_info['user_id']} ({user_info['nickname']})",
-                f"  从 {user_info['zone_name']} 传送至 {home_zone_name}",
-                f"  缺少：{user_info['item_name']}\n",
-            ])
-        return "".join(message_parts)
 
     def start_auto_fishing_task(self):
         """启动自动钓鱼的后台线程。"""
