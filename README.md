@@ -31,7 +31,7 @@
 [![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
-[![Version](https://img.shields.io/badge/Version-2.0.7-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.7)
+[![Version](https://img.shields.io/badge/Version-2.0.8-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.8)
 [![Major Update](https://img.shields.io/badge/Major-Update-red.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
 
 ## ✨ 功能特点
@@ -95,6 +95,13 @@
 如果您有功能建议或发现问题，欢迎在 [Issues](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues) 中提出！
  
 ## 📦 更新记录
+
+#### v2.0.8 (沙漏预测系统平衡性调整)
+
+- **沙漏预测削弱**：将预测准确率从100%降低到33.3%，增加游戏平衡性
+- **占卜失败机制**：新增33%的占卜失败概率，失败时无法获得任何预测结果
+- **错误预测优化**：33.4%概率获得错误预测，增加策略性和不确定性
+
 
 #### v2.0.7 (性能优化与命令重构)
 
