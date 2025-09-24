@@ -102,6 +102,24 @@ class FishingService:
         if not zone:
             return {"success": False, "message": "钓鱼区域不存在"}
         
+        # 检查区域是否激活
+        if not zone.is_active:
+            return {"success": False, "message": "该钓鱼区域被浓雾隐匿了，暂时无法进入"}
+        
+        # 检查时间限制
+        now = get_now()
+        if zone.available_from and now < zone.available_from:
+            return {"success": False, "message": f"该钓鱼区域将在 {zone.available_from.strftime('%Y-%m-%d %H:%M')} 开放"}
+        
+        if zone.available_until and now > zone.available_until:
+            # 区域已关闭，自动传送回初始区域
+            user.fishing_zone_id = 1
+            self.user_repo.update(user)
+            # 获取初始区域的名字
+            first_zone = self.inventory_repo.get_zone_by_id(1)
+            first_zone_name = first_zone.name if first_zone else "初始区域"
+            return {"success": False, "message": f"该钓鱼区域已于 {zone.available_until.strftime('%Y-%m-%d %H:%M')} 关闭，已自动传送回{first_zone_name}"}
+        
         fishing_cost = zone.fishing_cost
         if not user.can_afford(fishing_cost):
             return {"success": False, "message": f"金币不足，需要 {fishing_cost} 金币。"}
@@ -877,6 +895,17 @@ class FishingService:
 
                     # 执行钓鱼
                     result = self.go_fish(user_id)
+                    
+                    # 检查是否因为区域关闭被传送
+                    if result and not result.get("success") and "已自动传送回" in result.get("message", ""):
+                        # 区域关闭，给用户发送通知
+                        try:
+                            if self._notifier:
+                                self._notifier(user_id, f"🌅 {result['message']}")
+                        except Exception:
+                            # 通知失败不影响主流程
+                            pass
+                    
                     # 自动钓鱼时，如装备损坏，尝试进行消息推送
                     if result and result.get("equipment_broken_messages"):
                         for msg in result["equipment_broken_messages"]:

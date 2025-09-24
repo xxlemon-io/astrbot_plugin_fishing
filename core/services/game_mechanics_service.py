@@ -187,13 +187,11 @@ class GameMechanicsService:
             user.wipe_bomb_forecast = real_tier_key
             message = self.FORTUNE_TIERS[real_tier_key]["message"]
         else:
-            # 错误预测：随机选择一个错误的详细运势等级
+            # 错误预测：随机选择一个详细运势等级
             all_tiers = list(self.FORTUNE_TIERS.keys())
             # 在消息中添加不确定性提示
             message = "\n⚠️ 注意：沙漏的样子有些奇怪..."
-            # 排除真实结果，随机选择其他结果
-            wrong_tiers = [t for t in all_tiers if t != real_tier_key]
-            wrong_tier_key = random.choice(wrong_tiers)
+            wrong_tier_key = random.choice(all_tiers)
             user.wipe_bomb_forecast = wrong_tier_key
             message += self.FORTUNE_TIERS[wrong_tier_key]["message"]
         
