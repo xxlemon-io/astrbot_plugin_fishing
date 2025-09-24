@@ -278,35 +278,9 @@ class GameMechanicsService:
         else:
             ranges = wipe_bomb_config.get("normal_ranges", normal_ranges)
 
-        # 如果有预测结果，则调整权重以偏向预测区间
+        # 如果有预测结果，清空预测但不影响实际擦弹结果
+        # 预测只是提前告知，不能改变实际概率分布
         if user.wipe_bomb_forecast:
-            forecast_key = user.wipe_bomb_forecast
-            if forecast_key in self.FORTUNE_TIERS:
-                tier_info = self.FORTUNE_TIERS[forecast_key]
-                min_val, max_val = tier_info["min"], tier_info["max"]
-                
-                # 调整权重：增加与预测区间重叠的区间的权重
-                adjusted_ranges = []
-                for r in normal_ranges:
-                    range_min, range_max, weight = r
-                    
-                    # 计算重叠程度
-                    overlap_min = max(range_min, min_val)
-                    overlap_max = min(range_max, max_val)
-                    
-                    if overlap_min < overlap_max:  # 有重叠
-                        # 计算重叠比例
-                        overlap_ratio = (overlap_max - overlap_min) / (range_max - range_min)
-                        # 根据重叠程度调整权重，但不会让某个区间权重过高
-                        adjusted_weight = int(weight * (1 + overlap_ratio * 2))  # 最多增加2倍权重
-                        adjusted_ranges.append((range_min, range_max, adjusted_weight))
-                    else:
-                        # 没有重叠的区间保持原权重
-                        adjusted_ranges.append(r)
-                
-                if adjusted_ranges:
-                    ranges = adjusted_ranges
-
             # 使用后清空预测
             user.wipe_bomb_forecast = None
 
