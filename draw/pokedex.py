@@ -30,19 +30,8 @@ FISH_CARD_MARGIN = 8    # 减小间距
 FISH_PER_PAGE = 20      # 每页显示20个
 
 
-def create_vertical_gradient(w, h, top_color, bottom_color):
-    """创建垂直渐变背景"""
-    base = Image.new('RGB', (w, h), top_color)
-    top_r, top_g, top_b = top_color
-    bot_r, bot_g, bot_b = bottom_color
-    draw = ImageDraw.Draw(base)
-    for y in range(h):
-        ratio = y / (h - 1)
-        r = int(top_r + (bot_r - top_r) * ratio)
-        g = int(top_g + (bot_g - top_g) * ratio)
-        b = int(top_b + (bot_b - top_b) * ratio)
-        draw.line([(0, y), (w, y)], fill=(r, g, b))
-    return base
+# 导入优化的渐变生成函数
+from .gradient_utils import create_vertical_gradient
 
 def draw_rounded_rectangle(draw, bbox, radius, fill=None, outline=None, width=1):
     """优化的圆角矩形绘制 - 避免边框重叠问题"""

@@ -58,19 +58,8 @@ async def draw_state_image(user_data: Dict[str, Any], data_dir: str) -> Image.Im
     # 画布尺寸 
     width, height = 620, 540
     
-    # 1. 创建渐变背景
-    def create_vertical_gradient(w, h, top_color, bottom_color):
-        base = Image.new('RGB', (w, h), top_color)
-        top_r, top_g, top_b = top_color
-        bot_r, bot_g, bot_b = bottom_color
-        draw = ImageDraw.Draw(base)
-        for y in range(h):
-            ratio = y / (h - 1)
-            r = int(top_r + (bot_r - top_r) * ratio)
-            g = int(top_g + (bot_g - top_g) * ratio)
-            b = int(top_b + (bot_b - top_b) * ratio)
-            draw.line([(0, y), (w, y)], fill=(r, g, b))
-        return base
+    # 导入优化的渐变生成函数
+    from .gradient_utils import create_vertical_gradient
 
     bg_top = (174, 214, 241)  # 柔和天蓝色
     bg_bot = (245, 251, 255)  # 温和淡蓝色

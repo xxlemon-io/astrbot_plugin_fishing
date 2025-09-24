@@ -46,7 +46,7 @@ def run_migrations(db_path: str, migrations_dir: str):
             key=lambda f: int(f.split("_")[0])
         )
     except FileNotFoundError:
-        print(f"迁移目录 '{migrations_dir}' 不存在，跳过迁移。")
+        logger.warning(f"迁移目录 '{migrations_dir}' 不存在，跳过迁移。")
         return
 
     for filename in migration_files:
