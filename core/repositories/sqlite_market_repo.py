@@ -7,6 +7,7 @@ from datetime import datetime
 # 导入抽象基类和领域模型
 from .abstract_repository import AbstractMarketRepository
 from ..domain.models import MarketListing
+from ..database.connection_manager import DatabaseConnectionManager
 
 
 class SqliteMarketRepository(AbstractMarketRepository):
@@ -14,6 +15,7 @@ class SqliteMarketRepository(AbstractMarketRepository):
 
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self.db_manager = DatabaseConnectionManager(db_path)
         self._local = threading.local()
 
     def _get_connection(self) -> sqlite3.Connection:
@@ -320,14 +322,14 @@ class SqliteMarketRepository(AbstractMarketRepository):
 
     def remove_listing(self, market_id: int) -> None:
         """移除一个市场商品（通常在购买成功或下架后调用）"""
-        with self._get_connection() as conn:
+        with self.db_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM market WHERE market_id = ?", (market_id,))
             conn.commit()
 
     def update_listing(self, listing: MarketListing) -> None:
         """更新市场商品信息"""
-        with self._get_connection() as conn:
+        with self.db_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE market 

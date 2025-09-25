@@ -311,18 +311,54 @@ class ExchangeService:
         commodity_name = self.commodities[commodity_id].name
         return {"success": True, "message": f"成功出售所有 {total_quantity}份 {commodity_name}，获得 {total_earnings} 金币"}
 
+    def clear_all_inventory(self, user_id: str) -> Dict[str, Any]:
+        """清空用户所有大宗商品库存"""
+        user = self.user_repo.get_by_id(user_id)
+        if not user or not user.exchange_account_status:
+            return {"success": False, "message": "您尚未开通交易所账户或用户不存在"}
+
+        # 获取用户的所有库存
+        user_commodities = self.exchange_repo.get_user_commodities(user_id)
+        
+        if not user_commodities:
+            return {"success": False, "message": "您的交易所库存为空"}
+
+        # 获取当前市场价格
+        market_status = self.get_market_status()
+        prices = market_status["prices"]
+        
+        total_earnings = 0
+        sold_items = []
+        
+        # 计算总收益和统计信息
+        for item in user_commodities:
+            current_price = prices.get(item.commodity_id, 0)
+            if current_price > 0:
+                item_earnings = current_price * item.quantity
+                total_earnings += item_earnings
+                commodity_name = self.commodities[item.commodity_id].name
+                sold_items.append(f"{item.quantity}份{commodity_name}")
+            else:
+                commodity_name = self.commodities[item.commodity_id].name
+                sold_items.append(f"{item.quantity}份{commodity_name}(无报价)")
+
+        # 更新用户金币
+        user.coins += total_earnings
+        self.user_repo.update(user)
+
+        # 删除所有库存
+        for item in user_commodities:
+            self.exchange_repo.delete_user_commodity(item.instance_id)
+
+        sold_items_str = "、".join(sold_items)
+        return {"success": True, "message": f"清仓完成！出售了 {sold_items_str}，💰获得 {total_earnings} 金币"}
+
     def clear_expired_commodities(self, user_id: str) -> None:
         user_commodities = self.exchange_repo.get_user_commodities(user_id)
         now = datetime.now()
         for item in user_commodities:
             if item.expires_at < now:
                 self.exchange_repo.delete_user_commodity(item.instance_id)
-
-    def list_commodity_on_market(self, user_id: str, instance_id: int, quantity: int, price: int, is_anonymous: bool) -> Dict[str, Any]:
-        from ..services.market_service import MarketService
-        # ... this is complex and requires careful integration with MarketService.
-        # For now, we'll just placeholder this functionality.
-        return {"success": False, "message": "暂不支持将大宗商品上架到玩家市场"}
 
     def start_daily_price_update_task(self):
         """启动每日价格更新任务"""
@@ -335,16 +371,31 @@ class ExchangeService:
             self._price_update_task.cancel()
 
     async def _daily_price_update_loop(self):
-        """每日价格更新循环"""
+        """每日价格更新循环 - 白天两次刷新：上午9点、下午3点、晚上9点"""
         while True:
             try:
-                # 计算到下一个9点的时间
                 now = datetime.now()
-                next_update = now.replace(hour=9, minute=0, second=0, microsecond=0)
-                if now.hour >= 9:
-                    next_update += timedelta(days=1)
                 
-                # 等待到下一个9点
+                # 计算下一个更新时间（上午9点、下午3点或晚上9点）
+                morning_update = now.replace(hour=9, minute=0, second=0, microsecond=0)
+                afternoon_update = now.replace(hour=15, minute=0, second=0, microsecond=0)
+                evening_update = now.replace(hour=21, minute=0, second=0, microsecond=0)
+                
+                next_update = None
+                if now.hour < 9:
+                    # 还没到上午9点，等待上午9点
+                    next_update = morning_update
+                elif now.hour < 15:
+                    # 上午9点已过，但还没到下午3点，等待下午3点
+                    next_update = afternoon_update
+                elif now.hour < 21:
+                    # 下午3点已过，但还没到晚上9点，等待晚上9点
+                    next_update = evening_update
+                else:
+                    # 晚上9点已过，等待明天的上午9点
+                    next_update = morning_update + timedelta(days=1)
+                
+                # 等待到下一个更新时间
                 wait_seconds = (next_update - now).total_seconds()
                 await asyncio.sleep(wait_seconds)
                 

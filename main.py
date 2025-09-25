@@ -557,29 +557,14 @@ class FishingPlugin(Star):
 
     # =========== 交易所 ==========
 
-    @filter.command("交易所", alias={"exchange"})
-    async def exchange_status(self, event: AstrMessageEvent):
-        async for r in self.exchange_handlers.exchange_status(event):
+    @filter.command("交易所")
+    async def exchange_main(self, event: AstrMessageEvent):
+        async for r in self.exchange_handlers.exchange_main(event):
             yield r
 
-    @filter.command("交易所开户", alias={"open_exchange_account"})
-    async def open_exchange_account(self, event: AstrMessageEvent):
-        async for r in self.exchange_handlers.open_exchange_account(event):
-            yield r
-
-    @filter.command("查看库存", alias={"inventory", "持仓"})
+    @filter.command("持仓")
     async def view_inventory(self, event: AstrMessageEvent):
         async for r in self.exchange_handlers.view_inventory(event):
-            yield r
-
-    @filter.command("交易所购入", alias={"exchange_buy"})
-    async def buy_commodity(self, event: AstrMessageEvent):
-        async for r in self.exchange_handlers.buy_commodity(event):
-            yield r
-
-    @filter.command("交易所卖出", alias={"exchange_sell"})
-    async def sell_commodity(self, event: AstrMessageEvent):
-        async for r in self.exchange_handlers.sell_commodity(event):
             yield r
 
     # =========== 管理后台 ==========

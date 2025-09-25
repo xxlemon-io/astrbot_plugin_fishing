@@ -39,13 +39,45 @@ class ExchangeHandlers:
                 return None
         return None
 
+    async def exchange_main(self, event: AstrMessageEvent):
+        """交易所主命令，根据参数分发到不同功能"""
+        args = event.message_str.split()
+        
+        if len(args) == 1:
+            # 无参数，显示交易所状态
+            async for r in self.exchange_status(event):
+                yield r
+        elif len(args) >= 2:
+            subcommand = args[1]
+            
+            if subcommand in ["开户"]:
+                async for r in self.open_exchange_account(event):
+                    yield r
+            elif subcommand in ["库存", "持仓"]:
+                async for r in self.view_inventory(event):
+                    yield r
+            elif subcommand in ["购入", "购买"]:
+                async for r in self.buy_commodity(event):
+                    yield r
+            elif subcommand in ["卖出", "出售"]:
+                async for r in self.sell_commodity(event):
+                    yield r
+            elif subcommand in ["清仓"]:
+                async for r in self.clear_inventory(event):
+                    yield r
+            elif subcommand in ["帮助"]:
+                async for r in self.exchange_help(event):
+                    yield r
+            else:
+                yield event.plain_result("❌ 未知的子命令，请使用：\n• 交易所 - 查看市场行情\n• 交易所 开户 - 开通账户\n• 交易所 库存 - 查看库存\n• 交易所 购入 商品名称 数量 - 购买\n• 交易所 卖出 商品名称 - 卖出所有\n• 交易所 卖出 库存ID 数量 - 卖出指定数量\n• 交易所 清仓 商品名称 - 清空指定商品\n• 交易所 清仓 all - 清空所有库存\n• 交易所 帮助 - 查看所有玩法")
+
     async def exchange_status(self, event: AstrMessageEvent):
         """查看交易所当前状态"""
         user_id = self._get_effective_user_id(event)
         user = self.user_repo.get_by_id(user_id)
-
+        
         if not user or not user.exchange_account_status:
-            yield event.plain_result("您尚未开通交易所账户，请使用【交易所开户】命令开户。")
+            yield event.plain_result("您尚未开通交易所账户，请使用【交易所 开户】命令开户。")
             return
 
         result = self.exchange_service.get_market_status()
@@ -76,12 +108,15 @@ class ExchangeHandlers:
                 msg += f"腐败时间: {corruption_info}\n"
                 msg += "─" * 20 + "\n"
         msg += "═" * 25 + "\n"
-        msg += "💡 使用【交易所购入 商品名称 数量】购买\n"
-        msg += "💡 使用【交易所卖出 商品名称】出售所有该商品\n"
-        msg += "💡 使用【交易所卖出 库存ID 数量】出售指定数量\n"
+        msg += "💡 使用【交易所 购入 商品名称 数量】购买\n"
+        msg += "💡 使用【交易所 卖出 商品名称】出售所有该商品\n"
+        msg += "💡 使用【交易所 清仓 商品名称】清空指定商品\n"
+        msg += "💡 使用【交易所 清仓 all】清空所有库存\n"
+        msg += "💡 快速查看持仓：/持仓\n"
         msg += "💡 库存ID格式：C开头+Base36编码（如C1A、C2B）\n"
         msg += "💡 可用商品：鱼干、鱼卵、鱼油\n"
-        msg += "💡 大宗商品可上架市场：/上架 C1A 1000\n"
+        msg += "💡 大宗商品可上架二级市场：/上架 C1A 1000\n"
+        msg += "💡 查看所有玩法：/交易所 帮助\n"
         msg += "⚠️ 注意：商品会腐败，请及时交易！"
         yield event.plain_result(msg)
 
@@ -162,24 +197,18 @@ class ExchangeHandlers:
         """购买大宗商品"""
         user_id = self._get_effective_user_id(event)
         args = event.message_str.split()
-        if len(args) < 3:
-            yield event.plain_result("❌ 命令格式错误，请使用：交易所购入 [商品名称] [数量]\n💡 可用商品：鱼干、鱼卵、鱼油")
+        if len(args) < 4:
+            yield event.plain_result("❌ 命令格式错误，请使用：交易所 购入 [商品名称] [数量]\n💡 可用商品：鱼干、鱼卵、鱼油")
             return
             
         # 支持商品名称包含空格的情况
-        commodity_name = args[1]
+        commodity_name = args[2]
         if len(args) > 3:
             # 如果商品名称包含空格，需要重新组合
-            commodity_name = " ".join(args[1:-1])
-            quantity_str = args[-1]
+            commodity_name = " ".join(args[2:-1])
+            quantity = int(args[-1])
         else:
-            quantity_str = args[2]
-            
-        try:
-            quantity = int(quantity_str)
-        except ValueError:
-            yield event.plain_result("❌ 数量必须是有效的数字")
-            return
+            quantity = int(args[3])
 
         result = self.exchange_service.purchase_commodity(user_id, commodity_name, quantity)
         if result["success"]:
@@ -192,17 +221,17 @@ class ExchangeHandlers:
         user_id = self._get_effective_user_id(event)
         args = event.message_str.split()
         
-        if len(args) == 2:
-            # 格式：交易所卖出 鱼油（卖出所有该商品）
-            commodity_name = args[1]
+        if len(args) == 3:
+            # 格式：交易所 卖出 鱼油（卖出所有该商品）
+            commodity_name = args[2]
             result = self.exchange_service.sell_commodity_by_name(user_id, commodity_name)
             if result["success"]:
                 yield event.plain_result(f"✅ {result['message']}")
             else:
                 yield event.plain_result(f"❌ {result['message']}")
-        elif len(args) == 3:
-            # 格式：交易所卖出 [库存ID] [数量]
-            inventory_id_str = args[1]
+        elif len(args) == 4:
+            # 格式：交易所 卖出 [库存ID] [数量]
+            inventory_id_str = args[2]
             instance_id = None
             
             # 先尝试解析Base36格式（C开头）
@@ -220,7 +249,7 @@ class ExchangeHandlers:
                     return
             
             try:
-                quantity = int(args[2])
+                quantity = int(args[3])
             except ValueError:
                 yield event.plain_result("❌ 数量必须是有效的数字")
                 return
@@ -231,4 +260,78 @@ class ExchangeHandlers:
             else:
                 yield event.plain_result(f"❌ {result['message']}")
         else:
-            yield event.plain_result("❌ 命令格式错误，请使用：\n• 交易所卖出 商品名称（卖出所有该商品）\n• 交易所卖出 库存ID 数量（卖出指定数量）")
+            yield event.plain_result("❌ 命令格式错误，请使用：\n• 交易所 卖出 商品名称（卖出所有该商品）\n• 交易所 卖出 库存ID 数量（卖出指定数量）")
+
+    async def clear_inventory(self, event: AstrMessageEvent):
+        """清仓功能 - 快速卖出某一种类或全部商品"""
+        user_id = self._get_effective_user_id(event)
+        args = event.message_str.split()
+        
+        if len(args) == 2:
+            # 格式：交易所 清仓 all（清空所有库存）
+            yield event.plain_result("❌ 请指定要清仓的商品名称，或使用 'all' 清空所有库存\n💡 示例：/交易所 清仓 鱼油 或 /交易所 清仓 all")
+            return
+        elif len(args) == 3:
+            target = args[2].lower()
+            
+            if target == "all":
+                # 清空所有库存
+                result = self.exchange_service.clear_all_inventory(user_id)
+                if result["success"]:
+                    yield event.plain_result(f"✅ {result['message']}")
+                else:
+                    yield event.plain_result(f"❌ {result['message']}")
+            else:
+                # 清空指定商品
+                commodity_name = args[2]
+                result = self.exchange_service.sell_commodity_by_name(user_id, commodity_name)
+                if result["success"]:
+                    yield event.plain_result(f"✅ {result['message']}")
+                else:
+                    yield event.plain_result(f"❌ {result['message']}")
+        else:
+            yield event.plain_result("❌ 命令格式错误，请使用：\n• 交易所 清仓 商品名称 - 清空指定商品\n• 交易所 清仓 all - 清空所有库存")
+
+    async def exchange_help(self, event: AstrMessageEvent):
+        """交易所帮助信息"""
+        message = """【📈 交易所系统帮助】
+
+🎯 系统介绍：
+交易所是一个大宗商品交易平台，支持鱼干、鱼卵、鱼油三种商品交易。
+所有商品都有腐败机制，必须在有效期内交易，否则价值归零。
+
+💰 开户费用：100,000 金币
+
+📋 可用命令：
+• /交易所 - 查看当前市场行情和价格
+• /交易所 开户 - 开通交易所账户
+• /交易所 购入 商品名称 数量 - 购买大宗商品
+• /交易所 卖出 商品名称 - 卖出所有该商品
+• /交易所 卖出 库存ID 数量 - 卖出指定数量
+• /交易所 清仓 商品名称 - 清空指定商品
+• /交易所 清仓 all - 清空所有库存
+• /交易所 帮助 - 显示此帮助信息
+• /持仓 - 快速查看大宗商品库存（独立命令）
+
+🛒 商品信息：
+• 鱼干：稳健型标的，价格波动±10%，保质期3天
+• 鱼卵：高风险标的，价格波动±50%，保质期2天  
+• 鱼油：投机品，价格波动±25%，保质期1-3天（每日固定）
+
+💡 交易技巧：
+• 鱼干适合稳健型玩家，风险低但收益有限
+• 鱼卵适合激进型玩家，高风险高收益
+• 鱼油适合赌徒型玩家，既要赌价格还要赌腐败时间
+• 大宗商品可上架玩家市场：/上架 C1A 1000
+
+⚠️ 重要提醒：
+• 商品会腐败，请及时交易！
+• 腐败后价值归零，无法挽回
+• 库存ID格式：C开头+Base36编码（如C1A、C2B）
+• 每日9点、15点、21点更新价格，鱼油腐败时间每日固定
+
+🔗 相关系统：
+• 玩家市场：/市场 - 查看玩家交易市场
+• 上架商品：/上架 C1A 1000 - 将大宗商品上架到玩家市场"""
+        
+        yield event.plain_result(message)
