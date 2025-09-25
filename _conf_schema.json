@@ -116,6 +116,11 @@
         "default": 1000,
         "description": "交易所持仓总容量"
       },
+      "tax_rate": {
+        "type": "float",
+        "default": 0.05,
+        "description": "交易所交易税率"
+      },
       "volatility": {
         "type": "object",
         "items": {

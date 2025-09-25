@@ -310,16 +310,35 @@ class ExchangeService:
         total_quantity = sum(item.quantity for item in target_commodities)
         total_earnings = current_price * total_quantity
         
+        # 计算交易税
+        tax_rate = self.config.get("tax_rate", 0.05)  # 从配置读取税率，默认5%
+        tax_amount = int(total_earnings * tax_rate)
+        net_earnings = total_earnings - tax_amount
+        
         # 更新用户金币
-        user.coins += total_earnings
+        user.coins += net_earnings
         self.user_repo.update(user)
+
+        # 记录税收日志
+        from ..domain.models import TaxRecord
+        tax_log = TaxRecord(
+            tax_id=0,
+            user_id=user_id,
+            tax_amount=tax_amount,
+            tax_rate=tax_rate,
+            original_amount=total_earnings,
+            balance_after=user.coins,
+            tax_type="交易所卖出税",
+            timestamp=datetime.now()
+        )
+        self.log_repo.add_tax_record(tax_log)
 
         # 删除所有该商品的库存
         for item in target_commodities:
             self.exchange_repo.delete_user_commodity(item.instance_id)
 
         commodity_name = self.commodities[commodity_id].name
-        return {"success": True, "message": f"成功出售所有 {total_quantity}份 {commodity_name}，获得 {total_earnings} 金币"}
+        return {"success": True, "message": f"成功出售所有 {total_quantity}份 {commodity_name}，💰获得 {net_earnings} 金币（已扣除 {tax_amount} 金币交易税）"}
 
     def clear_all_inventory(self, user_id: str) -> Dict[str, Any]:
         """清空用户所有大宗商品库存"""
@@ -352,16 +371,35 @@ class ExchangeService:
                 commodity_name = self.commodities[item.commodity_id].name
                 sold_items.append(f"{item.quantity}份{commodity_name}(无报价)")
 
+        # 计算交易税
+        tax_rate = self.config.get("tax_rate", 0.02)  # 从配置读取税率，默认2%
+        tax_amount = int(total_earnings * tax_rate)
+        net_earnings = total_earnings - tax_amount
+
         # 更新用户金币
-        user.coins += total_earnings
+        user.coins += net_earnings
         self.user_repo.update(user)
+
+        # 记录税收日志
+        from ..domain.models import TaxRecord
+        tax_log = TaxRecord(
+            tax_id=0,
+            user_id=user_id,
+            tax_amount=tax_amount,
+            tax_rate=tax_rate,
+            original_amount=total_earnings,
+            balance_after=user.coins,
+            tax_type="交易所清仓税",
+            timestamp=datetime.now()
+        )
+        self.log_repo.add_tax_record(tax_log)
 
         # 删除所有库存
         for item in user_commodities:
             self.exchange_repo.delete_user_commodity(item.instance_id)
 
         sold_items_str = "、".join(sold_items)
-        return {"success": True, "message": f"清仓完成！出售了 {sold_items_str}，💰获得 {total_earnings} 金币"}
+        return {"success": True, "message": f"清仓完成！出售了 {sold_items_str}，💰获得 {net_earnings} 金币（已扣除 {tax_amount} 金币交易税）"}
 
     def clear_expired_commodities(self, user_id: str) -> None:
         user_commodities = self.exchange_repo.get_user_commodities(user_id)

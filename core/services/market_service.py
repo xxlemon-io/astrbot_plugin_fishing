@@ -188,6 +188,19 @@ class MarketService:
             if user_commodity.quantity < quantity:
                 return {"success": False, "message": f"数量不足，您只有 {user_commodity.quantity} 份"}
             
+            # 检查上架后是否会超出交易所容量限制
+            # 计算上架后剩余的交易所库存
+            remaining_quantity = user_commodity.quantity - quantity
+            if remaining_quantity > 0:
+                # 如果还有剩余，检查剩余数量是否会导致容量超限
+                capacity = self.config.get("capacity", 1000)
+                user_commodities = self.exchange_repo.get_user_commodities(user_id)
+                current_total_quantity = sum(item.quantity for item in user_commodities)
+                # 减去即将上架的数量，加上剩余数量
+                new_total_quantity = current_total_quantity - quantity + remaining_quantity
+                if new_total_quantity > capacity:
+                    return {"success": False, "message": f"上架后交易所容量将超限！当前容量: {capacity}，上架后总库存: {new_total_quantity}"}
+            
             commodity_template = self.exchange_repo.get_commodity_by_id(user_commodity.commodity_id)
             item_template_id = user_commodity.commodity_id
             item_name = commodity_template.name
@@ -196,7 +209,6 @@ class MarketService:
             expires_at = user_commodity.expires_at  # 传递腐败时间
 
             # 从用户库存中扣除
-            remaining_quantity = user_commodity.quantity - quantity
             if remaining_quantity > 0:
                 self.exchange_repo.update_user_commodity_quantity(item_instance_id, remaining_quantity)
             else:
