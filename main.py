@@ -150,7 +150,7 @@ class FishingPlugin(Star):
         )
         self.shop_service = ShopService(self.item_template_repo, self.inventory_repo, self.user_repo, self.shop_repo, self.game_config)
         self.market_service = MarketService(self.market_repo, self.inventory_repo, self.user_repo, self.log_repo,
-                                           self.item_template_repo, self.game_config)
+                                           self.item_template_repo, self.exchange_repo, self.game_config)
         self.achievement_service = AchievementService(self.achievement_repo, self.user_repo, self.inventory_repo,
                                                      self.item_template_repo, self.log_repo)
         self.fishing_service = FishingService(
