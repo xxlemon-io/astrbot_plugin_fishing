@@ -307,6 +307,10 @@ class ExchangeService:
         if not current_price:
             return {"success": False, "message": "该商品今日无报价，无法出售"}
 
+        # 计算盈亏分析
+        prices = {commodity_id: current_price}
+        analysis = self._calculate_profit_loss_analysis(target_commodities, prices)
+        
         # 计算总收益
         total_quantity = sum(item.quantity for item in target_commodities)
         total_earnings = current_price * total_quantity
@@ -339,8 +343,22 @@ class ExchangeService:
         for item in target_commodities:
             self.exchange_repo.delete_user_commodity(item.instance_id)
 
+        # 构建详细的消息
         commodity_name = self.commodities[commodity_id].name
-        return {"success": True, "message": f"成功出售所有 {total_quantity}份 {commodity_name}，💰获得 {net_earnings} 金币（已扣除 {tax_amount} 交易税）"}
+        profit_status = "📈盈利" if analysis["profit_loss"] > 0 else "📉亏损" if analysis["profit_loss"] < 0 else "➖持平"
+        
+        message_parts = [
+            f"✅ 成功出售所有 {total_quantity}份 {commodity_name}",
+            f"💰 获得 {net_earnings} 金币（已扣除 {tax_amount} 交易税）",
+            f"",
+            f"📊 盈亏分析：",
+            f"• 总成本：{analysis['total_cost']} 金币",
+            f"• 总收入：{analysis['total_revenue']} 金币", 
+            f"• 净盈亏：{analysis['profit_loss']:+} 金币 {profit_status}",
+            f"• 盈利率：{analysis['profit_rate']:+.1f}%"
+        ]
+        
+        return {"success": True, "message": "\n".join(message_parts)}
 
     def clear_all_inventory(self, user_id: str) -> Dict[str, Any]:
         """清空用户所有大宗商品库存"""
@@ -358,6 +376,9 @@ class ExchangeService:
         market_status = self.get_market_status()
         prices = market_status["prices"]
         
+        # 计算盈亏分析
+        analysis = self._calculate_profit_loss_analysis(user_commodities, prices)
+        
         total_earnings = 0
         sold_items = []
         
@@ -374,7 +395,7 @@ class ExchangeService:
                 sold_items.append(f"{item.quantity}份{commodity_name}(无报价)")
 
         # 计算交易税
-        tax_rate = self.config.get("tax_rate", 0.02)  # 从配置读取税率，默认2%
+        tax_rate = self.config.get("tax_rate", 0.05)  # 从配置读取税率，默认5%
         tax_amount = int(total_earnings * tax_rate)
         net_earnings = total_earnings - tax_amount
 
@@ -401,8 +422,31 @@ class ExchangeService:
         for item in user_commodities:
             self.exchange_repo.delete_user_commodity(item.instance_id)
 
+        # 构建详细的消息
         sold_items_str = "、".join(sold_items)
-        return {"success": True, "message": f"清仓完成！出售了 {sold_items_str}，💰获得 {net_earnings} 金币（已扣除 {tax_amount} 交易税）"}
+        profit_status = "📈盈利" if analysis["profit_loss"] > 0 else "📉亏损" if analysis["profit_loss"] < 0 else "➖持平"
+        
+        message_parts = [
+            f"✅ 清仓完成！出售了 {sold_items_str}",
+            f"💰 获得 {net_earnings} 金币（已扣除 {tax_amount} 交易税）",
+            f"",
+            f"📊 盈亏分析：",
+            f"• 总成本：{analysis['total_cost']} 金币",
+            f"• 总收入：{analysis['total_revenue']} 金币",
+            f"• 净盈亏：{analysis['profit_loss']:+} 金币 {profit_status}",
+            f"• 盈利率：{analysis['profit_rate']:+.1f}%"
+        ]
+        
+        # 添加详细分析（如果有多个商品）
+        if len(analysis['details']) > 1:
+            message_parts.extend([
+                f"",
+                f"📋 详细分析："
+            ])
+            for detail in analysis['details']:
+                message_parts.append(f"• {detail['name']}: {detail['quantity']}份 {detail['status']} {detail['profit_loss']:+}金币 ({detail['profit_rate']:+.1f}%)")
+        
+        return {"success": True, "message": "\n".join(message_parts)}
 
     def clear_expired_commodities(self, user_id: str) -> None:
         user_commodities = self.exchange_repo.get_user_commodities(user_id)
@@ -489,3 +533,51 @@ class ExchangeService:
             pass
             
         return inventory_quantity + market_quantity
+
+    def _calculate_profit_loss_analysis(self, commodities: List, current_prices: Dict[int, int]) -> Dict[str, Any]:
+        """计算盈亏分析"""
+        total_cost = 0  # 总成本
+        total_revenue = 0  # 总收入
+        profit_loss = 0  # 盈亏
+        profit_rate = 0.0  # 盈利率
+        details = []  # 详细分析
+        
+        for item in commodities:
+            commodity_name = self.commodities[item.commodity_id].name
+            current_price = current_prices.get(item.commodity_id, 0)
+            
+            # 计算成本（买入价 * 数量）
+            item_cost = item.purchase_price * item.quantity
+            total_cost += item_cost
+            
+            # 计算收入（当前价 * 数量）
+            item_revenue = current_price * item.quantity
+            total_revenue += item_revenue
+            
+            # 计算单项盈亏
+            item_profit_loss = item_revenue - item_cost
+            item_profit_rate = (item_profit_loss / item_cost * 100) if item_cost > 0 else 0
+            
+            # 格式化单项信息
+            profit_status = "📈盈利" if item_profit_loss > 0 else "📉亏损" if item_profit_loss < 0 else "➖持平"
+            details.append({
+                "name": commodity_name,
+                "quantity": item.quantity,
+                "cost": item_cost,
+                "revenue": item_revenue,
+                "profit_loss": item_profit_loss,
+                "profit_rate": item_profit_rate,
+                "status": profit_status
+            })
+        
+        # 计算总体盈亏
+        profit_loss = total_revenue - total_cost
+        profit_rate = (profit_loss / total_cost * 100) if total_cost > 0 else 0
+        
+        return {
+            "total_cost": total_cost,
+            "total_revenue": total_revenue,
+            "profit_loss": profit_loss,
+            "profit_rate": profit_rate,
+            "details": details
+        }
