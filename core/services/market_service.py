@@ -355,8 +355,8 @@ class MarketService:
             if not buyer.exchange_account_status:
                 return {"success": False, "message": "您需要先开通交易所账户才能购买大宗商品"}
 
-            if not listing.expires_at:
-                 return {"success": False, "message": "商品数据损坏，缺少腐败日期，无法交易"}
+            # 如果没有腐败时间，使用默认值（兼容旧数据）
+            expires_at = listing.expires_at or datetime.now() + timedelta(days=3)
 
             from ..domain.models import UserCommodity
             new_commodity = UserCommodity(
@@ -366,7 +366,7 @@ class MarketService:
                 quantity=listing.quantity,
                 purchase_price=listing.price, # Use market price as purchase price
                 purchased_at=datetime.now(),
-                expires_at=listing.expires_at # 继承腐败时间
+                expires_at=expires_at # 继承腐败时间
             )
             self.exchange_repo.add_user_commodity(new_commodity)
 
@@ -438,7 +438,7 @@ class MarketService:
                 quantity=listing.quantity,
                 purchase_price=0,  # 返还时买入价重置
                 purchased_at=datetime.now(),
-                expires_at=listing.expires_at
+                expires_at=listing.expires_at or datetime.now() + timedelta(days=3)  # 如果没有腐败时间，默认3天
             )
             self.exchange_repo.add_user_commodity(new_commodity)
         else:
