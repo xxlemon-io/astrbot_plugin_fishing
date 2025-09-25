@@ -494,6 +494,7 @@ async def market(self, event: AstrMessageEvent):
         yield event.plain_result("🛒 市场中没有商品可供购买。")
         return
 
+    full_message += "💡 挂单有效期为5天，过期将自动下架返还\n"
     full_message += "💡 使用「购买 ID」购买，例如：购买 C5"
     
     # 为避免消息过长，进行分割发送
@@ -527,7 +528,7 @@ async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 3:
-        yield event.plain_result("❌ 用法：/上架 ID 价格 [数量] [匿名]\n示例：/上架 R2N9C 1000、/上架 D1 100 10、/上架 F3 50 5 匿名\n💡 匿名参数必须在最后")
+        yield event.plain_result("❌ 用法：/上架 ID 价格 [数量] [匿名]\n示例：/上架 R2N9C 1000、/上架 D1 100 10、/上架 F3 50 5 匿名\n💡 挂单有效期为5天，过期将自动下架返还\n💡 匿名参数必须在最后")
         return
     token = args[1].strip().upper()
     price = args[2]
