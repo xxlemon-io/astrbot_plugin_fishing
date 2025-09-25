@@ -541,7 +541,27 @@ async def market(self, event: AstrMessageEvent):
                     message += f"【{emoji} {item_type}】：\n"
                     quantity_text = f" x{item.quantity}" if item.quantity > 1 else ""
                     message += f" - {item.item_name}{refine_level_str}{quantity_text} (ID: {display_code}) - 价格: {item.price} 金币\n"
-                    message += f" - 售卖人： {seller_display}\n\n"
+                    message += f" - 售卖人： {seller_display}"
+                    
+                    # 为大宗商品添加腐败时间显示
+                    if item_type == "大宗商品" and hasattr(item, 'expires_at') and item.expires_at:
+                        from datetime import datetime
+                        time_left = item.expires_at - datetime.now()
+                        if time_left.total_seconds() <= 0:
+                            message += f"\n - 状态: 💀 已腐败，价值归零"
+                        elif time_left.total_seconds() <= 3600:  # 1小时内
+                            minutes = int(time_left.total_seconds() / 60)
+                            message += f"\n - 腐败倒计时: 🚨 {minutes}分钟"
+                        elif time_left.total_seconds() <= 86400:  # 24小时内
+                            hours = int(time_left.total_seconds() / 3600)
+                            minutes = int((time_left.total_seconds() % 3600) / 60)
+                            message += f"\n - 腐败倒计时: ⚠️ {hours}小时{minutes}分钟"
+                        else:
+                            days = int(time_left.total_seconds() / 86400)
+                            hours = int((time_left.total_seconds() % 86400) / 3600)
+                            message += f"\n - 腐败倒计时: ⏰ {days}天{hours}小时"
+                    
+                    message += "\n\n"
                 return message
 
             # Process each category

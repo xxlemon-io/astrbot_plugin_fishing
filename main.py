@@ -567,6 +567,11 @@ class FishingPlugin(Star):
         async for r in self.exchange_handlers.view_inventory(event):
             yield r
 
+    @filter.command("清仓")
+    async def clear_inventory(self, event: AstrMessageEvent):
+        async for r in self.exchange_handlers.clear_inventory(event):
+            yield r
+
     # =========== 管理后台 ==========
 
     @filter.permission_type(PermissionType.ADMIN)

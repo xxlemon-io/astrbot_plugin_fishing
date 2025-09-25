@@ -111,6 +111,11 @@
         "default": 100000,
         "description": "交易所开户费用"
       },
+      "capacity": {
+        "type": "int",
+        "default": 1000,
+        "description": "交易所持仓总容量"
+      },
       "volatility": {
         "type": "object",
         "items": {

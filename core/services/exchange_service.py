@@ -158,6 +158,15 @@ class ExchangeService:
         if not user.can_afford(total_cost):
             return {"success": False, "message": f"金币不足，需要 {total_cost} 金币"}
 
+        # 检查交易所容量
+        capacity = self.config.get("capacity", 1000) # 从配置读取容量，默认为1000
+        user_commodities = self.exchange_repo.get_user_commodities(user_id)
+        current_total_quantity = sum(item.quantity for item in user_commodities)
+
+        if current_total_quantity + quantity > capacity:
+            remaining_space = capacity - current_total_quantity
+            return {"success": False, "message": f"交易所容量不足！总容量: {capacity}，当前已用: {current_total_quantity}，剩余空间: {remaining_space}"}
+
         # 腐败机制：用户购入时计算腐败时间
         now = datetime.now()
         if commodity_id == 'dried_fish':

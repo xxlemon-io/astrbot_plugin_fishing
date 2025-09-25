@@ -69,7 +69,7 @@ class ExchangeHandlers:
                 async for r in self.exchange_help(event):
                     yield r
             else:
-                yield event.plain_result("❌ 未知的子命令，请使用：\n• 交易所 - 查看市场行情\n• 交易所 开户 - 开通账户\n• 交易所 库存 - 查看库存\n• 交易所 购入 商品名称 数量 - 购买\n• 交易所 卖出 商品名称 - 卖出所有\n• 交易所 卖出 库存ID 数量 - 卖出指定数量\n• 交易所 清仓 商品名称 - 清空指定商品\n• 交易所 清仓 all - 清空所有库存\n• 交易所 帮助 - 查看所有玩法")
+                yield event.plain_result("❌ 未知的子命令，请使用：\n• 交易所 - 查看市场行情\n• 交易所 开户 - 开通账户\n• 交易所 库存 - 查看库存\n• 交易所 购入 商品名称 数量 - 购买\n• 交易所 卖出 商品名称 - 卖出所有\n• 交易所 卖出 库存ID 数量 - 卖出指定数量\n• 交易所 帮助 - 查看所有玩法\n• /清仓 - 清空所有库存")
 
     async def exchange_status(self, event: AstrMessageEvent):
         """查看交易所当前状态"""
@@ -108,13 +108,17 @@ class ExchangeHandlers:
                 msg += f"腐败时间: {corruption_info}\n"
                 msg += "─" * 20 + "\n"
         msg += "═" * 25 + "\n"
+
+        # 显示持仓容量
+        capacity = self.plugin.exchange_service.config.get("capacity", 1000)
+        user_commodities = self.plugin.exchange_service.exchange_repo.get_user_commodities(user_id)
+        current_total_quantity = sum(item.quantity for item in user_commodities)
+        msg += f"📦 当前持仓: {current_total_quantity} / {capacity}\n"
+
         msg += "💡 使用【交易所 购入 商品名称 数量】购买\n"
         msg += "💡 使用【交易所 卖出 商品名称】出售所有该商品\n"
-        msg += "💡 使用【交易所 清仓 商品名称】清空指定商品\n"
-        msg += "💡 使用【交易所 清仓 all】清空所有库存\n"
+        msg += "💡 快速清仓：/清仓 或 /清仓 商品名称\n"
         msg += "💡 快速查看持仓：/持仓\n"
-        msg += "💡 库存ID格式：C开头+Base36编码（如C1A、C2B）\n"
-        msg += "💡 可用商品：鱼干、鱼卵、鱼油\n"
         msg += "💡 大宗商品可上架二级市场：/上架 C1A 1000\n"
         msg += "💡 查看所有玩法：/交易所 帮助\n"
         msg += "⚠️ 注意：商品会腐败，请及时交易！"
@@ -267,12 +271,15 @@ class ExchangeHandlers:
         user_id = self._get_effective_user_id(event)
         args = event.message_str.split()
         
-        if len(args) == 2:
-            # 格式：交易所 清仓 all（清空所有库存）
-            yield event.plain_result("❌ 请指定要清仓的商品名称，或使用 'all' 清空所有库存\n💡 示例：/交易所 清仓 鱼油 或 /交易所 清仓 all")
-            return
-        elif len(args) == 3:
-            target = args[2].lower()
+        if len(args) == 1:
+            # 格式：/清仓（清空所有库存）
+            result = self.exchange_service.clear_all_inventory(user_id)
+            if result["success"]:
+                yield event.plain_result(f"✅ {result['message']}")
+            else:
+                yield event.plain_result(f"❌ {result['message']}")
+        elif len(args) == 2:
+            target = args[1].lower()
             
             if target == "all":
                 # 清空所有库存
@@ -283,14 +290,14 @@ class ExchangeHandlers:
                     yield event.plain_result(f"❌ {result['message']}")
             else:
                 # 清空指定商品
-                commodity_name = args[2]
+                commodity_name = args[1]
                 result = self.exchange_service.sell_commodity_by_name(user_id, commodity_name)
                 if result["success"]:
                     yield event.plain_result(f"✅ {result['message']}")
                 else:
                     yield event.plain_result(f"❌ {result['message']}")
         else:
-            yield event.plain_result("❌ 命令格式错误，请使用：\n• 交易所 清仓 商品名称 - 清空指定商品\n• 交易所 清仓 all - 清空所有库存")
+            yield event.plain_result("❌ 命令格式错误，请使用：\n• /清仓 - 清空所有库存\n• /清仓 商品名称 - 清空指定商品\n• /清仓 all - 清空所有库存")
 
     async def exchange_help(self, event: AstrMessageEvent):
         """交易所帮助信息"""
@@ -308,15 +315,15 @@ class ExchangeHandlers:
 • /交易所 购入 商品名称 数量 - 购买大宗商品
 • /交易所 卖出 商品名称 - 卖出所有该商品
 • /交易所 卖出 库存ID 数量 - 卖出指定数量
-• /交易所 清仓 商品名称 - 清空指定商品
-• /交易所 清仓 all - 清空所有库存
 • /交易所 帮助 - 显示此帮助信息
 • /持仓 - 快速查看大宗商品库存（独立命令）
+• /清仓 - 清空所有库存（独立命令）
+• /清仓 商品名称 - 清空指定商品（独立命令）
 
 🛒 商品信息：
-• 鱼干：稳健型标的，价格波动±10%，保质期3天
-• 鱼卵：高风险标的，价格波动±50%，保质期2天  
-• 鱼油：投机品，价格波动±25%，保质期1-3天（每日固定）
+• 鱼干：价格稳健，保质期3天
+• 鱼卵：高风险，保质期2天  
+• 鱼油：投机品，价格波动大，保质期1-3天（每日固定）
 
 💡 交易技巧：
 • 鱼干适合稳健型玩家，风险低但收益有限
@@ -327,6 +334,8 @@ class ExchangeHandlers:
 ⚠️ 重要提醒：
 • 商品会腐败，请及时交易！
 • 腐败后价值归零，无法挽回
+• 购买新商品时自动清理腐败商品
+• 交易所总容量为1000，所有商品共享
 • 库存ID格式：C开头+Base36编码（如C1A、C2B）
 • 每日9点、15点、21点更新价格，鱼油腐败时间每日固定
 
