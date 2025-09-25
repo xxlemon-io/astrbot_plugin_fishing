@@ -427,7 +427,7 @@ class FishingPlugin(Star):
         async for r in market_handlers.sell_keep(self, event):
             yield r
 
-    @filter.command("砸锅卖铁", alias={"破产", "清空", "清仓"})
+    @filter.command("砸锅卖铁", alias={"破产", "清空"})
     async def sell_everything(self, event: AstrMessageEvent):
         async for r in market_handlers.sell_everything(self, event):
             yield r
