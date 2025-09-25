@@ -3,6 +3,7 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 
+from astrbot.api import logger
 from ..domain.models import User, Exchange, UserCommodity, Commodity
 from ..repositories.abstract_repository import (
     AbstractUserRepository,
@@ -28,7 +29,7 @@ class ExchangeService:
             self.name_to_id = {c.name: c.commodity_id for c in self.commodities.values()}
         except Exception as e:
             # 如果获取商品数据失败，使用空字典
-            print(f"警告：无法获取商品数据: {e}")
+            logger.warning(f"警告：无法获取商品数据: {e}")
             self.commodities = {}
             self.name_to_id = {}
         
@@ -415,7 +416,7 @@ class ExchangeService:
                 break
             except Exception as e:
                 # 记录错误但继续运行
-                print(f"交易所价格更新任务出错: {e}")
+                logger.error(f"交易所价格更新任务出错: {e}")
                 await asyncio.sleep(3600)  # 出错后等待1小时再重试
     
     def _get_daily_fish_oil_expiry_days(self) -> int:

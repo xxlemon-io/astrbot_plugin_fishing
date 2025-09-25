@@ -2,7 +2,7 @@ import random
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
 
-from astrbot.core.utils.pip_installer import logger
+from astrbot.api import logger
 # 导入仓储接口和领域模型
 from ..repositories.abstract_repository import (
     AbstractGachaRepository,

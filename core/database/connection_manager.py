@@ -1,11 +1,10 @@
 import sqlite3
 import threading
 import time
-import logging
 from typing import Optional
 from contextlib import contextmanager
 
-logger = logging.getLogger(__name__)
+from astrbot.api import logger
 
 
 class DatabaseConnectionManager:

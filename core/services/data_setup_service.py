@@ -46,7 +46,7 @@ class DataSetupService:
         try:
             existing_fish = self.item_template_repo.get_all_fish()
             if existing_fish:
-                # print("数据库核心数据已存在，跳过初始化。")
+                logger.info("数据库核心数据已存在，跳过初始化。")
                 return
         except Exception as e:
             # 如果表不存在等数据库错误，也需要继续执行创建和插入
