@@ -28,7 +28,8 @@ def up(cursor: sqlite3.Cursor):
     - 饰品：A + base36(accessory_instance_id)
     均使用大写并建立唯一索引。
     """
-    print("执行 023_add_display_code_to_equipment: 添加 display_code 并回填...")
+    from astrbot.api import logger
+    logger.info("执行 023_add_display_code_to_equipment: 添加 display_code 并回填...")
 
     # 1) 添加列
     _ensure_column(cursor, "user_rods", "display_code", "display_code TEXT")
@@ -71,7 +72,7 @@ def up(cursor: sqlite3.Cursor):
     except Exception:
         pass
 
-    print("023_add_display_code_to_equipment: 回填完成。")
+    logger.info("023_add_display_code_to_equipment: 回填完成。")
 
 
 def down(cursor: sqlite3.Cursor):
@@ -86,6 +87,6 @@ def down(cursor: sqlite3.Cursor):
         cursor.execute("DROP INDEX IF EXISTS idx_user_accessories_display_code")
     except Exception:
         pass
-    print("023_add_display_code_to_equipment: 索引已移除（列保留）。")
+    logger.info("023_add_display_code_to_equipment: 索引已移除（列保留）。")
 
 

@@ -7,7 +7,8 @@ def up(cursor: sqlite3.Cursor):
     - shops: 商店表
     - shop_items: 商店商品表（包含成本、奖励、库存等信息）
     """
-    print("正在执行 021_refactor_shop_system: 重构商店系统...")
+    from astrbot.api import logger
+    logger.info("正在执行 021_refactor_shop_system: 重构商店系统...")
 
     # 1. 创建 shops 表
     cursor.execute(
@@ -125,15 +126,15 @@ def up(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_shop_purchase_user_item ON shop_purchase_records(user_id, item_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_shop_purchase_time ON shop_purchase_records(timestamp)")
 
-    print("商店系统重构完成：shops + shop_items 设计")
+    logger.info("商店系统重构完成：shops + shop_items 设计")
 
 
 def down(cursor: sqlite3.Cursor):
     """回滚：删除新的商店系统表"""
-    print("正在回滚 021_refactor_shop_system...")
+    logger.info("正在回滚 021_refactor_shop_system...")
     cursor.execute("DROP TABLE IF EXISTS shop_purchase_records")
     cursor.execute("DROP TABLE IF EXISTS shop_item_rewards")
     cursor.execute("DROP TABLE IF EXISTS shop_item_costs")
     cursor.execute("DROP TABLE IF EXISTS shop_items")
     cursor.execute("DROP TABLE IF EXISTS shops")
-    print("回滚完成")
+    logger.info("回滚完成")

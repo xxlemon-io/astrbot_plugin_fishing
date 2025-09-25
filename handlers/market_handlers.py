@@ -429,237 +429,92 @@ async def buy_in_shop(self, event: AstrMessageEvent):
 
 async def market(self, event: AstrMessageEvent):
     """查看市场"""
-    try:
-        result = self.market_service.get_market_listings()
-        if result["success"]:
-            # 收集所有商品并限制总数
-            all_items = []
-            
-            rods = result["rods"]
-            accessories = result["accessories"]
-            items = result["items"]
-            fish = result.get("fish", [])
-            commodities = result.get("commodities", [])
+    result = self.market_service.get_market_listings()
+    if not result.get("success"):
+        yield event.plain_result(f"❌ 查看市场失败：{result.get('message', '未知错误')}")
+        return
 
-            if rods:
-                for rod in rods[:15]:  # 限制鱼竿最多15件
-                    # 生成短码显示
-                    display_code = _get_display_code_for_market_item(rod)
-                    # 检查是否为匿名商品
-                    is_anonymous = rod.is_anonymous
-                    seller_display = "🎭 匿名卖家" if is_anonymous else rod.seller_nickname
-                    all_items.append({
-                        "type": "鱼竿",
-                        "emoji": "🎣",
-                        "name": f"{rod.item_name} 精{rod.refine_level}",
-                        "id": rod.market_id,
-                        "display_code": display_code,
-                        "price": rod.price,
-                        "seller": seller_display,
-                        "is_anonymous": is_anonymous
-                    })
-            
-            if accessories:
-                for accessory in accessories[:15]:  # 限制饰品最多15件
-                    # 生成短码显示
-                    display_code = _get_display_code_for_market_item(accessory)
-                    # 检查是否为匿名商品
-                    is_anonymous = accessory.is_anonymous
-                    seller_display = "🎭 匿名卖家" if is_anonymous else accessory.seller_nickname
-                    all_items.append({
-                        "type": "饰品",
-                        "emoji": "💍",
-                        "name": f"{accessory.item_name} 精{accessory.refine_level}",
-                        "id": accessory.market_id,
-                        "display_code": display_code,
-                        "price": accessory.price,
-                        "seller": seller_display,
-                        "is_anonymous": is_anonymous
-                    })
-            
-            if items:
-                for item in items[:15]:  # 限制道具最多15件
-                    # 道具没有实例ID，使用市场ID
-                    is_anonymous = item.is_anonymous
-                    seller_display = "🎭 匿名卖家" if is_anonymous else item.seller_nickname
-                    all_items.append({
-                        "type": "道具",
-                        "emoji": "🎁",
-                        "name": item.item_name,
-                        "id": item.market_id,
-                        "display_code": f"M{_to_base36(item.market_id)}",  # 道具市场使用Base36编码的市场ID
-                        "price": item.price,
-                        "seller": seller_display,
-                        "is_anonymous": is_anonymous
-                    })
+    # 将所有商品分类
+    grouped_items = {
+        "rod": result.get("rods", []),
+        "accessory": result.get("accessories", []),
+        "commodity": result.get("commodities", []),
+        "item": result.get("items", []),
+        "fish": result.get("fish", [])
+    }
 
-            if fish:
-                for fish_item in fish[:15]:  # 限制鱼类最多15件
-                    # 生成鱼类短码显示（市场ID）
-                    is_anonymous = fish_item.is_anonymous
-                    seller_display = "🎭 匿名卖家" if is_anonymous else fish_item.seller_nickname
-                    all_items.append({
-                        "type": "鱼类",
-                        "emoji": "🐟",
-                        "name": fish_item.item_name,
-                        "id": fish_item.market_id,
-                        "display_code": f"M{_to_base36(fish_item.market_id)}",  # 鱼类市场使用Base36编码的市场ID
-                        "price": fish_item.price,
-                        "seller": seller_display,
-                        "is_anonymous": is_anonymous
-                    })
-            
-            if commodities:
-                for commodity in commodities[:15]:
-                    is_anonymous = commodity.is_anonymous
-                    seller_display = "🎭 匿名卖家" if is_anonymous else commodity.seller_nickname
-                    all_items.append({
-                        "type": "大宗商品",
-                        "emoji": "📦",
-                        "name": commodity.item_name,
-                        "id": commodity.market_id,
-                        "display_code": f"M{_to_base36(commodity.market_id)}",
-                        "price": commodity.price,
-                        "seller": seller_display,
-                        "is_anonymous": is_anonymous
-                    })
-            
-            if not all_items:
-                yield event.plain_result("🛒 市场中没有商品可供购买。")
-                return
+    if not any(grouped_items.values()):
+        yield event.plain_result("🛒 市场中没有商品可供购买。")
+        return
 
-            # Helper function to format a list of items
-            def format_item_list(item_list, item_type, emoji):
-                message = ""
-                for item in item_list:
-                    display_code = _get_display_code_for_market_item(item)
-                    is_anonymous = getattr(item, 'is_anonymous', False)
-                    seller_display = "🎭 匿名卖家" if is_anonymous else item.seller_nickname
-                    refine_level = getattr(item, 'refine_level', 1)
-                    refine_level_str = f" 精{refine_level}" if refine_level > 1 else ""
-                    
-                    message += f"【{emoji} {item_type}】：\n"
-                    quantity_text = f" x{item.quantity}" if item.quantity > 1 else ""
-                    message += f" - {item.item_name}{refine_level_str}{quantity_text} (ID: {display_code}) - 价格: {item.price} 金币\n"
-                    message += f" - 售卖人： {seller_display}"
-                    
-                    # 为大宗商品添加腐败时间显示
-                    if item_type == "大宗商品" and hasattr(item, 'expires_at') and item.expires_at:
-                        from datetime import datetime
-                        time_left = item.expires_at - datetime.now()
-                        if time_left.total_seconds() <= 0:
-                            message += f"\n - 状态: 💀 已腐败，价值归零"
-                        elif time_left.total_seconds() <= 3600:  # 1小时内
-                            minutes = int(time_left.total_seconds() / 60)
-                            message += f"\n - 腐败倒计时: 🚨 {minutes}分钟"
-                        elif time_left.total_seconds() <= 86400:  # 24小时内
-                            hours = int(time_left.total_seconds() / 3600)
-                            minutes = int((time_left.total_seconds() % 3600) / 60)
-                            message += f"\n - 腐败倒计时: ⚠️ {hours}小时{minutes}分钟"
-                        else:
-                            days = int(time_left.total_seconds() / 86400)
-                            hours = int((time_left.total_seconds() % 86400) / 3600)
-                            message += f"\n - 腐败倒计时: ⏰ {days}天{hours}小时"
-                    
-                    message += "\n\n"
-                return message
+    # --- 帮助函数：用于格式化单个分区 ---
+    def format_section(title_emoji, title_text, listings):
+        if not listings:
+            return ""
+        
+        msg = f"【{title_emoji} 市场 - {title_text}】\n\n"
+        for item in listings[:15]:  # 每个分区最多显示15个
+            display_code = _get_display_code_for_market_item(item)
+            seller_display = "🎭 匿名卖家" if item.is_anonymous else item.seller_nickname
+            refine_level_str = f" 精{item.refine_level}" if hasattr(item, 'refine_level') and item.refine_level > 1 else ""
+            quantity_text = f" x{item.quantity}" if hasattr(item, 'quantity') and item.quantity > 1 else ""
 
-            # Process each category
-            page_size = 15
+            msg += f" - {item.item_name}{refine_level_str}{quantity_text} (ID: {display_code}) - 价格: {item.price} 金币\n"
+            msg += f" - 售卖人： {seller_display}"
 
-            # Rods
-            if rods:
-                if len(rods) > page_size:
-                    total_pages = (len(rods) + page_size - 1) // page_size
-                    for page in range(total_pages):
-                        start_idx = page * page_size
-                        end_idx = min(start_idx + page_size, len(rods))
-                        page_items = rods[start_idx:end_idx]
-                        
-                        message = f"【🎣 市场 - 鱼竿】第 {page + 1}/{total_pages} 页\n\n"
-                        message += format_item_list(page_items, "鱼竿", "🎣")
-                        yield event.plain_result(message)
+            # 为大宗商品添加腐败时间显示
+            if item.item_type == "commodity" and hasattr(item, 'expires_at') and item.expires_at:
+                from datetime import datetime
+                time_left = item.expires_at - datetime.now()
+                if time_left.total_seconds() <= 0:
+                    msg += f"\n - 状态: 💀 已腐败"
+                elif time_left.total_seconds() <= 86400:  # 24小时内
+                    hours = int(time_left.total_seconds() // 3600)
+                    minutes = int((time_left.total_seconds() % 3600) // 60)
+                    msg += f"\n - 腐败倒计时: ⚠️ {hours}小时{minutes}分钟"
                 else:
-                    message = "【🎣 市场 - 鱼竿】\n\n"
-                    message += format_item_list(rods, "鱼竿", "🎣")
-                    yield event.plain_result(message)
+                    days = time_left.days
+                    hours = int(time_left.seconds // 3600)
+                    msg += f"\n - 腐败倒计时: ⏰ {days}天{hours}小时"
+            
+            msg += "\n\n"
+        return msg
 
-            # Accessories
-            if accessories:
-                if len(accessories) > page_size:
-                    total_pages = (len(accessories) + page_size - 1) // page_size
-                    for page in range(total_pages):
-                        start_idx = page * page_size
-                        end_idx = min(start_idx + page_size, len(accessories))
-                        page_items = accessories[start_idx:end_idx]
-                        
-                        message = f"【💍 市场 - 饰品】第 {page + 1}/{total_pages} 页\n\n"
-                        message += format_item_list(page_items, "饰品", "💍")
-                        yield event.plain_result(message)
-                else:
-                    message = "【💍 市场 - 饰品】\n\n"
-                    message += format_item_list(accessories, "饰品", "💍")
-                    yield event.plain_result(message)
+    # --- 构建并发送消息 ---
+    final_message_parts = []
+    final_message_parts.append(format_section("🎣", "鱼竿", grouped_items["rod"]))
+    final_message_parts.append(format_section("💍", "饰品", grouped_items["accessory"]))
+    final_message_parts.append(format_section("📦", "大宗商品", grouped_items["commodity"]))
+    final_message_parts.append(format_section("🎁", "道具", grouped_items["item"]))
+    final_message_parts.append(format_section("🐟", "鱼类", grouped_items["fish"]))
 
-            # Items
-            if items:
-                if len(items) > page_size:
-                    total_pages = (len(items) + page_size - 1) // page_size
-                    for page in range(total_pages):
-                        start_idx = page * page_size
-                        end_idx = min(start_idx + page_size, len(items))
-                        page_items = items[start_idx:end_idx]
-                        
-                        message = f"【🎁 市场 - 道具】第 {page + 1}/{total_pages} 页\n\n"
-                        message += format_item_list(page_items, "道具", "🎁")
-                        yield event.plain_result(message)
-                else:
-                    message = "【🎁 市场 - 道具】\n\n"
-                    message += format_item_list(items, "道具", "🎁")
-                    yield event.plain_result(message)
+    full_message = "".join(filter(None, final_message_parts))
 
-            # Fish
-            if fish:
-                if len(fish) > page_size:
-                    total_pages = (len(fish) + page_size - 1) // page_size
-                    for page in range(total_pages):
-                        start_idx = page * page_size
-                        end_idx = min(start_idx + page_size, len(fish))
-                        page_items = fish[start_idx:end_idx]
-                        
-                        message = f"【🐟 市场 - 鱼类】第 {page + 1}/{total_pages} 页\n\n"
-                        message += format_item_list(page_items, "鱼类", "🐟")
-                        yield event.plain_result(message)
-                else:
-                    message = "【🐟 市场 - 鱼类】\n\n"
-                    message += format_item_list(fish, "鱼类", "🐟")
-                    yield event.plain_result(message)
+    if not full_message.strip():
+        yield event.plain_result("🛒 市场中没有商品可供购买。")
+        return
 
-            # Commodities
-            if commodities:
-                if len(commodities) > page_size:
-                    total_pages = (len(commodities) + page_size - 1) // page_size
-                    for page in range(total_pages):
-                        start_idx = page * page_size
-                        end_idx = min(start_idx + page_size, len(commodities))
-                        page_items = commodities[start_idx:end_idx]
-                        
-                        message = f"【📦 市场 - 大宗商品】第 {page + 1}/{total_pages} 页\n\n"
-                        message += format_item_list(page_items, "大宗商品", "📦")
-                        yield event.plain_result(message)
-                else:
-                    message = "【📦 市场 - 大宗商品】\n\n"
-                    message += format_item_list(commodities, "大宗商品", "📦")
-                    yield event.plain_result(message)
-        else:
-            # 处理市场服务返回失败的情况
-            error_message = result.get("message", "获取市场列表失败")
-            yield event.plain_result(f"❌ 查看市场失败：{error_message}")
-    except Exception as e:
-        # 处理其他异常情况
-        yield event.plain_result(f"❌ 查看市场时发生错误：{str(e)}")
-
-
+    full_message += "💡 挂单有效期为5天，过期将自动下架返还\n"
+    full_message += "💡 使用「购买 ID」购买，例如：购买 C5"
+    
+    # 为避免消息过长，进行分割发送
+    if len(full_message) > 1800:
+        # 简单的按分区（双换行）分割
+        parts = full_message.split('\n\n')
+        current_part = ""
+        for part in parts:
+            # 如果当前部分加上新部分超过长度限制，就先发送当前部分
+            if len(current_part) + len(part) + 2 > 1800 and current_part:
+                yield event.plain_result(current_part)
+                current_part = part + '\n\n'
+            else:
+                current_part += part + '\n\n'
+        
+        # 发送最后剩余的部分
+        if current_part.strip():
+            yield event.plain_result(current_part.strip())
+    else:
+        yield event.plain_result(full_message)
 
 
 async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
@@ -673,7 +528,7 @@ async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 3:
-        yield event.plain_result("❌ 用法：/上架 ID 价格 [数量] [匿名]\n示例：/上架 R2N9C 1000、/上架 D1 100 10、/上架 F3 50 5 匿名\n💡 匿名参数必须在最后")
+        yield event.plain_result("❌ 用法：/上架 ID 价格 [数量] [匿名]\n示例：/上架 R2N9C 1000、/上架 D1 100 10、/上架 F3 50 5 匿名\n💡 挂单有效期为5天，过期将自动下架返还\n💡 匿名参数必须在最后")
         return
     token = args[1].strip().upper()
     price = args[2]
@@ -884,8 +739,8 @@ def _get_display_code_for_market_item(item) -> str:
     elif item_type == "fish":
         # 鱼类在市场中使用Base36编码的市场ID
         return f"M{_to_base36(item.market_id)}"
-    elif item_type == "commodity":
-        return f"M{_to_base36(item.market_id)}"
+    elif item_type == "commodity" and item_instance_id:
+        return f"C{_to_base36(item_instance_id)}"
     else:
         # 其他情况，使用Base36编码的市场ID
         return f"M{_to_base36(item.market_id)}"

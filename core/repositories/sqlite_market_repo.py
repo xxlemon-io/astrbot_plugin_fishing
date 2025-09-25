@@ -1,8 +1,9 @@
 import sqlite3
 import threading
-import logging
 from typing import Optional, List, Tuple, Any
 from datetime import datetime
+
+from astrbot.api import logger
 
 # 导入抽象基类和领域模型
 from .abstract_repository import AbstractMarketRepository
@@ -45,7 +46,7 @@ class SqliteMarketRepository(AbstractMarketRepository):
                 data['listed_at'] = datetime.fromisoformat(data['listed_at'].replace('Z', '+00:00'))
             except (ValueError, AttributeError):
                 # 如果解析失败，记录警告并使用当前时间
-                logging.warning(f"Failed to parse listed_at: {data['listed_at']}. Falling back to current time.")
+                logger.warning(f"Failed to parse listed_at: {data['listed_at']}. Falling back to current time.")
                 data['listed_at'] = datetime.now()
         
         return MarketListing(**data)

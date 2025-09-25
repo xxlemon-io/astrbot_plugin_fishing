@@ -16,7 +16,8 @@ def up(cursor: sqlite3.Cursor):
     """
     为market表添加对commodity类型的支持
     """
-    print("正在执行 029_add_commodity_support_to_market: 更新market表约束以支持大宗商品类型...")
+    from astrbot.api import logger
+    logger.info("正在执行 029_add_commodity_support_to_market: 更新market表约束以支持大宗商品类型...")
     
     # SQLite不支持直接修改CHECK约束，需要重建表
     # 1. 创建新的market表结构
@@ -43,7 +44,7 @@ def up(cursor: sqlite3.Cursor):
     # 2. 检查现有表结构并复制数据
     cursor.execute("PRAGMA table_info(market)")
     existing_columns = [col[1] for col in cursor.fetchall()]
-    print(f"现有表字段: {existing_columns}")
+    logger.info(f"现有表字段: {existing_columns}")
     
     # 构建动态的INSERT语句
     base_columns = ['market_id', 'user_id', 'item_type', 'item_id', 'quantity', 'price', 'listed_at', 'expires_at']
@@ -74,7 +75,7 @@ def up(cursor: sqlite3.Cursor):
                 select_fields.append(f"{get_default_value(col)} as {col}")
     
     select_sql = f"SELECT {', '.join(select_fields)} FROM market"
-    print(f"复制数据SQL: {select_sql}")
+    logger.info(f"复制数据SQL: {select_sql}")
     
     cursor.execute(f"""
         INSERT INTO market_new (
@@ -97,14 +98,15 @@ def up(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_market_listed_at ON market(listed_at)")
     
     cursor.connection.commit()
-    print("market表约束更新完成，现在支持rod、accessory、item、fish和commodity类型")
+    logger.info("market表约束更新完成，现在支持rod、accessory、item、fish和commodity类型")
 
 
 def down(cursor: sqlite3.Cursor):
     """
     回滚：移除对commodity类型的支持
     """
-    print("正在回滚 029_add_commodity_support_to_market: 移除commodity类型支持...")
+    from astrbot.api import logger
+    logger.info("正在回滚 029_add_commodity_support_to_market: 移除commodity类型支持...")
     
     # 1. 创建回滚的market表结构（只支持rod、accessory、item和fish）
     cursor.execute("""
@@ -130,7 +132,7 @@ def down(cursor: sqlite3.Cursor):
     # 2. 检查现有表结构并复制rod、accessory、item和fish类型的数据
     cursor.execute("PRAGMA table_info(market)")
     existing_columns = [col[1] for col in cursor.fetchall()]
-    print(f"现有表字段: {existing_columns}")
+    logger.info(f"现有表字段: {existing_columns}")
     
     # 构建动态的INSERT语句
     base_columns = ['market_id', 'user_id', 'item_type', 'item_id', 'quantity', 'price', 'listed_at', 'expires_at']
@@ -161,7 +163,7 @@ def down(cursor: sqlite3.Cursor):
                 select_fields.append(f"{get_default_value(col)} as {col}")
     
     select_sql = f"SELECT {', '.join(select_fields)} FROM market WHERE item_type IN ('rod', 'accessory', 'item', 'fish')"
-    print(f"复制数据SQL: {select_sql}")
+    logger.info(f"复制数据SQL: {select_sql}")
     
     cursor.execute(f"""
         INSERT INTO market_rollback (
@@ -184,4 +186,4 @@ def down(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_market_listed_at ON market(listed_at)")
     
     cursor.connection.commit()
-    print("market表约束回滚完成，现在只支持rod、accessory、item和fish类型")
+    logger.info("market表约束回滚完成，现在只支持rod、accessory、item和fish类型")
