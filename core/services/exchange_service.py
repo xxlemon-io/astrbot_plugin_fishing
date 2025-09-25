@@ -16,10 +16,12 @@ class ExchangeService:
         user_repo: AbstractUserRepository,
         exchange_repo: AbstractExchangeRepository,
         config: Dict[str, Any],
+        log_repo=None,
     ):
         self.user_repo = user_repo
         self.exchange_repo = exchange_repo
         self.config = config.get("exchange", {})
+        self.log_repo = log_repo
         
         # 安全地获取商品数据
         try:
@@ -319,18 +321,19 @@ class ExchangeService:
         self.user_repo.update(user)
 
         # 记录税收日志
-        from ..domain.models import TaxRecord
-        tax_log = TaxRecord(
-            tax_id=0,
-            user_id=user_id,
-            tax_amount=tax_amount,
-            tax_rate=tax_rate,
-            original_amount=total_earnings,
-            balance_after=user.coins,
-            tax_type="交易所卖出税",
-            timestamp=datetime.now()
-        )
-        self.log_repo.add_tax_record(tax_log)
+        if self.log_repo:
+            from ..domain.models import TaxRecord
+            tax_log = TaxRecord(
+                tax_id=0,
+                user_id=user_id,
+                tax_amount=tax_amount,
+                tax_rate=tax_rate,
+                original_amount=total_earnings,
+                balance_after=user.coins,
+                tax_type="交易所卖出税",
+                timestamp=datetime.now()
+            )
+            self.log_repo.add_tax_record(tax_log)
 
         # 删除所有该商品的库存
         for item in target_commodities:
@@ -380,18 +383,19 @@ class ExchangeService:
         self.user_repo.update(user)
 
         # 记录税收日志
-        from ..domain.models import TaxRecord
-        tax_log = TaxRecord(
-            tax_id=0,
-            user_id=user_id,
-            tax_amount=tax_amount,
-            tax_rate=tax_rate,
-            original_amount=total_earnings,
-            balance_after=user.coins,
-            tax_type="交易所清仓税",
-            timestamp=datetime.now()
-        )
-        self.log_repo.add_tax_record(tax_log)
+        if self.log_repo:
+            from ..domain.models import TaxRecord
+            tax_log = TaxRecord(
+                tax_id=0,
+                user_id=user_id,
+                tax_amount=tax_amount,
+                tax_rate=tax_rate,
+                original_amount=total_earnings,
+                balance_after=user.coins,
+                tax_type="交易所清仓税",
+                timestamp=datetime.now()
+            )
+            self.log_repo.add_tax_record(tax_log)
 
         # 删除所有库存
         for item in user_commodities:

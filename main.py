@@ -172,7 +172,7 @@ class FishingPlugin(Star):
         )
 
         # 初始化交易所服务
-        self.exchange_service = ExchangeService(self.user_repo, self.exchange_repo, self.game_config)
+        self.exchange_service = ExchangeService(self.user_repo, self.exchange_repo, self.game_config, self.log_repo)
         
         # 初始化交易所处理器
         self.exchange_handlers = ExchangeHandlers(self)
