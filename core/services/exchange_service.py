@@ -19,9 +19,19 @@ class ExchangeService:
         self.user_repo = user_repo
         self.exchange_repo = exchange_repo
         self.config = config.get("exchange", {})
-        self.commodities = {c.commodity_id: c for c in self.exchange_repo.get_all_commodities()}
-        # 创建中文名称到商品ID的映射
-        self.name_to_id = {c.name: c.commodity_id for c in self.commodities.values()}
+        
+        # 安全地获取商品数据
+        try:
+            commodities_list = self.exchange_repo.get_all_commodities()
+            self.commodities = {c.commodity_id: c for c in commodities_list}
+            # 创建中文名称到商品ID的映射
+            self.name_to_id = {c.name: c.commodity_id for c in self.commodities.values()}
+        except Exception as e:
+            # 如果获取商品数据失败，使用空字典
+            print(f"警告：无法获取商品数据: {e}")
+            self.commodities = {}
+            self.name_to_id = {}
+        
         self._price_update_task = None
 
     def _resolve_commodity_id(self, commodity_input: str) -> Optional[str]:
@@ -77,6 +87,10 @@ class ExchangeService:
 
         yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
         last_prices = {p.commodity_id: p.price for p in self.exchange_repo.get_prices_for_date(yesterday_str)}
+
+        # 如果没有商品数据，跳过价格更新
+        if not self.commodities:
+            return
 
         for commodity_id, commodity in self.commodities.items():
             last_price = last_prices.get(commodity_id, self.config.get("initial_prices", {}).get(commodity_id, 100))

@@ -105,9 +105,9 @@ class FishingPlugin(Star):
                 }),
                 "event_chance": config.get("exchange", {}).get("event_chance", 0.1),
                 "initial_prices": config.get("exchange", {}).get("initial_prices", {
-                    "dried_fish": 6000,
-                    "fish_roe": 12000,
-                    "fish_oil": 10000
+                    "dried_fish": 100,
+                    "fish_roe": 200,
+                    "fish_oil": 150
                 })
             }
         }

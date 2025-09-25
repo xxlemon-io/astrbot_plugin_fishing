@@ -1,88 +1,77 @@
 import sqlite3
-from typing import List
 
 
-def get_current_version() -> int:
+def up(cursor: sqlite3.Cursor):
     """
-    返回此迁移脚本对应的版本号。
+    添加交易所系统：
+    - 大宗商品表：存储商品模板信息
+    - 交易所价格历史表：存储每日价格
+    - 用户大宗商品库存表：存储用户持有的商品
+    - 用户表添加交易所账户状态字段
     """
-    return 28
-
-
-def get_migration_queries(db_version: int) -> List[str]:
-    """
-    根据传入的数据库版本号，返回需要执行的迁移SQL语句列表。
-    """
-    queries = []
-    if db_version < 28:
-        queries.extend([
-            """
-            -- 创建大宗商品表
-            CREATE TABLE commodities (
-                commodity_id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                description TEXT
-            );
-            """,
-            """
-            -- 插入默认的大宗商品数据
-            INSERT INTO commodities (commodity_id, name, description) VALUES
-            ('dried_fish', '鱼干', '稳健型标的，价格波动低'),
-            ('fish_roe', '鱼卵', '高风险标的，价格波动极大'),
-            ('fish_oil', '鱼油', '投机品，有概率触发事件导致价格大幅涨跌');
-            """,
-            """
-            -- 创建交易所价格历史表
-            CREATE TABLE exchange_prices (
-                price_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                date TEXT NOT NULL,
-                commodity_id TEXT NOT NULL,
-                price INTEGER NOT NULL,
-                FOREIGN KEY (commodity_id) REFERENCES commodities(commodity_id),
-                UNIQUE(date, commodity_id)
-            );
-            """,
-            """
-            -- 创建用户大宗商品库存表
-            CREATE TABLE user_commodities (
-                instance_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT NOT NULL,
-                commodity_id TEXT NOT NULL,
-                quantity INTEGER NOT NULL,
-                purchase_price INTEGER NOT NULL,
-                purchased_at TEXT NOT NULL,
-                expires_at TEXT NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users(user_id),
-                FOREIGN KEY (commodity_id) REFERENCES commodities(commodity_id)
-            );
-            """,
-            """
-            -- 在 users 表中添加交易所账户状态
-            ALTER TABLE users ADD COLUMN exchange_account_status INTEGER DEFAULT 0;
-            """
-        ])
-    return queries
-
-
-def upgrade(conn: sqlite3.Connection):
-    """
-    执行数据库升级。
-    """
-    c = conn.cursor()
-    # 检查 users 表是否存在 exchange_account_status 列，如果不存在则添加
-    c.execute("PRAGMA table_info(users)")
-    columns = [row[1] for row in c.fetchall()]
-    if 'exchange_account_status' not in columns:
-        c.execute("ALTER TABLE users ADD COLUMN exchange_account_status INTEGER DEFAULT 0")
-
-    # 获取当前版本并执行迁移
-    c.execute("PRAGMA user_version")
-    db_version = c.fetchone()[0]
     
-    migration_queries = get_migration_queries(db_version)
-    for query in migration_queries:
-        c.execute(query)
+    # 1. 在用户表中添加交易所账户状态字段
+    cursor.execute("""
+        ALTER TABLE users ADD COLUMN exchange_account_status INTEGER DEFAULT 0
+    """)
+    
+    # 2. 创建大宗商品表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS commodities (
+            commodity_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT
+        )
+    """)
+    
+    # 3. 插入默认的大宗商品数据
+    cursor.execute("""
+        INSERT OR IGNORE INTO commodities (commodity_id, name, description) VALUES
+        ('dried_fish', '鱼干', '稳健型标的，价格波动低'),
+        ('fish_roe', '鱼卵', '高风险标的，价格波动极大'),
+        ('fish_oil', '鱼油', '投机品，有概率触发事件导致价格大幅涨跌')
+    """)
+    
+    # 4. 创建交易所价格历史表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS exchange_prices (
+            price_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            commodity_id TEXT NOT NULL,
+            price INTEGER NOT NULL,
+            FOREIGN KEY (commodity_id) REFERENCES commodities(commodity_id),
+            UNIQUE(date, commodity_id)
+        )
+    """)
+    
+    # 5. 创建用户大宗商品库存表
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_commodities (
+            instance_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            commodity_id TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            purchase_price INTEGER NOT NULL,
+            purchased_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            FOREIGN KEY (commodity_id) REFERENCES commodities(commodity_id) ON DELETE CASCADE
+        )
+    """)
+    
+    # 6. 创建索引
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_exchange_prices_date ON exchange_prices(date)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_exchange_prices_commodity ON exchange_prices(commodity_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_commodities_user ON user_commodities(user_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_commodities_commodity ON user_commodities(commodity_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_commodities_expires ON user_commodities(expires_at)")
 
-    # 更新版本号
-    c.execute(f"PRAGMA user_version = {get_current_version()}")
-    conn.commit()
+
+def down(cursor: sqlite3.Cursor):
+    """回滚交易所系统"""
+    cursor.execute("DROP TABLE IF EXISTS user_commodities")
+    cursor.execute("DROP TABLE IF EXISTS exchange_prices")
+    cursor.execute("DROP TABLE IF EXISTS commodities")
+    
+    # 注意：SQLite不支持直接删除列，所以这里不处理users表的exchange_account_status字段
+    # 如果需要完全回滚，需要重建users表
