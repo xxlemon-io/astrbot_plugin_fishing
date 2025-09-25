@@ -206,6 +206,11 @@
           }
         }
       },
+      "merge_window_minutes": {
+        "type": "int",
+        "default": 30,
+        "description": "商品合并时间窗口（分钟）"
+      },
       "initial_prices": {
         "type": "object",
         "items": {

@@ -120,6 +120,7 @@ class FishingPlugin(Star):
                     "high_inventory": 0.8,
                     "low_inventory": 0.2
                 }),
+                "merge_window_minutes": config.get("exchange", {}).get("merge_window_minutes", 30),
                 "initial_prices": config.get("exchange", {}).get("initial_prices", {
                     "dried_fish": 6000,
                     "fish_roe": 12000,

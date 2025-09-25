@@ -460,6 +460,49 @@ class ExchangeService:
         logger.info(f"价格变化 {commodity_id}: {old_price} -> {new_price} ({change_rate:+.2%})")
         logger.debug(f"变化因素: {factors}")
 
+    def _find_mergeable_commodity(self, existing_commodities: List[UserCommodity], 
+                                 commodity_id: str, current_price: int, now: datetime) -> Optional[UserCommodity]:
+        """查找可合并的商品库存（30分钟内购买的同商品同价格）"""
+        for existing in existing_commodities:
+            if existing.commodity_id != commodity_id:
+                continue
+                
+            # 价格必须相同（允许1金币的误差）
+            price_diff = abs(existing.purchase_price - current_price)
+            if price_diff > 1:  # 允许1金币的价格差异
+                continue
+                
+            # 检查时间窗口：配置时间内购买的商品可以合并
+            time_diff = abs((existing.purchased_at - now).total_seconds())
+            merge_window_minutes = self.config.get("merge_window_minutes", 30)
+            merge_window = merge_window_minutes * 60  # 转换为秒
+            
+            if time_diff <= merge_window:
+                # 对于鱼油，需要确保是同一天购买（腐败时间相同）
+                if commodity_id == 'fish_oil':
+                    existing_day = existing.purchased_at.strftime("%Y-%m-%d")
+                    current_day = now.strftime("%Y-%m-%d")
+                    if existing_day == current_day:
+                        return existing
+                else:
+                    # 其他商品：30分钟内购买的直接可以合并
+                    return existing
+        
+        return None
+
+    def _calculate_expiry_time(self, commodity_id: str, purchase_time: datetime) -> datetime:
+        """计算商品的腐败时间"""
+        if commodity_id == 'dried_fish':
+            return purchase_time + timedelta(days=3)
+        elif commodity_id == 'fish_roe':
+            return purchase_time + timedelta(days=2)
+        elif commodity_id == 'fish_oil':
+            # 每日固定腐败时间：基于日期计算，确保同一天购买的所有鱼油腐败时间相同
+            days = self._get_daily_fish_oil_expiry_days()
+            return purchase_time + timedelta(days=days)
+        else:
+            return purchase_time + timedelta(days=1)  # 默认1天
+
     def get_user_inventory(self, user_id: str) -> Dict[str, Any]:
         user = self.user_repo.get_by_id(user_id)
         if not user or not user.exchange_account_status:
@@ -515,25 +558,29 @@ class ExchangeService:
         # 清理腐败仓库
         self.clear_expired_commodities(user_id)
 
-        # 检查是否有相同商品且相同腐败时间的库存，如果有则叠加
+        # 检查是否有可合并的库存（30分钟内购买的同商品同价格）
         existing_commodities = self.exchange_repo.get_user_commodities(user_id)
-        for existing in existing_commodities:
-            if (existing.commodity_id == commodity_id and 
-                existing.expires_at == expires_at and 
-                existing.purchase_price == current_price):
-                # 找到相同商品、相同腐败时间、相同价格的库存，直接叠加数量
-                self.exchange_repo.update_user_commodity_quantity(existing.instance_id, existing.quantity + quantity)
-                user.coins -= total_cost
-                self.user_repo.update(user)
-                
-                commodity_name = self.commodities[commodity_id].name
-                days_until_expiry = (expires_at - now).days
-                if commodity_id == 'fish_oil':
-                    corruption_warning = f"，{days_until_expiry}天后将腐败（今日固定）"
-                else:
-                    corruption_warning = f"，{days_until_expiry}天后将腐败"
-                
-                return {"success": True, "message": f"成功购买 {quantity}份 {commodity_name}，花费 {total_cost} 金币{corruption_warning}（已叠加到现有库存）"}
+        mergeable_commodity = self._find_mergeable_commodity(
+            existing_commodities, commodity_id, current_price, now
+        )
+        
+        if mergeable_commodity:
+            # 找到可合并的库存，直接叠加数量
+            self.exchange_repo.update_user_commodity_quantity(
+                mergeable_commodity.instance_id, 
+                mergeable_commodity.quantity + quantity
+            )
+            user.coins -= total_cost
+            self.user_repo.update(user)
+            
+            commodity_name = self.commodities[commodity_id].name
+            days_until_expiry = (mergeable_commodity.expires_at - now).days
+            if commodity_id == 'fish_oil':
+                corruption_warning = f"，{days_until_expiry}天后将腐败（今日固定）"
+            else:
+                corruption_warning = f"，{days_until_expiry}天后将腐败"
+            
+            return {"success": True, "message": f"成功购买 {quantity}份 {commodity_name}，花费 {total_cost} 金币{corruption_warning}（已合并到现有库存）"}
 
         # 没有找到可叠加的库存，创建新的商品实例
         user.coins -= total_cost
