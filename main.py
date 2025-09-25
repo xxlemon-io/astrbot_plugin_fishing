@@ -98,16 +98,32 @@ class FishingPlugin(Star):
             },
             "exchange": {
                 "account_fee": config.get("exchange", {}).get("account_fee", 100000),
+                "capacity": config.get("exchange", {}).get("capacity", 1000),
+                "tax_rate": config.get("exchange", {}).get("tax_rate", 0.05),
                 "volatility": config.get("exchange", {}).get("volatility", {
                     "dried_fish": 0.1,
                     "fish_roe": 0.5,
                     "fish_oil": 0.25
                 }),
                 "event_chance": config.get("exchange", {}).get("event_chance", 0.1),
+                "max_change_rate": config.get("exchange", {}).get("max_change_rate", 0.5),
+                "min_price": config.get("exchange", {}).get("min_price", 1),
+                "max_price": config.get("exchange", {}).get("max_price", 1000000),
+                "sentiment_weights": config.get("exchange", {}).get("sentiment_weights", {
+                    "panic": 0.1,
+                    "pessimistic": 0.2,
+                    "neutral": 0.4,
+                    "optimistic": 0.2,
+                    "euphoric": 0.1
+                }),
+                "supply_demand_thresholds": config.get("exchange", {}).get("supply_demand_thresholds", {
+                    "high_inventory": 0.8,
+                    "low_inventory": 0.2
+                }),
                 "initial_prices": config.get("exchange", {}).get("initial_prices", {
-                    "dried_fish": 100,
-                    "fish_roe": 200,
-                    "fish_oil": 150
+                    "dried_fish": 6000,
+                    "fish_roe": 12000,
+                    "fish_oil": 10000
                 })
             }
         }

@@ -95,7 +95,57 @@ class ExchangeService:
             prices = self.exchange_repo.get_prices_for_date(today_str)
 
         price_data = {p.commodity_id: p.price for p in prices}
-        return {"success": True, "prices": price_data, "commodities": self.commodities}
+        
+        # 获取市场情绪
+        market_sentiment = self._get_market_sentiment()
+        
+        # 获取价格趋势
+        price_trend = self._get_recent_price_trend()
+        
+        # 获取供需状态
+        supply_demand_status = self._get_supply_demand_status()
+        
+        return {
+            "success": True, 
+            "prices": price_data, 
+            "commodities": self.commodities,
+            "market_sentiment": market_sentiment,
+            "price_trend": price_trend,
+            "supply_demand": supply_demand_status,
+            "date": today_str
+        }
+
+    def _get_supply_demand_status(self) -> Dict[str, Any]:
+        """获取供需状态"""
+        try:
+            capacity = self.config.get("capacity", 1000)
+            thresholds = self.config.get("supply_demand_thresholds", {
+                "high_inventory": 0.8,
+                "low_inventory": 0.2
+            })
+            
+            status = {}
+            for commodity_id in self.commodities.keys():
+                total_inventory = 0
+                for user_id in self.user_repo.get_all_user_ids():
+                    inventory = self.exchange_repo.get_user_commodities(user_id)
+                    for item in inventory:
+                        if item.commodity_id == commodity_id:
+                            total_inventory += item.quantity
+                
+                inventory_ratio = total_inventory / capacity if capacity > 0 else 0
+                
+                if inventory_ratio > thresholds.get("high_inventory", 0.8):
+                    status[commodity_id] = "供过于求"
+                elif inventory_ratio < thresholds.get("low_inventory", 0.2):
+                    status[commodity_id] = "供不应求"
+                else:
+                    status[commodity_id] = "供需平衡"
+            
+            return status
+        except Exception as e:
+            logger.warning(f"获取供需状态失败: {e}")
+            return {}
 
     def update_daily_prices(self) -> None:
         today_str = datetime.now().strftime("%Y-%m-%d")
@@ -132,20 +182,283 @@ class ExchangeService:
         logger.info(f"价格更新完成，新价格：{new_prices}")
 
     def _calculate_new_price(self, commodity_id: str, last_price: int) -> int:
-        volatility = self.config.get("volatility", {})
-        if commodity_id == 'dried_fish':
-            change_percent = random.uniform(-volatility.get('dried_fish', 0.1), volatility.get('dried_fish', 0.1))
-        elif commodity_id == 'fish_roe':
-            change_percent = random.uniform(-volatility.get('fish_roe', 0.5), volatility.get('fish_roe', 0.5))
-        elif commodity_id == 'fish_oil':
-            change_percent = random.uniform(-volatility.get('fish_oil', 0.25), volatility.get('fish_oil', 0.25))
-            if random.random() < self.config.get("event_chance", 0.1):  # 10% chance for an event
-                change_percent = random.choice([-2.0, 2.0])
-        else:
-            change_percent = 0
+        """计算新价格 - 使用多因素动态波动系统"""
+        base_volatility = self.config.get("volatility", {})
+        
+        # 1. 基础随机波动
+        base_change = self._get_base_volatility(commodity_id, base_volatility)
+        
+        # 2. 市场情绪影响
+        market_sentiment = self._get_market_sentiment()
+        sentiment_impact = self._calculate_sentiment_impact(commodity_id, market_sentiment)
+        
+        # 3. 供需关系影响
+        supply_demand_impact = self._calculate_supply_demand_impact(commodity_id)
+        
+        # 4. 季节性因素（已禁用）
+        seasonal_impact = 0
+        
+        # 5. 突发事件
+        event_impact = self._calculate_event_impact(commodity_id)
+        
+        # 6. 价格趋势惯性
+        trend_impact = self._calculate_trend_impact(commodity_id, last_price)
+        
+        # 7. 综合计算
+        total_change = (
+            base_change + 
+            sentiment_impact + 
+            supply_demand_impact + 
+            event_impact + 
+            trend_impact
+        )
+        
+        # 8. 应用价格限制和调整
+        new_price = int(last_price * (1 + total_change))
+        new_price = self._apply_price_constraints(commodity_id, new_price, last_price)
+        
+        # 9. 记录价格变化原因
+        self._log_price_change_reason(commodity_id, last_price, new_price, {
+            "base_change": base_change,
+            "sentiment_impact": sentiment_impact,
+            "supply_demand_impact": supply_demand_impact,
+            "event_impact": event_impact,
+            "trend_impact": trend_impact
+        })
+        
+        return max(1, new_price)  # 确保价格不为零或负数
 
-        new_price = int(last_price * (1 + change_percent))
-        return max(1, new_price)  # Price shouldn't be zero or negative
+    def _get_base_volatility(self, commodity_id: str, base_volatility: Dict) -> float:
+        """获取基础随机波动"""
+        volatility = base_volatility.get(commodity_id, 0.1)
+        return random.uniform(-volatility, volatility)
+
+    def _get_market_sentiment(self) -> str:
+        """获取市场情绪（乐观/悲观/恐慌/狂热）"""
+        # 使用配置的情绪权重
+        sentiment_weights = self.config.get("sentiment_weights", {
+            "panic": 0.1,
+            "pessimistic": 0.2,
+            "neutral": 0.4,
+            "optimistic": 0.2,
+            "euphoric": 0.1
+        })
+        
+        # 基于随机数和历史价格趋势决定市场情绪
+        sentiment_roll = random.random()
+        
+        # 获取最近3天的价格数据来判断趋势
+        recent_trend = self._get_recent_price_trend()
+        
+        # 根据趋势调整情绪概率
+        if recent_trend == "rising":
+            # 上涨趋势时，乐观情绪概率增加
+            sentiment_weights["optimistic"] *= 1.5
+            sentiment_weights["euphoric"] *= 1.2
+        elif recent_trend == "falling":
+            # 下跌趋势时，悲观情绪概率增加
+            sentiment_weights["pessimistic"] *= 1.5
+            sentiment_weights["panic"] *= 1.2
+        
+        # 重新标准化概率
+        total_weight = sum(sentiment_weights.values())
+        if total_weight > 0:
+            for sentiment in sentiment_weights:
+                sentiment_weights[sentiment] /= total_weight
+        
+        # 根据权重选择情绪
+        cumulative = 0
+        for sentiment, weight in sentiment_weights.items():
+            cumulative += weight
+            if sentiment_roll <= cumulative:
+                return sentiment
+        
+        return "neutral"  # 兜底
+
+    def _get_recent_price_trend(self) -> str:
+        """获取最近价格趋势"""
+        try:
+            today = datetime.now().strftime("%Y-%m-%d")
+            yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            day_before = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+            
+            today_prices = {p.commodity_id: p.price for p in self.exchange_repo.get_prices_for_date(today)}
+            yesterday_prices = {p.commodity_id: p.price for p in self.exchange_repo.get_prices_for_date(yesterday)}
+            day_before_prices = {p.commodity_id: p.price for p in self.exchange_repo.get_prices_for_date(day_before)}
+            
+            if not today_prices or not yesterday_prices or not day_before_prices:
+                return "stable"
+            
+            # 计算平均价格变化
+            total_change = 0
+            count = 0
+            for commodity_id in today_prices:
+                if commodity_id in yesterday_prices and commodity_id in day_before_prices:
+                    change1 = (today_prices[commodity_id] - yesterday_prices[commodity_id]) / yesterday_prices[commodity_id]
+                    change2 = (yesterday_prices[commodity_id] - day_before_prices[commodity_id]) / day_before_prices[commodity_id]
+                    total_change += (change1 + change2) / 2
+                    count += 1
+            
+            if count == 0:
+                return "stable"
+            
+            avg_change = total_change / count
+            if avg_change > 0.1:
+                return "rising"
+            elif avg_change < -0.1:
+                return "falling"
+            else:
+                return "stable"
+        except Exception as e:
+            logger.warning(f"获取价格趋势失败: {e}")
+            return "stable"
+
+    def _calculate_sentiment_impact(self, commodity_id: str, sentiment: str) -> float:
+        """计算市场情绪对价格的影响"""
+        sentiment_multipliers = {
+            "dried_fish": {"panic": -0.15, "pessimistic": -0.05, "neutral": 0, "optimistic": 0.05, "euphoric": 0.1},
+            "fish_roe": {"panic": -0.3, "pessimistic": -0.1, "neutral": 0, "optimistic": 0.1, "euphoric": 0.25},
+            "fish_oil": {"panic": -0.2, "pessimistic": -0.08, "neutral": 0, "optimistic": 0.08, "euphoric": 0.15}
+        }
+        
+        multiplier = sentiment_multipliers.get(commodity_id, {}).get(sentiment, 0)
+        return random.uniform(multiplier * 0.5, multiplier * 1.5)
+
+    def _calculate_supply_demand_impact(self, commodity_id: str) -> float:
+        """计算供需关系对价格的影响"""
+        try:
+            # 获取当前库存总量
+            total_inventory = 0
+            for user_id in self.user_repo.get_all_user_ids():
+                inventory = self.exchange_repo.get_user_commodities(user_id)
+                for item in inventory:
+                    if item.commodity_id == commodity_id:
+                        total_inventory += item.quantity
+            
+            # 获取商品配置的容量限制
+            capacity = self.config.get("capacity", 1000)
+            inventory_ratio = total_inventory / capacity if capacity > 0 else 0
+            
+            # 获取供需阈值配置
+            thresholds = self.config.get("supply_demand_thresholds", {
+                "high_inventory": 0.8,
+                "low_inventory": 0.2
+            })
+            
+            high_threshold = thresholds.get("high_inventory", 0.8)
+            low_threshold = thresholds.get("low_inventory", 0.2)
+            
+            # 供需影响计算
+            if inventory_ratio > high_threshold:  # 库存过高，价格下跌
+                return random.uniform(-0.1, -0.05)
+            elif inventory_ratio < low_threshold:  # 库存不足，价格上涨
+                return random.uniform(0.05, 0.1)
+            else:  # 库存正常
+                return random.uniform(-0.02, 0.02)
+        except Exception as e:
+            logger.warning(f"计算供需影响失败: {e}")
+            return 0
+
+
+    def _calculate_event_impact(self, commodity_id: str) -> float:
+        """计算突发事件对价格的影响"""
+        event_chance = self.config.get("event_chance", 0.1)
+        
+        if random.random() < event_chance:
+            # 随机选择事件类型
+            event_type = random.choice([
+                "supply_shock",      # 供应冲击
+                "demand_surge",      # 需求激增
+                "weather_event",     # 天气事件
+                "regulatory_change", # 政策变化
+                "technological_breakthrough", # 技术突破
+                "market_manipulation" # 市场操纵
+            ])
+            
+            # 根据商品和事件类型计算影响
+            event_impacts = {
+                "dried_fish": {
+                    "supply_shock": random.uniform(0.15, 0.25),
+                    "demand_surge": random.uniform(0.1, 0.2),
+                    "weather_event": random.uniform(-0.1, 0.1),
+                    "regulatory_change": random.uniform(-0.05, 0.05),
+                    "technological_breakthrough": random.uniform(-0.2, -0.1),
+                    "market_manipulation": random.uniform(-0.3, 0.3)
+                },
+                "fish_roe": {
+                    "supply_shock": random.uniform(0.3, 0.5),
+                    "demand_surge": random.uniform(0.2, 0.4),
+                    "weather_event": random.uniform(-0.2, 0.2),
+                    "regulatory_change": random.uniform(-0.1, 0.1),
+                    "technological_breakthrough": random.uniform(-0.3, -0.15),
+                    "market_manipulation": random.uniform(-0.5, 0.5)
+                },
+                "fish_oil": {
+                    "supply_shock": random.uniform(0.2, 0.4),
+                    "demand_surge": random.uniform(0.15, 0.3),
+                    "weather_event": random.uniform(-0.15, 0.15),
+                    "regulatory_change": random.uniform(-0.08, 0.08),
+                    "technological_breakthrough": random.uniform(-0.25, -0.1),
+                    "market_manipulation": random.uniform(-0.4, 0.4)
+                }
+            }
+            
+            impact = event_impacts.get(commodity_id, {}).get(event_type, 0)
+            logger.info(f"突发事件影响 {commodity_id}: {event_type} -> {impact:.3f}")
+            return impact
+        
+        return 0
+
+    def _calculate_trend_impact(self, commodity_id: str, last_price: int) -> float:
+        """计算价格趋势惯性影响"""
+        try:
+            # 获取历史价格数据
+            today = datetime.now().strftime("%Y-%m-%d")
+            yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            
+            today_prices = {p.commodity_id: p.price for p in self.exchange_repo.get_prices_for_date(today)}
+            yesterday_prices = {p.commodity_id: p.price for p in self.exchange_repo.get_prices_for_date(yesterday)}
+            
+            if commodity_id not in today_prices or commodity_id not in yesterday_prices:
+                return 0
+            
+            # 计算价格变化率
+            price_change = (today_prices[commodity_id] - yesterday_prices[commodity_id]) / yesterday_prices[commodity_id]
+            
+            # 趋势惯性：如果价格变化较大，会有一定的延续性
+            if abs(price_change) > 0.1:  # 变化超过10%
+                # 趋势延续，但强度递减
+                trend_strength = min(abs(price_change) * 0.3, 0.1)  # 最多10%的延续
+                return price_change * trend_strength
+            else:
+                # 小幅波动，随机微调
+                return random.uniform(-0.01, 0.01)
+        except Exception as e:
+            logger.warning(f"计算趋势影响失败: {e}")
+            return 0
+
+    def _apply_price_constraints(self, commodity_id: str, new_price: int, last_price: int) -> int:
+        """应用价格约束和限制"""
+        # 单次最大涨跌幅限制
+        max_change_rate = self.config.get("max_change_rate", 0.5)
+        min_price = int(last_price * (1 - max_change_rate))
+        max_price = int(last_price * (1 + max_change_rate))
+        
+        new_price = max(min_price, min(new_price, max_price))
+        
+        # 绝对价格限制
+        min_absolute_price = self.config.get("min_price", 1)
+        max_absolute_price = self.config.get("max_price", 1000000)
+        
+        new_price = max(min_absolute_price, min(new_price, max_absolute_price))
+        
+        return new_price
+
+    def _log_price_change_reason(self, commodity_id: str, old_price: int, new_price: int, factors: Dict[str, float]):
+        """记录价格变化原因"""
+        change_rate = (new_price - old_price) / old_price if old_price > 0 else 0
+        logger.info(f"价格变化 {commodity_id}: {old_price} -> {new_price} ({change_rate:+.2%})")
+        logger.debug(f"变化因素: {factors}")
 
     def get_user_inventory(self, user_id: str) -> Dict[str, Any]:
         user = self.user_repo.get_by_id(user_id)

@@ -87,9 +87,34 @@ class ExchangeHandlers:
         
         prices = result["prices"]
         commodities = result["commodities"]
+        market_sentiment = result.get("market_sentiment", "neutral")
+        price_trend = result.get("price_trend", "stable")
+        supply_demand = result.get("supply_demand", {})
+        
+        # 市场情绪图标
+        sentiment_icons = {
+            "panic": "😱",
+            "pessimistic": "😟", 
+            "neutral": "😐",
+            "optimistic": "😊",
+            "euphoric": "🚀"
+        }
+        
+        # 价格趋势图标
+        trend_icons = {
+            "rising": "📈",
+            "falling": "📉", 
+            "stable": "➖"
+        }
         
         msg = "【📈 交易所实时行情】\n"
-        msg += "═" * 25 + "\n"
+        msg += "═" * 30 + "\n"
+        
+        # 市场情绪和趋势
+        msg += f"🎭 市场情绪: {sentiment_icons.get(market_sentiment, '😐')} {market_sentiment}\n"
+        msg += f"📊 价格趋势: {trend_icons.get(price_trend, '➖')} {price_trend}\n"
+        msg += "─" * 30 + "\n"
+        
         for comm_id, price in prices.items():
             commodity = commodities.get(comm_id)
             if commodity:
@@ -103,11 +128,20 @@ class ExchangeHandlers:
                 else:
                     corruption_info = "保质期: 未知"
                 
+                # 供需状态
+                supply_status = supply_demand.get(comm_id, "供需平衡")
+                supply_icons = {
+                    "供过于求": "📉",
+                    "供不应求": "📈",
+                    "供需平衡": "⚖️"
+                }
+                
                 msg += f"商品: {commodity.name}\n"
                 msg += f"价格: {price} 金币\n"
                 msg += f"腐败时间: {corruption_info}\n"
+                msg += f"供需状态: {supply_icons.get(supply_status, '⚖️')} {supply_status}\n"
                 msg += "─" * 20 + "\n"
-        msg += "═" * 25 + "\n"
+        msg += "═" * 30 + "\n"
 
         # 显示持仓容量和盈亏分析
         capacity = self.plugin.exchange_service.config.get("capacity", 1000)
