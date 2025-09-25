@@ -318,9 +318,8 @@ class MarketListing:
     quantity: int
     price: int
     listed_at: datetime
-    item_instance_id: Optional[int] = None  # 实例ID，用于显示短码
+    expires_at: Optional[datetime] = None  # 腐败日期，主要用于大宗商品
     refine_level: int = 1
-    expires_at: Optional[datetime] = None
     is_anonymous: bool = False  # 是否为匿名上架
 
     def __getitem__(self, item):
