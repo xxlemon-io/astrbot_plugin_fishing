@@ -71,7 +71,7 @@ class SqliteUserRepository(AbstractUserRepository):
             last_stolen_at=parse_datetime(row["last_stolen_at"]),
             wipe_bomb_forecast=row["wipe_bomb_forecast"],
             fishing_zone_id=row["fishing_zone_id"],
-            exchange_account_status=bool(row.get("exchange_account_status", False)),  # 默认值False，兼容旧数据
+            exchange_account_status=bool(row["exchange_account_status"]) if "exchange_account_status" in row.keys() else False,  # 默认值False，兼容旧数据
         )
 
     def get_by_id(self, user_id: str) -> Optional[User]:
