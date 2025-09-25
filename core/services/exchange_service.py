@@ -159,10 +159,9 @@ class ExchangeService:
         if not user.can_afford(total_cost):
             return {"success": False, "message": f"金币不足，需要 {total_cost} 金币"}
 
-        # 检查交易所容量
+        # 检查交易所容量（包括交易所库存和市场上架的大宗商品）
         capacity = self.config.get("capacity", 1000) # 从配置读取容量，默认为1000
-        user_commodities = self.exchange_repo.get_user_commodities(user_id)
-        current_total_quantity = sum(item.quantity for item in user_commodities)
+        current_total_quantity = self._get_user_total_commodity_quantity(user_id)
 
         if current_total_quantity + quantity > capacity:
             remaining_space = capacity - current_total_quantity
@@ -464,3 +463,25 @@ class ExchangeService:
         # 使用日期的天数作为种子，实现1-3天的循环
         day_of_year = today.timetuple().tm_yday
         return (day_of_year % 3) + 1  # 1, 2, 3 循环
+
+    def _get_user_total_commodity_quantity(self, user_id: str) -> int:
+        """获取用户所有大宗商品总数量（包括交易所库存和市场上架的商品）"""
+        # 交易所库存中的大宗商品
+        user_commodities = self.exchange_repo.get_user_commodities(user_id)
+        inventory_quantity = sum(item.quantity for item in user_commodities)
+        
+        # 市场上架的大宗商品
+        market_quantity = 0
+        try:
+            # 获取用户在市场上的所有大宗商品
+            from ..repositories.sqlite_market_repo import SQLiteMarketRepository
+            market_repo = SQLiteMarketRepository(self.exchange_repo.db_path)
+            market_listings = market_repo.get_user_listings(user_id)
+            for listing in market_listings:
+                if listing.item_type == "commodity":
+                    market_quantity += listing.quantity
+        except Exception:
+            # 如果获取市场数据失败，只计算库存数量
+            pass
+            
+        return inventory_quantity + market_quantity

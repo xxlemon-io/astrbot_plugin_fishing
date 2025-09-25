@@ -188,18 +188,8 @@ class MarketService:
             if user_commodity.quantity < quantity:
                 return {"success": False, "message": f"数量不足，您只有 {user_commodity.quantity} 份"}
             
-            # 检查上架后是否会超出交易所容量限制
-            # 计算上架后剩余的交易所库存
-            remaining_quantity = user_commodity.quantity - quantity
-            if remaining_quantity > 0:
-                # 如果还有剩余，检查剩余数量是否会导致容量超限
-                capacity = self.config.get("capacity", 1000)
-                user_commodities = self.exchange_repo.get_user_commodities(user_id)
-                current_total_quantity = sum(item.quantity for item in user_commodities)
-                # 减去即将上架的数量，加上剩余数量
-                new_total_quantity = current_total_quantity - quantity + remaining_quantity
-                if new_total_quantity > capacity:
-                    return {"success": False, "message": f"上架后交易所容量将超限！当前容量: {capacity}，上架后总库存: {new_total_quantity}"}
+            # 上架的大宗商品仍然占用交易所容量，无需额外检查
+            # 只有在被其他玩家购买后才会释放容量
             
             commodity_template = self.exchange_repo.get_commodity_by_id(user_commodity.commodity_id)
             item_template_id = user_commodity.commodity_id
@@ -207,6 +197,9 @@ class MarketService:
             item_description = commodity_template.description
             item_refine_level = 1
             expires_at = user_commodity.expires_at  # 传递腐败时间
+
+            # 计算剩余数量
+            remaining_quantity = user_commodity.quantity - quantity
 
             # 从用户库存中扣除
             if remaining_quantity > 0:
@@ -344,7 +337,6 @@ class MarketService:
         if not listing:
             return {"success": False, "message": "该商品不存在或已被购买"}
 
-
         seller = self.user_repo.get_by_id(listing.user_id)
         if not seller:
             return {"success": False, "message": "卖家信息丢失，交易无法进行"}
@@ -352,67 +344,86 @@ class MarketService:
         if not buyer.can_afford(listing.price):
             return {"success": False, "message": f"金币不足，需要 {listing.price} 金币"}
 
-        # 执行交易
-        # 1. 从买家扣款
-        buyer.coins -= listing.price
-        self.user_repo.update(buyer)
+        # 使用事务处理确保数据一致性
+        try:
+            # 1. 从买家扣款
+            buyer.coins -= listing.price
+            self.user_repo.update(buyer)
 
-        # 2. 给卖家打款
-        seller.coins += listing.price
-        self.user_repo.update(seller)
+            # 2. 给卖家打款
+            seller.coins += listing.price
+            self.user_repo.update(seller)
 
-        # 3. 将物品发给买家
-        if listing.item_type == "commodity":
-            # 检查买家是否有交易所账户
-            if not buyer.exchange_account_status:
-                return {"success": False, "message": "您需要先开通交易所账户才能购买大宗商品"}
+            # 3. 将物品发给买家
+            if listing.item_type == "commodity":
+                # 检查买家是否有交易所账户
+                if not buyer.exchange_account_status:
+                    # 回滚交易
+                    buyer.coins += listing.price
+                    seller.coins -= listing.price
+                    self.user_repo.update(buyer)
+                    self.user_repo.update(seller)
+                    return {"success": False, "message": "您需要先开通交易所账户才能购买大宗商品"}
 
-            # 如果没有腐败时间，使用默认值（兼容旧数据）
-            expires_at = listing.expires_at or datetime.now() + timedelta(days=3)
+                # 如果没有腐败时间，使用默认值（兼容旧数据）
+                expires_at = listing.expires_at or datetime.now() + timedelta(days=3)
 
-            from ..domain.models import UserCommodity
-            new_commodity = UserCommodity(
-                instance_id=0,
-                user_id=buyer_id,
-                commodity_id=listing.item_id,
-                quantity=listing.quantity,
-                purchase_price=listing.price, # Use market price as purchase price
-                purchased_at=datetime.now(),
-                expires_at=expires_at # 继承腐败时间
-            )
-            self.exchange_repo.add_user_commodity(new_commodity)
+                from ..domain.models import UserCommodity
+                new_commodity = UserCommodity(
+                    instance_id=0,
+                    user_id=buyer_id,
+                    commodity_id=listing.item_id,
+                    quantity=listing.quantity,
+                    purchase_price=listing.price, # Use market price as purchase price
+                    purchased_at=datetime.now(),
+                    expires_at=expires_at # 继承腐败时间
+                )
+                self.exchange_repo.add_user_commodity(new_commodity)
 
-        elif listing.item_type == "rod":
-            rod_template = self.item_template_repo.get_rod_by_id(listing.item_id)
-            self.inventory_repo.add_rod_instance(
-                user_id=buyer_id,
-                rod_id=listing.item_id,
-                durability=rod_template.durability if rod_template else None,
-                refine_level=listing.refine_level
-            )
-        elif listing.item_type == "accessory":
-            self.inventory_repo.add_accessory_instance(
-                user_id=buyer_id,
-                accessory_id=listing.item_id,
-                refine_level=listing.refine_level
-            )
-        elif listing.item_type == "item":
-            # 给买家添加道具
-            self.inventory_repo.update_item_quantity(buyer_id, listing.item_id, listing.quantity)
-        elif listing.item_type == "fish":
-            # 给买家添加鱼类到水族箱（默认放入水族箱）
-            self.inventory_repo.add_fish_to_aquarium(buyer_id, listing.item_id, listing.quantity)
+            elif listing.item_type == "rod":
+                rod_template = self.item_template_repo.get_rod_by_id(listing.item_id)
+                self.inventory_repo.add_rod_instance(
+                    user_id=buyer_id,
+                    rod_id=listing.item_id,
+                    durability=rod_template.durability if rod_template else None,
+                    refine_level=listing.refine_level
+                )
+            elif listing.item_type == "accessory":
+                self.inventory_repo.add_accessory_instance(
+                    user_id=buyer_id,
+                    accessory_id=listing.item_id,
+                    refine_level=listing.refine_level
+                )
+            elif listing.item_type == "item":
+                # 给买家添加道具
+                self.inventory_repo.update_item_quantity(buyer_id, listing.item_id, listing.quantity)
+            elif listing.item_type == "fish":
+                # 给买家添加鱼类到水族箱（默认放入水族箱）
+                self.inventory_repo.add_fish_to_aquarium(buyer_id, listing.item_id, listing.quantity)
 
-        # 4. 从市场移除该商品
-        self.market_repo.remove_listing(market_id)
+            # 4. 从市场移除该商品
+            self.market_repo.remove_listing(market_id)
 
-        quantity_text = f" x{listing.quantity}" if listing.quantity > 1 else ""
-        
-        # 如果是鱼类，提示用户去水族箱查收
-        if listing.item_type == "fish":
-            return {"success": True, "message": f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！\n🐠 请前往水族箱查收您的鱼类！"}
-        else:
-            return {"success": True, "message": f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！"}
+            quantity_text = f" x{listing.quantity}" if listing.quantity > 1 else ""
+            
+            # 如果是鱼类，提示用户去水族箱查收
+            if listing.item_type == "fish":
+                return {"success": True, "message": f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！\n🐠 请前往水族箱查收您的鱼类！"}
+            else:
+                return {"success": True, "message": f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！"}
+
+        except Exception as e:
+            # 回滚交易
+            try:
+                buyer.coins += listing.price
+                seller.coins -= listing.price
+                self.user_repo.update(buyer)
+                self.user_repo.update(seller)
+            except Exception as rollback_error:
+                logger.error(f"回滚交易失败: {rollback_error}")
+            
+            logger.error(f"市场购买失败: {e}")
+            return {"success": False, "message": f"购买失败，系统错误: {str(e)}"}
 
     def _return_listing_to_seller(self, listing):
         """将挂单物品返还给卖家"""
