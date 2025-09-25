@@ -482,29 +482,6 @@ class ExchangeService:
         if self._price_update_task and not self._price_update_task.done():
             self._price_update_task.cancel()
     
-    def force_update_prices(self) -> Dict[str, Any]:
-        """手动强制更新价格（用于测试和调试）"""
-        try:
-            logger.info("手动触发价格更新...")
-            self.update_daily_prices()
-            
-            # 获取更新后的价格
-            today_str = datetime.now().strftime("%Y-%m-%d")
-            prices = self.exchange_repo.get_prices_for_date(today_str)
-            price_data = {p.commodity_id: p.price for p in prices}
-            
-            return {
-                "success": True, 
-                "message": "价格更新成功",
-                "prices": price_data,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
-        except Exception as e:
-            logger.error(f"手动价格更新失败: {e}")
-            return {
-                "success": False,
-                "message": f"价格更新失败: {str(e)}"
-            }
 
     async def _daily_price_update_loop(self):
         """每日价格更新循环 - 白天两次刷新：上午9点、下午3点、晚上9点"""
