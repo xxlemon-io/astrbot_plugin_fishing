@@ -340,7 +340,7 @@ class ExchangeService:
             self.exchange_repo.delete_user_commodity(item.instance_id)
 
         commodity_name = self.commodities[commodity_id].name
-        return {"success": True, "message": f"成功出售所有 {total_quantity}份 {commodity_name}，💰获得 {net_earnings} 金币（已扣除 {tax_amount} 金币交易税）"}
+        return {"success": True, "message": f"成功出售所有 {total_quantity}份 {commodity_name}，💰获得 {net_earnings} 金币（已扣除 {tax_amount} 交易税）"}
 
     def clear_all_inventory(self, user_id: str) -> Dict[str, Any]:
         """清空用户所有大宗商品库存"""
@@ -402,7 +402,7 @@ class ExchangeService:
             self.exchange_repo.delete_user_commodity(item.instance_id)
 
         sold_items_str = "、".join(sold_items)
-        return {"success": True, "message": f"清仓完成！出售了 {sold_items_str}，💰获得 {net_earnings} 金币（已扣除 {tax_amount} 金币交易税）"}
+        return {"success": True, "message": f"清仓完成！出售了 {sold_items_str}，💰获得 {net_earnings} 金币（已扣除 {tax_amount} 交易税）"}
 
     def clear_expired_commodities(self, user_id: str) -> None:
         user_commodities = self.exchange_repo.get_user_commodities(user_id)
