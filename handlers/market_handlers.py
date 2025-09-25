@@ -488,7 +488,7 @@ async def market(self, event: AstrMessageEvent):
     final_message_parts.append(format_section("🎁", "道具", grouped_items["item"]))
     final_message_parts.append(format_section("🐟", "鱼类", grouped_items["fish"]))
 
-    full_message = "".join(filter(None, final_message_parts))
+    full_message = "".join([part for part in final_message_parts if part])
 
     if not full_message.strip():
         yield event.plain_result("🛒 市场中没有商品可供购买。")
