@@ -8,7 +8,7 @@ class ExchangeHandlers:
         self.user_repo = plugin.user_repo
 
     def _get_effective_user_id(self, event: AstrMessageEvent) -> str:
-        return str(event.get_user_id())
+        return str(event.get_sender_id())
 
     async def exchange_status(self, event: AstrMessageEvent):
         """查看交易所当前状态"""
