@@ -575,6 +575,17 @@ class FishingPlugin(Star):
     # =========== 管理后台 ==========
 
     @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("更新价格")
+    async def force_update_prices(self, event: AstrMessageEvent):
+        """手动更新交易所价格（管理员命令）"""
+        result = self.exchange_service.force_update_prices()
+        if result["success"]:
+            prices_info = "\n".join([f"• {commodity_id}: {price} 金币" for commodity_id, price in result["prices"].items()])
+            yield event.plain_result(f"✅ {result['message']}\n\n📊 当前价格：\n{prices_info}\n\n⏰ 更新时间：{result['timestamp']}")
+        else:
+            yield event.plain_result(f"❌ {result['message']}")
+
+    @filter.permission_type(PermissionType.ADMIN)
     @filter.command("修改金币")
     async def modify_coins(self, event: AstrMessageEvent):
         async for r in admin_handlers.modify_coins(self, event):

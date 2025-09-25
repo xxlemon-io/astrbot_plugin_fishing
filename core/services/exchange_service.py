@@ -99,20 +99,37 @@ class ExchangeService:
 
     def update_daily_prices(self) -> None:
         today_str = datetime.now().strftime("%Y-%m-%d")
-        if self.exchange_repo.get_prices_for_date(today_str):
-            return  # Prices already exist for today
-
-        yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        last_prices = {p.commodity_id: p.price for p in self.exchange_repo.get_prices_for_date(yesterday_str)}
+        
+        # 获取今日已有价格作为基础
+        today_prices = self.exchange_repo.get_prices_for_date(today_str)
+        if today_prices:
+            # 如果今日已有价格，使用今日价格作为基础进行更新
+            last_prices = {p.commodity_id: p.price for p in today_prices}
+            logger.info(f"基于今日已有价格更新：{last_prices}")
+        else:
+            # 如果今日没有价格，使用昨日价格作为基础
+            yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            last_prices = {p.commodity_id: p.price for p in self.exchange_repo.get_prices_for_date(yesterday_str)}
+            logger.info(f"基于昨日价格更新：{last_prices}")
 
         # 如果没有商品数据，跳过价格更新
         if not self.commodities:
             return
 
+        # 先删除今日的旧价格（如果存在）
+        if today_prices:
+            self.exchange_repo.delete_prices_for_date(today_str)
+            logger.info(f"已删除今日旧价格，准备更新")
+        
+        # 生成新的价格
+        new_prices = {}
         for commodity_id, commodity in self.commodities.items():
             last_price = last_prices.get(commodity_id, self.config.get("initial_prices", {}).get(commodity_id, 100))
             new_price = self._calculate_new_price(commodity_id, last_price)
+            new_prices[commodity_id] = new_price
             self.exchange_repo.add_exchange_price(Exchange(date=today_str, commodity_id=commodity_id, price=new_price))
+        
+        logger.info(f"价格更新完成，新价格：{new_prices}")
 
     def _calculate_new_price(self, commodity_id: str, last_price: int) -> int:
         volatility = self.config.get("volatility", {})
@@ -464,12 +481,38 @@ class ExchangeService:
         """停止每日价格更新任务"""
         if self._price_update_task and not self._price_update_task.done():
             self._price_update_task.cancel()
+    
+    def force_update_prices(self) -> Dict[str, Any]:
+        """手动强制更新价格（用于测试和调试）"""
+        try:
+            logger.info("手动触发价格更新...")
+            self.update_daily_prices()
+            
+            # 获取更新后的价格
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            prices = self.exchange_repo.get_prices_for_date(today_str)
+            price_data = {p.commodity_id: p.price for p in prices}
+            
+            return {
+                "success": True, 
+                "message": "价格更新成功",
+                "prices": price_data,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+        except Exception as e:
+            logger.error(f"手动价格更新失败: {e}")
+            return {
+                "success": False,
+                "message": f"价格更新失败: {str(e)}"
+            }
 
     async def _daily_price_update_loop(self):
         """每日价格更新循环 - 白天两次刷新：上午9点、下午3点、晚上9点"""
+        logger.info("交易所价格更新任务已启动")
         while True:
             try:
                 now = datetime.now()
+                logger.info(f"价格更新任务检查时间: {now.strftime('%Y-%m-%d %H:%M:%S')}")
                 
                 # 计算下一个更新时间（上午9点、下午3点或晚上9点）
                 morning_update = now.replace(hour=9, minute=0, second=0, microsecond=0)
@@ -490,14 +533,20 @@ class ExchangeService:
                     # 晚上9点已过，等待明天的上午9点
                     next_update = morning_update + timedelta(days=1)
                 
+                logger.info(f"下次价格更新时间: {next_update.strftime('%Y-%m-%d %H:%M:%S')}")
+                
                 # 等待到下一个更新时间
                 wait_seconds = (next_update - now).total_seconds()
+                logger.info(f"等待 {wait_seconds:.0f} 秒后更新价格")
                 await asyncio.sleep(wait_seconds)
                 
                 # 更新价格
+                logger.info("开始执行价格更新...")
                 self.update_daily_prices()
+                logger.info("价格更新完成")
                 
             except asyncio.CancelledError:
+                logger.info("价格更新任务被取消")
                 break
             except Exception as e:
                 # 记录错误但继续运行

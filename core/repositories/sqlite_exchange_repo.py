@@ -42,8 +42,16 @@ class SqliteExchangeRepository(AbstractExchangeRepository):
     def add_exchange_price(self, price: Exchange) -> None:
         conn = self._get_connection()
         c = conn.cursor()
-        c.execute("INSERT INTO exchange_prices (date, commodity_id, price) VALUES (?, ?, ?)",
+        # 使用 INSERT OR REPLACE 来支持更新
+        c.execute("INSERT OR REPLACE INTO exchange_prices (date, commodity_id, price) VALUES (?, ?, ?)",
                   (price.date, price.commodity_id, price.price))
+        conn.commit()
+    
+    def delete_prices_for_date(self, date: str) -> None:
+        """删除指定日期的所有价格"""
+        conn = self._get_connection()
+        c = conn.cursor()
+        c.execute("DELETE FROM exchange_prices WHERE date=?", (date,))
         conn.commit()
 
     def get_user_commodities(self, user_id: str) -> List[UserCommodity]:
