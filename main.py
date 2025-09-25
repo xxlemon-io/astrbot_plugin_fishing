@@ -13,7 +13,7 @@ from .core.repositories.sqlite_user_repo import SqliteUserRepository
 from .core.repositories.sqlite_item_template_repo import SqliteItemTemplateRepository
 from .core.repositories.sqlite_inventory_repo import SqliteInventoryRepository
 from .core.repositories.sqlite_gacha_repo import SqliteGachaRepository
-from .core.repositories.sqlite_market_repo import SqliteMarketRepository
+from .core.repositories.sqlite_market_repo import SQLiteMarketRepository
 from .core.repositories.sqlite_shop_repo import SqliteShopRepository
 from .core.repositories.sqlite_log_repo import SqliteLogRepository
 from .core.repositories.sqlite_achievement_repo import SqliteAchievementRepository
@@ -122,7 +122,7 @@ class FishingPlugin(Star):
         self.item_template_repo = SqliteItemTemplateRepository(db_path)
         self.inventory_repo = SqliteInventoryRepository(db_path)
         self.gacha_repo = SqliteGachaRepository(db_path)
-        self.market_repo = SqliteMarketRepository(db_path)
+        self.market_repo = SQLiteMarketRepository(db_path)
         self.shop_repo = SqliteShopRepository(db_path)
         self.log_repo = SqliteLogRepository(db_path)
         self.achievement_repo = SqliteAchievementRepository(db_path)

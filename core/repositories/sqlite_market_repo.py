@@ -7,14 +7,14 @@ from datetime import datetime
 # 导入抽象基类和领域模型
 from .abstract_repository import AbstractMarketRepository
 from ..domain.models import MarketListing
-from ..database.connection_manager import DatabaseConnectionManager
 
 
 class SQLiteMarketRepository(AbstractMarketRepository):
     """市场仓储的SQLite实现"""
 
-    def __init__(self, db_manager: DatabaseConnectionManager):
-        self.db_manager = db_manager
+    def __init__(self, db_path: str):
+        self.db_path = db_path
+        self._local = threading.local()
 
     def _get_connection(self) -> sqlite3.Connection:
         """获取一个线程安全的数据库连接。"""
