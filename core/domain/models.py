@@ -314,11 +314,12 @@ class MarketListing:
     item_type: str
     item_id: int
     item_name: str
-    item_description: str
+    item_description: Optional[str]
     quantity: int
     price: int
     listed_at: datetime
-    expires_at: Optional[datetime] = None  # 腐败日期，主要用于大宗商品
+    item_instance_id: Optional[int] = None # 实例ID，用于显示短码
+    expires_at: Optional[datetime] = None # 腐败日期，主要用于大宗商品
     refine_level: int = 1
     is_anonymous: bool = False  # 是否为匿名上架
 
