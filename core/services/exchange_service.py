@@ -34,6 +34,20 @@ class ExchangeService:
         
         self._price_update_task = None
 
+    def _to_base36(self, n: int) -> str:
+        """将数字转换为Base36字符串"""
+        if n == 0:
+            return "0"
+        out = []
+        while n > 0:
+            n, remainder = divmod(n, 36)
+            out.append("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[remainder])
+        return "".join(reversed(out))
+
+    def _get_commodity_display_code(self, instance_id: int) -> str:
+        """生成大宗商品的显示ID"""
+        return f"C{self._to_base36(instance_id)}"
+
     def _resolve_commodity_id(self, commodity_input: str) -> Optional[str]:
         """解析商品输入，支持中文名称和英文ID"""
         # 首先尝试直接匹配商品ID
@@ -151,7 +165,8 @@ class ExchangeService:
         elif commodity_id == 'fish_roe':
             expires_at = now + timedelta(days=2)
         elif commodity_id == 'fish_oil':
-            days = random.randint(1, 3)
+            # 每日固定腐败时间：基于日期计算，确保同一天购买的所有鱼油腐败时间相同
+            days = self._get_daily_fish_oil_expiry_days()
             expires_at = now + timedelta(days=days)
         else:
             return {"success": False, "message": "未知商品"}
@@ -159,6 +174,27 @@ class ExchangeService:
         # 清理腐败仓库
         self.clear_expired_commodities(user_id)
 
+        # 检查是否有相同商品且相同腐败时间的库存，如果有则叠加
+        existing_commodities = self.exchange_repo.get_user_commodities(user_id)
+        for existing in existing_commodities:
+            if (existing.commodity_id == commodity_id and 
+                existing.expires_at == expires_at and 
+                existing.purchase_price == current_price):
+                # 找到相同商品、相同腐败时间、相同价格的库存，直接叠加数量
+                self.exchange_repo.update_user_commodity_quantity(existing.instance_id, existing.quantity + quantity)
+                user.coins -= total_cost
+                self.user_repo.update(user)
+                
+                commodity_name = self.commodities[commodity_id].name
+                days_until_expiry = (expires_at - now).days
+                if commodity_id == 'fish_oil':
+                    corruption_warning = f"，{days_until_expiry}天后将腐败（今日固定）"
+                else:
+                    corruption_warning = f"，{days_until_expiry}天后将腐败"
+                
+                return {"success": True, "message": f"成功购买 {quantity}份 {commodity_name}，花费 {total_cost} 金币{corruption_warning}（已叠加到现有库存）"}
+
+        # 没有找到可叠加的库存，创建新的商品实例
         user.coins -= total_cost
         self.user_repo.update(user)
         
@@ -181,7 +217,9 @@ class ExchangeService:
         elif commodity_id == 'fish_roe':
             corruption_warning = "，2天后将腐败"
         elif commodity_id == 'fish_oil':
-            corruption_warning = "，1-3天后将腐败"
+            # 计算具体的天数
+            days_until_expiry = (expires_at - now).days
+            corruption_warning = f"，{days_until_expiry}天后将腐败（今日固定）"
         else:
             corruption_warning = "，注意保质期"
         
@@ -232,6 +270,47 @@ class ExchangeService:
         
         return {"success": True, "message": f"成功出售 {quantity}份 {commodity_name}，获得 {total_earnings} 金币{urgency_msg}"}
 
+    def sell_commodity_by_name(self, user_id: str, commodity_input: str) -> Dict[str, Any]:
+        """按商品名称卖出所有该商品"""
+        user = self.user_repo.get_by_id(user_id)
+        if not user or not user.exchange_account_status:
+            return {"success": False, "message": "您尚未开通交易所账户或用户不存在"}
+
+        # 解析商品ID
+        commodity_id = self._resolve_commodity_id(commodity_input)
+        if not commodity_id:
+            available_commodities = "、".join(self.name_to_id.keys())
+            return {"success": False, "message": f"未找到商品 '{commodity_input}'，可用商品：{available_commodities}"}
+
+        # 获取用户的所有该商品库存
+        user_commodities = self.exchange_repo.get_user_commodities(user_id)
+        target_commodities = [item for item in user_commodities if item.commodity_id == commodity_id]
+        
+        if not target_commodities:
+            commodity_name = self.commodities[commodity_id].name
+            return {"success": False, "message": f"您没有 {commodity_name} 库存"}
+
+        # 获取当前市场价格
+        market_status = self.get_market_status()
+        current_price = market_status["prices"].get(commodity_id)
+        if not current_price:
+            return {"success": False, "message": "该商品今日无报价，无法出售"}
+
+        # 计算总收益
+        total_quantity = sum(item.quantity for item in target_commodities)
+        total_earnings = current_price * total_quantity
+        
+        # 更新用户金币
+        user.coins += total_earnings
+        self.user_repo.update(user)
+
+        # 删除所有该商品的库存
+        for item in target_commodities:
+            self.exchange_repo.delete_user_commodity(item.instance_id)
+
+        commodity_name = self.commodities[commodity_id].name
+        return {"success": True, "message": f"成功出售所有 {total_quantity}份 {commodity_name}，获得 {total_earnings} 金币"}
+
     def clear_expired_commodities(self, user_id: str) -> None:
         user_commodities = self.exchange_repo.get_user_commodities(user_id)
         now = datetime.now()
@@ -278,3 +357,11 @@ class ExchangeService:
                 # 记录错误但继续运行
                 print(f"交易所价格更新任务出错: {e}")
                 await asyncio.sleep(3600)  # 出错后等待1小时再重试
+    
+    def _get_daily_fish_oil_expiry_days(self) -> int:
+        """获取今日鱼油的固定腐败天数（1-3天循环）"""
+        # 使用日期作为种子，确保同一天的所有鱼油腐败时间相同
+        today = datetime.now().date()
+        # 使用日期的天数作为种子，实现1-3天的循环
+        day_of_year = today.timetuple().tm_yday
+        return (day_of_year % 3) + 1  # 1, 2, 3 循环

@@ -1,4 +1,5 @@
 from astrbot.api.event import AstrMessageEvent
+from typing import Optional
 from datetime import datetime
 
 class ExchangeHandlers:
@@ -9,6 +10,34 @@ class ExchangeHandlers:
 
     def _get_effective_user_id(self, event: AstrMessageEvent) -> str:
         return self.plugin._get_effective_user_id(event)
+    
+    def _to_base36(self, n: int) -> str:
+        """将数字转换为Base36字符串"""
+        if n == 0:
+            return "0"
+        out = []
+        while n > 0:
+            n, remainder = divmod(n, 36)
+            out.append("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[remainder])
+        return "".join(reversed(out))
+
+    def _get_commodity_display_code(self, instance_id: int) -> str:
+        """生成大宗商品的显示ID"""
+        return f"C{self._to_base36(instance_id)}"
+    
+    def _from_base36(self, s: str) -> int:
+        """将base36字符串转换为数字"""
+        return int(s, 36)
+    
+    def _parse_commodity_display_code(self, code: str) -> Optional[int]:
+        """解析大宗商品的显示ID，返回instance_id"""
+        code = code.strip().upper()
+        if code.startswith('C') and len(code) > 1:
+            try:
+                return self._from_base36(code[1:])
+            except ValueError:
+                return None
+        return None
 
     async def exchange_status(self, event: AstrMessageEvent):
         """查看交易所当前状态"""
@@ -48,8 +77,11 @@ class ExchangeHandlers:
                 msg += "─" * 20 + "\n"
         msg += "═" * 25 + "\n"
         msg += "💡 使用【交易所购入 商品名称 数量】购买\n"
-        msg += "💡 使用【交易所卖出 库存ID 数量】出售\n"
+        msg += "💡 使用【交易所卖出 商品名称】出售所有该商品\n"
+        msg += "💡 使用【交易所卖出 库存ID 数量】出售指定数量\n"
+        msg += "💡 库存ID格式：C开头+Base36编码（如C1A、C2B）\n"
         msg += "💡 可用商品：鱼干、鱼卵、鱼油\n"
+        msg += "💡 大宗商品可上架市场：/上架 C1A 1000\n"
         msg += "⚠️ 注意：商品会腐败，请及时交易！"
         yield event.plain_result(msg)
 
@@ -87,24 +119,27 @@ class ExchangeHandlers:
                 hours, remainder = divmod(time_left.total_seconds(), 3600)
                 minutes, _ = divmod(remainder, 60)
                 
+                # 生成显示ID
+                display_id = self._get_commodity_display_code(item.instance_id)
+                
                 # 根据剩余时间添加不同的警告级别
                 if time_left.total_seconds() <= 0:
                     # 已腐败
-                    msg += f"库存ID: {item.instance_id}\n"
+                    msg += f"库存ID: {display_id}\n"
                     msg += f"商品: {commodity.name} ⚠️ 已腐败\n"
                     msg += f"数量: {item.quantity}\n"
                     msg += f"买入价: {item.purchase_price} 金币\n"
                     msg += f"状态: 💀 腐败中，价值归零\n"
                 elif time_left.total_seconds() <= 3600:  # 1小时内
                     # 紧急警告
-                    msg += f"库存ID: {item.instance_id}\n"
+                    msg += f"库存ID: {display_id}\n"
                     msg += f"商品: {commodity.name} 🚨 即将腐败\n"
                     msg += f"数量: {item.quantity}\n"
                     msg += f"买入价: {item.purchase_price} 金币\n"
                     msg += f"腐败倒计时: ⏰ {int(minutes)}分钟\n"
                 elif time_left.total_seconds() <= 86400:  # 24小时内
                     # 警告
-                    msg += f"库存ID: {item.instance_id}\n"
+                    msg += f"库存ID: {display_id}\n"
                     msg += f"商品: {commodity.name} ⚠️ 注意保质期\n"
                     msg += f"数量: {item.quantity}\n"
                     msg += f"买入价: {item.purchase_price} 金币\n"
@@ -113,7 +148,7 @@ class ExchangeHandlers:
                     # 正常
                     days = int(hours // 24)
                     remaining_hours = int(hours % 24)
-                    msg += f"库存ID: {item.instance_id}\n"
+                    msg += f"库存ID: {display_id}\n"
                     msg += f"商品: {commodity.name}\n"
                     msg += f"数量: {item.quantity}\n"
                     msg += f"买入价: {item.purchase_price} 金币\n"
@@ -156,19 +191,44 @@ class ExchangeHandlers:
         """出售大宗商品"""
         user_id = self._get_effective_user_id(event)
         args = event.message_str.split()
-        if len(args) != 3:
-            yield event.plain_result("❌ 命令格式错误，请使用：交易所卖出 [库存ID] [数量]")
-            return
+        
+        if len(args) == 2:
+            # 格式：交易所卖出 鱼油（卖出所有该商品）
+            commodity_name = args[1]
+            result = self.exchange_service.sell_commodity_by_name(user_id, commodity_name)
+            if result["success"]:
+                yield event.plain_result(f"✅ {result['message']}")
+            else:
+                yield event.plain_result(f"❌ {result['message']}")
+        elif len(args) == 3:
+            # 格式：交易所卖出 [库存ID] [数量]
+            inventory_id_str = args[1]
+            instance_id = None
             
-        try:
-            instance_id = int(args[1])
-            quantity = int(args[2])
-        except ValueError:
-            yield event.plain_result("❌ 库存ID和数量必须是有效的数字")
-            return
+            # 先尝试解析Base36格式（C开头）
+            if inventory_id_str.upper().startswith('C'):
+                instance_id = self._parse_commodity_display_code(inventory_id_str)
+                if instance_id is None:
+                    yield event.plain_result("❌ 无效的库存ID格式")
+                    return
+            else:
+                # 尝试解析数字格式（向后兼容）
+                try:
+                    instance_id = int(inventory_id_str)
+                except ValueError:
+                    yield event.plain_result("❌ 库存ID格式错误，请使用C开头的ID或数字ID")
+                    return
+            
+            try:
+                quantity = int(args[2])
+            except ValueError:
+                yield event.plain_result("❌ 数量必须是有效的数字")
+                return
 
-        result = self.exchange_service.sell_commodity(user_id, instance_id, quantity)
-        if result["success"]:
-            yield event.plain_result(f"✅ {result['message']}")
+            result = self.exchange_service.sell_commodity(user_id, instance_id, quantity)
+            if result["success"]:
+                yield event.plain_result(f"✅ {result['message']}")
+            else:
+                yield event.plain_result(f"❌ {result['message']}")
         else:
-            yield event.plain_result(f"❌ {result['message']}")
+            yield event.plain_result("❌ 命令格式错误，请使用：\n• 交易所卖出 商品名称（卖出所有该商品）\n• 交易所卖出 库存ID 数量（卖出指定数量）")
