@@ -439,6 +439,7 @@ async def market(self, event: AstrMessageEvent):
             accessories = result["accessories"]
             items = result["items"]
             fish = result.get("fish", [])
+            commodities = result.get("commodities", [])
 
             if rods:
                 for rod in rods[:15]:  # 限制鱼竿最多15件
@@ -504,6 +505,21 @@ async def market(self, event: AstrMessageEvent):
                         "id": fish_item.market_id,
                         "display_code": f"M{_to_base36(fish_item.market_id)}",  # 鱼类市场使用Base36编码的市场ID
                         "price": fish_item.price,
+                        "seller": seller_display,
+                        "is_anonymous": is_anonymous
+                    })
+            
+            if commodities:
+                for commodity in commodities[:15]:
+                    is_anonymous = commodity.is_anonymous
+                    seller_display = "🎭 匿名卖家" if is_anonymous else commodity.seller_nickname
+                    all_items.append({
+                        "type": "大宗商品",
+                        "emoji": "📦",
+                        "name": commodity.item_name,
+                        "id": commodity.market_id,
+                        "display_code": f"M{_to_base36(commodity.market_id)}",
+                        "price": commodity.price,
                         "seller": seller_display,
                         "is_anonymous": is_anonymous
                     })
@@ -598,6 +614,23 @@ async def market(self, event: AstrMessageEvent):
                     message = "【🐟 市场 - 鱼类】\n\n"
                     message += format_item_list(fish, "鱼类", "🐟")
                     yield event.plain_result(message)
+
+            # Commodities
+            if commodities:
+                if len(commodities) > page_size:
+                    total_pages = (len(commodities) + page_size - 1) // page_size
+                    for page in range(total_pages):
+                        start_idx = page * page_size
+                        end_idx = min(start_idx + page_size, len(commodities))
+                        page_items = commodities[start_idx:end_idx]
+                        
+                        message = f"【📦 市场 - 大宗商品】第 {page + 1}/{total_pages} 页\n\n"
+                        message += format_item_list(page_items, "大宗商品", "📦")
+                        yield event.plain_result(message)
+                else:
+                    message = "【📦 市场 - 大宗商品】\n\n"
+                    message += format_item_list(commodities, "大宗商品", "📦")
+                    yield event.plain_result(message)
         else:
             # 处理市场服务返回失败的情况
             error_message = result.get("message", "获取市场列表失败")
@@ -611,10 +644,11 @@ async def market(self, event: AstrMessageEvent):
 
 async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
     """统一上架命令：/上架 <ID> <价格> [数量] [匿名]
-    - Rxxxx: 鱼竿实例
-    - Axxxx: 饰品实例
+    - Rxxxx: 魚竿實例
+    - Axxxx: 飾品實例
     - Dxxxx: 道具模板
-    - Fxxxx: 鱼类模板
+    - Fxxxx: 魚類模板
+    - Cxxxx: 大宗商品實例
     """
     user_id = self._get_effective_user_id(event)
     args = event.message_str.split(" ")
@@ -654,7 +688,7 @@ async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
 
     # 检查是否为数字ID（旧格式）
     if token.isdigit():
-        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n• D开头：道具（如 D1）\n• F开头：鱼类（如 F3）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n• D开头：道具（如 D1）\n• F开头：鱼类（如 F3）\n• C开头：大宗商品（如 C1234）\n\n💡 提示：使用 /背包 查看您的物品短码")
         return
 
     def _from_base36(s: str) -> int:
@@ -688,8 +722,15 @@ async def list_any(self, event: AstrMessageEvent, is_anonymous: bool = False):
             yield event.plain_result("❌ 无效的鱼类ID，请检查后重试。")
             return
         result = self.market_service.put_item_on_sale(user_id, "fish", int(fish_id), price, is_anonymous=is_anonymous, quantity=quantity)
+    elif token.startswith('C'):
+        try:
+            instance_id = _from_base36(token[1:])
+        except Exception:
+            yield event.plain_result("❌ 无效的大宗商品ID，请检查后重试。")
+            return
+        result = self.market_service.put_item_on_sale(user_id, "commodity", instance_id, price, is_anonymous=is_anonymous, quantity=quantity)
     else:
-        yield event.plain_result("❌ 无效ID，请使用以 R/A/D/F 开头的短码")
+        yield event.plain_result("❌ 无效ID，请使用以 R/A/D/F/C 开头的短码")
         return
 
     if result:
@@ -823,6 +864,8 @@ def _get_display_code_for_market_item(item) -> str:
     elif item_type == "fish":
         # 鱼类在市场中使用Base36编码的市场ID
         return f"M{_to_base36(item.market_id)}"
+    elif item_type == "commodity":
+        return f"M{_to_base36(item.market_id)}"
     else:
         # 其他情况，使用Base36编码的市场ID
         return f"M{_to_base36(item.market_id)}"
@@ -882,5 +925,19 @@ def _parse_market_code(code: str, market_service=None) -> int:
                 raise ValueError("无法解析饰品ID，请稍后重试")
         except ValueError as e:
             raise ValueError(f"无效的饰品ID: {code}")
+    elif code.startswith('C') and len(code) > 1:
+        # C开头的ID，需要根据实例ID查找市场ID
+        try:
+            instance_id = _from_base36(code[1:])
+            if market_service:
+                market_id = market_service.get_market_id_by_instance_id("commodity", instance_id)
+                if market_id is not None:
+                    return market_id
+                else:
+                    raise ValueError(f"未找到大宗商品ID {code} 对应的市场商品")
+            else:
+                raise ValueError("无法解析大宗商品ID，请稍后重试")
+        except ValueError as e:
+            raise ValueError(f"无效的大宗商品ID: {code}")
     else:
-        raise ValueError(f"无效的市场ID: {code}，请使用短码（如 R1A2B、A3C4D、MC）")
+        raise ValueError(f"无效的市场ID: {code}，请使用短码（如 R1A2B、A3C4D、MC、C5E6F）")

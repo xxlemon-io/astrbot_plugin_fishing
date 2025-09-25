@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ---------------------------------
 # 游戏配置实体 (Configuration Entities)
@@ -135,6 +135,37 @@ class GachaPool:
         """允许通过属性名访问字段"""
         return getattr(self, item)
 
+
+@dataclass
+class Commodity:
+    """代表一种大宗商品的模板信息"""
+    commodity_id: str  # e.g., 'dried_fish', 'fish_roe', 'fish_oil'
+    name: str
+    description: str
+
+
+# ---------------------------------
+# 交易所实体 (Exchange Entities)
+# ---------------------------------
+
+@dataclass
+class Exchange:
+    """代表交易所每日的商品价格"""
+    date: str  # YYYY-MM-DD
+    commodity_id: str
+    price: int
+
+@dataclass
+class UserCommodity:
+    """代表用户持有的一个具体的大宗商品实例"""
+    instance_id: int
+    user_id: str
+    commodity_id: str
+    quantity: int
+    purchase_price: int
+    purchased_at: datetime
+    expires_at: datetime
+
 # ---------------------------------
 # 用户数据实体 (User Data Entities)
 # ---------------------------------
@@ -180,6 +211,7 @@ class User:
     fish_pond_capacity: int = 480
     aquarium_capacity: int = 50  # 水族箱容量
     fishing_zone_id: int = 1  # 默认钓鱼区域ID
+    exchange_account_status: bool = False # 交易所账户状态
 
     # 装备信息
     equipped_rod_instance_id: Optional[int] = None

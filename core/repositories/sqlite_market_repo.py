@@ -1,19 +1,20 @@
 import sqlite3
 import threading
 import logging
-from typing import Optional, List
+from typing import Optional, List, Tuple, Any
 from datetime import datetime
 
 # 导入抽象基类和领域模型
 from .abstract_repository import AbstractMarketRepository
 from ..domain.models import MarketListing
+from ..database.connection_manager import DatabaseConnectionManager
 
-class SqliteMarketRepository(AbstractMarketRepository):
+
+class SQLiteMarketRepository(AbstractMarketRepository):
     """市场仓储的SQLite实现"""
 
-    def __init__(self, db_path: str):
-        self.db_path = db_path
-        self._local = threading.local()
+    def __init__(self, db_manager: DatabaseConnectionManager):
+        self.db_manager = db_manager
 
     def _get_connection(self) -> sqlite3.Connection:
         """获取一个线程安全的数据库连接。"""
@@ -47,10 +48,33 @@ class SqliteMarketRepository(AbstractMarketRepository):
         
         return MarketListing(**data)
 
+    def _row_to_listing(self, row: Tuple) -> MarketListing:
+        (
+            market_id, user_id, seller_nickname, item_type, item_id, item_instance_id,
+            item_name, item_description, quantity, price, listed_at_str, refine_level, is_anonymous, expires_at_str
+        ) = row
+        
+        return MarketListing(
+            market_id=market_id,
+            user_id=user_id,
+            seller_nickname=seller_nickname,
+            item_type=item_type,
+            item_id=item_id,
+            item_instance_id=item_instance_id,
+            item_name=item_name,
+            item_description=item_description,
+            quantity=quantity,
+            price=price,
+            listed_at=datetime.fromisoformat(listed_at_str),
+            refine_level=refine_level,
+            is_anonymous=bool(is_anonymous),
+            expires_at=datetime.fromisoformat(expires_at_str) if expires_at_str else None,
+        )
+
 
     def get_listing_by_id(self, market_id: int) -> Optional[MarketListing]:
         """获取单个市场商品"""
-        with self._get_connection() as conn:
+        with self.db_manager.get_connection() as conn:
             cursor = conn.cursor()
 
             # 检查表结构
@@ -108,7 +132,7 @@ class SqliteMarketRepository(AbstractMarketRepository):
         获取市场商品，支持筛选和分页。
         返回 (listings, total_count) 元组。
         """
-        with self._get_connection() as conn:
+        with self.db_manager.get_connection() as conn:
             cursor = conn.cursor()
 
             # 检查表结构
@@ -216,7 +240,7 @@ class SqliteMarketRepository(AbstractMarketRepository):
 
     def add_listing(self, listing: MarketListing) -> None:
         """添加一个市场商品"""
-        with self._get_connection() as conn:
+        with self.db_manager.get_connection() as conn:
             cursor = conn.cursor()
             
             # 检查表结构，确定哪些字段存在

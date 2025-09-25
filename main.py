@@ -39,6 +39,11 @@ from .core.database.migration import run_migrations
 # ==========================================================
 from .handlers import admin_handlers, common_handlers, inventory_handlers, fishing_handlers, market_handlers, social_handlers, gacha_handlers, aquarium_handlers
 
+# 新增交易所相关导入
+from .core.repositories.sqlite_exchange_repo import SQLiteExchangeRepository
+from .core.services.exchange_service import ExchangeService
+from .handlers.exchange_handlers import ExchangeHandlers
+
 
 class FishingPlugin(Star):
 
@@ -90,6 +95,20 @@ class FishingPlugin(Star):
                     "1": 1.0, "2": 1.6, "3": 3.0, "4": 6.0, "5": 12.0,
                     "6": 25.0, "7": 55.0, "8": 125.0, "9": 280.0, "10": 660.0
                 }
+            },
+            "exchange": {
+                "account_fee": config.get("exchange", {}).get("account_fee", 100000),
+                "volatility": config.get("exchange", {}).get("volatility", {
+                    "dried_fish": 0.1,
+                    "fish_roe": 0.5,
+                    "fish_oil": 0.25
+                }),
+                "event_chance": config.get("exchange", {}).get("event_chance", 0.1),
+                "initial_prices": config.get("exchange", {}).get("initial_prices", {
+                    "dried_fish": 6000,
+                    "fish_roe": 12000,
+                    "fish_oil": 10000
+                })
             }
         }
         
@@ -108,6 +127,7 @@ class FishingPlugin(Star):
         self.log_repo = SqliteLogRepository(db_path)
         self.achievement_repo = SqliteAchievementRepository(db_path)
         self.buff_repo = SqliteUserBuffRepository(db_path)
+        self.exchange_repo = SQLiteExchangeRepository(db_path)
 
         # --- 3. 组合根：实例化所有服务层，并注入依赖 ---
         # 3.1 核心服务必须在效果管理器之前实例化，以解决依赖问题
@@ -151,6 +171,12 @@ class FishingPlugin(Star):
             self.item_template_repo
         )
 
+        # 初始化交易所服务
+        self.exchange_service = ExchangeService(self.user_repo, self.exchange_repo, self.game_config)
+        
+        # 初始化交易所处理器
+        self.exchange_handlers = ExchangeHandlers(self)
+
         # 3.2 实例化效果管理器并自动注册所有效果（需要在fishing_service之后）
         self.effect_manager = EffectManager()
         self.effect_manager.discover_and_register(
@@ -173,6 +199,7 @@ class FishingPlugin(Star):
         # --- 4. 启动后台任务 ---
         self.fishing_service.start_auto_fishing_task()
         self.achievement_service.start_achievement_check_task()
+        self.exchange_service.start_daily_price_update_task()
 
         # --- 5. 初始化核心游戏数据 ---
         data_setup_service = DataSetupService(
@@ -528,6 +555,33 @@ class FishingPlugin(Star):
         async for r in social_handlers.tax_record(self, event):
             yield r
 
+    # =========== 交易所 ==========
+
+    @filter.command("交易所", alias={"exchange"})
+    async def exchange_status(self, event: AstrMessageEvent):
+        async for r in self.exchange_handlers.exchange_status(event):
+            yield r
+
+    @filter.command("交易所开户", alias={"open_exchange_account"})
+    async def open_exchange_account(self, event: AstrMessageEvent):
+        async for r in self.exchange_handlers.open_exchange_account(event):
+            yield r
+
+    @filter.command("查看库存", alias={"inventory", "持仓"})
+    async def view_inventory(self, event: AstrMessageEvent):
+        async for r in self.exchange_handlers.view_inventory(event):
+            yield r
+
+    @filter.command("交易所购入", alias={"exchange_buy"})
+    async def buy_commodity(self, event: AstrMessageEvent):
+        async for r in self.exchange_handlers.buy_commodity(event):
+            yield r
+
+    @filter.command("交易所卖出", alias={"exchange_sell"})
+    async def sell_commodity(self, event: AstrMessageEvent):
+        async for r in self.exchange_handlers.sell_commodity(event):
+            yield r
+
     # =========== 管理后台 ==========
 
     @filter.permission_type(PermissionType.ADMIN)
@@ -643,6 +697,7 @@ class FishingPlugin(Star):
         logger.info("钓鱼插件正在终止...")
         self.fishing_service.stop_auto_fishing_task()
         self.achievement_service.stop_achievement_check_task()
+        self.exchange_service.stop_daily_price_update_task()
         if self.web_admin_task:
             self.web_admin_task.cancel()
         logger.info("钓鱼插件已成功终止。")

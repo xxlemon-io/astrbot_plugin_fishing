@@ -101,5 +101,61 @@
         "description": "稀有度5的出售价格"
       }
     }
+  },
+  "exchange": {
+    "description": "交易所配置",
+    "type": "object",
+    "items": {
+      "account_fee": {
+        "type": "int",
+        "default": 100000,
+        "description": "交易所开户费用"
+      },
+      "volatility": {
+        "type": "object",
+        "items": {
+          "dried_fish": {
+            "type": "float",
+            "default": 0.1,
+            "description": "鱼干价格波动率（±10%）"
+          },
+          "fish_roe": {
+            "type": "float",
+            "default": 0.5,
+            "description": "鱼卵价格波动率（±50%）"
+          },
+          "fish_oil": {
+            "type": "float",
+            "default": 0.25,
+            "description": "鱼油价格波动率（±25%）"
+          }
+        }
+      },
+      "event_chance": {
+        "type": "float",
+        "default": 0.1,
+        "description": "鱼油事件触发概率（10%）"
+      },
+      "initial_prices": {
+        "type": "object",
+        "items": {
+          "dried_fish": {
+            "type": "int",
+            "default": 6000,
+            "description": "鱼干初始价格（低风险低收益）"
+          },
+          "fish_roe": {
+            "type": "int",
+            "default": 12000,
+            "description": "鱼卵初始价格（高风险高收益）"
+          },
+          "fish_oil": {
+            "type": "int",
+            "default": 10000,
+            "description": "鱼油初始价格（投机品，事件驱动）"
+          }
+        }
+      }
+    }
   }
 }
