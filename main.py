@@ -13,7 +13,7 @@ from .core.repositories.sqlite_user_repo import SqliteUserRepository
 from .core.repositories.sqlite_item_template_repo import SqliteItemTemplateRepository
 from .core.repositories.sqlite_inventory_repo import SqliteInventoryRepository
 from .core.repositories.sqlite_gacha_repo import SqliteGachaRepository
-from .core.repositories.sqlite_market_repo import SQLiteMarketRepository
+from .core.repositories.sqlite_market_repo import SqliteMarketRepository
 from .core.repositories.sqlite_shop_repo import SqliteShopRepository
 from .core.repositories.sqlite_log_repo import SqliteLogRepository
 from .core.repositories.sqlite_achievement_repo import SqliteAchievementRepository
@@ -40,7 +40,7 @@ from .core.database.migration import run_migrations
 from .handlers import admin_handlers, common_handlers, inventory_handlers, fishing_handlers, market_handlers, social_handlers, gacha_handlers, aquarium_handlers
 
 # 新增交易所相关导入
-from .core.repositories.sqlite_exchange_repo import SQLiteExchangeRepository
+from .core.repositories.sqlite_exchange_repo import SqliteExchangeRepository
 from .core.services.exchange_service import ExchangeService
 from .handlers.exchange_handlers import ExchangeHandlers
 
@@ -122,12 +122,12 @@ class FishingPlugin(Star):
         self.item_template_repo = SqliteItemTemplateRepository(db_path)
         self.inventory_repo = SqliteInventoryRepository(db_path)
         self.gacha_repo = SqliteGachaRepository(db_path)
-        self.market_repo = SQLiteMarketRepository(db_path)
+        self.market_repo = SqliteMarketRepository(db_path)
         self.shop_repo = SqliteShopRepository(db_path)
         self.log_repo = SqliteLogRepository(db_path)
         self.achievement_repo = SqliteAchievementRepository(db_path)
         self.buff_repo = SqliteUserBuffRepository(db_path)
-        self.exchange_repo = SQLiteExchangeRepository(db_path)
+        self.exchange_repo = SqliteExchangeRepository(db_path)
 
         # --- 3. 组合根：实例化所有服务层，并注入依赖 ---
         # 3.1 核心服务必须在效果管理器之前实例化，以解决依赖问题

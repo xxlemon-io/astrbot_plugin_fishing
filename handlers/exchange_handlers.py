@@ -1,4 +1,4 @@
-from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.event import AstrMessageEvent
 from datetime import datetime
 
 class ExchangeHandlers:
@@ -10,7 +10,6 @@ class ExchangeHandlers:
     def _get_effective_user_id(self, event: AstrMessageEvent) -> str:
         return str(event.get_user_id())
 
-    @filter(commands=["交易所", "exchange"])
     async def exchange_status(self, event: AstrMessageEvent):
         """查看交易所当前状态"""
         user_id = self._get_effective_user_id(event)
@@ -54,7 +53,6 @@ class ExchangeHandlers:
         msg += "⚠️ 注意：商品会腐败，请及时交易！"
         yield event.plain_result(msg)
 
-    @filter(commands=["交易所开户", "open_exchange_account"])
     async def open_exchange_account(self, event: AstrMessageEvent):
         """开通交易所账户"""
         user_id = self._get_effective_user_id(event)
@@ -64,7 +62,6 @@ class ExchangeHandlers:
         else:
             yield event.plain_result(f"❌ {result['message']}")
 
-    @filter(commands=["查看库存", "inventory", "持仓"])
     async def view_inventory(self, event: AstrMessageEvent):
         """查看大宗商品库存"""
         user_id = self._get_effective_user_id(event)
@@ -126,7 +123,6 @@ class ExchangeHandlers:
         msg += "═" * 25 + "\n"
         yield event.plain_result(msg)
 
-    @filter(commands=["交易所购入", "exchange_buy"])
     async def buy_commodity(self, event: AstrMessageEvent):
         """购买大宗商品"""
         user_id = self._get_effective_user_id(event)
@@ -156,7 +152,6 @@ class ExchangeHandlers:
         else:
             yield event.plain_result(f"❌ {result['message']}")
 
-    @filter(commands=["交易所卖出", "exchange_sell"])
     async def sell_commodity(self, event: AstrMessageEvent):
         """出售大宗商品"""
         user_id = self._get_effective_user_id(event)

@@ -7,7 +7,7 @@ from ..domain.models import Commodity, Exchange, UserCommodity
 from .abstract_repository import AbstractExchangeRepository
 
 
-class SQLiteExchangeRepository(AbstractExchangeRepository):
+class SqliteExchangeRepository(AbstractExchangeRepository):
     def __init__(self, db_path: str):
         self.db_path = db_path
         self._local = threading.local()

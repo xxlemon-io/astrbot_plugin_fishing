@@ -9,7 +9,7 @@ from .abstract_repository import AbstractMarketRepository
 from ..domain.models import MarketListing
 
 
-class SQLiteMarketRepository(AbstractMarketRepository):
+class SqliteMarketRepository(AbstractMarketRepository):
     """市场仓储的SQLite实现"""
 
     def __init__(self, db_path: str):
