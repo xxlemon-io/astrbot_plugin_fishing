@@ -576,10 +576,9 @@ class ExchangeService:
             commodity_name = self.commodities[commodity_id].name
             days_until_expiry = (mergeable_commodity.expires_at - now).days
             if commodity_id == 'fish_oil':
-                corruption_warning = f"，{days_until_expiry}天后将腐败（今日固定）"
+                corruption_warning = f"，{days_until_expiry}天后将腐败（今日固定值）"
             else:
                 corruption_warning = f"，{days_until_expiry}天后将腐败"
-            
             return {"success": True, "message": f"成功购买 {quantity}份 {commodity_name}，花费 {total_cost} 金币{corruption_warning}（已合并到现有库存）"}
 
         # 没有找到可叠加的库存，创建新的商品实例
@@ -687,7 +686,7 @@ class ExchangeService:
         # 计算盈亏分析
         prices = {commodity_id: current_price}
         analysis = self._calculate_profit_loss_analysis(target_commodities, prices)
-        
+
         # 计算总收益
         total_quantity = sum(item.quantity for item in target_commodities)
         total_earnings = current_price * total_quantity

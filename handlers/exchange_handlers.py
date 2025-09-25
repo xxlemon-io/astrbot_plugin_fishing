@@ -91,28 +91,31 @@ class ExchangeHandlers:
         price_trend = result.get("price_trend", "stable")
         supply_demand = result.get("supply_demand", {})
         
-        # 市场情绪图标
-        sentiment_icons = {
-            "panic": "😱",
-            "pessimistic": "😟", 
-            "neutral": "😐",
-            "optimistic": "😊",
-            "euphoric": "🚀"
+        # 市场情绪图标和中文名称
+        sentiment_info = {
+            "panic": ("😱", "恐慌", "Panic"),
+            "pessimistic": ("😟", "悲观", "Pessimistic"), 
+            "neutral": ("😐", "中性", "Neutral"),
+            "optimistic": ("😊", "乐观", "Optimistic"),
+            "euphoric": ("🚀", "狂热", "Euphoric")
         }
         
-        # 价格趋势图标
-        trend_icons = {
-            "rising": "📈",
-            "falling": "📉", 
-            "stable": "➖"
+        # 价格趋势图标和中文名称
+        trend_info = {
+            "rising": ("📈", "上涨", "Rising"),
+            "falling": ("📉", "下跌", "Falling"), 
+            "stable": ("➖", "稳定", "Stable")
         }
         
         msg = "【📈 交易所实时行情】\n"
         msg += "═" * 30 + "\n"
         
         # 市场情绪和趋势
-        msg += f"🎭 市场情绪: {sentiment_icons.get(market_sentiment, '😐')} {market_sentiment}\n"
-        msg += f"📊 价格趋势: {trend_icons.get(price_trend, '➖')} {price_trend}\n"
+        sentiment_icon, sentiment_cn, sentiment_en = sentiment_info.get(market_sentiment, ("😐", "中性", "Neutral"))
+        trend_icon, trend_cn, trend_en = trend_info.get(price_trend, ("➖", "稳定", "Stable"))
+        
+        msg += f"🎭 市场情绪: {sentiment_icon} {sentiment_cn} ({sentiment_en})\n"
+        msg += f"📊 价格趋势: {trend_icon} {trend_cn} ({trend_en})\n"
         msg += "─" * 30 + "\n"
         
         for comm_id, price in prices.items():
@@ -142,6 +145,11 @@ class ExchangeHandlers:
                 msg += f"供需状态: {supply_icons.get(supply_status, '⚖️')} {supply_status}\n"
                 msg += "─" * 20 + "\n"
         msg += "═" * 30 + "\n"
+        
+        # 显示下次价格更新时间
+        next_update_info = self._get_next_price_update_info()
+        msg += f"⏰ 下次价格更新: {next_update_info}\n"
+        msg += "─" * 30 + "\n"
 
         # 显示持仓容量和盈亏分析
         capacity = self.plugin.exchange_service.config.get("capacity", 1000)
@@ -415,6 +423,47 @@ class ExchangeHandlers:
                     yield event.plain_result(f"❌ {result['message']}")
         else:
             yield event.plain_result("❌ 命令格式错误，请使用：\n• /清仓 - 清空所有库存\n• /清仓 商品名称 - 清空指定商品\n• /清仓 all - 清空所有库存")
+
+    def _get_next_price_update_info(self) -> str:
+        """获取下次价格更新信息"""
+        from datetime import datetime, timedelta
+        
+        now = datetime.now()
+        
+        # 计算下一个更新时间（上午9点、下午3点、晚上9点）
+        morning_update = now.replace(hour=9, minute=0, second=0, microsecond=0)
+        afternoon_update = now.replace(hour=15, minute=0, second=0, microsecond=0)
+        evening_update = now.replace(hour=21, minute=0, second=0, microsecond=0)
+        
+        next_update = None
+        update_name = ""
+        
+        if now.hour < 9:
+            # 还没到上午9点，等待上午9点
+            next_update = morning_update
+            update_name = "开盘价格"
+        elif now.hour < 15:
+            # 上午9点已过，但还没到下午3点，等待下午3点
+            next_update = afternoon_update
+            update_name = "午盘价格"
+        elif now.hour < 21:
+            # 下午3点已过，但还没到晚上9点，等待晚上9点
+            next_update = evening_update
+            update_name = "收盘价格"
+        else:
+            # 晚上9点已过，等待明天的上午9点
+            next_update = morning_update + timedelta(days=1)
+            update_name = "明日开盘价格"
+        
+        # 计算时间差
+        time_diff = next_update - now
+        hours = int(time_diff.total_seconds() // 3600)
+        minutes = int((time_diff.total_seconds() % 3600) // 60)
+        
+        if hours > 0:
+            return f"{update_name} ({hours}小时{minutes}分钟后)"
+        else:
+            return f"{update_name} ({minutes}分钟后)"
 
     async def exchange_help(self, event: AstrMessageEvent):
         """交易所帮助信息"""
