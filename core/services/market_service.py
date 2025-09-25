@@ -507,7 +507,8 @@ class MarketService:
                 "rod_count": len([item for item in all_listings if item.item_type == "rod"]),
                 "accessory_count": len([item for item in all_listings if item.item_type == "accessory"]),
                 "item_count": len([item for item in all_listings if item.item_type == "item"]),
-                "fish_count": len([item for item in all_listings if item.item_type == "fish"])
+                "fish_count": len([item for item in all_listings if item.item_type == "fish"]),
+                "commodity_count": len([item for item in all_listings if item.item_type == "commodity"])
             }
             
             return {
