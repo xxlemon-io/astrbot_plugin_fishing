@@ -206,7 +206,7 @@ class MarketService:
             seller_nickname=seller.nickname,
             item_type=item_type,
             item_id=item_template_id,
-            item_instance_id=item_instance_id if item_type not in ["item", "fish", "commodity"] else None,
+            item_instance_id=item_instance_id if item_type not in ["item", "fish"] else None,
             quantity=quantity,
             item_name=item_name,
             item_description=item_description,
@@ -229,7 +229,7 @@ class MarketService:
         根据实例ID查找市场ID
         
         Args:
-            item_type: 物品类型 ("rod" 或 "accessory")
+            item_type: 物品类型 ("rod", "accessory", "commodity")
             instance_id: 实例ID
             
         Returns:
