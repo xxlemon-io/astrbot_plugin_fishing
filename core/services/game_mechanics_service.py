@@ -1,7 +1,7 @@
 import requests
 import random
 import json
-from typing import Dict, Any, TYPE_CHECKING
+from typing import Dict, Any, Optional, TYPE_CHECKING
 from concurrent.futures import ThreadPoolExecutor
 from astrbot.api import logger
 
@@ -101,6 +101,24 @@ class GameMechanicsService:
         if multiplier >= 1.0: return "suekichi"           # 末吉 (1.0-2倍)
         return "kyo"                                       # 凶 (0-1倍)
     
+    def _parse_wipe_bomb_forecast(self, forecast_value: Optional[str]) -> Optional[Dict[str, Any]]:
+        """解析存储在用户上的擦弹预测信息，兼容旧格式。"""
+        if not forecast_value:
+            return None
+
+        if isinstance(forecast_value, dict):
+            return forecast_value
+
+        try:
+            data = json.loads(forecast_value)
+            if isinstance(data, dict) and data.get("mode"):
+                return data
+        except (TypeError, json.JSONDecodeError):
+            pass
+
+        # 兼容旧版本仅存储等级字符串的情况
+        return {"mode": "legacy", "tier": forecast_value}
+
 
     def forecast_wipe_bomb(self, user_id: str) -> Dict[str, Any]:
         """
@@ -184,15 +202,22 @@ class GameMechanicsService:
             message += random.choice(failure_messages)
         elif random_value < divination_failure_rate + prediction_accuracy:
             # 准确预测：使用真实的详细运势等级
-            user.wipe_bomb_forecast = real_tier_key
+            user.wipe_bomb_forecast = json.dumps({
+                "mode": "accurate",
+                "tier": real_tier_key,
+                "multiplier": simulated_multiplier
+            })
             message = self.FORTUNE_TIERS[real_tier_key]["message"]
         else:
             # 错误预测：随机选择一个详细运势等级
-            all_tiers = list(self.FORTUNE_TIERS.keys())
+            all_tiers = [t for t in self.FORTUNE_TIERS.keys() if t != real_tier_key]
             # 在消息中添加不确定性提示
-            message = "\n⚠️ 注意：沙漏的样子有些奇怪..."
-            wrong_tier_key = random.choice(all_tiers)
-            user.wipe_bomb_forecast = wrong_tier_key
+            message = "⚠️ 注意：沙漏的样子有些奇怪..."
+            wrong_tier_key = random.choice(all_tiers) if all_tiers else real_tier_key
+            user.wipe_bomb_forecast = json.dumps({
+                "mode": "inaccurate",
+                "tier": wrong_tier_key
+            })
             message += self.FORTUNE_TIERS[wrong_tier_key]["message"]
         
         # 保存预测结果
@@ -276,16 +301,31 @@ class GameMechanicsService:
         else:
             ranges = wipe_bomb_config.get("normal_ranges", normal_ranges)
 
-        # 如果有预测结果，清空预测但不影响实际擦弹结果
-        # 预测只是提前告知，不能改变实际概率分布
-        if user.wipe_bomb_forecast:
+        forecast_info = self._parse_wipe_bomb_forecast(user.wipe_bomb_forecast)
+        predetermined_multiplier: Optional[float] = None
+
+        if forecast_info:
+            mode = forecast_info.get("mode")
+            if mode == "accurate":
+                predetermined_multiplier = forecast_info.get("multiplier")
+                if predetermined_multiplier is None:
+                    # 兼容没有存储 multiplier 的情况，基于等级随机一个值
+                    tier_key = forecast_info.get("tier")
+                    tier_info = self.FORTUNE_TIERS.get(tier_key) if tier_key else None
+                    if tier_info:
+                        predetermined_multiplier = random.uniform(
+                            tier_info.get("min", 0.0), tier_info.get("max", 1.0)
+                        )
             # 使用后清空预测
             user.wipe_bomb_forecast = None
 
         # 3. 计算随机奖励倍数 (使用加权随机)
         try:
-            chosen_range = weighted_random_choice(ranges)
-            reward_multiplier = random.uniform(chosen_range[0], chosen_range[1])
+            if predetermined_multiplier is not None:
+                reward_multiplier = predetermined_multiplier
+            else:
+                chosen_range = weighted_random_choice(ranges)
+                reward_multiplier = random.uniform(chosen_range[0], chosen_range[1])
         except (ValueError, IndexError) as e:
             logger.error(f"擦弹预测时随机选择出错: {e}", exc_info=True)
             return {"success": False, "message": "占卜失败，似乎天机不可泄露..."}

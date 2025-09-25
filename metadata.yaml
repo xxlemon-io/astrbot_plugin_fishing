@@ -1,5 +1,5 @@
 ﻿name: Fishing Another!
-version: 2.0.9
+version: 2.0.10
 author: "xxlemon"
 description: "全新架构的钓鱼插件！重构擦弹、抽卡、商店系统，支持多商店类型和复杂商品机制，新增水族箱系统提供安全存储空间，附带完整后台管理界面（支持原版fishing存档继续游玩）"
 repo: https://github.com/xxlemon-io/astrbot_plugin_fishing
