@@ -290,8 +290,8 @@ class SqliteMarketRepository(AbstractMarketRepository):
             elif "is_anonymous" in cols:
                 # 只有is_anonymous字段
                 cursor.execute("""
-                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, is_anonymous)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, is_anonymous, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     listing.user_id,
                     listing.item_type,
@@ -302,13 +302,14 @@ class SqliteMarketRepository(AbstractMarketRepository):
                     listing.price,
                     listing.listed_at or datetime.now(),
                     listing.refine_level,
-                    listing.is_anonymous
+                    listing.is_anonymous,
+                    listing.expires_at
                 ))
             elif "item_instance_id" in cols:
                 # 只有item_instance_id字段
                 cursor.execute("""
-                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, item_instance_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, item_instance_id, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     listing.user_id,
                     listing.item_type,
@@ -319,13 +320,14 @@ class SqliteMarketRepository(AbstractMarketRepository):
                     listing.price,
                     listing.listed_at or datetime.now(),
                     listing.refine_level,
-                    listing.item_instance_id
+                    listing.item_instance_id,
+                    listing.expires_at
                 ))
             else:
                 # 旧版本：不包含新字段
                 cursor.execute("""
-                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     listing.user_id,
                     listing.item_type,
@@ -335,7 +337,8 @@ class SqliteMarketRepository(AbstractMarketRepository):
                     listing.quantity,
                     listing.price,
                     listing.listed_at or datetime.now(),
-                    listing.refine_level
+                    listing.refine_level,
+                    listing.expires_at
                 ))
             conn.commit()
 
