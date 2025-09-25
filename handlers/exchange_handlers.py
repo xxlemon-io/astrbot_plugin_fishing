@@ -109,11 +109,17 @@ class ExchangeHandlers:
                 msg += "─" * 20 + "\n"
         msg += "═" * 25 + "\n"
 
-        # 显示持仓容量
+        # 显示持仓容量和盈亏分析
         capacity = self.plugin.exchange_service.config.get("capacity", 1000)
         user_commodities = self.plugin.exchange_service.exchange_repo.get_user_commodities(user_id)
         current_total_quantity = sum(item.quantity for item in user_commodities)
         msg += f"📦 当前持仓: {current_total_quantity} / {capacity}\n"
+        
+        # 如果有持仓，显示盈亏分析
+        if user_commodities:
+            analysis = self.exchange_service._calculate_profit_loss_analysis(user_commodities, prices)
+            profit_status = "📈盈利" if analysis["profit_loss"] > 0 else "📉亏损" if analysis["profit_loss"] < 0 else "➖持平"
+            msg += f"📊 持仓盈亏: {analysis['profit_loss']:+} 金币 {profit_status} ({analysis['profit_rate']:+.1f}%)\n"
 
         msg += "💡 使用【交易所 购入 商品名称 数量】购买\n"
         msg += "💡 使用【交易所 卖出 商品名称】出售所有该商品\n"
@@ -135,84 +141,163 @@ class ExchangeHandlers:
 
     async def view_inventory(self, event: AstrMessageEvent):
         """查看大宗商品库存"""
-        user_id = self._get_effective_user_id(event)
-        result = self.exchange_service.get_user_inventory(user_id)
-
-        if not result["success"]:
-            yield event.plain_result(f"❌ {result.get('message', '查询失败')}")
-            return
+        try:
+            from astrbot.api import logger
+            logger.info(f"持仓命令被触发，用户ID: {event.get_sender_id()}")
             
-        inventory = result["inventory"]
-        commodities = result["commodities"]
-        
-        if not inventory:
-            yield event.plain_result("您的交易所库存为空。")
-            return
+            user_id = self._get_effective_user_id(event)
+            logger.info(f"有效用户ID: {user_id}")
+            
+            result = self.exchange_service.get_user_inventory(user_id)
+            logger.info(f"获取用户库存结果: {result}")
 
-        msg = "【📦 我的交易所库存】\n"
-        msg += "═" * 25 + "\n"
-        for item in inventory:
-            commodity = commodities.get(item.commodity_id)
-            if commodity:
-                time_left = item.expires_at - datetime.now()
-                hours, remainder = divmod(time_left.total_seconds(), 3600)
-                minutes, _ = divmod(remainder, 60)
+            if not result["success"]:
+                yield event.plain_result(f"❌ {result.get('message', '查询失败')}")
+                return
                 
-                # 生成显示ID
-                display_id = self._get_commodity_display_code(item.instance_id)
-                
-                # 根据剩余时间添加不同的警告级别
-                if time_left.total_seconds() <= 0:
-                    # 已腐败
-                    msg += f"库存ID: {display_id}\n"
-                    msg += f"商品: {commodity.name} ⚠️ 已腐败\n"
-                    msg += f"数量: {item.quantity}\n"
-                    msg += f"买入价: {item.purchase_price} 金币\n"
-                    msg += f"状态: 💀 腐败中，价值归零\n"
-                elif time_left.total_seconds() <= 3600:  # 1小时内
-                    # 紧急警告
-                    msg += f"库存ID: {display_id}\n"
-                    msg += f"商品: {commodity.name} 🚨 即将腐败\n"
-                    msg += f"数量: {item.quantity}\n"
-                    msg += f"买入价: {item.purchase_price} 金币\n"
-                    msg += f"腐败倒计时: ⏰ {int(minutes)}分钟\n"
-                elif time_left.total_seconds() <= 86400:  # 24小时内
-                    # 警告
-                    msg += f"库存ID: {display_id}\n"
-                    msg += f"商品: {commodity.name} ⚠️ 注意保质期\n"
-                    msg += f"数量: {item.quantity}\n"
-                    msg += f"买入价: {item.purchase_price} 金币\n"
-                    msg += f"腐败倒计时: ⏳ {int(hours)}小时 {int(minutes)}分钟\n"
-                else:
-                    # 正常
-                    days = int(hours // 24)
-                    remaining_hours = int(hours % 24)
-                    msg += f"库存ID: {display_id}\n"
-                    msg += f"商品: {commodity.name}\n"
-                    msg += f"数量: {item.quantity}\n"
-                    msg += f"买入价: {item.purchase_price} 金币\n"
-                    msg += f"腐败倒计时: ⏰ {days}天 {remaining_hours}小时\n"
-                
-                msg += "─" * 20 + "\n"
-        msg += "═" * 25 + "\n"
-        yield event.plain_result(msg)
+            inventory = result["inventory"]
+            commodities = result["commodities"]
+            
+            if not inventory:
+                yield event.plain_result("您的交易所库存为空。")
+                return
+
+            # 获取当前市场价格
+            try:
+                market_status = self.exchange_service.get_market_status()
+                current_prices = market_status.get("prices", {})
+            except Exception as e:
+                logger.error(f"获取市场价格失败: {e}")
+                current_prices = {}
+            
+            # 计算盈亏分析
+            try:
+                analysis = self.exchange_service._calculate_profit_loss_analysis(inventory, current_prices)
+            except Exception as e:
+                logger.error(f"计算盈亏分析失败: {e}")
+                # 提供默认分析结果
+                analysis = {
+                    "total_cost": 0,
+                    "total_revenue": 0,
+                    "profit_loss": 0,
+                    "profit_rate": 0.0,
+                    "details": []
+                }
+
+            msg = "【📦 我的交易所库存】\n"
+            msg += "═" * 30 + "\n"
+            
+            # 显示总体盈亏情况
+            profit_status = "📈盈利" if analysis["profit_loss"] > 0 else "📉亏损" if analysis["profit_loss"] < 0 else "➖持平"
+            msg += f"📊 总体盈亏：{analysis['profit_loss']:+} 金币 {profit_status}\n"
+            msg += f"💰 总成本：{analysis['total_cost']} 金币\n"
+            msg += f"💎 当前价值：{analysis['total_revenue']} 金币\n"
+            msg += f"📈 盈利率：{analysis['profit_rate']:+.1f}%\n"
+            msg += "─" * 30 + "\n"
+            
+            for item in inventory:
+                try:
+                    commodity = commodities.get(item.commodity_id)
+                    if not commodity:
+                        logger.warning(f"商品ID {item.commodity_id} 不存在，跳过该项")
+                        continue
+                        
+                    time_left = item.expires_at - datetime.now()
+                    hours, remainder = divmod(time_left.total_seconds(), 3600)
+                    minutes, _ = divmod(remainder, 60)
+                    
+                    # 生成显示ID
+                    display_id = self._get_commodity_display_code(item.instance_id)
+                    
+                    # 计算单项盈亏
+                    current_price = current_prices.get(item.commodity_id, 0)
+                    item_cost = item.purchase_price * item.quantity
+                    item_revenue = current_price * item.quantity
+                    item_profit_loss = item_revenue - item_cost
+                    item_profit_rate = (item_profit_loss / item_cost * 100) if item_cost > 0 else 0
+                    item_profit_status = "📈" if item_profit_loss > 0 else "📉" if item_profit_loss < 0 else "➖"
+                    
+                    # 根据剩余时间添加不同的警告级别
+                    if time_left.total_seconds() <= 0:
+                        # 已腐败
+                        msg += f"库存ID: {display_id}\n"
+                        msg += f"商品: {commodity.name} ⚠️ 已腐败\n"
+                        msg += f"数量: {item.quantity}\n"
+                        msg += f"买入价: {item.purchase_price} 金币\n"
+                        msg += f"状态: 💀 腐败中，价值归零\n"
+                    elif time_left.total_seconds() <= 3600:  # 1小时内
+                        # 紧急警告
+                        msg += f"库存ID: {display_id}\n"
+                        msg += f"商品: {commodity.name} 🚨 即将腐败\n"
+                        msg += f"数量: {item.quantity}\n"
+                        msg += f"买入价: {item.purchase_price} 金币\n"
+                        msg += f"当前价: {current_price} 金币\n"
+                        msg += f"盈亏: {item_profit_loss:+} 金币 {item_profit_status} ({item_profit_rate:+.1f}%)\n"
+                        msg += f"腐败倒计时: ⏰ {int(minutes)}分钟\n"
+                    elif time_left.total_seconds() <= 86400:  # 24小时内
+                        # 警告
+                        msg += f"库存ID: {display_id}\n"
+                        msg += f"商品: {commodity.name} ⚠️ 注意保质期\n"
+                        msg += f"数量: {item.quantity}\n"
+                        msg += f"买入价: {item.purchase_price} 金币\n"
+                        msg += f"当前价: {current_price} 金币\n"
+                        msg += f"盈亏: {item_profit_loss:+} 金币 {item_profit_status} ({item_profit_rate:+.1f}%)\n"
+                        msg += f"腐败倒计时: ⏳ {int(hours)}小时 {int(minutes)}分钟\n"
+                    else:
+                        # 正常
+                        days = int(hours // 24)
+                        remaining_hours = int(hours % 24)
+                        msg += f"库存ID: {display_id}\n"
+                        msg += f"商品: {commodity.name}\n"
+                        msg += f"数量: {item.quantity}\n"
+                        msg += f"买入价: {item.purchase_price} 金币\n"
+                        msg += f"当前价: {current_price} 金币\n"
+                        msg += f"盈亏: {item_profit_loss:+} 金币 {item_profit_status} ({item_profit_rate:+.1f}%)\n"
+                        msg += f"腐败倒计时: ⏰ {days}天 {remaining_hours}小时\n"
+                    
+                    msg += "─" * 20 + "\n"
+                except Exception as e:
+                    logger.error(f"处理库存项时出错: {e}")
+                    msg += f"库存项处理错误: {str(e)}\n"
+                    msg += "─" * 20 + "\n"
+            
+            # 显示容量信息
+            capacity = self.plugin.exchange_service.config.get("capacity", 1000)
+            current_total_quantity = sum(item.quantity for item in inventory)
+            msg += f"📦 持仓容量: {current_total_quantity} / {capacity}\n"
+            msg += "═" * 30 + "\n"
+            
+            # 添加操作提示
+            msg += "💡 操作提示：\n"
+            msg += "• 卖出所有：/交易所 卖出 商品名称\n"
+            msg += "• 卖出指定：/交易所 卖出 库存ID 数量\n"
+            msg += "• 快速清仓：/清仓\n"
+            msg += "• 上架市场：/上架 库存ID 单价\n"
+            msg += "• 查看行情：/交易所\n"
+            msg += "⚠️ 注意：商品会腐败，请及时交易！"
+            
+            yield event.plain_result(msg)
+            
+        except Exception as e:
+            from astrbot.api import logger
+            logger.error(f"持仓命令执行失败: {e}")
+            yield event.plain_result(f"❌ 持仓命令执行失败: {str(e)}")
 
     async def buy_commodity(self, event: AstrMessageEvent):
         """购买大宗商品"""
         user_id = self._get_effective_user_id(event)
         args = event.message_str.split()
+        
         if len(args) < 4:
-            yield event.plain_result("❌ 命令格式错误，请使用：交易所 购入 [商品名称] [数量]\n💡 可用商品：鱼干、鱼卵、鱼油")
+            yield event.plain_result("❌ 命令格式错误，请使用：/交易所 购入 商品名称 数量")
             return
-            
-        # 支持商品名称包含空格的情况
+        
         commodity_name = args[2]
-        if len(args) > 3:
-            # 如果商品名称包含空格，需要重新组合
-            commodity_name = " ".join(args[2:-1])
-            quantity = int(args[-1])
-        else:
+        try:
             quantity = int(args[3])
+        except ValueError:
+            yield event.plain_result("❌ 数量必须是有效的数字")
+            return
 
         result = self.exchange_service.purchase_commodity(user_id, commodity_name, quantity)
         if result["success"]:
@@ -221,12 +306,12 @@ class ExchangeHandlers:
             yield event.plain_result(f"❌ {result['message']}")
 
     async def sell_commodity(self, event: AstrMessageEvent):
-        """出售大宗商品"""
+        """卖出大宗商品"""
         user_id = self._get_effective_user_id(event)
         args = event.message_str.split()
         
         if len(args) == 3:
-            # 格式：交易所 卖出 鱼油（卖出所有该商品）
+            # 格式：/交易所 卖出 商品名称（卖出所有该商品）
             commodity_name = args[2]
             result = self.exchange_service.sell_commodity_by_name(user_id, commodity_name)
             if result["success"]:
@@ -234,18 +319,16 @@ class ExchangeHandlers:
             else:
                 yield event.plain_result(f"❌ {result['message']}")
         elif len(args) == 4:
-            # 格式：交易所 卖出 [库存ID] [数量]
+            # 格式：/交易所 卖出 库存ID 数量（卖出指定数量）
             inventory_id_str = args[2]
-            instance_id = None
             
-            # 先尝试解析Base36格式（C开头）
-            if inventory_id_str.upper().startswith('C'):
+            # 解析库存ID
+            if inventory_id_str.startswith('C'):
                 instance_id = self._parse_commodity_display_code(inventory_id_str)
                 if instance_id is None:
-                    yield event.plain_result("❌ 无效的库存ID格式")
+                    yield event.plain_result("❌ 库存ID格式错误，请使用C开头的ID")
                     return
             else:
-                # 尝试解析数字格式（向后兼容）
                 try:
                     instance_id = int(inventory_id_str)
                 except ValueError:
@@ -330,6 +413,12 @@ class ExchangeHandlers:
 • 鱼卵适合激进型玩家，高风险高收益
 • 鱼油适合赌徒型玩家，既要赌价格还要赌腐败时间
 • 大宗商品可上架玩家市场：/上架 C1A 1000
+
+📊 盈亏分析：
+• 持仓命令会显示详细的盈亏分析，包括总体和单项盈亏
+• 实时显示当前市场价格与买入价格的对比
+• 盈利率帮助判断投资策略是否有效
+• 腐败倒计时提醒及时止损或止盈
 
 ⚠️ 重要提醒：
 • 商品会腐败，请及时交易！

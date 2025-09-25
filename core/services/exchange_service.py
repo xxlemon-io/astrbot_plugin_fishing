@@ -543,32 +543,42 @@ class ExchangeService:
         details = []  # 详细分析
         
         for item in commodities:
-            commodity_name = self.commodities[item.commodity_id].name
-            current_price = current_prices.get(item.commodity_id, 0)
-            
-            # 计算成本（买入价 * 数量）
-            item_cost = item.purchase_price * item.quantity
-            total_cost += item_cost
-            
-            # 计算收入（当前价 * 数量）
-            item_revenue = current_price * item.quantity
-            total_revenue += item_revenue
-            
-            # 计算单项盈亏
-            item_profit_loss = item_revenue - item_cost
-            item_profit_rate = (item_profit_loss / item_cost * 100) if item_cost > 0 else 0
-            
-            # 格式化单项信息
-            profit_status = "📈盈利" if item_profit_loss > 0 else "📉亏损" if item_profit_loss < 0 else "➖持平"
-            details.append({
-                "name": commodity_name,
-                "quantity": item.quantity,
-                "cost": item_cost,
-                "revenue": item_revenue,
-                "profit_loss": item_profit_loss,
-                "profit_rate": item_profit_rate,
-                "status": profit_status
-            })
+            try:
+                # 安全获取商品信息
+                commodity = self.commodities.get(item.commodity_id)
+                if not commodity:
+                    logger.warning(f"商品ID {item.commodity_id} 不存在于商品列表中，跳过该项")
+                    continue
+                    
+                commodity_name = commodity.name
+                current_price = current_prices.get(item.commodity_id, 0)
+                
+                # 计算成本（买入价 * 数量）
+                item_cost = item.purchase_price * item.quantity
+                total_cost += item_cost
+                
+                # 计算收入（当前价 * 数量）
+                item_revenue = current_price * item.quantity
+                total_revenue += item_revenue
+                
+                # 计算单项盈亏
+                item_profit_loss = item_revenue - item_cost
+                item_profit_rate = (item_profit_loss / item_cost * 100) if item_cost > 0 else 0
+                
+                # 格式化单项信息
+                profit_status = "📈盈利" if item_profit_loss > 0 else "📉亏损" if item_profit_loss < 0 else "➖持平"
+                details.append({
+                    "name": commodity_name,
+                    "quantity": item.quantity,
+                    "cost": item_cost,
+                    "revenue": item_revenue,
+                    "profit_loss": item_profit_loss,
+                    "profit_rate": item_profit_rate,
+                    "status": profit_status
+                })
+            except Exception as e:
+                logger.error(f"计算商品 {item.commodity_id} 盈亏分析时出错: {e}")
+                continue
         
         # 计算总体盈亏
         profit_loss = total_revenue - total_cost

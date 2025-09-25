@@ -1,6 +1,6 @@
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 
 from ..domain.models import Commodity, Exchange, UserCommodity
@@ -54,13 +54,25 @@ class SqliteExchangeRepository(AbstractExchangeRepository):
             FROM user_commodities WHERE user_id=?
         """, (user_id,))
         rows = c.fetchall()
-        return [
-            UserCommodity(
-                instance_id=row[0], user_id=row[1], commodity_id=row[2], quantity=row[3],
-                purchase_price=row[4], purchased_at=datetime.fromisoformat(row[5]),
-                expires_at=datetime.fromisoformat(row[6])
-            ) for row in rows
-        ]
+        
+        commodities = []
+        for row in rows:
+            try:
+                # 安全解析日期
+                purchased_at = datetime.fromisoformat(row[5]) if row[5] else datetime.now()
+                expires_at = datetime.fromisoformat(row[6]) if row[6] else datetime.now() + timedelta(days=1)
+                
+                commodity = UserCommodity(
+                    instance_id=row[0], user_id=row[1], commodity_id=row[2], quantity=row[3],
+                    purchase_price=row[4], purchased_at=purchased_at, expires_at=expires_at
+                )
+                commodities.append(commodity)
+            except Exception as e:
+                from astrbot.api import logger
+                logger.error(f"解析用户商品数据失败: {e}, 行数据: {row}")
+                continue
+                
+        return commodities
 
     def add_user_commodity(self, user_commodity: UserCommodity) -> UserCommodity:
         conn = self._get_connection()
