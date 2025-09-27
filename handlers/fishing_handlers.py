@@ -6,6 +6,21 @@ from ..draw.pokedex import draw_pokedex
 from astrbot.api.message_components import Image as AstrImage
 
 
+class FishingHandlers:
+    def __init__(self, plugin):
+        self.plugin = plugin
+        self.user_service = plugin.user_service
+        self.fishing_service = plugin.fishing_service
+        self.inventory_service = plugin.inventory_service
+        self.gacha_service = plugin.gacha_service
+        self.market_service = plugin.market_service
+        self.shop_service = plugin.shop_service
+        self.item_template_repo = plugin.item_template_repo
+        self.achievement_service = plugin.achievement_service
+        self.aquarium_service = plugin.aquarium_service
+        self.exchange_service = plugin.exchange_service
+
+
 def _normalize_now_for(lst_time):
     """根据 lst_time 的时区信息，规范化当前时间的 tzinfo。"""
     now = get_now()

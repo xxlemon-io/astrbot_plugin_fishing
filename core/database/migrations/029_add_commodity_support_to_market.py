@@ -14,10 +14,10 @@ def get_default_value(column_name):
 
 def up(cursor: sqlite3.Cursor):
     """
-    为market表添加对item类型的支持
+    为market表添加对commodity类型的支持
     """
     from astrbot.api import logger
-    logger.info("正在执行 016_add_item_support_to_market: 更新market表约束以支持道具类型...")
+    logger.info("正在执行 029_add_commodity_support_to_market: 更新market表约束以支持大宗商品类型...")
     
     # SQLite不支持直接修改CHECK约束，需要重建表
     # 1. 创建新的market表结构
@@ -25,7 +25,7 @@ def up(cursor: sqlite3.Cursor):
         CREATE TABLE market_new (
             market_id INTEGER PRIMARY KEY AUTOINCREMENT, 
             user_id TEXT NOT NULL,
-            item_type TEXT NOT NULL CHECK (item_type IN ('rod', 'accessory', 'item')),
+            item_type TEXT NOT NULL CHECK (item_type IN ('rod', 'accessory', 'item', 'fish', 'commodity')),
             item_id INTEGER NOT NULL, 
             quantity INTEGER NOT NULL CHECK (quantity > 0),
             price INTEGER NOT NULL CHECK (price > 0),
@@ -35,6 +35,8 @@ def up(cursor: sqlite3.Cursor):
             seller_nickname TEXT,
             item_name TEXT,
             item_description TEXT,
+            item_instance_id INTEGER,
+            is_anonymous INTEGER DEFAULT 0,
             FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
         )
     """)
@@ -46,7 +48,7 @@ def up(cursor: sqlite3.Cursor):
     
     # 构建动态的INSERT语句
     base_columns = ['market_id', 'user_id', 'item_type', 'item_id', 'quantity', 'price', 'listed_at', 'expires_at']
-    new_columns = ['refine_level', 'seller_nickname', 'item_name', 'item_description']
+    new_columns = ['refine_level', 'seller_nickname', 'item_name', 'item_description', 'item_instance_id', 'is_anonymous']
     
     # 选择存在的字段
     select_fields = []
@@ -58,9 +60,19 @@ def up(cursor: sqlite3.Cursor):
     
     for col in new_columns:
         if col in existing_columns:
-            select_fields.append(f"COALESCE({col}, {get_default_value(col)}) as {col}")
+            if col == 'is_anonymous':
+                # 处理可能的 BOOLEAN 字段名问题
+                if 'BOOLEAN' in existing_columns and 'is_anonymous' not in existing_columns:
+                    select_fields.append("BOOLEAN as is_anonymous")
+                else:
+                    select_fields.append(f"COALESCE({col}, 0) as {col}")
+            else:
+                select_fields.append(f"COALESCE({col}, {get_default_value(col)}) as {col}")
         else:
-            select_fields.append(f"{get_default_value(col)} as {col}")
+            if col == 'is_anonymous':
+                select_fields.append("0 as is_anonymous")
+            else:
+                select_fields.append(f"{get_default_value(col)} as {col}")
     
     select_sql = f"SELECT {', '.join(select_fields)} FROM market"
     logger.info(f"复制数据SQL: {select_sql}")
@@ -69,7 +81,7 @@ def up(cursor: sqlite3.Cursor):
         INSERT INTO market_new (
             market_id, user_id, item_type, item_id, quantity, price, 
             listed_at, expires_at, refine_level, seller_nickname, 
-            item_name, item_description
+            item_name, item_description, item_instance_id, is_anonymous
         )
         {select_sql}
     """)
@@ -86,21 +98,22 @@ def up(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_market_listed_at ON market(listed_at)")
     
     cursor.connection.commit()
-    logger.info("market表约束更新完成，现在支持rod、accessory和item类型")
+    logger.info("market表约束更新完成，现在支持rod、accessory、item、fish和commodity类型")
 
 
 def down(cursor: sqlite3.Cursor):
     """
-    回滚：移除对item类型的支持
+    回滚：移除对commodity类型的支持
     """
-    logger.info("正在回滚 016_add_item_support_to_market: 移除item类型支持...")
+    from astrbot.api import logger
+    logger.info("正在回滚 029_add_commodity_support_to_market: 移除commodity类型支持...")
     
-    # 1. 创建回滚的market表结构（只支持rod和accessory）
+    # 1. 创建回滚的market表结构（只支持rod、accessory、item和fish）
     cursor.execute("""
         CREATE TABLE market_rollback (
             market_id INTEGER PRIMARY KEY AUTOINCREMENT, 
             user_id TEXT NOT NULL,
-            item_type TEXT NOT NULL CHECK (item_type IN ('rod', 'accessory')),
+            item_type TEXT NOT NULL CHECK (item_type IN ('rod', 'accessory', 'item', 'fish')),
             item_id INTEGER NOT NULL, 
             quantity INTEGER NOT NULL CHECK (quantity > 0),
             price INTEGER NOT NULL CHECK (price > 0),
@@ -110,18 +123,20 @@ def down(cursor: sqlite3.Cursor):
             seller_nickname TEXT,
             item_name TEXT,
             item_description TEXT,
+            item_instance_id INTEGER,
+            is_anonymous INTEGER DEFAULT 0,
             FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
         )
     """)
     
-    # 2. 检查现有表结构并复制rod和accessory类型的数据
+    # 2. 检查现有表结构并复制rod、accessory、item和fish类型的数据
     cursor.execute("PRAGMA table_info(market)")
     existing_columns = [col[1] for col in cursor.fetchall()]
     logger.info(f"现有表字段: {existing_columns}")
     
     # 构建动态的INSERT语句
     base_columns = ['market_id', 'user_id', 'item_type', 'item_id', 'quantity', 'price', 'listed_at', 'expires_at']
-    new_columns = ['refine_level', 'seller_nickname', 'item_name', 'item_description']
+    new_columns = ['refine_level', 'seller_nickname', 'item_name', 'item_description', 'item_instance_id', 'is_anonymous']
     
     # 选择存在的字段
     select_fields = []
@@ -133,18 +148,28 @@ def down(cursor: sqlite3.Cursor):
     
     for col in new_columns:
         if col in existing_columns:
-            select_fields.append(f"COALESCE({col}, {get_default_value(col)}) as {col}")
+            if col == 'is_anonymous':
+                # 处理可能的 BOOLEAN 字段名问题
+                if 'BOOLEAN' in existing_columns and 'is_anonymous' not in existing_columns:
+                    select_fields.append("BOOLEAN as is_anonymous")
+                else:
+                    select_fields.append(f"COALESCE({col}, 0) as {col}")
+            else:
+                select_fields.append(f"COALESCE({col}, {get_default_value(col)}) as {col}")
         else:
-            select_fields.append(f"{get_default_value(col)} as {col}")
+            if col == 'is_anonymous':
+                select_fields.append("0 as is_anonymous")
+            else:
+                select_fields.append(f"{get_default_value(col)} as {col}")
     
-    select_sql = f"SELECT {', '.join(select_fields)} FROM market WHERE item_type IN ('rod', 'accessory')"
+    select_sql = f"SELECT {', '.join(select_fields)} FROM market WHERE item_type IN ('rod', 'accessory', 'item', 'fish')"
     logger.info(f"复制数据SQL: {select_sql}")
     
     cursor.execute(f"""
         INSERT INTO market_rollback (
             market_id, user_id, item_type, item_id, quantity, price, 
             listed_at, expires_at, refine_level, seller_nickname, 
-            item_name, item_description
+            item_name, item_description, item_instance_id, is_anonymous
         )
         {select_sql}
     """)
@@ -161,4 +186,4 @@ def down(cursor: sqlite3.Cursor):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_market_listed_at ON market(listed_at)")
     
     cursor.connection.commit()
-    logger.info("market表约束回滚完成，现在只支持rod和accessory类型")
+    logger.info("market表约束回滚完成，现在只支持rod、accessory、item和fish类型")

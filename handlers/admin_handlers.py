@@ -469,3 +469,24 @@ async def reward_all_items(self, event: AstrMessageEvent):
     
     item_name = getattr(item_template, 'name', f'ID:{item_id}')
     yield event.plain_result(f"✅ 全体发放道具完成！\n📦 道具：{item_name} x{quantity}\n✅ 成功：{success_count} 位用户\n❌ 失败：{failed_count} 位用户")
+
+async def update_exchange_prices(self, event: AstrMessageEvent):
+    """手动更新交易所价格（管理员）"""
+    try:
+        result = self.exchange_service.manual_update_prices()
+        
+        if result["success"]:
+            # 格式化价格显示
+            price_info = []
+            for commodity_id, price in result["prices"].items():
+                commodity_name = self.exchange_service.commodities.get(commodity_id, {}).name if commodity_id in self.exchange_service.commodities else commodity_id
+                price_info.append(f"• {commodity_name}: {price:,} 金币")
+            
+            price_display = "\n".join(price_info)
+            yield event.plain_result(f"✅ 交易所价格更新成功！\n\n📊 当前价格：\n{price_display}")
+        else:
+            yield event.plain_result(f"❌ 价格更新失败：{result['message']}")
+            
+    except Exception as e:
+        logger.error(f"手动更新价格失败: {e}")
+        yield event.plain_result("❌ 价格更新失败，请稍后再试。")

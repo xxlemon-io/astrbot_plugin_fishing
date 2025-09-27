@@ -71,6 +71,7 @@ class SqliteUserRepository(AbstractUserRepository):
             last_stolen_at=parse_datetime(row["last_stolen_at"]),
             wipe_bomb_forecast=row["wipe_bomb_forecast"],
             fishing_zone_id=row["fishing_zone_id"],
+            exchange_account_status=bool(row["exchange_account_status"]) if "exchange_account_status" in row.keys() else False,  # 默认值False，兼容旧数据
         )
 
     def get_by_id(self, user_id: str) -> Optional[User]:
@@ -108,7 +109,8 @@ class SqliteUserRepository(AbstractUserRepository):
                     equipped_rod_instance_id = ?, equipped_accessory_instance_id = ?,
                     current_title_id = ?, current_bait_id = ?, bait_start_time = ?,
                     auto_fishing_enabled = ?, last_fishing_time = ?, last_wipe_bomb_time = ?,
-                    last_steal_time = ?, last_login_time = ?, last_stolen_at = ?, wipe_bomb_forecast = ?, fishing_zone_id = ?
+                    last_steal_time = ?, last_login_time = ?, last_stolen_at = ?, wipe_bomb_forecast = ?, 
+                    fishing_zone_id = ?, exchange_account_status = ?
                 WHERE user_id = ?
             """, (
                 user.nickname, user.coins, user.premium_currency,
@@ -118,7 +120,7 @@ class SqliteUserRepository(AbstractUserRepository):
                 user.current_title_id, user.current_bait_id, user.bait_start_time,
                 user.auto_fishing_enabled, user.last_fishing_time, user.last_wipe_bomb_time,
                 user.last_steal_time, user.last_login_time, user.last_stolen_at,
-                user.wipe_bomb_forecast, user.fishing_zone_id,
+                user.wipe_bomb_forecast, user.fishing_zone_id, user.exchange_account_status,
                 user.user_id
             ))
             
