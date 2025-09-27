@@ -687,6 +687,12 @@ class FishingPlugin(Star):
         async for r in admin_handlers.reward_all_items(self, event):
             yield r
 
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("更新交易所价格")
+    async def update_exchange_prices(self, event: AstrMessageEvent):
+        async for r in admin_handlers.update_exchange_prices(self, event):
+            yield r
+
     async def _check_port_active(self):
         """验证端口是否实际已激活"""
         try:

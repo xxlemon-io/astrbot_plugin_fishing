@@ -192,6 +192,29 @@ class ExchangeService:
         
         logger.info(f"价格更新完成，新价格：{new_prices}")
 
+    def manual_update_prices(self) -> Dict[str, Any]:
+        """管理员手动更新价格"""
+        try:
+            logger.info("管理员手动触发价格更新...")
+            self.update_daily_prices()
+            
+            # 获取更新后的价格
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            prices = self.exchange_repo.get_prices_for_date(today_str)
+            price_data = {p.commodity_id: p.price for p in prices}
+            
+            return {
+                "success": True,
+                "message": "价格更新成功",
+                "prices": price_data
+            }
+        except Exception as e:
+            logger.error(f"手动更新价格失败: {e}")
+            return {
+                "success": False,
+                "message": f"价格更新失败: {e}"
+            }
+
     def _calculate_new_price(self, commodity_id: str, last_price: int) -> int:
         """计算新价格 - 使用多因素动态波动系统"""
         base_volatility = self.config.get("volatility", {})
