@@ -90,11 +90,15 @@ class ExchangeService:
         today_str = datetime.now().strftime("%Y-%m-%d")
         prices = self.exchange_repo.get_prices_for_date(today_str)
         
+        # 如果今日没有价格，返回初始价格，不自动更新
         if not prices:
-            self.update_daily_prices()
-            prices = self.exchange_repo.get_prices_for_date(today_str)
-
-        price_data = {p.commodity_id: p.price for p in prices}
+            logger.warning(f"今日({today_str})暂无价格数据，返回初始价格")
+            price_data = {}
+            for commodity_id, commodity in self.commodities.items():
+                initial_price = self.config.get("initial_prices", {}).get(commodity_id, 100)
+                price_data[commodity_id] = initial_price
+        else:
+            price_data = {p.commodity_id: p.price for p in prices}
         
         # 获取市场情绪
         market_sentiment = self._get_market_sentiment()
@@ -150,12 +154,19 @@ class ExchangeService:
     def update_daily_prices(self) -> None:
         today_str = datetime.now().strftime("%Y-%m-%d")
         
-        # 获取今日已有价格作为基础
+        # 检查今日是否已经更新过价格
         today_prices = self.exchange_repo.get_prices_for_date(today_str)
         if today_prices:
-            # 如果今日已有价格，使用今日价格作为基础进行更新
-            last_prices = {p.commodity_id: p.price for p in today_prices}
-            logger.info(f"基于今日已有价格更新：{last_prices}")
+            # 检查是否在合理的时间范围内更新（避免零点重复更新）
+            now = datetime.now()
+            if now.hour < 9:
+                # 如果当前时间早于9点，且已有今日价格，说明可能是零点重复更新
+                logger.warning(f"检测到可能的零点重复更新，当前时间: {now.strftime('%H:%M:%S')}，跳过价格更新")
+                return
+            else:
+                # 如果今日已有价格且时间合理，使用今日价格作为基础进行更新
+                last_prices = {p.commodity_id: p.price for p in today_prices}
+                logger.info(f"基于今日已有价格更新：{last_prices}")
         else:
             # 如果今日没有价格，使用昨日价格作为基础
             yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
@@ -843,7 +854,7 @@ class ExchangeService:
     
 
     async def _daily_price_update_loop(self):
-        """每日价格更新循环 - 白天两次刷新：上午9点、下午3点、晚上9点"""
+        """每日价格更新循环 - 白天三次刷新：上午9点、下午3点、晚上9点"""
         logger.info("交易所价格更新任务已启动")
         while True:
             try:
@@ -876,7 +887,7 @@ class ExchangeService:
                 logger.info(f"等待 {wait_seconds:.0f} 秒后更新价格")
                 await asyncio.sleep(wait_seconds)
                 
-                # 更新价格
+                # 更新价格（内部已有重复检查机制）
                 logger.info("开始执行价格更新...")
                 self.update_daily_prices()
                 logger.info("价格更新完成")
