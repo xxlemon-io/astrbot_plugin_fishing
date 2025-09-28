@@ -142,3 +142,25 @@ class SqliteExchangeRepository(AbstractExchangeRepository):
             )
             for row in rows
         ]
+
+    def clear_expired_commodities(self, user_id: str) -> int:
+        """清理用户库存中的腐败商品，返回清理的数量"""
+        conn = self._get_connection()
+        c = conn.cursor()
+        now = datetime.now()
+        
+        # 先查询要删除的商品数量
+        c.execute("""
+            SELECT COUNT(*) FROM user_commodities 
+            WHERE user_id = ? AND expires_at <= ?
+        """, (user_id, now))
+        count = c.fetchone()[0]
+        
+        # 删除腐败商品
+        c.execute("""
+            DELETE FROM user_commodities 
+            WHERE user_id = ? AND expires_at <= ?
+        """, (user_id, now))
+        
+        conn.commit()
+        return count

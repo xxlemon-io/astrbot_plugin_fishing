@@ -84,6 +84,11 @@ class ExchangeInventoryService:
             if user.coins < total_cost:
                 return {"success": False, "message": f"金币不足，需要 {total_cost:,} 金币"}
             
+            # 清理腐败商品
+            cleared_count = self.exchange_repo.clear_expired_commodities(user_id)
+            if cleared_count > 0:
+                logger.info(f"用户 {user_id} 清理了 {cleared_count} 个腐败商品")
+            
             # 检查容量限制
             capacity = self.config.get("capacity", 1000)
             current_quantity = self._get_user_total_commodity_quantity(user_id)

@@ -367,6 +367,11 @@ class AbstractExchangeRepository(ABC):
         """通过实例ID获取用户商品"""
         pass
 
+    @abstractmethod
+    def clear_expired_commodities(self, user_id: str) -> int:
+        """清理用户库存中的腐败商品，返回清理的数量"""
+        pass
+
 
 class AbstractGachaRepository(ABC):
     """抽卡仓储接口"""
