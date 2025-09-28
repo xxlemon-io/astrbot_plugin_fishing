@@ -1,0 +1,321 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-chart-line"></i> 交易所管理</h2>
+    <div>
+        <button class="btn btn-warning me-2" onclick="updatePrices()">
+            <i class="fas fa-sync-alt"></i> 更新价格
+        </button>
+        <button class="btn btn-danger" onclick="resetPrices()">
+            <i class="fas fa-undo"></i> 重置价格
+        </button>
+    </div>
+</div>
+
+<!-- 当前价格卡片 -->
+<div class="row mb-4">
+    {% if market_status.success %}
+        {% for commodity_id, price in market_status.prices.items() %}
+        <div class="col-md-4">
+            <div class="card {% if commodity_id == 'fish_roe' %}bg-warning{% elif commodity_id == 'dried_fish' %}bg-primary{% else %}bg-success{% endif %} text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="card-title">{{ market_status.commodities[commodity_id].name }}</h4>
+                            <h2 class="card-text">{{ "{:,}".format(price|default(0)) }} 金币</h2>
+                            <small class="card-text">{{ market_status.commodities[commodity_id].description }}</small>
+                        </div>
+                        <div class="align-self-center">
+                            {% if commodity_id == 'fish_roe' %}
+                                <i class="fas fa-egg fa-2x"></i>
+                            {% elif commodity_id == 'dried_fish' %}
+                                <i class="fas fa-fish fa-2x"></i>
+                            {% else %}
+                                <i class="fas fa-tint fa-2x"></i>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+</div>
+
+<!-- 价格趋势图表 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-chart-area"></i> 价格趋势 (最近7天)</h5>
+                <button class="btn btn-sm btn-outline-primary" onclick="refreshChart()">
+                    <i class="fas fa-sync-alt"></i> 刷新图表
+                </button>
+            </div>
+            <div class="card-body">
+                <div style="height: 400px; position: relative;">
+                    <canvas id="priceChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 用户持仓统计 -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-users"></i> 用户持仓统计</h5>
+            </div>
+            <div class="card-body">
+                {% if user_stats.success %}
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h3 class="text-primary">{{ user_stats.stats.total_users|default(0) }}</h3>
+                            <p class="text-muted">参与用户数</p>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h3 class="text-success">{{ "{:,}".format(user_stats.stats.total_holdings|default(0)) }}</h3>
+                            <p class="text-muted">总持仓量</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="row">
+                    {% for commodity_id, stats in user_stats.stats.commodity_stats.items() %}
+                    <div class="col-md-4">
+                        <div class="card border">
+                            <div class="card-body">
+                                <h6 class="card-title">{{ stats.name|default('未知商品') }}</h6>
+                                <div class="row text-center">
+                                    <div class="col-6">
+                                        <h5 class="text-primary">{{ "{:,}".format(stats.total_quantity|default(0)) }}</h5>
+                                        <small class="text-muted">总持仓</small>
+                                    </div>
+                                    <div class="col-6">
+                                        <h5 class="text-info">{{ stats.user_count|default(0) }}</h5>
+                                        <small class="text-muted">持有用户</small>
+                                    </div>
+                                </div>
+                                <div class="text-center mt-2">
+                                    <small class="text-muted">平均: {{ "{:.1f}".format(stats.average_quantity|default(0)) }}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i> 无法获取用户持仓统计
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 市场信息 -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> 市场信息</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>市场情绪</h6>
+                        <p class="text-muted">{{ market_status.market_sentiment if market_status.success else '未知' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>价格趋势</h6>
+                        <p class="text-muted">{{ market_status.price_trend if market_status.success else '未知' }}</p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>供需状态</h6>
+                        <p class="text-muted">{{ market_status.supply_demand if market_status.success else '未知' }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>更新时间</h6>
+                        <p class="text-muted">{{ market_status.date if market_status.success else '未知' }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// 价格趋势图表
+const ctx = document.getElementById('priceChart').getContext('2d');
+const priceChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [
+            {% if price_history.success and price_history.labels %}
+                {% for label in price_history.labels %}
+                    '{{ label }}'{% if not loop.last %},{% endif %}
+                {% endfor %}
+            {% endif %}
+        ],
+        datasets: [
+            {% if price_history.success and price_history.history %}
+                {% for commodity_id, history in price_history.history.items() %}
+                {
+                    label: '{{ market_status.commodities[commodity_id].name|default("未知商品") }}',
+                    data: [
+                        {% for price in history %}
+                            {{ price|default(0) }}{% if not loop.last %},{% endif %}
+                        {% endfor %}
+                    ],
+                    borderColor: '{% if commodity_id == "fish_roe" %}#ffc107{% elif commodity_id == "dried_fish" %}#007bff{% else %}#28a745{% endif %}',
+                    backgroundColor: '{% if commodity_id == "fish_roe" %}rgba(255, 193, 7, 0.1){% elif commodity_id == "dried_fish" %}rgba(0, 123, 255, 0.1){% else %}rgba(40, 167, 69, 0.1){% endif %}',
+                    tension: 0.4
+                }{% if not loop.last %},{% endif %}
+                {% endfor %}
+            {% endif %}
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+            intersect: false,
+            mode: 'index'
+        },
+        scales: {
+            y: {
+                beginAtZero: false,
+                grid: {
+                    color: 'rgba(0,0,0,0.1)'
+                },
+                ticks: {
+                    callback: function(value) {
+                        return value.toLocaleString() + ' 金币';
+                    },
+                    font: {
+                        size: 12
+                    }
+                }
+            },
+            x: {
+                grid: {
+                    color: 'rgba(0,0,0,0.1)'
+                },
+                ticks: {
+                    font: {
+                        size: 12
+                    }
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                position: 'top',
+                labels: {
+                    usePointStyle: true,
+                    padding: 20,
+                    font: {
+                        size: 14
+                    }
+                }
+            },
+            tooltip: {
+                backgroundColor: 'rgba(0,0,0,0.8)',
+                titleColor: 'white',
+                bodyColor: 'white',
+                borderColor: 'rgba(255,255,255,0.2)',
+                borderWidth: 1,
+                callbacks: {
+                    title: function(context) {
+                        return '日期: ' + context[0].label;
+                    },
+                    label: function(context) {
+                        const value = context.parsed.y;
+                        const change = context.parsed.y - (context.dataIndex > 0 ? context.dataset.data[context.dataIndex - 1] : context.parsed.y);
+                        const changePercent = context.dataIndex > 0 ? ((change / (context.parsed.y - change)) * 100).toFixed(1) : 0;
+                        const changeText = change > 0 ? `+${change.toLocaleString()}` : change.toLocaleString();
+                        const changePercentText = change > 0 ? `+${changePercent}%` : `${changePercent}%`;
+                        return [
+                            context.dataset.label + ': ' + value.toLocaleString() + ' 金币',
+                            '变化: ' + changeText + ' (' + changePercentText + ')'
+                        ];
+                    }
+                }
+            }
+        },
+        elements: {
+            point: {
+                radius: 4,
+                hoverRadius: 6
+            },
+            line: {
+                borderWidth: 3
+            }
+        }
+    }
+});
+
+// 更新价格
+function updatePrices() {
+    if (confirm('确定要更新交易所价格吗？')) {
+        fetch('/admin/exchange/update_prices', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('更新失败，请稍后再试');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('更新失败，请稍后再试');
+        });
+    }
+}
+
+// 重置价格
+function resetPrices() {
+    if (confirm('确定要重置交易所价格到初始值吗？此操作不可撤销！')) {
+        fetch('/admin/exchange/reset_prices', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('重置失败，请稍后再试');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('重置失败，请稍后再试');
+        });
+    }
+}
+
+// 刷新图表
+function refreshChart() {
+    location.reload();
+}
+</script>
+{% endblock %}

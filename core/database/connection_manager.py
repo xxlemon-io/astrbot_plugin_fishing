@@ -1,11 +1,10 @@
 import sqlite3
 import threading
 import time
-import logging
 from typing import Optional
 from contextlib import contextmanager
 
-logger = logging.getLogger(__name__)
+from astrbot.api import logger
 
 
 class DatabaseConnectionManager:
@@ -42,42 +41,25 @@ class DatabaseConnectionManager:
     @contextmanager
     def get_connection(self):
         """获取数据库连接的上下文管理器，支持重试机制"""
-        conn = None
-        last_exception = None
-        
-        for attempt in range(self.max_retries):
-            try:
-                conn = self._get_connection()
-                yield conn
-                return
-            except sqlite3.OperationalError as e:
-                last_exception = e
-                if "database is locked" in str(e).lower():
-                    logger.warning(f"数据库锁定，尝试重连 (第{attempt + 1}次): {e}")
-                    if attempt < self.max_retries - 1:
-                        # 关闭当前连接
-                        if conn:
-                            try:
-                                conn.close()
-                            except:
-                                pass
-                        # 清除线程本地连接
-                        if hasattr(self._local, "connection"):
-                            delattr(self._local, "connection")
-                        # 等待后重试
-                        time.sleep(self.retry_delay * (attempt + 1))
-                        continue
-                else:
-                    # 非锁定错误，直接抛出
-                    raise
-            except Exception as e:
-                last_exception = e
-                logger.error(f"数据库操作失败: {e}")
-                raise
-        
-        # 所有重试都失败了
-        if last_exception:
-            raise last_exception
+        conn = self._get_connection()
+        try:
+            yield conn
+        except sqlite3.OperationalError as e:
+            if "database is locked" in str(e).lower():
+                logger.warning(f"数据库锁定，操作无法在超时 ({self.timeout}s) 内完成: {e}")
+            
+            # 发生严重错误时，关闭并移除线程中的无效连接
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
+            if hasattr(self._local, "connection"):
+                delattr(self._local, "connection")
+            raise
+        except Exception as e:
+            logger.error(f"数据库操作发生未知错误: {e}")
+            raise
     
     def close_connection(self):
         """关闭当前线程的数据库连接"""

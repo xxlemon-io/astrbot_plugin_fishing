@@ -1,6 +1,7 @@
 import os
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.core.message.components import At
+from astrbot.api import logger
 from ..draw.rank import draw_fishing_ranking
 from ..utils import parse_target_user_id
 
@@ -17,7 +18,7 @@ async def ranking(self, event: AstrMessageEvent):
             user["accessory"] = "无饰品"
         if user["fishing_rod"] is None:
             user["fishing_rod"] = "无鱼竿"
-    # logger.info(f"用户数据: {user_data}")
+    logger.info(f"用户数据: {user_data}")
     output_path = os.path.join(self.tmp_dir, "fishing_ranking.png")
     draw_fishing_ranking(user_data, output_path=output_path)
     yield event.image_result(output_path)

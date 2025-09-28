@@ -1,8 +1,9 @@
 import sqlite3
 import threading
-import logging
 from typing import Optional, List, Tuple, Any
 from datetime import datetime
+
+from astrbot.api import logger
 
 # 导入抽象基类和领域模型
 from .abstract_repository import AbstractMarketRepository
@@ -10,11 +11,13 @@ from ..domain.models import MarketListing
 from ..database.connection_manager import DatabaseConnectionManager
 
 
-class SQLiteMarketRepository(AbstractMarketRepository):
+class SqliteMarketRepository(AbstractMarketRepository):
     """市场仓储的SQLite实现"""
 
-    def __init__(self, db_manager: DatabaseConnectionManager):
-        self.db_manager = db_manager
+    def __init__(self, db_path: str):
+        self.db_path = db_path
+        self.db_manager = DatabaseConnectionManager(db_path)
+        self._local = threading.local()
 
     def _get_connection(self) -> sqlite3.Connection:
         """获取一个线程安全的数据库连接。"""
@@ -43,8 +46,15 @@ class SQLiteMarketRepository(AbstractMarketRepository):
                 data['listed_at'] = datetime.fromisoformat(data['listed_at'].replace('Z', '+00:00'))
             except (ValueError, AttributeError):
                 # 如果解析失败，记录警告并使用当前时间
-                logging.warning(f"Failed to parse listed_at: {data['listed_at']}. Falling back to current time.")
+                logger.warning(f"Failed to parse listed_at: {data['listed_at']}. Falling back to current time.")
                 data['listed_at'] = datetime.now()
+        
+        # 确保 expires_at 是 datetime 对象或 None
+        if 'expires_at' in data and isinstance(data['expires_at'], str):
+            try:
+                data['expires_at'] = datetime.fromisoformat(data['expires_at'].replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                data['expires_at'] = None
         
         return MarketListing(**data)
 
@@ -103,6 +113,7 @@ class SQLiteMarketRepository(AbstractMarketRepository):
                         WHEN m.item_type = 'accessory' THEN a.name
                         WHEN m.item_type = 'item' THEN i.name
                         WHEN m.item_type = 'fish' THEN f.name
+                        WHEN m.item_type = 'commodity' THEN c.name
                         ELSE '未知物品'
                     END AS item_name,
                     CASE
@@ -110,14 +121,17 @@ class SQLiteMarketRepository(AbstractMarketRepository):
                         WHEN m.item_type = 'accessory' THEN a.description
                         WHEN m.item_type = 'item' THEN i.description
                         WHEN m.item_type = 'fish' THEN f.description
+                        WHEN m.item_type = 'commodity' THEN c.description
                         ELSE ''
-                    END AS item_description
+                    END AS item_description,
+                    m.expires_at
                 FROM market m
                 JOIN users u ON m.user_id = u.user_id
                 LEFT JOIN rods r ON m.item_type = 'rod' AND m.item_id = r.rod_id
                 LEFT JOIN accessories a ON m.item_type = 'accessory' AND m.item_id = a.accessory_id
                 LEFT JOIN items i ON m.item_type = 'item' AND m.item_id = i.item_id
                 LEFT JOIN fish f ON m.item_type = 'fish' AND m.item_id = f.fish_id
+                LEFT JOIN commodities c ON m.item_type = 'commodity' AND m.item_id = c.commodity_id
                 WHERE m.market_id = ?
             """
             
@@ -166,11 +180,12 @@ class SQLiteMarketRepository(AbstractMarketRepository):
                     (m.item_type = 'accessory' AND a.name LIKE ?) OR
                     (m.item_type = 'item' AND i.name LIKE ?) OR
                     (m.item_type = 'fish' AND f.name LIKE ?) OR
+                    (m.item_type = 'commodity' AND c.name LIKE ?) OR
                     u.nickname LIKE ?
                 )"""
                 where_conditions.append(search_condition)
                 search_param = f"%{search}%"
-                params.extend([search_param, search_param, search_param, search_param, search_param])
+                params.extend([search_param, search_param, search_param, search_param, search_param, search_param])
             
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
             
@@ -183,6 +198,7 @@ class SQLiteMarketRepository(AbstractMarketRepository):
                 LEFT JOIN accessories a ON m.item_type = 'accessory' AND m.item_id = a.accessory_id
                 LEFT JOIN items i ON m.item_type = 'item' AND m.item_id = i.item_id
                 LEFT JOIN fish f ON m.item_type = 'fish' AND m.item_id = f.fish_id
+                LEFT JOIN commodities c ON m.item_type = 'commodity' AND m.item_id = c.commodity_id
                 WHERE {where_clause}
             """
             cursor.execute(count_query, params)
@@ -207,6 +223,7 @@ class SQLiteMarketRepository(AbstractMarketRepository):
                         WHEN m.item_type = 'accessory' THEN a.name
                         WHEN m.item_type = 'item' THEN i.name
                         WHEN m.item_type = 'fish' THEN f.name
+                        WHEN m.item_type = 'commodity' THEN c.name
                         ELSE '未知物品'
                     END AS item_name,
                     CASE
@@ -214,14 +231,17 @@ class SQLiteMarketRepository(AbstractMarketRepository):
                         WHEN m.item_type = 'accessory' THEN a.description
                         WHEN m.item_type = 'item' THEN i.description
                         WHEN m.item_type = 'fish' THEN f.description
+                        WHEN m.item_type = 'commodity' THEN c.description
                         ELSE ''
-                    END AS item_description
+                    END AS item_description,
+                    m.expires_at
                 FROM market m
                 JOIN users u ON m.user_id = u.user_id
                 LEFT JOIN rods r ON m.item_type = 'rod' AND m.item_id = r.rod_id
                 LEFT JOIN accessories a ON m.item_type = 'accessory' AND m.item_id = a.accessory_id
                 LEFT JOIN items i ON m.item_type = 'item' AND m.item_id = i.item_id
                 LEFT JOIN fish f ON m.item_type = 'fish' AND m.item_id = f.fish_id
+                LEFT JOIN commodities c ON m.item_type = 'commodity' AND m.item_id = c.commodity_id
                 WHERE {where_clause}
                 ORDER BY m.listed_at DESC
             """
@@ -251,7 +271,26 @@ class SQLiteMarketRepository(AbstractMarketRepository):
             if "is_anonymous" in cols and "item_instance_id" in cols:
                 # 新版本：包含所有字段
                 cursor.execute("""
-                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, is_anonymous, item_instance_id)
+                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, is_anonymous, item_instance_id, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    listing.user_id,
+                    listing.item_type,
+                    listing.item_id,
+                    listing.item_name,
+                    listing.item_description,
+                    listing.quantity,
+                    listing.price,
+                    listing.listed_at or datetime.now(),
+                    listing.refine_level,
+                    listing.is_anonymous,
+                    listing.item_instance_id,
+                    listing.expires_at
+                ))
+            elif "is_anonymous" in cols:
+                # 只有is_anonymous字段
+                cursor.execute("""
+                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, is_anonymous, expires_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     listing.user_id,
@@ -264,30 +303,13 @@ class SQLiteMarketRepository(AbstractMarketRepository):
                     listing.listed_at or datetime.now(),
                     listing.refine_level,
                     listing.is_anonymous,
-                    listing.item_instance_id
-                ))
-            elif "is_anonymous" in cols:
-                # 只有is_anonymous字段
-                cursor.execute("""
-                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, is_anonymous)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    listing.user_id,
-                    listing.item_type,
-                    listing.item_id,
-                    listing.item_name,
-                    listing.item_description,
-                    listing.quantity,
-                    listing.price,
-                    listing.listed_at or datetime.now(),
-                    listing.refine_level,
-                    listing.is_anonymous
+                    listing.expires_at
                 ))
             elif "item_instance_id" in cols:
                 # 只有item_instance_id字段
                 cursor.execute("""
-                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, item_instance_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, item_instance_id, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     listing.user_id,
                     listing.item_type,
@@ -298,13 +320,14 @@ class SQLiteMarketRepository(AbstractMarketRepository):
                     listing.price,
                     listing.listed_at or datetime.now(),
                     listing.refine_level,
-                    listing.item_instance_id
+                    listing.item_instance_id,
+                    listing.expires_at
                 ))
             else:
                 # 旧版本：不包含新字段
                 cursor.execute("""
-                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO market (user_id, item_type, item_id, item_name, item_description, quantity, price, listed_at, refine_level, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     listing.user_id,
                     listing.item_type,
@@ -314,20 +337,21 @@ class SQLiteMarketRepository(AbstractMarketRepository):
                     listing.quantity,
                     listing.price,
                     listing.listed_at or datetime.now(),
-                    listing.refine_level
+                    listing.refine_level,
+                    listing.expires_at
                 ))
             conn.commit()
 
     def remove_listing(self, market_id: int) -> None:
         """移除一个市场商品（通常在购买成功或下架后调用）"""
-        with self._get_connection() as conn:
+        with self.db_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM market WHERE market_id = ?", (market_id,))
             conn.commit()
 
     def update_listing(self, listing: MarketListing) -> None:
         """更新市场商品信息"""
-        with self._get_connection() as conn:
+        with self.db_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE market 

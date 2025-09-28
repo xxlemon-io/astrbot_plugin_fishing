@@ -338,6 +338,11 @@ class AbstractExchangeRepository(ABC):
         pass
 
     @abstractmethod
+    def delete_prices_for_date(self, date: str) -> None:
+        """删除指定日期的所有价格"""
+        pass
+
+    @abstractmethod
     def get_user_commodities(self, user_id: str) -> List['UserCommodity']:
         """获取用户持有的所有大宗商品"""
         pass

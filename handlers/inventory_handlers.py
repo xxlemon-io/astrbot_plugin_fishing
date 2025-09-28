@@ -25,8 +25,7 @@ async def user_backpack(self, event: AstrMessageEvent):
             yield event.image_result(image_path)
         except Exception as e:
             # 记录错误日志
-            import logging
-            logger = logging.getLogger(__name__)
+            from astrbot.api import logger
             logger.error(f"生成背包图片时发生错误: {e}")
             
             # 返回错误信息

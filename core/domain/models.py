@@ -150,10 +150,13 @@ class Commodity:
 
 @dataclass
 class Exchange:
-    """代表交易所每日的商品价格"""
+    """代表交易所的商品价格记录"""
     date: str  # YYYY-MM-DD
+    time: str  # HH:MM:SS
     commodity_id: str
     price: int
+    update_type: str = "auto"  # 'auto' 或 'manual'
+    created_at: str = ""  # ISO格式时间戳
 
 @dataclass
 class UserCommodity:
@@ -314,13 +317,13 @@ class MarketListing:
     item_type: str
     item_id: int
     item_name: str
-    item_description: str
+    item_description: Optional[str]
     quantity: int
     price: int
     listed_at: datetime
-    item_instance_id: Optional[int] = None  # 实例ID，用于显示短码
+    item_instance_id: Optional[int] = None # 实例ID，用于显示短码
+    expires_at: Optional[datetime] = None # 腐败日期，主要用于大宗商品
     refine_level: int = 1
-    expires_at: Optional[datetime] = None
     is_anonymous: bool = False  # 是否为匿名上架
 
     def __getitem__(self, item):

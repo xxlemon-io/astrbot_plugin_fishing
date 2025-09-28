@@ -95,8 +95,49 @@ class ExchangeService:
 
     def get_user_commodity_stats(self) -> Dict[str, Any]:
         """获取用户大宗商品统计"""
-        return self.inventory_service.get_user_commodity_stats()
-
-    def _calculate_profit_loss_analysis(self, user_commodities: List[Any], current_prices: Dict[str, int]) -> Dict[str, Any]:
-        """计算持仓盈亏分析"""
-        return self.inventory_service.calculate_holdings_profit_loss(user_commodities, current_prices)
+        try:
+            # 获取所有用户的大宗商品数据
+            all_commodities = self.exchange_repo.get_all_user_commodities()
+            
+            # 按商品分组统计
+            stats = {}
+            for commodity_id in self.commodities.keys():
+                stats[commodity_id] = {
+                    "name": self.commodities[commodity_id]["name"],
+                    "total_quantity": 0,
+                    "user_count": 0,
+                    "users": []
+                }
+            
+            # 统计每个用户的数据
+            user_stats = {}
+            for commodity in all_commodities:
+                user_id = commodity.user_id
+                commodity_id = commodity.commodity_id
+                
+                if user_id not in user_stats:
+                    user_stats[user_id] = {}
+                
+                if commodity_id not in user_stats[user_id]:
+                    user_stats[user_id][commodity_id] = 0
+                
+                user_stats[user_id][commodity_id] += commodity.quantity
+                stats[commodity_id]["total_quantity"] += commodity.quantity
+            
+            # 整理用户数据
+            for user_id, user_commodities in user_stats.items():
+                for commodity_id, quantity in user_commodities.items():
+                    if quantity > 0:
+                        stats[commodity_id]["user_count"] += 1
+                        stats[commodity_id]["users"].append({
+                            "user_id": user_id,
+                            "quantity": quantity
+                        })
+            
+            return {
+                "success": True,
+                "stats": stats
+            }
+        except Exception as e:
+            logger.error(f"获取用户大宗商品统计失败: {e}")
+            return {"success": False, "message": str(e)}

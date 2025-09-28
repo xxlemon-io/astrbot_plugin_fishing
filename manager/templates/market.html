@@ -104,6 +104,21 @@
             </div>
         </div>
     </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h4 class="card-title">{{ stats.commodity_count }}</h4>
+                        <p class="card-text">大宗商品数量</p>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-box fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- 筛选和搜索表单 -->
@@ -122,6 +137,7 @@
                         <option value="accessory" {% if filters.item_type == 'accessory' %}selected{% endif %}>饰品</option>
                         <option value="item" {% if filters.item_type == 'item' %}selected{% endif %}>道具</option>
                         <option value="fish" {% if filters.item_type == 'fish' %}selected{% endif %}>鱼类</option>
+                        <option value="commodity" {% if filters.item_type == 'commodity' %}selected{% endif %}>大宗商品</option>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -204,6 +220,8 @@
                                 <span class="badge bg-secondary"><i class="fas fa-gift"></i> 道具</span>
                             {% elif listing.item_type == 'fish' %}
                                 <span class="badge bg-info"><i class="fas fa-fish"></i> 鱼类</span>
+                            {% elif listing.item_type == 'commodity' %}
+                                <span class="badge bg-success"><i class="fas fa-box"></i> 大宗商品</span>
                             {% else %}
                                 <span class="badge bg-secondary">{{ listing.item_type }}</span>
                             {% endif %}

@@ -111,30 +111,90 @@
         "default": 100000,
         "description": "交易所开户费用"
       },
-      "volatility": {
-        "type": "object",
-        "items": {
-          "dried_fish": {
-            "type": "float",
-            "default": 0.1,
-            "description": "鱼干价格波动率（±10%）"
-          },
-          "fish_roe": {
-            "type": "float",
-            "default": 0.5,
-            "description": "鱼卵价格波动率（±50%）"
-          },
-          "fish_oil": {
-            "type": "float",
-            "default": 0.25,
-            "description": "鱼油价格波动率（±25%）"
-          }
-        }
+      "capacity": {
+        "type": "int",
+        "default": 1000,
+        "description": "交易所持仓总容量"
       },
+      "tax_rate": {
+        "type": "float",
+        "default": 0.05,
+        "description": "交易所交易税率"
+      },
+          "volatility": {
+            "type": "object",
+            "items": {
+              "dried_fish": {
+                "type": "float",
+                "default": 0.08,
+                "description": "鱼干基础波动率（±8%）"
+              },
+              "fish_roe": {
+                "type": "float",
+                "default": 0.12,
+                "description": "鱼卵基础波动率（±12%）"
+              },
+              "fish_oil": {
+                "type": "float",
+                "default": 0.10,
+                "description": "鱼油基础波动率（±10%）"
+              }
+            }
+          },
       "event_chance": {
         "type": "float",
         "default": 0.1,
-        "description": "鱼油事件触发概率（10%）"
+        "description": "突发事件触发概率（10%）"
+      },
+      "max_change_rate": {
+        "type": "float",
+        "default": 0.2,
+        "description": "单次最大涨跌幅限制（20%）"
+      },
+      "min_price": {
+        "type": "int",
+        "default": 1,
+        "description": "最低价格限制"
+      },
+      "max_price": {
+        "type": "int",
+        "default": 1000000,
+        "description": "最高价格限制（100万金币）"
+      },
+      "sentiment_weights": {
+        "type": "object",
+        "items": {
+          "panic": {
+            "type": "float",
+            "default": 0.1,
+            "description": "恐慌情绪概率"
+          },
+          "pessimistic": {
+            "type": "float",
+            "default": 0.2,
+            "description": "悲观情绪概率"
+          },
+          "neutral": {
+            "type": "float",
+            "default": 0.4,
+            "description": "中性情绪概率"
+          },
+          "optimistic": {
+            "type": "float",
+            "default": 0.2,
+            "description": "乐观情绪概率"
+          },
+          "euphoric": {
+            "type": "float",
+            "default": 0.1,
+            "description": "狂热情绪概率"
+          }
+        }
+      },
+      "merge_window_minutes": {
+        "type": "int",
+        "default": 30,
+        "description": "商品合并时间窗口（分钟）"
       },
       "initial_prices": {
         "type": "object",
