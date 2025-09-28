@@ -203,7 +203,7 @@ class ExchangeHandlers:
                     current_value = current_price * total_quantity
                     profit_loss = current_value - commodity_data.get("total_cost", 0)
                     profit_status = "📈" if profit_loss > 0 else "📉" if profit_loss < 0 else "➖"
-                    msg += f"**{commodity_name}** ({total_quantity}个) - 盈亏: {profit_loss:+}金币 {profit_status}\n"
+                    msg += f"{commodity_name} ({total_quantity}个) - 盈亏: {profit_loss:+}金币 {profit_status}\n"
 
                     for item in commodity_data.get("items", []):
                         if not isinstance(item, dict): continue
