@@ -223,7 +223,11 @@ class ExchangeHandlers:
                                 time_str = f"⚠️剩{hours}小时"
                             else:
                                 days = int(time_left.total_seconds() // 86400)
-                                time_str = f"✅剩{days}天"
+                                remaining_hours = int((time_left.total_seconds() % 86400) // 3600)
+                                if remaining_hours > 0:
+                                    time_str = f"✅剩{days}天{remaining_hours}小时"
+                                else:
+                                    time_str = f"✅剩{days}天"
                             
                             msg += f"  └─ {display_id}: {quantity}个 ({time_str})\n"
                     

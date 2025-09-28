@@ -122,9 +122,24 @@ class ExchangeInventoryService:
             )
             self.exchange_repo.add_user_commodity(user_commodity)
             
+            # 计算腐败时间提示
+            time_left = expires_at - datetime.now()
+            if time_left.total_seconds() <= 0:
+                corruption_warning = "，已腐败"
+            elif time_left.total_seconds() < 86400:  # 24小时内
+                hours = int(time_left.total_seconds() // 3600)
+                corruption_warning = f"，{hours}小时后将腐败"
+            else:
+                days = int(time_left.total_seconds() // 86400)
+                hours = int((time_left.total_seconds() % 86400) // 3600)
+                if hours > 0:
+                    corruption_warning = f"，{days}天{hours}小时后将腐败"
+                else:
+                    corruption_warning = f"，{days}天后将腐败"
+            
             return {
                 "success": True,
-                "message": f"购买成功！获得 {self.commodities[commodity_id]['name']} x{quantity}",
+                "message": f"购买成功！获得 {self.commodities[commodity_id]['name']} x{quantity}{corruption_warning}",
                 "total_cost": total_cost,
                 "current_price": current_price
             }
