@@ -96,7 +96,20 @@ class ExchangeInventoryService:
             self.user_repo.update(user)
             
             # 添加商品到库存
-            expires_at = datetime.now() + timedelta(days=7)  # 7天后腐败
+            # 根据商品类型设置不同的腐败时间
+            if commodity_id == 'dried_fish':
+                expires_at = datetime.now() + timedelta(days=3)  # 鱼干：3天
+            elif commodity_id == 'fish_roe':
+                expires_at = datetime.now() + timedelta(days=2)  # 鱼卵：2天
+            elif commodity_id == 'fish_oil':
+                # 鱼油：1-3天随机（每日固定）
+                from datetime import date
+                today = date.today()
+                day_of_year = today.timetuple().tm_yday
+                days = (day_of_year % 3) + 1  # 1, 2, 3 循环
+                expires_at = datetime.now() + timedelta(days=days)
+            else:
+                expires_at = datetime.now() + timedelta(days=3)  # 默认3天
             from ..domain.models import UserCommodity
             user_commodity = UserCommodity(
                 instance_id=0,  # 临时值，数据库会自动生成
@@ -172,11 +185,18 @@ class ExchangeInventoryService:
             
             # 记录税费
             if self.log_repo:
-                self.log_repo.add_tax_record(
+                from ..domain.models import TaxRecord
+                tax_record = TaxRecord(
+                    tax_id=0,  # 数据库自增
                     user_id=user_id,
-                    amount=tax_amount,
-                    description=f"卖出 {self.commodities[commodity_id]['name']} x{quantity}"
+                    tax_amount=tax_amount,
+                    tax_rate=tax_rate,
+                    original_amount=total_value,
+                    balance_after=user.coins,
+                    tax_type=f"卖出 {self.commodities[commodity_id]['name']} x{quantity}",
+                    timestamp=datetime.now()
                 )
+                self.log_repo.add_tax_record(tax_record)
             
             # 计算盈亏分析
             profit_loss = self._calculate_profit_loss_analysis(commodity_items, quantity, current_price)
@@ -225,15 +245,54 @@ class ExchangeInventoryService:
             if not inventory:
                 return {"success": False, "message": "库存为空"}
             
-            # 计算总价值
-            total_value = 0
-            for item in inventory:
-                total_value += item.purchase_price * item.quantity
+            # 获取当前市场价格
+            if not self.market_service:
+                return {"success": False, "message": "市场服务不可用"}
+            market_status = self.market_service.get_market_status()
+            current_prices = market_status.get("prices", {})
             
-            # 计算税费
+            # 按商品分组计算详细盈亏
+            commodity_summary = {}
+            total_cost = 0
+            total_current_value = 0
+            
+            for item in inventory:
+                commodity_id = item.commodity_id
+                if commodity_id not in commodity_summary:
+                    commodity_summary[commodity_id] = {
+                        "name": self.commodities.get(commodity_id, {}).get("name", "未知商品"),
+                        "total_quantity": 0,
+                        "total_cost": 0,
+                        "total_current_value": 0,
+                        "items": []
+                    }
+                
+                current_price = current_prices.get(commodity_id, 0)
+                item_cost = item.purchase_price * item.quantity
+                item_current_value = current_price * item.quantity
+                item_profit_loss = item_current_value - item_cost
+                
+                commodity_summary[commodity_id]["total_quantity"] += item.quantity
+                commodity_summary[commodity_id]["total_cost"] += item_cost
+                commodity_summary[commodity_id]["total_current_value"] += item_current_value
+                commodity_summary[commodity_id]["items"].append({
+                    "instance_id": item.instance_id,
+                    "quantity": item.quantity,
+                    "purchase_price": item.purchase_price,
+                    "current_price": current_price,
+                    "cost": item_cost,
+                    "current_value": item_current_value,
+                    "profit_loss": item_profit_loss
+                })
+                
+                total_cost += item_cost
+                total_current_value += item_current_value
+            
+            # 计算总税费
             tax_rate = self.config.get("tax_rate", 0.05)
-            tax_amount = int(total_value * tax_rate)
-            net_income = total_value - tax_amount
+            tax_amount = int(total_current_value * tax_rate)
+            net_income = total_current_value - tax_amount
+            total_profit_loss = total_current_value - total_cost
             
             # 清空库存
             for item in inventory:
@@ -245,22 +304,71 @@ class ExchangeInventoryService:
             
             # 记录税费
             if self.log_repo:
-                self.log_repo.add_tax_record(
+                from ..domain.models import TaxRecord
+                tax_record = TaxRecord(
+                    tax_id=0,  # 数据库自增
                     user_id=user_id,
-                    amount=tax_amount,
-                    description="清仓所有大宗商品"
+                    tax_amount=tax_amount,
+                    tax_rate=tax_rate,
+                    original_amount=total_current_value,
+                    balance_after=user.coins,
+                    tax_type="清仓所有大宗商品",
+                    timestamp=datetime.now()
                 )
+                self.log_repo.add_tax_record(tax_record)
+            
+            # 构建详细消息
+            profit_status = "📈盈利" if total_profit_loss > 0 else "📉亏损" if total_profit_loss < 0 else "➖持平"
+            message = f"【📦 清仓完成】\n"
+            message += f"═" * 25 + "\n"
+            message += f"📊 总体盈亏：{total_profit_loss:+,} 金币 {profit_status}\n"
+            message += f"💰 总成本：{total_cost:,} 金币\n"
+            message += f"💎 当前价值：{total_current_value:,} 金币\n"
+            message += f"📈 盈利率：{(total_profit_loss/total_cost*100):+.1f}%\n"
+            message += f"💸 税费：{tax_amount:,} 金币 ({tax_rate*100:.1f}%)\n"
+            message += f"💵 净收入：{net_income:,} 金币\n"
+            message += f"─" * 25 + "\n"
+            
+            # 添加每种商品的详细盈亏
+            for commodity_id, data in commodity_summary.items():
+                commodity_profit_loss = data["total_current_value"] - data["total_cost"]
+                commodity_profit_status = "📈" if commodity_profit_loss > 0 else "📉" if commodity_profit_loss < 0 else "➖"
+                message += f"{data['name']} ({data['total_quantity']}个) - 盈亏: {commodity_profit_loss:+,}金币 {commodity_profit_status}\n"
+                
+                # 显示每个实例的详细信息
+                for item_data in data["items"]:
+                    instance_profit_loss = item_data["profit_loss"]
+                    instance_profit_status = "📈" if instance_profit_loss > 0 else "📉" if instance_profit_loss < 0 else "➖"
+                    message += f"  └─ C{self._to_base36(item_data['instance_id'])}: {item_data['quantity']}个 "
+                    message += f"({item_data['purchase_price']}→{item_data['current_price']} 金币) "
+                    message += f"{instance_profit_loss:+,}金币 {instance_profit_status}\n"
+            
+            message += f"═" * 25 + "\n"
+            message += f"💡 清仓完成，共获得 {net_income:,} 金币"
             
             return {
                 "success": True,
-                "message": f"清仓成功！获得 {net_income:,} 金币（含税费 {tax_amount:,} 金币）",
-                "total_value": total_value,
+                "message": message,
+                "total_cost": total_cost,
+                "total_current_value": total_current_value,
+                "total_profit_loss": total_profit_loss,
                 "tax_amount": tax_amount,
-                "net_income": net_income
+                "net_income": net_income,
+                "commodity_summary": commodity_summary
             }
         except Exception as e:
             logger.error(f"清仓失败: {e}")
             return {"success": False, "message": f"清仓失败: {str(e)}"}
+
+    def _to_base36(self, n: int) -> str:
+        """将数字转换为Base36字符串"""
+        if n == 0:
+            return "0"
+        out = []
+        while n > 0:
+            n, remainder = divmod(n, 36)
+            out.append("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"[remainder])
+        return "".join(reversed(out))
 
     def clear_commodity_inventory(self, user_id: str, commodity_id: str) -> Dict[str, Any]:
         """清空指定商品库存"""
@@ -281,13 +389,22 @@ class ExchangeInventoryService:
             if not commodity_items:
                 return {"success": False, "message": f"您没有 {self.commodities[commodity_id]['name']}"}
             
-            # 计算总价值
-            total_value = sum(item.purchase_price * item.quantity for item in commodity_items)
+            # 获取当前市场价格
+            if not self.market_service:
+                return {"success": False, "message": "市场服务不可用"}
+            market_status = self.market_service.get_market_status()
+            current_prices = market_status.get("prices", {})
+            current_price = current_prices.get(commodity_id, 0)
+            
+            # 计算详细盈亏
+            total_cost = sum(item.purchase_price * item.quantity for item in commodity_items)
+            total_current_value = current_price * sum(item.quantity for item in commodity_items)
+            total_profit_loss = total_current_value - total_cost
             
             # 计算税费
             tax_rate = self.config.get("tax_rate", 0.05)
-            tax_amount = int(total_value * tax_rate)
-            net_income = total_value - tax_amount
+            tax_amount = int(total_current_value * tax_rate)
+            net_income = total_current_value - tax_amount
             
             # 清空指定商品库存
             for item in commodity_items:
@@ -299,16 +416,54 @@ class ExchangeInventoryService:
             
             # 记录税费
             if self.log_repo:
-                self.log_repo.add_tax_record(
+                from ..domain.models import TaxRecord
+                tax_record = TaxRecord(
+                    tax_id=0,  # 数据库自增
                     user_id=user_id,
-                    amount=tax_amount,
-                    description=f"清仓 {self.commodities[commodity_id]['name']}"
+                    tax_amount=tax_amount,
+                    tax_rate=tax_rate,
+                    original_amount=total_current_value,
+                    balance_after=user.coins,
+                    tax_type=f"清仓 {self.commodities[commodity_id]['name']}",
+                    timestamp=datetime.now()
                 )
+                self.log_repo.add_tax_record(tax_record)
+            
+            # 构建详细消息
+            commodity_name = self.commodities[commodity_id]['name']
+            total_quantity = sum(item.quantity for item in commodity_items)
+            profit_status = "📈盈利" if total_profit_loss > 0 else "📉亏损" if total_profit_loss < 0 else "➖持平"
+            
+            message = f"【📦 清仓 {commodity_name}】\n"
+            message += f"═" * 25 + "\n"
+            message += f"📊 总体盈亏：{total_profit_loss:+,} 金币 {profit_status}\n"
+            message += f"💰 总成本：{total_cost:,} 金币\n"
+            message += f"💎 当前价值：{total_current_value:,} 金币\n"
+            message += f"📈 盈利率：{(total_profit_loss/total_cost*100):+.1f}%\n"
+            message += f"💸 税费：{tax_amount:,} 金币 ({tax_rate*100:.1f}%)\n"
+            message += f"💵 净收入：{net_income:,} 金币\n"
+            message += f"─" * 25 + "\n"
+            
+            # 显示每个实例的详细信息
+            for item in commodity_items:
+                item_cost = item.purchase_price * item.quantity
+                item_current_value = current_price * item.quantity
+                item_profit_loss = item_current_value - item_cost
+                item_profit_status = "📈" if item_profit_loss > 0 else "📉" if item_profit_loss < 0 else "➖"
+                
+                message += f"C{self._to_base36(item.instance_id)}: {item.quantity}个 "
+                message += f"({item.purchase_price}→{current_price} 金币) "
+                message += f"{item_profit_loss:+,}金币 {item_profit_status}\n"
+            
+            message += f"═" * 25 + "\n"
+            message += f"💡 清仓完成，共获得 {net_income:,} 金币"
             
             return {
                 "success": True,
-                "message": f"清仓成功！获得 {net_income:,} 金币（含税费 {tax_amount:,} 金币）",
-                "total_value": total_value,
+                "message": message,
+                "total_cost": total_cost,
+                "total_current_value": total_current_value,
+                "total_profit_loss": total_profit_loss,
                 "tax_amount": tax_amount,
                 "net_income": net_income
             }
