@@ -246,10 +246,18 @@ class ExchangeInventoryService:
                 return {"success": False, "message": "库存为空"}
             
             # 获取当前市场价格
-            if not self.market_service:
-                return {"success": False, "message": "市场服务不可用"}
-            market_status = self.market_service.get_market_status()
-            current_prices = market_status.get("prices", {})
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            prices = self.exchange_repo.get_prices_for_date(today_str)
+            
+            if not prices:
+                # 如果没有今日价格，使用初始价格
+                current_prices = self.config.get("initial_prices", {
+                    "dried_fish": 6000,
+                    "fish_roe": 12000,
+                    "fish_oil": 9000
+                })
+            else:
+                current_prices = {price.commodity_id: price.price for price in prices}
             
             # 按商品分组计算详细盈亏
             commodity_summary = {}
@@ -390,10 +398,18 @@ class ExchangeInventoryService:
                 return {"success": False, "message": f"您没有 {self.commodities[commodity_id]['name']}"}
             
             # 获取当前市场价格
-            if not self.market_service:
-                return {"success": False, "message": "市场服务不可用"}
-            market_status = self.market_service.get_market_status()
-            current_prices = market_status.get("prices", {})
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            prices = self.exchange_repo.get_prices_for_date(today_str)
+            
+            if not prices:
+                # 如果没有今日价格，使用初始价格
+                current_prices = self.config.get("initial_prices", {
+                    "dried_fish": 6000,
+                    "fish_roe": 12000,
+                    "fish_oil": 9000
+                })
+            else:
+                current_prices = {price.commodity_id: price.price for price in prices}
             current_price = current_prices.get(commodity_id, 0)
             
             # 计算详细盈亏
