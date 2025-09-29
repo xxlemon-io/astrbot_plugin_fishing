@@ -11,6 +11,106 @@ class ExchangeHandlers:
     def _get_effective_user_id(self, event: AstrMessageEvent) -> str:
         return self.plugin._get_effective_user_id(event)
     
+    def _get_sentiment_emoji(self, sentiment: str) -> str:
+        """获取市场情绪对应的表情符号"""
+        sentiment_map = {
+            "bullish": "🐂",
+            "bearish": "🐻", 
+            "neutral": "😐",
+            "optimistic": "😊",
+            "pessimistic": "😟",
+            "volatile": "🌪️"
+        }
+        return sentiment_map.get(sentiment.lower(), "❓")
+    
+    def _get_trend_emoji(self, trend: str) -> str:
+        """获取价格趋势对应的表情符号"""
+        trend_map = {
+            "rising": "📈",
+            "falling": "📉",
+            "stable": "➖",
+            "volatile": "🌊",
+            "sideways": "↔️"
+        }
+        return trend_map.get(trend.lower(), "❓")
+    
+    def _get_price_history_help(self) -> str:
+        """获取价格历史帮助信息"""
+        return """【📈 价格历史帮助】
+══════════════════════════════
+📊 历史数据功能
+• 交易所 历史: 查看7天价格历史
+• 交易所 历史 [天数]: 查看指定天数历史
+• 交易所 历史 [商品]: 查看指定商品历史
+
+📈 图表信息
+• 价格走势图: 显示价格变化趋势
+• 涨跌幅统计: 计算期间涨跌情况
+• 波动性分析: 评估价格波动程度
+• 支撑阻力位: 识别关键价格点位
+
+💡 使用技巧
+• 观察价格趋势，判断买卖时机
+• 关注成交量变化，分析市场活跃度
+• 识别价格模式，预测未来走势
+• 结合技术指标，提高分析准确性
+
+══════════════════════════════
+💬 示例: 【交易所 历史 3】查看3天价格历史
+        """
+    
+    def _get_market_analysis_help(self) -> str:
+        """获取市场分析帮助信息"""
+        return """【📈 市场分析帮助】
+══════════════════════════════
+📊 分析指标
+• 市场情绪: 反映投资者心理状态
+• 价格趋势: 显示价格发展方向
+• 供需状态: 分析市场供需平衡
+• 波动性: 评估价格波动程度
+
+📈 技术分析
+• 移动平均线: 平滑价格波动
+• 相对强弱指数: 判断超买超卖
+• 布林带: 识别价格通道
+• 成交量分析: 验证价格走势
+
+💡 投资建议
+• 趋势跟踪: 跟随主要趋势方向
+• 反转策略: 在极端位置反向操作
+• 分散投资: 降低单一商品风险
+• 止损止盈: 控制风险和锁定利润
+
+══════════════════════════════
+💬 使用【交易所 分析】查看详细分析报告
+        """
+    
+    def _get_trading_stats_help(self) -> str:
+        """获取交易统计帮助信息"""
+        return """【📈 交易统计帮助】
+══════════════════════════════
+📊 个人统计
+• 总交易次数: 累计买卖操作次数
+• 总交易金额: 累计交易金币数量
+• 盈亏统计: 总体盈亏情况
+• 胜率分析: 盈利交易占比
+
+📈 持仓分析
+• 当前持仓: 各商品持有数量
+• 持仓价值: 按当前价格计算总价值
+• 持仓成本: 购买时的总成本
+• 浮动盈亏: 未实现盈亏情况
+
+💡 风险控制
+• 仓位管理: 控制单次交易规模
+• 止损设置: 设定最大亏损限额
+• 分散投资: 避免集中持仓
+• 定期评估: 定期检查投资组合
+
+══════════════════════════════
+💬 使用【交易所 统计】查看个人交易统计
+        """
+    
     def _to_base36(self, n: int) -> str:
         """将数字转换为Base36字符串"""
         if n == 0:
@@ -92,20 +192,58 @@ class ExchangeHandlers:
                     yield r
             elif command in ["帮助", "help"]:
                 yield event.plain_result(self._get_exchange_help())
+            elif command in ["历史", "history"]:
+                yield event.plain_result(self._get_price_history_help())
+            elif command in ["分析", "analysis"]:
+                yield event.plain_result(self._get_market_analysis_help())
+            elif command in ["统计", "stats"]:
+                yield event.plain_result(self._get_trading_stats_help())
             else:
                 yield event.plain_result("❌ 未知命令。使用【交易所 帮助】查看可用命令。")
 
     def _get_exchange_help(self) -> str:
         """获取交易所帮助信息"""
         return """【📈 交易所帮助】
-        - 交易所: 查看市场状态
-        - 交易所 开户: 开通账户
-        - 交易所 买入 [商品] [数量]
-        - 交易所 卖出 [商品]
-        - 交易所 卖出 [库存ID] [数量]
-        - /持仓: 查看我的库存
-        - /清仓: 卖出所有库存
-        - /清仓 [商品]: 卖出指定商品
+══════════════════════════════
+📊 市场信息
+• 交易所: 查看市场状态和价格
+• 交易所 历史: 查看价格历史图表
+• 交易所 分析: 查看市场分析报告
+
+💼 账户管理
+• 交易所 开户: 开通交易所账户
+• 交易所 状态: 查看账户状态
+• 交易所 统计: 查看交易统计
+
+💰 交易操作
+• 交易所 买入 [商品] [数量]: 购买大宗商品
+• 交易所 卖出 [商品] [数量]: 卖出大宗商品
+• 交易所 卖出 [库存ID] [数量]: 按库存ID卖出
+
+📦 库存管理
+• /持仓: 查看我的库存详情
+• /清仓: 卖出所有库存
+• /清仓 [商品]: 卖出指定商品
+• /清仓 [库存ID]: 卖出指定库存
+
+📈 投资分析
+• /盈亏: 查看持仓盈亏分析
+• /推荐: 获取投资建议
+• /风险: 查看风险评估
+
+⏰ 时间信息
+• 价格更新: 每日9:00、15:00、21:00
+• 商品保质期: 鱼干3天、鱼卵2天、鱼油1-3天
+• 交易时间: 24小时开放
+
+💡 交易提示
+• 关注价格涨跌幅，把握买卖时机
+• 注意商品保质期，及时卖出避免腐败
+• 合理控制仓位，分散投资风险
+• 关注市场情绪和供需状态
+
+══════════════════════════════
+💬 使用【交易所 帮助 [分类]】查看详细说明
         """
 
     async def exchange_status(self, event: AstrMessageEvent):
@@ -125,15 +263,53 @@ class ExchangeHandlers:
         prices = result["prices"]
         commodities = result["commodities"]
         
+        # 获取价格历史用于计算涨跌幅
+        price_history = self.exchange_service.get_price_history(days=2)
+        historical_prices = {}
+        if price_history["success"] and price_history["history"]:
+            # 获取昨天的价格
+            for comm_id, history in price_history["history"].items():
+                if len(history) >= 2:
+                    historical_prices[comm_id] = history[-2]  # 倒数第二个价格（昨天）
+        
         msg = "【📈 交易所行情】\n"
         msg += f"更新时间: {result.get('date', 'N/A')}\n"
         msg += "═" * 30 + "\n"
         
+        # 显示市场情绪和趋势（移到商品价格上面）
+        market_sentiment = result.get("market_sentiment", "neutral")
+        price_trend = result.get("price_trend", "stable")
+        supply_demand = result.get("supply_demand", "平衡")
+        
+        msg += f"📊 市场情绪: {self._get_sentiment_emoji(market_sentiment)} {market_sentiment}\n"
+        msg += f"📈 价格趋势: {self._get_trend_emoji(price_trend)} {price_trend}\n"
+        msg += f"⚖️ 供需状态: {supply_demand}\n"
+        msg += "─" * 20 + "\n"
+        
+        # 显示每个商品的详细信息
         for comm_id, price in prices.items():
             commodity = commodities.get(comm_id)
             if commodity:
                 msg += f"商品: {commodity['name']}\n"
-                msg += f"价格: {price:,} 金币\n"
+                msg += f"价格: {price:,} 金币"
+                
+                # 计算涨跌幅
+                if comm_id in historical_prices:
+                    prev_price = historical_prices[comm_id]
+                    change = price - prev_price
+                    change_percent = (change / prev_price) * 100 if prev_price > 0 else 0
+                    
+                    if change > 0:
+                        msg += f" 📈 +{change:,} (+{change_percent:.1f}%)"
+                    elif change < 0:
+                        msg += f" 📉 {change:,} ({change_percent:.1f}%)"
+                    else:
+                        msg += f" ➖ 0 (0.0%)"
+                else:
+                    msg += " 🆕 新价格"
+                
+                msg += "\n"
+                msg += f"描述: {commodity['description']}\n"
                 msg += "─" * 20 + "\n"
         
         # 显示持仓容量和盈亏分析
@@ -143,14 +319,46 @@ class ExchangeHandlers:
         if inventory_result["success"]:
             inventory = inventory_result["inventory"]
             current_total_quantity = sum(data.get("total_quantity", 0) for data in inventory.values())
-            msg += f"📦 当前持仓: {current_total_quantity} / {capacity}\n"
+            capacity_percent = (current_total_quantity / capacity) * 100 if capacity > 0 else 0
+            
+            msg += f"📦 当前持仓: {current_total_quantity} / {capacity} ({capacity_percent:.1f}%)\n"
             
             if inventory:
                 analysis = self._calculate_inventory_profit_loss(inventory, prices)
                 profit_status = "📈盈利" if analysis["is_profit"] else "📉亏损" if analysis["profit_loss"] < 0 else "➖持平"
-                msg += f"📊 持仓盈亏: {analysis['profit_loss']:+} 金币 ({analysis['profit_rate']:+.1f}%)\n"
+                msg += f"💰 持仓盈亏: {analysis['profit_loss']:+,} 金币 ({analysis['profit_rate']:+.1f}%) {profit_status}\n"
+                
+                # 显示各商品持仓详情
+                if len(inventory) > 0:
+                    msg += "📋 持仓详情:\n"
+                    for comm_id, data in inventory.items():
+                        if data.get("total_quantity", 0) > 0:
+                            commodity = commodities.get(comm_id, {})
+                            current_price = prices.get(comm_id, 0)
+                            total_value = data.get("total_quantity", 0) * current_price
+                            msg += f"  • {commodity.get('name', comm_id)}: {data.get('total_quantity', 0)}个 (价值 {total_value:,} 金币)\n"
+            else:
+                msg += "📋 持仓详情: 暂无持仓\n"
         else:
             msg += f"📦 当前持仓: 无法获取 / {capacity}\n"
+
+        # 显示下次更新时间
+        next_update_times = [9, 15, 21]  # 9点、15点、21点
+        now = datetime.now()
+        next_update = None
+        for hour in next_update_times:
+            update_time = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+            if update_time > now:
+                next_update = update_time
+                break
+        
+        if next_update:
+            time_diff = next_update - now
+            hours = int(time_diff.total_seconds() // 3600)
+            minutes = int((time_diff.total_seconds() % 3600) // 60)
+            msg += f"⏰ 下次更新: {next_update.strftime('%H:%M')} (约{hours}小时{minutes}分钟后)\n"
+        else:
+            msg += "⏰ 下次更新: 明日 09:00\n"
 
         msg += "═" * 30 + "\n"
         msg += "💡 使用【交易所 帮助】查看更多命令。"
