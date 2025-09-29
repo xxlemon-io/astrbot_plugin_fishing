@@ -1,5 +1,6 @@
 import random
-import asyncio
+import threading
+import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 
@@ -24,7 +25,8 @@ class ExchangePriceService:
         }
         
         # 价格更新任务
-        self._price_update_task = None
+        self._price_update_thread: Optional[threading.Thread] = None
+        self._price_update_running = False
 
     def get_market_status(self) -> Dict[str, Any]:
         """获取市场状态"""
@@ -257,17 +259,32 @@ class ExchangePriceService:
 
     def start_daily_price_update_task(self):
         """启动每日价格更新任务"""
-        if self._price_update_task is None or self._price_update_task.done():
-            self._price_update_task = asyncio.create_task(self._daily_price_update_loop())
+        if self._price_update_thread and self._price_update_thread.is_alive():
+            logger.info("价格更新线程已在运行中")
+            return
+
+        self._price_update_running = True
+        self._price_update_thread = threading.Thread(target=self._daily_price_update_loop, daemon=True)
+        self._price_update_thread.start()
+        logger.info("价格更新线程已启动")
 
     def stop_daily_price_update_task(self):
         """停止每日价格更新任务"""
-        if self._price_update_task and not self._price_update_task.done():
-            self._price_update_task.cancel()
+        self._price_update_running = False
+        if self._price_update_thread:
+            self._price_update_thread.join(timeout=1.0)
+            logger.info("价格更新线程已停止")
 
-    async def _daily_price_update_loop(self):
+    def _daily_price_update_loop(self):
         """每日价格更新循环"""
-        while True:
+        # 启动时立即检查是否需要更新价格
+        logger.info("价格更新线程启动，检查当前价格状态...")
+        try:
+            self.update_daily_prices()
+        except Exception as e:
+            logger.error(f"启动时价格检查失败: {e}")
+        
+        while self._price_update_running:
             try:
                 # 等待到下一个更新时间
                 now = datetime.now()
@@ -276,20 +293,25 @@ class ExchangePriceService:
                 
                 if wait_seconds > 0:
                     logger.info(f"等待 {wait_seconds/3600:.1f} 小时后进行下次价格更新")
-                    await asyncio.sleep(wait_seconds)
+                    # 分段等待，以便能够及时响应停止信号
+                    while wait_seconds > 0 and self._price_update_running:
+                        sleep_time = min(60, wait_seconds)  # 最多等待60秒
+                        time.sleep(sleep_time)
+                        wait_seconds -= sleep_time
+                
+                if not self._price_update_running:
+                    break
                 
                 # 更新价格（内部已有重复检查机制）
                 logger.info("开始执行价格更新...")
                 self.update_daily_prices()
                 logger.info("价格更新完成")
                 
-            except asyncio.CancelledError:
-                logger.info("价格更新任务被取消")
-                break
             except Exception as e:
                 # 记录错误但继续运行
                 logger.error(f"交易所价格更新任务出错: {e}")
-                await asyncio.sleep(3600)  # 出错后等待1小时再重试
+                logger.error("堆栈信息:", exc_info=True)
+                time.sleep(3600)  # 出错后等待1小时再重试
 
     def _get_next_update_time(self, now: datetime) -> datetime:
         """获取下一个更新时间"""
