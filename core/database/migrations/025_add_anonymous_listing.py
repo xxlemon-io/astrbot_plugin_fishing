@@ -18,7 +18,8 @@ def up(cursor: sqlite3.Cursor):
     
     if "BOOLEAN" in cols and "is_anonymous" not in cols:
         # 修复错误的字段名：将 BOOLEAN 重命名为 is_anonymous
-        print("发现错误的 BOOLEAN 字段，正在修复为 is_anonymous...")
+        from astrbot.api import logger
+        logger.info("发现错误的 BOOLEAN 字段，正在修复为 is_anonymous...")
         
         # 创建备份表，包含正确的字段名
         cursor.execute("""
@@ -40,7 +41,7 @@ def up(cursor: sqlite3.Cursor):
             ON market(market_id)
         """)
         
-        print("字段名修复完成")
+        logger.info("字段名修复完成")
     else:
         # 正常添加 is_anonymous 字段
         _ensure_column(cursor, "market", "is_anonymous", "INTEGER DEFAULT 0")

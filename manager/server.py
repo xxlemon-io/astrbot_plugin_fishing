@@ -2,6 +2,7 @@ import functools
 import os
 import traceback
 from typing import Dict, Any
+from datetime import datetime, timedelta
 import csv
 import io
 
@@ -847,6 +848,69 @@ async def delete_user(user_id):
     except Exception as e:
         return {"success": False, "message": f"删除用户时发生错误: {str(e)}"}, 500
 
+
+# --- 交易所管理 ---
+@admin_bp.route("/exchange")
+@login_required
+async def manage_exchange():
+    try:
+        exchange_service = current_app.config["EXCHANGE_SERVICE"]
+        
+        # 获取当前价格
+        market_status = exchange_service.get_market_status()
+        
+        # 获取价格历史（最近7天）
+        price_history = exchange_service.get_price_history(days=7)
+        
+        # 获取用户持仓统计
+        user_stats = exchange_service.get_user_commodity_stats()
+        
+        return await render_template(
+            "exchange.html",
+            market_status=market_status,
+            price_history=price_history,
+            user_stats=user_stats,
+            now=datetime.now()
+        )
+    except Exception as e:
+        logger.error(f"交易所管理页面出错: {e}")
+        logger.error(traceback.format_exc())
+        await flash(f"页面加载失败: {str(e)}", "danger")
+        return redirect(url_for("admin_bp.index"))
+
+@admin_bp.route("/exchange/update_prices", methods=["POST"])
+@login_required
+async def update_exchange_prices():
+    try:
+        exchange_service = current_app.config["EXCHANGE_SERVICE"]
+        result = exchange_service.manual_update_prices()
+        
+        if result["success"]:
+            await flash("交易所价格更新成功！", "success")
+        else:
+            await flash(f"价格更新失败：{result['message']}", "danger")
+    except Exception as e:
+        logger.error(f"更新交易所价格失败: {e}")
+        await flash(f"价格更新失败: {str(e)}", "danger")
+    
+    return redirect(url_for("admin_bp.manage_exchange"))
+
+@admin_bp.route("/exchange/reset_prices", methods=["POST"])
+@login_required
+async def reset_exchange_prices():
+    try:
+        exchange_service = current_app.config["EXCHANGE_SERVICE"]
+        result = exchange_service.reset_prices_to_initial()
+        
+        if result["success"]:
+            await flash("交易所价格已重置到初始值！", "success")
+        else:
+            await flash(f"价格重置失败：{result['message']}", "danger")
+    except Exception as e:
+        logger.error(f"重置交易所价格失败: {e}")
+        await flash(f"价格重置失败: {str(e)}", "danger")
+    
+    return redirect(url_for("admin_bp.manage_exchange"))
 
 # --- 市场管理 ---
 @admin_bp.route("/market")

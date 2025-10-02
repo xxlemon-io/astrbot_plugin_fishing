@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ---------------------------------
 # 游戏配置实体 (Configuration Entities)
@@ -135,6 +135,40 @@ class GachaPool:
         """允许通过属性名访问字段"""
         return getattr(self, item)
 
+
+@dataclass
+class Commodity:
+    """代表一种大宗商品的模板信息"""
+    commodity_id: str  # e.g., 'dried_fish', 'fish_roe', 'fish_oil'
+    name: str
+    description: str
+
+
+# ---------------------------------
+# 交易所实体 (Exchange Entities)
+# ---------------------------------
+
+@dataclass
+class Exchange:
+    """代表交易所的商品价格记录"""
+    date: str  # YYYY-MM-DD
+    time: str  # HH:MM:SS
+    commodity_id: str
+    price: int
+    update_type: str = "auto"  # 'auto' 或 'manual'
+    created_at: str = ""  # ISO格式时间戳
+
+@dataclass
+class UserCommodity:
+    """代表用户持有的一个具体的大宗商品实例"""
+    instance_id: int
+    user_id: str
+    commodity_id: str
+    quantity: int
+    purchase_price: int
+    purchased_at: datetime
+    expires_at: datetime
+
 # ---------------------------------
 # 用户数据实体 (User Data Entities)
 # ---------------------------------
@@ -180,6 +214,7 @@ class User:
     fish_pond_capacity: int = 480
     aquarium_capacity: int = 50  # 水族箱容量
     fishing_zone_id: int = 1  # 默认钓鱼区域ID
+    exchange_account_status: bool = False # 交易所账户状态
 
     # 装备信息
     equipped_rod_instance_id: Optional[int] = None
@@ -282,13 +317,13 @@ class MarketListing:
     item_type: str
     item_id: int
     item_name: str
-    item_description: str
+    item_description: Optional[str]
     quantity: int
     price: int
     listed_at: datetime
-    item_instance_id: Optional[int] = None  # 实例ID，用于显示短码
+    item_instance_id: Optional[int] = None # 实例ID，用于显示短码
+    expires_at: Optional[datetime] = None # 腐败日期，主要用于大宗商品
     refine_level: int = 1
-    expires_at: Optional[datetime] = None
     is_anonymous: bool = False  # 是否为匿名上架
 
     def __getitem__(self, item):

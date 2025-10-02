@@ -1,16 +1,19 @@
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
+import random
 
-from astrbot.core.utils.pip_installer import logger
+from astrbot.api import logger
 # 导入仓储接口和领域模型
 from ..repositories.abstract_repository import (
     AbstractMarketRepository,
     AbstractInventoryRepository,
     AbstractUserRepository,
     AbstractLogRepository,
-    AbstractItemTemplateRepository
+    AbstractItemTemplateRepository,
+    AbstractExchangeRepository,
 )
 from ..domain.models import MarketListing, TaxRecord
+
 
 class MarketService:
     """封装与玩家交易市场相关的业务逻辑"""
@@ -22,20 +25,54 @@ class MarketService:
         user_repo: AbstractUserRepository,
         log_repo: AbstractLogRepository,
         item_template_repo: AbstractItemTemplateRepository,
+        exchange_repo: AbstractExchangeRepository,
         config: Dict[str, Any]
     ):
         self.market_repo = market_repo
         self.inventory_repo = inventory_repo
         self.user_repo = user_repo
         self.log_repo = log_repo
-        self.item_template_repo = item_template_repo  # 修正：赋值给实例变量
+        self.item_template_repo = item_template_repo
+        self.exchange_repo = exchange_repo
         self.config = config
+
+    def cleanup_expired_listings(self):
+        """
+        清理过期的市场挂单。
+        - 挂单超过5天的将返还给物主。
+        - 在市场上腐败的大宗商品将被直接移除。
+        """
+        try:
+            listings, _ = self.market_repo.get_all_listings()
+            now = datetime.now()
+            five_days_ago = now - timedelta(days=5)
+
+            for listing in listings:
+                # 检查1: 大宗商品是否在市场上腐败
+                if listing.item_type == "commodity" and listing.expires_at and listing.expires_at < now:
+                    self.market_repo.remove_listing(listing.market_id)
+                    logger.info(f"市场上的腐败商品已被清除: Market ID {listing.market_id}")
+                    continue  # 继续处理下一个
+
+                # 检查2: 挂单是否超过5天
+                if listing.listed_at < five_days_ago:
+                    try:
+                        self._return_listing_to_seller(listing)
+                        self.market_repo.remove_listing(listing.market_id)
+                        logger.info(f"过期挂单已自动下架并返还: Market ID {listing.market_id} -> User {listing.user_id}")
+                    except Exception as e:
+                        logger.error(f"自动下架 Market ID {listing.market_id} 失败: {e}")
+        except Exception as e:
+            logger.error(f"市场清理任务失败: {e}")
 
     def get_market_listings(self) -> Dict[str, Any]:
         """
         提供查看市场所有商品的功能。
         """
         try:
+            # 每次查看市场前，先执行清理
+            self.cleanup_expired_listings()
+
             # 获取所有商品（不分页）
             listings, _ = self.market_repo.get_all_listings()
             # 按物品类型分组，便于前端展示
@@ -43,12 +80,14 @@ class MarketService:
             accessories = [item for item in listings if item.item_type == "accessory"]
             items = [item for item in listings if item.item_type == "item"]
             fish = [item for item in listings if item.item_type == "fish"]
+            commodities = [item for item in listings if item.item_type == "commodity"]
             return {
                 "success": True,
                 "rods": rods,
                 "accessories": accessories,
                 "items": items,
-                "fish": fish
+                "fish": fish,
+                "commodities": commodities
             }
         except Exception as e:
             return {"success": False, "message": f"获取市场列表失败: {e}"}
@@ -59,8 +98,8 @@ class MarketService:
         
         Args:
             user_id: 用户ID
-            item_type: 物品类型 ("rod", "accessory", "item", "fish")
-            item_instance_id: 物品实例ID（对于道具和鱼类，这是模板ID）
+            item_type: 物品类型 ("rod", "accessory", "item", "fish", "commodity")
+            item_instance_id: 物品实例ID（对于道具、鱼类和商品，这是模板ID或实例ID）
             price: 单价
             is_anonymous: 是否匿名上架
             quantity: 上架数量（默认1）
@@ -86,6 +125,7 @@ class MarketService:
         item_name = None
         item_description = None
         item_refine_level = 1
+        expires_at = None  # 为大宗商品设置
         if item_type == "rod":
             user_items = self.inventory_repo.get_user_rod_instances(user_id)
             item_to_list = next((i for i in user_items if i.rod_instance_id == item_instance_id), None)
@@ -141,6 +181,31 @@ class MarketService:
             item_name = fish_template.name if fish_template else None
             item_description = fish_template.description if fish_template else None
             item_refine_level = 1  # 鱼类没有精炼等级
+        elif item_type == "commodity":
+            user_commodity = self.exchange_repo.get_user_commodity_by_instance_id(item_instance_id)
+            if not user_commodity or user_commodity.user_id != user_id:
+                return {"success": False, "message": "大宗商品不存在或不属于你"}
+            if user_commodity.quantity < quantity:
+                return {"success": False, "message": f"数量不足，您只有 {user_commodity.quantity} 份"}
+            
+            # 上架的大宗商品仍然占用交易所容量，无需额外检查
+            # 只有在被其他玩家购买后才会释放容量
+            
+            commodity_template = self.exchange_repo.get_commodity_by_id(user_commodity.commodity_id)
+            item_template_id = user_commodity.commodity_id
+            item_name = commodity_template.name
+            item_description = commodity_template.description
+            item_refine_level = 1
+            expires_at = user_commodity.expires_at  # 传递腐败时间
+
+            # 计算剩余数量
+            remaining_quantity = user_commodity.quantity - quantity
+
+            # 从用户库存中扣除
+            if remaining_quantity > 0:
+                self.exchange_repo.update_user_commodity_quantity(item_instance_id, remaining_quantity)
+            else:
+                self.exchange_repo.delete_user_commodity(item_instance_id)
         else:
             return {"success": False, "message": "该类型的物品无法上架"}
 
@@ -156,6 +221,9 @@ class MarketService:
         elif item_type == "fish":
             # 智能扣除鱼类数量（优先从鱼塘，然后从水族箱）
             self.inventory_repo.deduct_fish_smart(user_id, item_instance_id, quantity)
+        elif item_type == "commodity":
+            # 从交易所移除大宗商品
+            self.exchange_repo.delete_user_commodity(item_instance_id)
 
         # 2. 扣除税费
         seller.coins -= tax_cost
@@ -175,12 +243,13 @@ class MarketService:
             seller_nickname=seller.nickname,
             item_type=item_type,
             item_id=item_template_id,
-            item_instance_id=item_instance_id if item_type != "item" else None,  # 道具没有实例ID
+            item_instance_id=item_instance_id if item_type not in ["item", "fish"] else None,
             quantity=quantity,
             item_name=item_name,
             item_description=item_description,
             price=price,
             listed_at=datetime.now(),
+            expires_at=expires_at,  # 保存腐败时间
             refine_level=item_refine_level,
             is_anonymous=is_anonymous
         )
@@ -197,7 +266,7 @@ class MarketService:
         根据实例ID查找市场ID
         
         Args:
-            item_type: 物品类型 ("rod" 或 "accessory")
+            item_type: 物品类型 ("rod", "accessory", "commodity")
             instance_id: 实例ID
             
         Returns:
@@ -268,7 +337,6 @@ class MarketService:
         if not listing:
             return {"success": False, "message": "该商品不存在或已被购买"}
 
-
         seller = self.user_repo.get_by_id(listing.user_id)
         if not seller:
             return {"success": False, "message": "卖家信息丢失，交易无法进行"}
@@ -276,47 +344,128 @@ class MarketService:
         if not buyer.can_afford(listing.price):
             return {"success": False, "message": f"金币不足，需要 {listing.price} 金币"}
 
-        # 执行交易
-        # 1. 从买家扣款
-        buyer.coins -= listing.price
-        self.user_repo.update(buyer)
+        # 使用事务处理确保数据一致性
+        try:
+            # 1. 从买家扣款
+            buyer.coins -= listing.price
+            self.user_repo.update(buyer)
 
-        # 2. 给卖家打款
-        seller.coins += listing.price
-        self.user_repo.update(seller)
+            # 2. 给卖家打款
+            seller.coins += listing.price
+            self.user_repo.update(seller)
 
-        # 3. 将物品发给买家
+            # 3. 将物品发给买家
+            if listing.item_type == "commodity":
+                # 检查买家是否有交易所账户
+                if not buyer.exchange_account_status:
+                    # 回滚交易
+                    buyer.coins += listing.price
+                    seller.coins -= listing.price
+                    self.user_repo.update(buyer)
+                    self.user_repo.update(seller)
+                    return {"success": False, "message": "您需要先开通交易所账户才能购买大宗商品"}
+
+                # 如果没有腐败时间，使用默认值（兼容旧数据）
+                expires_at = listing.expires_at or datetime.now() + timedelta(days=3)
+
+                from ..domain.models import UserCommodity
+                new_commodity = UserCommodity(
+                    instance_id=0,
+                    user_id=buyer_id,
+                    commodity_id=listing.item_id,
+                    quantity=listing.quantity,
+                    purchase_price=listing.price, # Use market price as purchase price
+                    purchased_at=datetime.now(),
+                    expires_at=expires_at # 继承腐败时间
+                )
+                self.exchange_repo.add_user_commodity(new_commodity)
+
+            elif listing.item_type == "rod":
+                rod_template = self.item_template_repo.get_rod_by_id(listing.item_id)
+                self.inventory_repo.add_rod_instance(
+                    user_id=buyer_id,
+                    rod_id=listing.item_id,
+                    durability=rod_template.durability if rod_template else None,
+                    refine_level=listing.refine_level
+                )
+            elif listing.item_type == "accessory":
+                self.inventory_repo.add_accessory_instance(
+                    user_id=buyer_id,
+                    accessory_id=listing.item_id,
+                    refine_level=listing.refine_level
+                )
+            elif listing.item_type == "item":
+                # 给买家添加道具
+                self.inventory_repo.update_item_quantity(buyer_id, listing.item_id, listing.quantity)
+            elif listing.item_type == "fish":
+                # 给买家添加鱼类到水族箱（默认放入水族箱）
+                self.inventory_repo.add_fish_to_aquarium(buyer_id, listing.item_id, listing.quantity)
+
+            # 4. 从市场移除该商品
+            self.market_repo.remove_listing(market_id)
+
+            quantity_text = f" x{listing.quantity}" if listing.quantity > 1 else ""
+            
+            # 如果是鱼类，提示用户去水族箱查收
+            if listing.item_type == "fish":
+                return {"success": True, "message": f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！\n🐠 请前往水族箱查收您的鱼类！"}
+            else:
+                return {"success": True, "message": f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！"}
+
+        except Exception as e:
+            # 回滚交易
+            try:
+                buyer.coins += listing.price
+                seller.coins -= listing.price
+                self.user_repo.update(buyer)
+                self.user_repo.update(seller)
+            except Exception as rollback_error:
+                logger.error(f"回滚交易失败: {rollback_error}")
+            
+            logger.error(f"市场购买失败: {e}")
+            return {"success": False, "message": f"购买失败，系统错误: {str(e)}"}
+
+    def _return_listing_to_seller(self, listing):
+        """将挂单物品返还给卖家"""
         if listing.item_type == "rod":
             rod_template = self.item_template_repo.get_rod_by_id(listing.item_id)
             self.inventory_repo.add_rod_instance(
-                user_id=buyer_id,
+                user_id=listing.user_id,
                 rod_id=listing.item_id,
                 durability=rod_template.durability if rod_template else None,
                 refine_level=listing.refine_level
             )
         elif listing.item_type == "accessory":
             self.inventory_repo.add_accessory_instance(
-                user_id=buyer_id,
+                user_id=listing.user_id,
                 accessory_id=listing.item_id,
                 refine_level=listing.refine_level
             )
         elif listing.item_type == "item":
-            # 给买家添加道具
-            self.inventory_repo.update_item_quantity(buyer_id, listing.item_id, listing.quantity)
+            self.inventory_repo.update_item_quantity(listing.user_id, listing.item_id, listing.quantity)
         elif listing.item_type == "fish":
-            # 给买家添加鱼类到水族箱（默认放入水族箱）
-            self.inventory_repo.add_fish_to_aquarium(buyer_id, listing.item_id, listing.quantity)
-
-        # 4. 从市场移除该商品
-        self.market_repo.remove_listing(market_id)
-
-        quantity_text = f" x{listing.quantity}" if listing.quantity > 1 else ""
-        
-        # 如果是鱼类，提示用户去水族箱查收
-        if listing.item_type == "fish":
-            return {"success": True, "message": f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！\n🐠 请前往水族箱查收您的鱼类！"}
+            self.inventory_repo.add_fish_to_inventory(listing.user_id, listing.item_id, listing.quantity)
+        elif listing.item_type == "commodity":
+            from ..domain.models import UserCommodity
+            # 检查卖家交易所容量
+            capacity = self.config.get("capacity", 1000)
+            user_commodities = self.exchange_repo.get_user_commodities(listing.user_id)
+            current_total_quantity = sum(item.quantity for item in user_commodities)
+            if current_total_quantity + listing.quantity > capacity:
+                raise Exception("卖家交易所容量不足，无法返还物品")
+            
+            new_commodity = UserCommodity(
+                instance_id=0,
+                user_id=listing.user_id,
+                commodity_id=listing.item_id,
+                quantity=listing.quantity,
+                purchase_price=0,  # 返还时买入价重置
+                purchased_at=datetime.now(),
+                expires_at=listing.expires_at or datetime.now() + timedelta(days=3)  # 如果没有腐败时间，默认3天
+            )
+            self.exchange_repo.add_user_commodity(new_commodity)
         else:
-            return {"success": True, "message": f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！"}
+            raise ValueError(f"不支持的物品类型: {listing.item_type}")
 
     def delist_item(self, user_id: str, market_id: int) -> Dict[str, Any]:
         """
@@ -338,33 +487,10 @@ class MarketService:
 
         # 将物品返还给用户
         try:
-            if listing.item_type == "rod":
-                # 返还鱼竿
-                rod_template = self.item_template_repo.get_rod_by_id(listing.item_id)
-                self.inventory_repo.add_rod_instance(
-                    user_id=user_id,
-                    rod_id=listing.item_id,
-                    durability=rod_template.durability if rod_template else None,
-                    refine_level=listing.refine_level
-                )
-            elif listing.item_type == "accessory":
-                # 返还饰品
-                self.inventory_repo.add_accessory_instance(
-                    user_id=user_id,
-                    accessory_id=listing.item_id,
-                    refine_level=listing.refine_level
-                )
-            elif listing.item_type == "item":
-                # 返还道具
-                self.inventory_repo.update_item_quantity(user_id, listing.item_id, 1)
-            else:
-                return {"success": False, "message": "不支持的物品类型"}
-
+            self._return_listing_to_seller(listing)
             # 从市场移除商品
             self.market_repo.remove_listing(market_id)
-
             return {"success": True, "message": f"✅ 成功下架 {listing.item_name}，物品已返还到背包"}
-
         except Exception as e:
             logger.error(f"下架物品时发生错误: {e}")
             return {"success": False, "message": f"下架失败: {str(e)}"}
@@ -437,7 +563,8 @@ class MarketService:
                 "rod_count": len([item for item in all_listings if item.item_type == "rod"]),
                 "accessory_count": len([item for item in all_listings if item.item_type == "accessory"]),
                 "item_count": len([item for item in all_listings if item.item_type == "item"]),
-                "fish_count": len([item for item in all_listings if item.item_type == "fish"])
+                "fish_count": len([item for item in all_listings if item.item_type == "fish"]),
+                "commodity_count": len([item for item in all_listings if item.item_type == "commodity"])
             }
             
             return {
@@ -492,26 +619,12 @@ class MarketService:
             
             seller = self.user_repo.get_by_id(listing.user_id)
             if not seller:
-                return {"success": False, "message": "卖家不存在，无法返还物品"}
+                # 即使卖家不存在，也应该能移除商品，但无法返还
+                self.market_repo.remove_listing(market_id)
+                return {"success": True, "message": "商品已下架（卖家不存在，物品已清除）"}
             
             # 将物品返还给卖家
-            if listing.item_type == "rod":
-                rod_template = self.item_template_repo.get_rod_by_id(listing.item_id)
-                self.inventory_repo.add_rod_instance(
-                    user_id=listing.user_id,
-                    rod_id=listing.item_id,
-                    durability=rod_template.durability if rod_template else None,
-                    refine_level=listing.refine_level
-                )
-            elif listing.item_type == "accessory":
-                self.inventory_repo.add_accessory_instance(
-                    user_id=listing.user_id,
-                    accessory_id=listing.item_id,
-                    refine_level=listing.refine_level
-                )
-            elif listing.item_type == "item":
-                # 返还道具给卖家
-                self.inventory_repo.update_item_quantity(listing.user_id, listing.item_id, 1)
+            self._return_listing_to_seller(listing)
             
             # 从市场移除
             self.market_repo.remove_listing(market_id)

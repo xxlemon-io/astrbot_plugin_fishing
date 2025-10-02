@@ -24,7 +24,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def _get_connection(self) -> sqlite3.Connection:
         """获取一个线程安全的数据库连接。"""
-        return self._connection_manager._get_connection()
+        return self._connection_manager.get_connection()
 
     # --- 私有映射辅助方法 ---
     def _row_to_fish_item(self, row: sqlite3.Row) -> Optional[UserFishInventoryItem]:
@@ -69,7 +69,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     # --- Fish Inventory Methods ---
     def get_fish_inventory(self, user_id: str) -> List[UserFishInventoryItem]:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT user_id, fish_id, quantity FROM user_fish_inventory WHERE user_id = ? AND quantity > 0", (user_id,))
             return [self._row_to_fish_item(row) for row in cursor.fetchall()]
@@ -86,7 +86,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             query += " AND f.rarity = ?"
             params.append(rarity)
 
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(query, params)
             result = cursor.fetchone()
@@ -103,7 +103,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             conn.commit()
 
     def clear_fish_inventory(self, user_id: str, rarity: Optional[int] = None) -> None:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             if rarity is None:
                 cursor.execute("DELETE FROM user_fish_inventory WHERE user_id = ?", (user_id,))
@@ -156,7 +156,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         注意：此操作应在一个事务中完成，以保证数据一致性。
         """
         sold_value = 0
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("BEGIN TRANSACTION")
             try:
@@ -193,7 +193,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def get_user_equipped_rod(self, user_id: str) -> Optional[UserRodInstance]:
         """获取用户当前装备的钓竿实例"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT * FROM user_rods
@@ -204,7 +204,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def get_user_rod_instance_by_id(self, user_id: str, rod_instance_id: int) -> Optional[UserRodInstance]:
         """根据用户ID和钓竿实例ID获取特定的钓竿实例"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT * FROM user_rods
@@ -215,7 +215,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def clear_user_rod_instances(self, user_id: str) -> None:
         """清空用户的所有未装备且小于5星的钓竿实例"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 DELETE FROM user_rods
@@ -227,7 +227,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def clear_user_accessory_instances(self, user_id: str) -> None:
         """清空用户的所有未装备且小于5星的配件实例"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 DELETE FROM user_accessories
@@ -239,7 +239,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def get_user_accessory_instance_by_id(self, user_id: str, accessory_instance_id: int) -> Optional[UserAccessoryInstance]:
         """根据用户ID和配件实例ID获取特定的配件实例"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT * FROM user_accessories
@@ -250,7 +250,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def get_user_equipped_accessory(self, user_id: str) -> Optional[UserAccessoryInstance]:
         """获取用户当前装备的配件实例"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT * FROM user_accessories
@@ -263,7 +263,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         """
         设置用户的装备状态。
         """
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             # 重置所有装备状态
             cursor.execute("""
@@ -291,7 +291,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         获取用户的可用诱饵列表。
         返回一个包含诱饵ID的列表。
         """
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT bait_id FROM user_bait_inventory
@@ -304,7 +304,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         获取用户拥有的称号列表。
         返回一个包含称号ID的列表。
         """
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT title_id FROM user_titles
@@ -317,7 +317,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         从用户的诱饵库存中随机获取一个可用的诱饵ID。
         如果没有可用诱饵，则返回None。
         """
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT bait_id FROM user_bait_inventory
@@ -329,14 +329,14 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     # --- Bait Inventory Methods ---
     def get_user_bait_inventory(self, user_id: str) -> Dict[int, int]:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT bait_id, quantity FROM user_bait_inventory WHERE user_id = ?", (user_id,))
             return {row["bait_id"]: row["quantity"] for row in cursor.fetchall()}
 
     def update_bait_quantity(self, user_id: str, bait_id: int, delta: int) -> None:
         """更新用户诱饵库存中特定诱饵的数量（可增可减），并确保数量不小于0。"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO user_bait_inventory (user_id, bait_id, quantity)
@@ -349,7 +349,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     # --- Item Inventory Methods ---
     def get_user_item_inventory(self, user_id: str) -> Dict[int, int]:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT item_id, quantity FROM user_items WHERE user_id = ?", (user_id,))
             return {row["item_id"]: row["quantity"] for row in cursor.fetchall()}
@@ -364,7 +364,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def update_item_quantity(self, user_id: str, item_id: int, delta: int) -> None:
         """更新用户道具库存中特定道具的数量（可增可减），并确保数量不小于0。"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -380,13 +380,13 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     # --- Rod Inventory Methods ---
     def get_user_rod_instances(self, user_id: str) -> List[UserRodInstance]:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM user_rods WHERE user_id = ?", (user_id,))
             return [self._row_to_rod_instance(row) for row in cursor.fetchall()]
 
     def  add_rod_instance(self, user_id: str, rod_id: int, durability: Optional[int], refine_level:int = 1) -> UserRodInstance:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             now = datetime.now()
             cursor.execute("""
@@ -401,20 +401,20 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             )
 
     def delete_rod_instance(self, rod_instance_id: int) -> None:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM user_rods WHERE rod_instance_id = ?", (rod_instance_id,))
             conn.commit()
 
     # --- Accessory Inventory Methods ---
     def get_user_accessory_instances(self, user_id: str) -> List[UserAccessoryInstance]:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM user_accessories WHERE user_id = ?", (user_id,))
             return [self._row_to_accessory_instance(row) for row in cursor.fetchall()]
 
     def add_accessory_instance(self, user_id: str, accessory_id: int, refine_level: int = 1) -> UserAccessoryInstance:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             now = datetime.now()
             cursor.execute("""
@@ -429,14 +429,14 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             )
 
     def delete_accessory_instance(self, accessory_instance_id: int) -> None:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM user_accessories WHERE accessory_instance_id = ?", (accessory_instance_id,))
             conn.commit()
 
     def update_fish_quantity(self, user_id: str, fish_id: int, delta: int) -> None:
         """更新用户鱼类库存中特定鱼的数量（可增可减），并确保数量不小于0。"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO user_fish_inventory (user_id, fish_id, quantity)
@@ -448,7 +448,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             conn.commit()
     def get_zone_by_id(self, zone_id: int) -> FishingZone:
         """根据ID获取钓鱼区域信息"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM fishing_zones WHERE id = ?", (zone_id,))
             row = cursor.fetchone()
@@ -478,7 +478,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                 raise ValueError(f"钓鱼区域ID {zone_id} 不存在。")
     def update_fishing_zone(self, zone: FishingZone) -> None:
         """更新钓鱼区域信息"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE fishing_zones
@@ -489,7 +489,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def get_all_zones(self) -> List[FishingZone]:
         """获取所有钓鱼区域信息"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM fishing_zones")
             
@@ -521,7 +521,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             return zones
 
     def update_zone_configs(self, zone_id: int, configs: str) -> None:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 "UPDATE fishing_zones SET configs = ? WHERE id = ?",
@@ -530,7 +530,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             conn.commit()
 
     def create_zone(self, zone_data: Dict[str, Any]) -> FishingZone:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             try:
                 cursor.execute("""
@@ -559,7 +559,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             return self.get_zone_by_id(zone_data['id'])
 
     def update_zone(self, zone_id: int, zone_data: Dict[str, Any]) -> None:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE fishing_zones
@@ -581,19 +581,19 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             conn.commit()
 
     def delete_zone(self, zone_id: int) -> None:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM fishing_zones WHERE id = ?", (zone_id,))
             conn.commit()
 
     def get_specific_fish_ids_for_zone(self, zone_id: int) -> List[int]:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT fish_id FROM zone_fish_mapping WHERE zone_id = ?", (zone_id,))
             return [row[0] for row in cursor.fetchall()]
 
     def update_specific_fish_for_zone(self, zone_id: int, fish_ids: List[int]) -> None:
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM zone_fish_mapping WHERE zone_id = ?", (zone_id,))
             if fish_ids:
@@ -603,7 +603,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def update_rod_instance(self, rod_instance: UserRodInstance):
         """更新钓竿实例信息"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE user_rods
@@ -614,7 +614,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def update_accessory_instance(self, accessory_instance: UserAccessoryInstance):
         """更新配件实例信息"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 UPDATE user_accessories
@@ -625,7 +625,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def get_same_rod_instances(self, user_id: int, rod_id: str) -> List[UserRodInstance]:
         """获取用户所有相同类型的钓竿实例"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT * FROM user_rods
@@ -635,7 +635,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def get_same_accessory_instances(self, user_id: int, accessory_id: str) -> List[UserAccessoryInstance]:
         """获取用户所有相同类型的配件实例"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT * FROM user_accessories
@@ -646,7 +646,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
     # --- 水族箱相关方法 ---
     def get_aquarium_inventory(self, user_id: str) -> List[UserAquariumItem]:
         """获取用户水族箱中的鱼"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT user_id, fish_id, quantity, added_at 
@@ -668,7 +668,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             query += " AND f.rarity = ?"
             params.append(rarity)
 
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(query, params)
             result = cursor.fetchone()
@@ -719,7 +719,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def clear_aquarium_inventory(self, user_id: str, rarity: Optional[int] = None) -> None:
         """清空用户水族箱"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             if rarity is None:
                 cursor.execute("DELETE FROM user_aquarium WHERE user_id = ?", (user_id,))
@@ -734,7 +734,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def get_aquarium_total_count(self, user_id: str) -> int:
         """获取用户水族箱中鱼的总数量"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT SUM(quantity) FROM user_aquarium WHERE user_id = ?
@@ -744,7 +744,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def get_user_total_fish_count(self, user_id: str, fish_id: int) -> int:
         """获取用户指定鱼类的总数量（包括鱼塘和水族箱）"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             
             # 获取鱼塘中的数量
@@ -765,7 +765,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def deduct_fish_smart(self, user_id: str, fish_id: int, quantity: int) -> None:
         """智能扣除鱼类：优先从鱼塘扣除，不足时从水族箱扣除"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("BEGIN TRANSACTION")
             try:
@@ -823,7 +823,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def get_aquarium_upgrades(self) -> List[AquariumUpgrade]:
         """获取所有水族箱升级配置"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT upgrade_id, level, capacity, cost_coins, cost_premium, description, created_at
@@ -834,7 +834,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
 
     def get_aquarium_upgrade_by_level(self, level: int) -> Optional[AquariumUpgrade]:
         """根据等级获取水族箱升级配置"""
-        with self._get_connection() as conn:
+        with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT upgrade_id, level, capacity, cost_coins, cost_premium, description, created_at

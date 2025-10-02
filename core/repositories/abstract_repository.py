@@ -314,6 +314,65 @@ class AbstractInventoryRepository(ABC):
         pass
 
 
+class AbstractExchangeRepository(ABC):
+    """大宗商品交易所的数据仓储抽象基类"""
+
+    @abstractmethod
+    def get_all_commodities(self) -> List['Commodity']:
+        """获取所有大宗商品的模板信息"""
+        pass
+
+    @abstractmethod
+    def get_commodity_by_id(self, commodity_id: str) -> Optional['Commodity']:
+        """通过ID获取单个大宗商品信息"""
+        pass
+
+    @abstractmethod
+    def get_prices_for_date(self, date: str) -> List['Exchange']:
+        """获取指定日期的所有商品价格"""
+        pass
+
+    @abstractmethod
+    def add_exchange_price(self, price: 'Exchange') -> None:
+        """新增一条交易所价格记录"""
+        pass
+
+    @abstractmethod
+    def delete_prices_for_date(self, date: str) -> None:
+        """删除指定日期的所有价格"""
+        pass
+
+    @abstractmethod
+    def get_user_commodities(self, user_id: str) -> List['UserCommodity']:
+        """获取用户持有的所有大宗商品"""
+        pass
+
+    @abstractmethod
+    def add_user_commodity(self, user_commodity: 'UserCommodity') -> 'UserCommodity':
+        """为用户新增大宗商品库存"""
+        pass
+
+    @abstractmethod
+    def update_user_commodity_quantity(self, instance_id: int, new_quantity: int) -> None:
+        """更新用户大宗商品的数量"""
+        pass
+
+    @abstractmethod
+    def delete_user_commodity(self, instance_id: int) -> None:
+        """删除用户的大宗商品库存"""
+        pass
+
+    @abstractmethod
+    def get_user_commodity_by_instance_id(self, instance_id: int) -> Optional['UserCommodity']:
+        """通过实例ID获取用户商品"""
+        pass
+
+    @abstractmethod
+    def clear_expired_commodities(self, user_id: str) -> int:
+        """清理用户库存中的腐败商品，返回清理的数量"""
+        pass
+
+
 class AbstractGachaRepository(ABC):
     """抽卡仓储接口"""
     # 获取抽卡池信息
