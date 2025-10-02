@@ -134,7 +134,31 @@ class ExchangeHandlers:
             for commodity_id, commodity_data in inventory.items():
                 total_cost += commodity_data.get("total_cost", 0)
                 current_price = current_prices.get(commodity_id, 0)
-                total_current_value += current_price * commodity_data.get("total_quantity", 0)
+                
+                # 检查每个商品实例是否腐败
+                commodity_value = 0
+                for item in commodity_data.get("items", []):
+                    if not isinstance(item, dict):
+                        continue
+                    
+                    expires_at = item.get("expires_at")
+                    quantity = item.get("quantity", 0)
+                    
+                    if expires_at and isinstance(expires_at, datetime):
+                        now = datetime.now()
+                        is_expired = expires_at <= now
+                        
+                        if is_expired:
+                            # 腐败商品按0价值计算
+                            commodity_value += 0
+                        else:
+                            # 未腐败商品按当前市场价格计算
+                            commodity_value += current_price * quantity
+                    else:
+                        # 如果没有过期时间信息，按当前市场价格计算
+                        commodity_value += current_price * quantity
+                
+                total_current_value += commodity_value
             
             profit_loss = total_current_value - total_cost
             profit_rate = (profit_loss / total_cost * 100) if total_cost > 0 else 0
@@ -408,8 +432,31 @@ class ExchangeHandlers:
                     total_quantity = commodity_data.get("total_quantity", 0)
                     
                     current_price = current_prices.get(commodity_id, 0)
-                    current_value = current_price * total_quantity
-                    profit_loss = current_value - commodity_data.get("total_cost", 0)
+                    
+                    # 计算商品总价值，考虑腐败状态
+                    commodity_value = 0
+                    for item in commodity_data.get("items", []):
+                        if not isinstance(item, dict):
+                            continue
+                        
+                        expires_at = item.get("expires_at")
+                        quantity = item.get("quantity", 0)
+                        
+                        if expires_at and isinstance(expires_at, datetime):
+                            now = datetime.now()
+                            is_expired = expires_at <= now
+                            
+                            if is_expired:
+                                # 腐败商品按0价值计算
+                                commodity_value += 0
+                            else:
+                                # 未腐败商品按当前市场价格计算
+                                commodity_value += current_price * quantity
+                        else:
+                            # 如果没有过期时间信息，按当前市场价格计算
+                            commodity_value += current_price * quantity
+                    
+                    profit_loss = commodity_value - commodity_data.get("total_cost", 0)
                     profit_status = "📈" if profit_loss > 0 else "📉" if profit_loss < 0 else "➖"
                     msg += f"{commodity_name} ({total_quantity}个) - 盈亏: {profit_loss:+}金币 {profit_status}\n"
 

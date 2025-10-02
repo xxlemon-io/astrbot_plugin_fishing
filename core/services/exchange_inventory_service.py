@@ -295,9 +295,20 @@ class ExchangeInventoryService:
                         "items": []
                     }
                 
+                # 检查是否已腐败
+                now = datetime.now()
+                is_expired = item.expires_at <= now
+                
                 current_price = current_prices.get(commodity_id, 0)
                 item_cost = item.purchase_price * item.quantity
-                item_current_value = current_price * item.quantity
+                
+                if is_expired:
+                    # 腐败商品按0价值计算
+                    item_current_value = 0
+                else:
+                    # 未腐败商品按当前市场价格计算
+                    item_current_value = current_price * item.quantity
+                
                 item_profit_loss = item_current_value - item_cost
                 
                 commodity_summary[commodity_id]["total_quantity"] += item.quantity
@@ -310,7 +321,8 @@ class ExchangeInventoryService:
                     "current_price": current_price,
                     "cost": item_cost,
                     "current_value": item_current_value,
-                    "profit_loss": item_profit_loss
+                    "profit_loss": item_profit_loss,
+                    "is_expired": is_expired
                 })
                 
                 total_cost += item_cost
@@ -367,9 +379,15 @@ class ExchangeInventoryService:
                 for item_data in data["items"]:
                     instance_profit_loss = item_data["profit_loss"]
                     instance_profit_status = "📈" if instance_profit_loss > 0 else "📉" if instance_profit_loss < 0 else "➖"
-                    message += f"  └─ C{self._to_base36(item_data['instance_id'])}: {item_data['quantity']}个 "
-                    message += f"({item_data['purchase_price']}→{item_data['current_price']} 金币) "
-                    message += f"{instance_profit_loss:+,}金币 {instance_profit_status}\n"
+                    is_expired = item_data.get("is_expired", False)
+                    
+                    if is_expired:
+                        message += f"  └─ C{self._to_base36(item_data['instance_id'])}: {item_data['quantity']}个 (💀 已腐败) "
+                        message += f"{instance_profit_loss:+,}金币 {instance_profit_status}\n"
+                    else:
+                        message += f"  └─ C{self._to_base36(item_data['instance_id'])}: {item_data['quantity']}个 "
+                        message += f"({item_data['purchase_price']}→{item_data['current_price']} 金币) "
+                        message += f"{instance_profit_loss:+,}金币 {instance_profit_status}\n"
             
             message += f"═" * 25 + "\n"
             message += f"💡 清仓完成，共获得 {net_income:,} 金币"
@@ -433,8 +451,25 @@ class ExchangeInventoryService:
             current_price = current_prices.get(commodity_id, 0)
             
             # 计算详细盈亏
-            total_cost = sum(item.purchase_price * item.quantity for item in commodity_items)
-            total_current_value = current_price * sum(item.quantity for item in commodity_items)
+            total_cost = 0
+            total_current_value = 0
+            now = datetime.now()
+            
+            for item in commodity_items:
+                item_cost = item.purchase_price * item.quantity
+                total_cost += item_cost
+                
+                # 检查是否已腐败
+                is_expired = item.expires_at <= now
+                if is_expired:
+                    # 腐败商品按0价值计算
+                    item_current_value = 0
+                else:
+                    # 未腐败商品按当前市场价格计算
+                    item_current_value = current_price * item.quantity
+                
+                total_current_value += item_current_value
+            
             total_profit_loss = total_current_value - total_cost
             
             # 计算税费
@@ -483,13 +518,25 @@ class ExchangeInventoryService:
             # 显示每个实例的详细信息
             for item in commodity_items:
                 item_cost = item.purchase_price * item.quantity
-                item_current_value = current_price * item.quantity
+                is_expired = item.expires_at <= now
+                
+                if is_expired:
+                    # 腐败商品按0价值计算
+                    item_current_value = 0
+                else:
+                    # 未腐败商品按当前市场价格计算
+                    item_current_value = current_price * item.quantity
+                
                 item_profit_loss = item_current_value - item_cost
                 item_profit_status = "📈" if item_profit_loss > 0 else "📉" if item_profit_loss < 0 else "➖"
                 
-                message += f"C{self._to_base36(item.instance_id)}: {item.quantity}个 "
-                message += f"({item.purchase_price}→{current_price} 金币) "
-                message += f"{item_profit_loss:+,}金币 {item_profit_status}\n"
+                if is_expired:
+                    message += f"C{self._to_base36(item.instance_id)}: {item.quantity}个 (💀 已腐败) "
+                    message += f"{item_profit_loss:+,}金币 {item_profit_status}\n"
+                else:
+                    message += f"C{self._to_base36(item.instance_id)}: {item.quantity}个 "
+                    message += f"({item.purchase_price}→{current_price} 金币) "
+                    message += f"{item_profit_loss:+,}金币 {item_profit_status}\n"
             
             message += f"═" * 25 + "\n"
             message += f"💡 清仓完成，共获得 {net_income:,} 金币"
@@ -568,9 +615,18 @@ class ExchangeInventoryService:
                 cost = commodity.purchase_price * commodity.quantity
                 total_cost += cost
                 
-                # 计算当前价值
-                current_price = current_prices.get(commodity.commodity_id, 0)
-                current_value = current_price * commodity.quantity
+                # 检查是否已腐败
+                now = datetime.now()
+                is_expired = commodity.expires_at <= now
+                
+                if is_expired:
+                    # 腐败商品按0价值计算
+                    current_value = 0
+                else:
+                    # 未腐败商品按当前市场价格计算
+                    current_price = current_prices.get(commodity.commodity_id, 0)
+                    current_value = current_price * commodity.quantity
+                
                 total_current_value += current_value
             
             # 计算盈亏
