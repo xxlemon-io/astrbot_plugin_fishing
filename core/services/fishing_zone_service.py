@@ -140,6 +140,7 @@ class FishingZoneService:
                 "name": zone.name,
                 "description": zone.description,
                 "daily_rare_fish_quota": zone.daily_rare_fish_quota,
+                "rare_fish_caught_today": getattr(zone, 'rare_fish_caught_today', 0),
                 "configs": zone.configs,
                 "is_active": zone.is_active,
                 "available_from": zone.available_from.isoformat() if zone.available_from else None,

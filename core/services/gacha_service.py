@@ -51,11 +51,17 @@ class GachaService:
     def get_all_pools(self) -> Dict[str, Any]:
         """提供查看所有卡池信息的功能。"""
         try:
-            pools = self.gacha_repo.get_all_pools()
-            logger.info(f"获取到 {len(pools)} 个卡池信息")
-            return {"success": True, "pools": pools}
+            all_pools = self.gacha_repo.get_all_pools()
+            # 过滤掉免费的每日补给池
+            visible_pools = [
+                pool for pool in all_pools 
+                if (getattr(pool, 'cost_coins', 0) or 0) > 0 or (getattr(pool, 'cost_premium_currency', 0) or 0) > 0
+            ]
+            logger.info(f"获取到 {len(visible_pools)} 个可见的卡池信息")
+            return {"success": True, "pools": visible_pools}
         except Exception as e:
-            return {"success": False, "message": f"获取卡池信息失败: {str(e)}"}
+            logger.error(f"获取卡池信息失败: {e}", exc_info=True)
+            return {"success": False, "message": f"获取卡池信息失败"}
 
     def get_daily_free_pool(self) -> Optional[GachaPool]:
         """获取每日免费池 (第一个成本为0的池)"""

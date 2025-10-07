@@ -113,9 +113,22 @@ async def api_get_profile():
                 if rod_instance:
                     rod_template = item_template_service.get_rod_by_id(rod_instance.rod_id)
                     if rod_template:
+                        # 计算精炼后的最大耐久度
+                        if rod_template.durability is not None:
+                            refined_max_durability = int(rod_template.durability * (1.5 ** (max(rod_instance.refine_level, 1) - 1)))
+                        else:
+                            refined_max_durability = None
+
+                        # 如果实例是无限耐久，则上限也视为 None
+                        if rod_instance.current_durability is None:
+                            refined_max_durability = None
+
                         equipped_rod = {
                             "name": rod_template.name,
-                            "refine_level": rod_instance.refine_level
+                            "rarity": rod_template.rarity,
+                            "refine_level": rod_instance.refine_level,
+                            "current_durability": rod_instance.current_durability,
+                            "max_durability": refined_max_durability
                         }
             except Exception as e:
                 logger.warning(f"获取装备鱼竿信息失败: {e}")
@@ -130,11 +143,78 @@ async def api_get_profile():
                     if accessory_template:
                         equipped_accessory = {
                             "name": accessory_template.name,
+                            "rarity": accessory_template.rarity,
                             "refine_level": accessory_instance.refine_level
                         }
             except Exception as e:
                 logger.warning(f"获取装备饰品信息失败: {e}")
         
+        # 获取当前鱼饵信息
+        current_bait = None
+        if user.current_bait_id and inventory_service and item_template_service:
+            try:
+                bait_template = item_template_service.get_bait_by_id(user.current_bait_id)
+                if bait_template:
+                    # 获取用户的鱼饵库存
+                    bait_inventory = inventory_service.inventory_repo.get_user_bait_inventory(user_id)
+                    bait_quantity = bait_inventory.get(user.current_bait_id, 0)
+                    current_bait = {
+                        "name": bait_template.name,
+                        "rarity": bait_template.rarity,
+                        "quantity": bait_quantity
+                    }
+            except Exception as e:
+                logger.warning(f"获取当前鱼饵信息失败: {e}")
+
+        # 获取钓鱼区域信息
+        fishing_zone = None
+        if user.fishing_zone_id and inventory_service:
+            try:
+                zone = inventory_service.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+                if zone:
+                    fishing_zone = {
+                        "name": zone.name,
+                        "description": zone.description,
+                        "rare_fish_quota": getattr(zone, 'daily_rare_fish_quota', 0),
+                        "rare_fish_caught": getattr(zone, 'rare_fish_caught_today', 0)
+                    }
+            except Exception as e:
+                logger.warning(f"获取钓鱼区域信息失败: {e}")
+
+        # 检查今日是否签到
+        signed_in_today = False
+        if user.last_login_time:
+            today = get_now().date()
+            last_login_date = user.last_login_time.date() if hasattr(user.last_login_time, 'date') else user.last_login_time
+            signed_in_today = (last_login_date == today)
+
+        # 获取擦弹剩余次数
+        wipe_bomb_remaining = 0
+        try:
+            game_mechanics_service = current_app.config.get("GAME_MECHANICS_SERVICE")
+            if game_mechanics_service:
+                # 使用游戏机制服务获取擦弹剩余次数
+                wipe_result = game_mechanics_service.get_wipe_bomb_remaining(user_id)
+                if wipe_result.get("success"):
+                    wipe_bomb_remaining = wipe_result.get("remaining", 0)
+        except Exception as e:
+            logger.warning(f"获取擦弹剩余次数失败: {e}")
+
+        # 获取鱼塘信息
+        pond_info = None
+        try:
+            if inventory_service:
+                # 使用背包服务获取鱼塘信息
+                fish_pond = inventory_service.get_user_fish_pond(user_id)
+                if fish_pond.get("success"):
+                    pond_data = fish_pond.get("data", {})
+                    pond_info = {
+                        "total_count": pond_data.get("total_count", 0),
+                        "total_value": pond_data.get("total_value", 0)
+                    }
+        except Exception as e:
+            logger.warning(f"获取鱼塘信息失败: {e}")
+
         # 获取用户详细信息
         user_data = {
             "user_id": user.user_id,
@@ -151,6 +231,11 @@ async def api_get_profile():
             "auto_fishing_enabled": user.auto_fishing_enabled,
             "equipped_rod": equipped_rod,
             "equipped_accessory": equipped_accessory,
+            "current_bait": current_bait,
+            "fishing_zone": fishing_zone,
+            "signed_in_today": signed_in_today,
+            "wipe_bomb_remaining": wipe_bomb_remaining,
+            "pond_info": pond_info,
             "created_at": user.created_at.isoformat() if user.created_at else None,
             "last_login_time": user.last_login_time.isoformat() if user.last_login_time else None
         }
@@ -383,40 +468,102 @@ async def api_get_inventory(item_type):
 @game_bp.route("/game/api/inventory/equip", methods=["POST"])
 @game_login_required
 async def api_equip_item():
-    """装备/卸下物品"""
+    """装备物品"""
     try:
         data = await request.get_json()
         item_type = data.get("item_type")
         item_id = data.get("item_id")
-        action = data.get("action", "equip")  # equip 或 unequip
         
         user_id = session.get("game_user_id")
         inventory_service = current_app.config.get("INVENTORY_SERVICE")
         
         if not inventory_service:
             return jsonify({"success": False, "message": "服务不可用"})
-        
-        # 调用装备服务
-        if action == "equip":
-            result = inventory_service.equip_item(user_id, item_id, item_type)
-        else:
-            # 取消装备
-            result = {"success": False, "message": "取消装备功能暂未实现"}
-        
-        if result.get("success"):
-            return jsonify({
-                "success": True,
-                "data": result
-            })
-        else:
-            return jsonify({
-                "success": False,
-                "message": result.get("message", "操作失败")
-            })
             
+        result = inventory_service.equip_item(user_id, item_id, item_type)
+        return jsonify(result)
+        
     except Exception as e:
-        logger.error(f"装备操作失败: {e}")
-        return jsonify({"success": False, "message": "操作失败，请稍后重试"})
+        logger.error(f"装备物品失败: {e}", exc_info=True)
+        return jsonify({"success": False, "message": "装备物品失败"})
+
+@game_bp.route("/game/api/inventory/unequip", methods=["POST"])
+@game_login_required
+async def api_unequip_item():
+    """卸下物品"""
+    try:
+        data = await request.get_json()
+        item_type = data.get("item_type")
+        
+        user_id = session.get("game_user_id")
+        inventory_service = current_app.config.get("INVENTORY_SERVICE")
+        
+        if not inventory_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+            
+        result = inventory_service.unequip_item(user_id, item_type)
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"卸下物品失败: {e}", exc_info=True)
+        return jsonify({"success": False, "message": "卸下物品失败"})
+
+
+@game_bp.route("/game/api/inventory/lock", methods=["POST"])
+@game_login_required
+async def api_lock_item():
+    """锁定物品"""
+    try:
+        data = await request.get_json()
+        item_type = data.get("item_type")
+        instance_id = data.get("instance_id")
+        
+        user_id = session.get("game_user_id")
+        inventory_service = current_app.config.get("INVENTORY_SERVICE")
+        
+        if not inventory_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+            
+        if item_type == "rod":
+            result = inventory_service.lock_rod(user_id, instance_id)
+        elif item_type == "accessory":
+            result = inventory_service.lock_accessory(user_id, instance_id)
+        else:
+            result = {"success": False, "message": "不支持的物品类型"}
+            
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"锁定物品失败: {e}", exc_info=True)
+        return jsonify({"success": False, "message": "锁定物品失败"})
+
+@game_bp.route("/game/api/inventory/unlock", methods=["POST"])
+@game_login_required
+async def api_unlock_item():
+    """解锁物品"""
+    try:
+        data = await request.get_json()
+        item_type = data.get("item_type")
+        instance_id = data.get("instance_id")
+        
+        user_id = session.get("game_user_id")
+        inventory_service = current_app.config.get("INVENTORY_SERVICE")
+        
+        if not inventory_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+            
+        if item_type == "rod":
+            result = inventory_service.unlock_rod(user_id, instance_id)
+        elif item_type == "accessory":
+            result = inventory_service.unlock_accessory(user_id, instance_id)
+        else:
+            result = {"success": False, "message": "不支持的物品类型"}
+            
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"解锁物品失败: {e}", exc_info=True)
+        return jsonify({"success": False, "message": "解锁物品失败"})
 
 
 @game_bp.route("/game/api/inventory/refine", methods=["POST"])
@@ -454,7 +601,7 @@ async def api_sell_item():
     try:
         data = await request.get_json()
         item_type = data.get("item_type")
-        item_id = data.get("item_id")
+        instance_id = data.get("instance_id")
         quantity = data.get("quantity", 1)
         
         user_id = session.get("game_user_id")
@@ -463,13 +610,18 @@ async def api_sell_item():
         if not inventory_service:
             return jsonify({"success": False, "message": "服务不可用"})
         
-        # 调用出售服务
-        result = inventory_service.sell_item(user_id, item_type, item_id, quantity)
+        result = inventory_service.sell_equipment(user_id, instance_id, item_type)
         
-        return jsonify({
-            "success": result.get("success", False),
-            "data": result
-        })
+        if result.get("success"):
+            return jsonify({
+                "success": True,
+                "data": result
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": result.get("message", "出售失败")
+            })
         
     except Exception as e:
         logger.error(f"出售失败: {e}")
@@ -561,7 +713,7 @@ async def api_sell_all_accessories():
 async def api_get_shops():
     """获取商店列表"""
     try:
-        shop_service = current_app.config.get("shop_service")
+        shop_service = current_app.config.get("SHOP_SERVICE")
         
         if not shop_service:
             return jsonify({"success": False, "message": "服务不可用"})
@@ -583,7 +735,7 @@ async def api_get_shops():
 async def game_api_get_shop_items(shop_id):
     """获取商店商品"""
     try:
-        shop_service = current_app.config.get("shop_service")
+        shop_service = current_app.config.get("SHOP_SERVICE")
         
         if not shop_service:
             return jsonify({"success": False, "message": "服务不可用"})
@@ -611,7 +763,7 @@ async def api_purchase_item():
         quantity = data.get("quantity", 1)
         
         user_id = session.get("game_user_id")
-        shop_service = current_app.config.get("shop_service")
+        shop_service = current_app.config.get("SHOP_SERVICE")
         
         if not shop_service:
             return jsonify({"success": False, "message": "服务不可用"})
@@ -1511,13 +1663,20 @@ async def api_get_fishing_history():
         # 转换为字典格式
         logs = []
         for record in fishing_records:
+            # 处理timestamp字段，确保是字符串格式
+            timestamp_str = record.timestamp
+            if hasattr(record.timestamp, 'isoformat'):
+                timestamp_str = record.timestamp.isoformat()
+            elif isinstance(record.timestamp, str):
+                timestamp_str = record.timestamp
+            
             logs.append({
                 "record_id": record.record_id,
                 "user_id": record.user_id,
                 "fish_id": record.fish_id,
                 "weight": record.weight,
                 "value": record.value,
-                "timestamp": record.timestamp.isoformat(),
+                "timestamp": timestamp_str,
                 "rod_instance_id": record.rod_instance_id,
                 "accessory_instance_id": record.accessory_instance_id,
                 "bait_id": record.bait_id,

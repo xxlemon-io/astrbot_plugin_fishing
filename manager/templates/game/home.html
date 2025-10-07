@@ -73,18 +73,84 @@
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-6">
+                        <!-- 鱼竿 -->
+                        <div class="col-6 col-md-3">
                             <div class="equipment-item text-center">
                                 <i class="fas fa-anchor text-primary fa-2x mb-2"></i>
                                 <div class="equipment-name" id="currentRod">无鱼竿</div>
                                 <div class="equipment-level" id="rodLevel"></div>
+                                <div class="equipment-durability" id="rodDurability"></div>
                             </div>
                         </div>
-                        <div class="col-6">
+                        <!-- 饰品 -->
+                        <div class="col-6 col-md-3">
                             <div class="equipment-item text-center">
                                 <i class="fas fa-gem text-info fa-2x mb-2"></i>
                                 <div class="equipment-name" id="currentAccessory">无饰品</div>
                                 <div class="equipment-level" id="accessoryLevel"></div>
+                            </div>
+                        </div>
+                        <!-- 鱼饵 -->
+                        <div class="col-6 col-md-3">
+                            <div class="equipment-item text-center">
+                                <i class="fas fa-bug text-warning fa-2x mb-2"></i>
+                                <div class="equipment-name" id="currentBait">无鱼饵</div>
+                                <div class="equipment-level" id="baitLevel"></div>
+                                <div class="equipment-quantity" id="baitQuantity"></div>
+                            </div>
+                        </div>
+                        <!-- 钓鱼区域 -->
+                        <div class="col-6 col-md-3">
+                            <div class="equipment-item text-center">
+                                <i class="fas fa-map-marker-alt text-success fa-2x mb-2"></i>
+                                <div class="equipment-name" id="currentZone">未知区域</div>
+                                <div class="equipment-level" id="zoneRareFish"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 状态信息 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        状态信息
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6 col-md-3">
+                            <div class="status-item text-center">
+                                <i class="fas fa-calendar-check text-success fa-2x mb-2"></i>
+                                <div class="status-name" id="signStatus">今日签到</div>
+                                <div class="status-value" id="signValue">未签到</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="status-item text-center">
+                                <i class="fas fa-bomb text-danger fa-2x mb-2"></i>
+                                <div class="status-name" id="wipeStatus">擦弹次数</div>
+                                <div class="status-value" id="wipeValue">0 次</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="status-item text-center">
+                                <i class="fas fa-robot text-primary fa-2x mb-2"></i>
+                                <div class="status-name" id="autoStatus">自动钓鱼</div>
+                                <div class="status-value" id="autoValue">已关闭</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <div class="status-item text-center">
+                                <i class="fas fa-fish text-warning fa-2x mb-2"></i>
+                                <div class="status-name" id="pondStatus">鱼塘</div>
+                                <div class="status-value" id="pondValue">0 条</div>
                             </div>
                         </div>
                     </div>
@@ -266,13 +332,11 @@
 
 .equipment-item {
     padding: 1rem;
-    border: 2px dashed var(--card-border);
     border-radius: var(--border-radius);
     transition: var(--transition);
 }
 
 .equipment-item:hover {
-    border-color: var(--primary-color);
     background: rgba(56, 189, 248, 0.05);
 }
 
@@ -283,6 +347,40 @@
 }
 
 .equipment-level {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.equipment-durability {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.equipment-quantity {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.status-item {
+    padding: 1rem;
+    border-radius: var(--border-radius);
+    transition: var(--transition);
+}
+
+.status-item:hover {
+    background: rgba(56, 189, 248, 0.05);
+}
+
+.status-name {
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: 0.25rem;
+    font-size: 0.875rem;
+}
+
+.status-value {
     font-size: 0.875rem;
     color: var(--text-muted);
 }
@@ -488,6 +586,9 @@ class GameHome {
         
         // 更新装备信息
         this.updateEquipmentDisplay();
+        
+        // 更新状态信息
+        this.updateStatusDisplay();
     }
     
     updateEquipmentDisplay() {
@@ -496,14 +597,32 @@ class GameHome {
         // 更新鱼竿信息
         const currentRod = document.getElementById('currentRod');
         const rodLevel = document.getElementById('rodLevel');
+        const rodDurability = document.getElementById('rodDurability');
         
         if (this.userInfo.equipped_rod) {
             const rod = this.userInfo.equipped_rod;
             currentRod.textContent = rod.name || '未知鱼竿';
             rodLevel.textContent = `+${rod.refine_level || 0}`;
+            
+            // 显示耐久度信息
+            if (rod.current_durability !== undefined && rod.max_durability !== undefined) {
+                const durabilityRatio = rod.current_durability / rod.max_durability;
+                let durabilityColor = 'var(--success-color)';
+                if (durabilityRatio <= 0.3) {
+                    durabilityColor = 'var(--danger-color)';
+                } else if (durabilityRatio <= 0.6) {
+                    durabilityColor = 'var(--warning-color)';
+                }
+                rodDurability.innerHTML = `<span style="color: ${durabilityColor}">耐久: ${rod.current_durability}/${rod.max_durability}</span>`;
+            } else if (rod.current_durability === null) {
+                rodDurability.innerHTML = '<span style="color: var(--primary-color)">无限耐久</span>';
+            } else {
+                rodDurability.textContent = '';
+            }
         } else {
             currentRod.textContent = '无鱼竿';
             rodLevel.textContent = '';
+            rodDurability.textContent = '';
         }
         
         // 更新饰品信息
@@ -517,6 +636,87 @@ class GameHome {
         } else {
             currentAccessory.textContent = '无饰品';
             accessoryLevel.textContent = '';
+        }
+        
+        // 更新鱼饵信息
+        const currentBait = document.getElementById('currentBait');
+        const baitLevel = document.getElementById('baitLevel');
+        const baitQuantity = document.getElementById('baitQuantity');
+        
+        if (this.userInfo.current_bait) {
+            const bait = this.userInfo.current_bait;
+            currentBait.textContent = bait.name || '未知鱼饵';
+            baitLevel.textContent = `★${bait.rarity || 1}`;
+            baitQuantity.textContent = `剩余: ${bait.quantity || 0}`;
+        } else {
+            currentBait.textContent = '无鱼饵';
+            baitLevel.textContent = '';
+            baitQuantity.textContent = '';
+        }
+        
+        // 更新钓鱼区域信息
+        const currentZone = document.getElementById('currentZone');
+        const zoneRareFish = document.getElementById('zoneRareFish');
+        
+        if (this.userInfo.fishing_zone) {
+            const zone = this.userInfo.fishing_zone;
+            currentZone.textContent = zone.name || '未知区域';
+            
+            const quota = zone.rare_fish_quota || 0;
+            const caught = zone.rare_fish_caught || 0;
+            const remaining = quota - caught;
+            
+            if (quota === 0) {
+                zoneRareFish.innerHTML = '<span style="color: var(--text-muted)">无稀有鱼</span>';
+            } else if (remaining > 0) {
+                zoneRareFish.innerHTML = `<span style="color: var(--success-color)">剩余稀有鱼: ${remaining}条</span>`;
+            } else {
+                zoneRareFish.innerHTML = '<span style="color: var(--text-muted)">今日稀有鱼已捕完</span>';
+            }
+        } else {
+            currentZone.textContent = '未知区域';
+            zoneRareFish.textContent = '';
+        }
+    }
+    
+    updateStatusDisplay() {
+        if (!this.userInfo) return;
+        
+        // 更新签到状态
+        const signValue = document.getElementById('signValue');
+        if (this.userInfo.signed_in_today) {
+            signValue.innerHTML = '<span style="color: var(--success-color)">已签到</span>';
+        } else {
+            signValue.innerHTML = '<span style="color: var(--danger-color)">未签到</span>';
+        }
+        
+        // 更新擦弹次数
+        const wipeValue = document.getElementById('wipeValue');
+        const wipeRemaining = this.userInfo.wipe_bomb_remaining || 0;
+        if (wipeRemaining > 0) {
+            wipeValue.innerHTML = `<span style="color: var(--danger-color)">剩余 ${wipeRemaining} 次</span>`;
+        } else {
+            wipeValue.innerHTML = '<span style="color: var(--text-muted)">已用完</span>';
+        }
+        
+        // 更新自动钓鱼状态
+        const autoValue = document.getElementById('autoValue');
+        if (this.userInfo.auto_fishing_enabled) {
+            autoValue.innerHTML = '<span style="color: var(--success-color)">已开启</span>';
+        } else {
+            autoValue.innerHTML = '<span style="color: var(--danger-color)">已关闭</span>';
+        }
+        
+        // 更新鱼塘信息
+        const pondValue = document.getElementById('pondValue');
+        const pondInfo = this.userInfo.pond_info || {};
+        const totalCount = pondInfo.total_count || 0;
+        const totalValue = pondInfo.total_value || 0;
+        
+        if (totalCount > 0) {
+            pondValue.innerHTML = `<span style="color: var(--primary-color)">${totalCount} 条</span><br><small style="color: var(--text-muted)">价值: ${gameApp.formatNumber(totalValue)} 金币</small>`;
+        } else {
+            pondValue.innerHTML = '<span style="color: var(--text-muted)">0 条</span>';
         }
     }
     
@@ -916,7 +1116,16 @@ class GameHome {
             return;
         }
         
-        const zonesHtml = this.zones.map(zone => `
+        const zonesHtml = this.zones.map(zone => {
+            const quota = zone.daily_rare_fish_quota || 0;
+            const caught = zone.rare_fish_caught_today || 0;
+            const remaining = Math.max(0, quota - caught);
+            const rareHtml = quota === 0
+                ? '<div class="zone-requirements text-muted">无稀有鱼</div>'
+                : remaining > 0
+                    ? `<div class="zone-requirements" style="color: var(--success-color)">剩余稀有鱼：${remaining} 条</div>`
+                    : '<div class="zone-requirements text-muted">今日稀有鱼已捕完</div>';
+            return `
             <div class="col-md-6">
                 <div class="zone-card ${zone.id === this.userInfo?.fishing_zone_id ? 'selected' : ''}" 
                      onclick="selectZone(${zone.id})">
@@ -927,9 +1136,10 @@ class GameHome {
                         ${gameApp.formatNumber(zone.fishing_cost || 10)} 金币/次
                     </div>
                     ${zone.requires_pass ? '<div class="zone-requirements">需要通行证</div>' : ''}
+                    ${rareHtml}
                 </div>
             </div>
-        `).join('');
+        `}).join('');
         
         container.innerHTML = zonesHtml;
     }

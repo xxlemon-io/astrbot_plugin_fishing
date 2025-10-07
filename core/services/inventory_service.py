@@ -381,7 +381,7 @@ class InventoryService:
         user.coins += total_value
         self.user_repo.update(user)
 
-        # 4. 自动消耗“钱袋”类道具（ADD_COINS），并统计获得金币
+        # 4. 自动消耗"钱袋"类道具（ADD_COINS），并统计获得金币
         coins_from_bags = self._auto_consume_money_bags(user)
 
         # 构造详细的结果消息
@@ -410,7 +410,7 @@ class InventoryService:
 
     def _auto_consume_money_bags(self, user) -> int:
         """
-        自动消耗所有“钱袋”类道具（effect_type == "ADD_COINS"），返回获得金币总数。
+        自动消耗所有"钱袋"类道具（effect_type == "ADD_COINS"），返回获得金币总数。
         不产生单独消息，直接修改用户金币并统计总额，用于砸锅卖铁聚合展示。
         """
         try:
@@ -702,6 +702,36 @@ class InventoryService:
         self.user_repo.update(user)
 
         return {"success": True, "message": f"💫 装备 【{equip_item_name}】 成功！"}
+
+    def unequip_item(self, user_id: str, item_type: str) -> Dict[str, Any]:
+        """
+        卸下一个物品（鱼竿或饰品）。
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        if item_type == "rod":
+            if user.equipped_rod_instance_id is None:
+                return {"success": False, "message": "❌ 没有装备鱼竿"}
+            user.equipped_rod_instance_id = None
+            message = "💫 成功卸下鱼竿！"
+        elif item_type == "accessory":
+            if user.equipped_accessory_instance_id is None:
+                return {"success": False, "message": "❌ 没有装备饰品"}
+            user.equipped_accessory_instance_id = None
+            message = "💫 成功卸下饰品！"
+        else:
+            return {"success": False, "message": "❌ 不支持的装备类型"}
+
+        self.inventory_repo.set_equipment_status(
+            user_id,
+            rod_instance_id=user.equipped_rod_instance_id,
+            accessory_instance_id=user.equipped_accessory_instance_id
+        )
+        self.user_repo.update(user)
+
+        return {"success": True, "message": message}
 
     def use_bait(self, user_id: str, bait_id: int) -> Dict[str, Any]:
         """

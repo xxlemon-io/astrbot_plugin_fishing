@@ -826,8 +826,7 @@ class InventoryModule {
             showLoading(true);
             const response = await gameApp.apiCall('/inventory/equip', 'POST', {
                 item_type: type,
-                item_id: itemId,
-                action: 'equip'
+                item_id: itemId
             });
             
             if (response.success) {
@@ -846,9 +845,9 @@ class InventoryModule {
     async unequipItem(type, itemId) {
         try {
             showLoading(true);
-            const response = await gameApp.apiCall('/inventory/equip', 'POST', {
+            const response = await gameApp.apiCall('/inventory/unequip', 'POST', {
                 item_type: type,
-                action: 'unequip'
+                item_id: itemId
             });
             
             if (response.success) {
@@ -881,6 +880,28 @@ class InventoryModule {
             }
         } catch (error) {
             gameApp.showToast('使用失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async toggleLock(type, itemId, lock) {
+        try {
+            showLoading(true);
+            const action = lock ? 'lock' : 'unlock';
+            const response = await gameApp.apiCall(`/inventory/${action}`, 'POST', {
+                item_type: type,
+                instance_id: itemId
+            });
+            
+            if (response.success) {
+                gameApp.showToast(lock ? '锁定成功' : '解锁成功', 'success');
+                await this.loadAllInventory();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('操作失败，请稍后重试', 'danger');
         } finally {
             showLoading(false);
         }
@@ -946,7 +967,7 @@ class InventoryModule {
             showLoading(true);
             const response = await gameApp.apiCall('/inventory/refine', 'POST', {
                 item_type: type,
-                item_id: itemId
+                instance_id: itemId
             });
             
             if (response.success) {
@@ -991,7 +1012,7 @@ class InventoryModule {
             showLoading(true);
             const response = await gameApp.apiCall('/inventory/sell', 'POST', {
                 item_type: type,
-                item_id: itemId,
+                instance_id: itemId,
                 quantity: 1
             });
             
@@ -1134,7 +1155,7 @@ class InventoryModule {
             showLoading(true);
             const response = await gameApp.apiCall('/inventory/refine', 'POST', {
                 item_type: type,
-                item_id: parseInt(itemId),
+                instance_id: parseInt(itemId),
                 quantity: quantity
             });
             
@@ -1243,6 +1264,12 @@ function unequipItem(type, itemId) {
 function useItem(type, itemId) {
     if (window.inventoryModule) {
         window.inventoryModule.useItem(type, itemId);
+    }
+}
+
+function toggleLock(type, itemId, lock) {
+    if (window.inventoryModule) {
+        window.inventoryModule.toggleLock(type, itemId, lock);
     }
 }
 

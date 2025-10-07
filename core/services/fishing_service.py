@@ -454,6 +454,7 @@ class FishingService:
                     "rarity": fish_template.rarity,
                     "description": fish_template.description,
                     "value": fish_template.base_value,
+                    "weight": stat.max_weight,  # 使用最大重量作为显示重量
                     "first_caught_time": stat.first_caught_at,
                     "last_caught_time": stat.last_caught_at,
                     "max_weight": stat.max_weight,
