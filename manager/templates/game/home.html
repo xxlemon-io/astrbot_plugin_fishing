@@ -1,0 +1,597 @@
+{% extends "game/layout_game.html" %}
+
+{% block title %}钓鱼游戏 - 首页{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 欢迎区域 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-body text-center">
+                    <h2 class="text-gradient mb-3">
+                        <i class="fas fa-fish me-2"></i>
+                        欢迎来到钓鱼游戏！
+                    </h2>
+                    <p class="text-muted mb-0">开始您的钓鱼之旅，收集稀有鱼类，成为钓鱼大师！</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 用户状态卡片 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user-circle me-2"></i>
+                        我的状态
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshUserInfo()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="stat-item">
+                                <i class="fas fa-coins text-warning fa-2x mb-2"></i>
+                                <div class="stat-value" id="userCoinsDisplay">0</div>
+                                <div class="stat-label">金币</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-item">
+                                <i class="fas fa-gem text-info fa-2x mb-2"></i>
+                                <div class="stat-value" id="userPremiumDisplay">0</div>
+                                <div class="stat-label">钻石</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-item">
+                                <i class="fas fa-fish text-primary fa-2x mb-2"></i>
+                                <div class="stat-value" id="userFishingCount">0</div>
+                                <div class="stat-label">钓鱼次数</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 当前装备 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tools me-2"></i>
+                        当前装备
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="equipment-item text-center">
+                                <i class="fas fa-fishing-rod text-primary fa-2x mb-2"></i>
+                                <div class="equipment-name" id="currentRod">无鱼竿</div>
+                                <div class="equipment-level" id="rodLevel"></div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="equipment-item text-center">
+                                <i class="fas fa-gem text-info fa-2x mb-2"></i>
+                                <div class="equipment-name" id="currentAccessory">无饰品</div>
+                                <div class="equipment-level" id="accessoryLevel"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 快捷操作 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bolt me-2"></i>
+                        快捷操作
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-primary btn-game-lg w-100" onclick="goFishing()">
+                                <i class="fas fa-fish me-2"></i>
+                                开始钓鱼
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-success btn-game-lg w-100" onclick="signIn()">
+                                <i class="fas fa-calendar-check me-2"></i>
+                                每日签到
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-warning btn-game-lg w-100" onclick="toggleAutoFishing()">
+                                <i class="fas fa-play-circle me-2"></i>
+                                <span id="autoFishingText">开启自动钓鱼</span>
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-info btn-game-lg w-100" onclick="switchZone()">
+                                <i class="fas fa-map-marker-alt me-2"></i>
+                                切换区域
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 钓鱼冷却状态 -->
+    <div class="row mb-4" id="cooldownSection" style="display: none;">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-body text-center">
+                    <i class="fas fa-clock text-warning fa-2x mb-2"></i>
+                    <h5>钓鱼冷却中</h5>
+                    <p class="text-muted mb-2">请等待以下时间后再次钓鱼：</p>
+                    <div class="countdown-display">
+                        <span class="countdown-time" id="cooldownTime">00:00</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 最近钓鱼记录 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>
+                        最近钓鱼记录
+                    </h5>
+                    <a href="{{ url_for('game_bp.game_fishing') }}" class="btn btn-sm btn-outline-primary">
+                        查看全部
+                    </a>
+                </div>
+                <div class="card-body">
+                    <div id="recentFishingRecords">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-fish fa-2x mb-2"></i>
+                            <p>暂无钓鱼记录</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 游戏统计 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        游戏统计
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 col-md-3 mb-3">
+                            <div class="stat-item">
+                                <i class="fas fa-weight text-success fa-lg mb-1"></i>
+                                <div class="stat-value" id="totalWeight">0</div>
+                                <div class="stat-label">总重量(克)</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3 mb-3">
+                            <div class="stat-item">
+                                <i class="fas fa-coins text-warning fa-lg mb-1"></i>
+                                <div class="stat-value" id="totalEarned">0</div>
+                                <div class="stat-label">总收益(金币)</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3 mb-3">
+                            <div class="stat-item">
+                                <i class="fas fa-calendar-day text-info fa-lg mb-1"></i>
+                                <div class="stat-value" id="consecutiveDays">0</div>
+                                <div class="stat-label">连续登录(天)</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3 mb-3">
+                            <div class="stat-item">
+                                <i class="fas fa-water text-primary fa-lg mb-1"></i>
+                                <div class="stat-value" id="pondCapacity">0</div>
+                                <div class="stat-label">鱼塘容量</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.stat-item {
+    padding: 1rem 0.5rem;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--dark-color);
+    margin: 0.5rem 0;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.equipment-item {
+    padding: 1rem;
+    border: 2px dashed #e9ecef;
+    border-radius: var(--border-radius);
+    transition: var(--transition);
+}
+
+.equipment-item:hover {
+    border-color: var(--primary-color);
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.equipment-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.equipment-level {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.countdown-display {
+    font-size: 2rem;
+    font-weight: bold;
+    color: var(--warning-color);
+    font-family: 'Courier New', monospace;
+}
+
+.fishing-record {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    transition: var(--transition);
+}
+
+.fishing-record:hover {
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.fishing-record:last-child {
+    border-bottom: none;
+}
+
+.fish-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.2rem;
+}
+
+.fish-info {
+    flex: 1;
+}
+
+.fish-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.fish-details {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.fish-value {
+    font-weight: 600;
+    color: var(--success-color);
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class GameHome {
+    constructor() {
+        this.userInfo = null;
+        this.cooldownTimer = null;
+        this.init();
+    }
+    
+    async init() {
+        await this.loadUserInfo();
+        await this.loadRecentRecords();
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        // 定期刷新用户信息
+        setInterval(() => {
+            this.loadUserInfo();
+        }, 30000);
+    }
+    
+    async loadUserInfo() {
+        try {
+            const response = await gameApp.apiCall('/profile', 'GET');
+            if (response.success) {
+                this.userInfo = response.data;
+                this.updateUserDisplay();
+            }
+        } catch (error) {
+            console.error('Failed to load user info:', error);
+        }
+    }
+    
+    updateUserDisplay() {
+        if (!this.userInfo) return;
+        
+        // 更新状态显示
+        document.getElementById('userCoinsDisplay').textContent = gameApp.formatNumber(this.userInfo.coins || 0);
+        document.getElementById('userPremiumDisplay').textContent = gameApp.formatNumber(this.userInfo.premium_currency || 0);
+        document.getElementById('userFishingCount').textContent = this.userInfo.total_fishing_count || 0;
+        document.getElementById('totalWeight').textContent = this.userInfo.total_weight_caught || 0;
+        document.getElementById('totalEarned').textContent = gameApp.formatNumber(this.userInfo.total_coins_earned || 0);
+        document.getElementById('consecutiveDays').textContent = this.userInfo.consecutive_login_days || 0;
+        document.getElementById('pondCapacity').textContent = this.userInfo.fish_pond_capacity || 0;
+        
+        // 更新自动钓鱼状态
+        const autoFishingText = document.getElementById('autoFishingText');
+        if (this.userInfo.auto_fishing_enabled) {
+            autoFishingText.textContent = '关闭自动钓鱼';
+        } else {
+            autoFishingText.textContent = '开启自动钓鱼';
+        }
+    }
+    
+    async loadRecentRecords() {
+        try {
+            // 这里应该调用获取最近钓鱼记录的API
+            // 暂时显示占位内容
+            const container = document.getElementById('recentFishingRecords');
+            container.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-fish fa-2x mb-2"></i>
+                    <p>暂无钓鱼记录</p>
+                </div>
+            `;
+        } catch (error) {
+            console.error('Failed to load recent records:', error);
+        }
+    }
+    
+    async goFishing() {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/fishing/cast', 'POST');
+            
+            if (response.success) {
+                const fish = response.data.fish;
+                const message = response.data.message;
+                
+                // 显示钓鱼结果
+                this.showFishingResult(fish, message);
+                
+                // 刷新用户信息
+                await this.loadUserInfo();
+                
+                // 显示冷却时间
+                this.showCooldown();
+                
+            } else {
+                gameApp.showToast(response.message, 'danger');
+                
+                // 如果是冷却中，显示冷却时间
+                if (response.message.includes('等待')) {
+                    this.showCooldown();
+                }
+            }
+        } catch (error) {
+            gameApp.showToast('钓鱼失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    showFishingResult(fish, message) {
+        if (fish) {
+            const resultHtml = `
+                <div class="fishing-result text-center">
+                    <div class="fish-icon bg-${this.getRarityColor(fish.rarity)} text-white mb-3">
+                        <i class="fas fa-fish"></i>
+                    </div>
+                    <h4 class="fish-name">${fish.name}</h4>
+                    <div class="fish-details mb-2">
+                        <span class="star-rating">${'★'.repeat(fish.rarity)}</span>
+                        <span class="ms-2">重量: ${fish.weight}克</span>
+                    </div>
+                    <div class="fish-value">价值: ${fish.value} 金币</div>
+                </div>
+            `;
+            
+            // 显示结果模态框
+            this.showModal('钓鱼结果', resultHtml);
+        } else {
+            gameApp.showToast(message, 'info');
+        }
+    }
+    
+    getRarityColor(rarity) {
+        const colors = {
+            1: 'secondary',
+            2: 'success',
+            3: 'primary',
+            4: 'info',
+            5: 'warning',
+            6: 'dark',
+            7: 'danger',
+            8: 'warning',
+            9: 'info',
+            10: 'danger'
+        };
+        return colors[rarity] || 'secondary';
+    }
+    
+    showModal(title, content) {
+        const modalHtml = `
+            <div class="modal fade" id="resultModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">${title}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            ${content}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">确定</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modal = new bootstrap.Modal(document.getElementById('resultModal'));
+        modal.show();
+        
+        document.getElementById('resultModal').addEventListener('hidden.bs.modal', () => {
+            document.getElementById('resultModal').remove();
+        });
+    }
+    
+    showCooldown() {
+        const cooldownSection = document.getElementById('cooldownSection');
+        cooldownSection.style.display = 'block';
+        
+        // 模拟冷却时间（实际应该从服务器获取）
+        let remaining = 180; // 3分钟
+        const cooldownTime = document.getElementById('cooldownTime');
+        
+        const updateCooldown = () => {
+            cooldownTime.textContent = gameApp.formatTime(remaining);
+            remaining--;
+            
+            if (remaining < 0) {
+                cooldownSection.style.display = 'none';
+                return;
+            }
+            
+            setTimeout(updateCooldown, 1000);
+        };
+        
+        updateCooldown();
+    }
+    
+    async signIn() {
+        try {
+            showLoading(true);
+            // 这里应该调用签到API
+            gameApp.showToast('签到功能暂未实现', 'info');
+        } catch (error) {
+            gameApp.showToast('签到失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async toggleAutoFishing() {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/fishing/toggle-auto', 'POST');
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                await this.loadUserInfo();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('操作失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async switchZone() {
+        try {
+            // 这里应该显示区域选择模态框
+            gameApp.showToast('区域切换功能暂未实现', 'info');
+        } catch (error) {
+            gameApp.showToast('切换区域失败，请稍后重试', 'danger');
+        }
+    }
+}
+
+// 全局函数
+function goFishing() {
+    if (window.gameHome) {
+        window.gameHome.goFishing();
+    }
+}
+
+function signIn() {
+    if (window.gameHome) {
+        window.gameHome.signIn();
+    }
+}
+
+function toggleAutoFishing() {
+    if (window.gameHome) {
+        window.gameHome.toggleAutoFishing();
+    }
+}
+
+function switchZone() {
+    if (window.gameHome) {
+        window.gameHome.switchZone();
+    }
+}
+
+function refreshUserInfo() {
+    if (window.gameHome) {
+        window.gameHome.loadUserInfo();
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    window.gameHome = new GameHome();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,820 @@
+{% extends "game/layout_game.html" %}
+
+{% block title %}钓鱼游戏 - 个人中心{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 个人信息卡片 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <div class="user-avatar">
+                                <i class="fas fa-user-circle fa-4x text-primary"></i>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <h4 class="user-name mb-1" id="userName">玩家</h4>
+                            <p class="text-muted mb-2" id="userQQ">QQ: 123456789</p>
+                            <div class="user-stats">
+                                <span class="badge bg-primary me-2" id="userLevel">等级 1</span>
+                                <span class="badge bg-success" id="userTitle">新手钓手</span>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <button class="btn btn-outline-primary" onclick="editProfile()">
+                                <i class="fas fa-edit me-1"></i>
+                                编辑资料
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 资产概览 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-wallet me-2"></i>
+                        资产概览
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 col-md-3 mb-3">
+                            <div class="stat-item">
+                                <i class="fas fa-coins text-warning fa-2x mb-2"></i>
+                                <div class="stat-value" id="totalCoins">0</div>
+                                <div class="stat-label">总金币</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3 mb-3">
+                            <div class="stat-item">
+                                <i class="fas fa-gem text-info fa-2x mb-2"></i>
+                                <div class="stat-value" id="totalPremium">0</div>
+                                <div class="stat-label">总钻石</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3 mb-3">
+                            <div class="stat-item">
+                                <i class="fas fa-fish text-primary fa-2x mb-2"></i>
+                                <div class="stat-value" id="fishCount">0</div>
+                                <div class="stat-label">鱼类数量</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-md-3 mb-3">
+                            <div class="stat-item">
+                                <i class="fas fa-trophy text-warning fa-2x mb-2"></i>
+                                <div class="stat-value" id="achievementCount">0</div>
+                                <div class="stat-label">成就数量</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 游戏统计 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        游戏统计
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="stat-section">
+                                <h6 class="stat-section-title">钓鱼统计</h6>
+                                <div class="stat-list">
+                                    <div class="stat-item">
+                                        <span class="stat-label">总钓鱼次数</span>
+                                        <span class="stat-value" id="totalFishingCount">0</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">总重量</span>
+                                        <span class="stat-value" id="totalWeight">0 克</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">总收益</span>
+                                        <span class="stat-value" id="totalEarned">0 金币</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">最大单次重量</span>
+                                        <span class="stat-value" id="maxWeight">0 克</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="stat-section">
+                                <h6 class="stat-section-title">账户信息</h6>
+                                <div class="stat-list">
+                                    <div class="stat-item">
+                                        <span class="stat-label">注册时间</span>
+                                        <span class="stat-value" id="registerDate">未知</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">最后登录</span>
+                                        <span class="stat-value" id="lastLogin">未知</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">连续登录</span>
+                                        <span class="stat-value" id="consecutiveDays">0 天</span>
+                                    </div>
+                                    <div class="stat-item">
+                                        <span class="stat-label">鱼塘容量</span>
+                                        <span class="stat-value" id="pondCapacity">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 成就系统 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-trophy me-2"></i>
+                        成就系统
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showAllAchievements()">
+                        查看全部
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="achievementsList">
+                        <div class="col-12 text-center text-muted">
+                            <i class="fas fa-trophy fa-2x mb-2"></i>
+                            <p>暂无成就</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置选项 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cog me-2"></i>
+                        设置
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="settings-list">
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <i class="fas fa-bell text-primary me-3"></i>
+                                <div>
+                                    <h6 class="mb-1">消息通知</h6>
+                                    <p class="text-muted mb-0">接收游戏相关通知</p>
+                                </div>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="notificationSwitch" checked>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <i class="fas fa-volume-up text-success me-3"></i>
+                                <div>
+                                    <h6 class="mb-1">音效</h6>
+                                    <p class="text-muted mb-0">游戏音效开关</p>
+                                </div>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="soundSwitch" checked>
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <i class="fas fa-moon text-info me-3"></i>
+                                <div>
+                                    <h6 class="mb-1">深色模式</h6>
+                                    <p class="text-muted mb-0">切换深色主题</p>
+                                </div>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="darkModeSwitch">
+                            </div>
+                        </div>
+                        
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <i class="fas fa-language text-warning me-3"></i>
+                                <div>
+                                    <h6 class="mb-1">语言设置</h6>
+                                    <p class="text-muted mb-0">选择界面语言</p>
+                                </div>
+                            </div>
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    简体中文
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="#">简体中文</a></li>
+                                    <li><a class="dropdown-item" href="#">English</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-primary w-100" onclick="exportData()">
+                                <i class="fas fa-download me-2"></i>
+                                导出数据
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-warning w-100" onclick="clearCache()">
+                                <i class="fas fa-trash me-2"></i>
+                                清理缓存
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-info w-100" onclick="showHelp()">
+                                <i class="fas fa-question-circle me-2"></i>
+                                帮助中心
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-danger w-100" onclick="logout()">
+                                <i class="fas fa-sign-out-alt me-2"></i>
+                                退出登录
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 编辑资料模态框 -->
+<div class="modal fade" id="editProfileModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>
+                    编辑资料
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editProfileForm">
+                    <div class="mb-3">
+                        <label for="nicknameInput" class="form-label">昵称</label>
+                        <input type="text" class="form-control" id="nicknameInput" placeholder="请输入昵称">
+                    </div>
+                    <div class="mb-3">
+                        <label for="titleSelect" class="form-label">称号</label>
+                        <select class="form-select" id="titleSelect">
+                            <option value="新手钓手">新手钓手</option>
+                            <option value="熟练钓手">熟练钓手</option>
+                            <option value="专业钓手">专业钓手</option>
+                            <option value="大师钓手">大师钓手</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveProfile()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 成就详情模态框 -->
+<div class="modal fade" id="achievementModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-trophy me-2"></i>
+                    成就详情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="achievementContent">
+                <!-- 成就内容 -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.user-avatar {
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.user-name {
+    color: var(--dark-color);
+    font-weight: 600;
+}
+
+.user-stats {
+    margin-top: 0.5rem;
+}
+
+.stat-section {
+    margin-bottom: 1.5rem;
+}
+
+.stat-section-title {
+    color: var(--dark-color);
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--primary-color);
+}
+
+.stat-list {
+    space-y: 0.75rem;
+}
+
+.stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.stat-item:last-child {
+    border-bottom: none;
+}
+
+.stat-label {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.stat-value {
+    color: var(--dark-color);
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+.achievement-item {
+    border: 2px solid #e9ecef;
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: var(--transition);
+    cursor: pointer;
+    position: relative;
+}
+
+.achievement-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow);
+    transform: translateY(-2px);
+}
+
+.achievement-item.completed {
+    border-color: var(--success-color);
+    background: rgba(40, 167, 69, 0.05);
+}
+
+.achievement-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.achievement-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.5rem;
+    color: white;
+    flex-shrink: 0;
+}
+
+.achievement-info {
+    flex: 1;
+}
+
+.achievement-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.achievement-description {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+
+.achievement-progress {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    height: 8px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.achievement-progress-bar {
+    height: 100%;
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    transition: width 0.3s ease;
+}
+
+.achievement-reward {
+    font-size: 0.8rem;
+    color: var(--success-color);
+    font-weight: 600;
+}
+
+.achievement-status {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 1.2rem;
+}
+
+.settings-list {
+    space-y: 1rem;
+}
+
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.setting-item:last-child {
+    border-bottom: none;
+}
+
+.setting-info {
+    display: flex;
+    align-items: center;
+    flex: 1;
+}
+
+.setting-info h6 {
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.setting-info p {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin-bottom: 0;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class ProfileModule {
+    constructor() {
+        this.userInfo = null;
+        this.achievements = [];
+        
+        this.init();
+    }
+    
+    async init() {
+        await this.loadUserInfo();
+        await this.loadAchievements();
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        // 设置开关事件
+        document.getElementById('notificationSwitch').addEventListener('change', (e) => {
+            this.updateSetting('notifications', e.target.checked);
+        });
+        
+        document.getElementById('soundSwitch').addEventListener('change', (e) => {
+            this.updateSetting('sound', e.target.checked);
+        });
+        
+        document.getElementById('darkModeSwitch').addEventListener('change', (e) => {
+            this.updateSetting('darkMode', e.target.checked);
+        });
+    }
+    
+    async loadUserInfo() {
+        try {
+            const response = await gameApp.apiCall('/profile', 'GET');
+            if (response.success) {
+                this.userInfo = response.data;
+                this.updateUserDisplay();
+            }
+        } catch (error) {
+            console.error('Failed to load user info:', error);
+        }
+    }
+    
+    async loadAchievements() {
+        try {
+            // 这里应该调用获取成就的API
+            // 暂时显示占位内容
+            this.achievements = [];
+            this.renderAchievements();
+        } catch (error) {
+            console.error('Failed to load achievements:', error);
+        }
+    }
+    
+    updateUserDisplay() {
+        if (!this.userInfo) return;
+        
+        // 更新个人信息
+        document.getElementById('userName').textContent = this.userInfo.nickname || '玩家';
+        document.getElementById('userQQ').textContent = `QQ: ${this.userInfo.user_id}`;
+        
+        // 更新资产概览
+        document.getElementById('totalCoins').textContent = gameApp.formatNumber(this.userInfo.coins || 0);
+        document.getElementById('totalPremium').textContent = gameApp.formatNumber(this.userInfo.premium_currency || 0);
+        
+        // 更新游戏统计
+        document.getElementById('totalFishingCount').textContent = this.userInfo.total_fishing_count || 0;
+        document.getElementById('totalWeight').textContent = this.userInfo.total_weight_caught || 0;
+        document.getElementById('totalEarned').textContent = gameApp.formatNumber(this.userInfo.total_coins_earned || 0);
+        document.getElementById('consecutiveDays').textContent = this.userInfo.consecutive_login_days || 0;
+        document.getElementById('pondCapacity').textContent = this.userInfo.fish_pond_capacity || 0;
+        
+        // 更新注册时间
+        if (this.userInfo.created_at) {
+            const registerDate = new Date(this.userInfo.created_at);
+            document.getElementById('registerDate').textContent = registerDate.toLocaleDateString();
+        }
+        
+        // 更新最后登录时间
+        if (this.userInfo.last_login_time) {
+            const lastLogin = new Date(this.userInfo.last_login_time);
+            document.getElementById('lastLogin').textContent = lastLogin.toLocaleString();
+        }
+    }
+    
+    renderAchievements() {
+        const container = document.getElementById('achievementsList');
+        
+        if (this.achievements.length === 0) {
+            container.innerHTML = `
+                <div class="col-12">
+                    <div class="empty-state">
+                        <i class="fas fa-trophy"></i>
+                        <p>暂无成就</p>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        const achievementsHtml = this.achievements.map(achievement => this.renderAchievement(achievement)).join('');
+        container.innerHTML = achievementsHtml;
+    }
+    
+    renderAchievement(achievement) {
+        const isCompleted = achievement.is_completed || false;
+        const progress = achievement.progress || 0;
+        const maxProgress = achievement.max_progress || 100;
+        const progressPercent = Math.min((progress / maxProgress) * 100, 100);
+        
+        return `
+            <div class="col-12 col-md-6">
+                <div class="achievement-item ${isCompleted ? 'completed' : ''}" 
+                     onclick="showAchievementDetail(${achievement.id})">
+                    <div class="achievement-header">
+                        <div class="achievement-icon bg-${isCompleted ? 'success' : 'secondary'}">
+                            <i class="fas fa-${achievement.icon || 'trophy'}"></i>
+                        </div>
+                        <div class="achievement-info">
+                            <div class="achievement-name">${achievement.name}</div>
+                            <div class="achievement-description">${achievement.description}</div>
+                            <div class="achievement-progress">
+                                <div class="achievement-progress-bar" style="width: ${progressPercent}%"></div>
+                            </div>
+                            <div class="achievement-reward">
+                                奖励: ${achievement.reward || '无'}
+                            </div>
+                        </div>
+                        <div class="achievement-status">
+                            ${isCompleted ? '<i class="fas fa-check-circle text-success"></i>' : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    updateSetting(key, value) {
+        // 保存设置到本地存储
+        const settings = JSON.parse(localStorage.getItem('gameSettings') || '{}');
+        settings[key] = value;
+        localStorage.setItem('gameSettings', JSON.stringify(settings));
+        
+        // 应用设置
+        this.applySettings();
+        
+        gameApp.showToast('设置已保存', 'success');
+    }
+    
+    applySettings() {
+        const settings = JSON.parse(localStorage.getItem('gameSettings') || '{}');
+        
+        // 应用深色模式
+        if (settings.darkMode) {
+            document.body.classList.add('dark-mode');
+        } else {
+            document.body.classList.remove('dark-mode');
+        }
+        
+        // 应用音效设置
+        // 这里可以控制音效的播放
+    }
+    
+    editProfile() {
+        const modal = new bootstrap.Modal(document.getElementById('editProfileModal'));
+        
+        // 填充当前信息
+        document.getElementById('nicknameInput').value = this.userInfo?.nickname || '';
+        document.getElementById('titleSelect').value = '新手钓手'; // 这里应该从用户信息获取
+        
+        modal.show();
+    }
+    
+    async saveProfile() {
+        try {
+            const nickname = document.getElementById('nicknameInput').value.trim();
+            const title = document.getElementById('titleSelect').value;
+            
+            if (!nickname) {
+                gameApp.showToast('请输入昵称', 'warning');
+                return;
+            }
+            
+            // 这里应该调用更新用户信息的API
+            gameApp.showToast('资料更新成功', 'success');
+            
+            // 更新显示
+            if (this.userInfo) {
+                this.userInfo.nickname = nickname;
+                this.updateUserDisplay();
+            }
+            
+            bootstrap.Modal.getInstance(document.getElementById('editProfileModal')).hide();
+        } catch (error) {
+            gameApp.showToast('更新失败，请稍后重试', 'danger');
+        }
+    }
+    
+    showAllAchievements() {
+        gameApp.showToast('成就系统功能暂未完全实现', 'info');
+    }
+    
+    showAchievementDetail(achievementId) {
+        const achievement = this.achievements.find(a => a.id === achievementId);
+        if (!achievement) return;
+        
+        const modal = new bootstrap.Modal(document.getElementById('achievementModal'));
+        
+        document.getElementById('achievementContent').innerHTML = `
+            <div class="text-center">
+                <div class="achievement-icon bg-${achievement.is_completed ? 'success' : 'secondary'} mx-auto mb-3" style="width: 80px; height: 80px; font-size: 2rem;">
+                    <i class="fas fa-${achievement.icon || 'trophy'}"></i>
+                </div>
+                <h4>${achievement.name}</h4>
+                <p class="text-muted">${achievement.description}</p>
+                <div class="achievement-progress mb-3">
+                    <div class="achievement-progress-bar" style="width: ${Math.min((achievement.progress || 0) / (achievement.max_progress || 100) * 100, 100)}%"></div>
+                </div>
+                <p>进度: ${achievement.progress || 0} / ${achievement.max_progress || 100}</p>
+                <p class="text-success">奖励: ${achievement.reward || '无'}</p>
+            </div>
+        `;
+        
+        modal.show();
+    }
+    
+    exportData() {
+        gameApp.showToast('数据导出功能暂未实现', 'info');
+    }
+    
+    clearCache() {
+        if (gameApp.confirm('确定要清理缓存吗？这将清除所有本地数据。', '确认清理')) {
+            localStorage.clear();
+            gameApp.showToast('缓存已清理', 'success');
+        }
+    }
+    
+    showHelp() {
+        gameApp.showToast('帮助中心功能暂未实现', 'info');
+    }
+}
+
+// 全局函数
+function editProfile() {
+    if (window.profileModule) {
+        window.profileModule.editProfile();
+    }
+}
+
+function saveProfile() {
+    if (window.profileModule) {
+        window.profileModule.saveProfile();
+    }
+}
+
+function showAllAchievements() {
+    if (window.profileModule) {
+        window.profileModule.showAllAchievements();
+    }
+}
+
+function showAchievementDetail(achievementId) {
+    if (window.profileModule) {
+        window.profileModule.showAchievementDetail(achievementId);
+    }
+}
+
+function exportData() {
+    if (window.profileModule) {
+        window.profileModule.exportData();
+    }
+}
+
+function clearCache() {
+    if (window.profileModule) {
+        window.profileModule.clearCache();
+    }
+}
+
+function showHelp() {
+    if (window.profileModule) {
+        window.profileModule.showHelp();
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    window.profileModule = new ProfileModule();
+});
+</script>
+{% endblock %}

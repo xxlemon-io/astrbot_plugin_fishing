@@ -313,6 +313,7 @@ async def start_admin(self, event: AstrMessageEvent):
             "fishing_zone_service": self.fishing_zone_service,
             "shop_service": self.shop_service,
             "exchange_service": self.exchange_service,
+            "plugin_instance": self,  # 传递插件实例用于发送验证码
         }
         app = create_app(
             secret_key=self.secret_key,

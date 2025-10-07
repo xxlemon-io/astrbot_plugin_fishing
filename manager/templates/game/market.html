@@ -1,0 +1,1027 @@
+{% extends "game/layout_game.html" %}
+
+{% block title %}钓鱼游戏 - 市场{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 市场筛选 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h5 class="mb-0">
+                                <i class="fas fa-shopping-cart me-2"></i>
+                                交易市场
+                            </h5>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="marketSearch" placeholder="搜索商品...">
+                                <button class="btn btn-outline-primary" type="button" onclick="searchMarket()">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 市场导航 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-body p-2">
+                    <ul class="nav nav-pills nav-fill" id="marketTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="browse-tab" data-bs-toggle="pill" data-bs-target="#browse-pane" type="button" role="tab">
+                                <i class="fas fa-search me-1"></i>
+                                浏览市场
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="sell-tab" data-bs-toggle="pill" data-bs-target="#sell-pane" type="button" role="tab">
+                                <i class="fas fa-plus me-1"></i>
+                                上架商品
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="my-listings-tab" data-bs-toggle="pill" data-bs-target="#my-listings-pane" type="button" role="tab">
+                                <i class="fas fa-list me-1"></i>
+                                我的上架
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 市场内容 -->
+    <div class="tab-content" id="marketTabContent">
+        <!-- 浏览市场 -->
+        <div class="tab-pane fade show active" id="browse-pane" role="tabpanel">
+            <!-- 筛选选项 -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="game-card">
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <select class="form-select" id="categoryFilter">
+                                        <option value="">所有分类</option>
+                                        <option value="fish">鱼类</option>
+                                        <option value="rod">鱼竿</option>
+                                        <option value="accessory">饰品</option>
+                                        <option value="item">道具</option>
+                                        <option value="bait">鱼饵</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <select class="form-select" id="rarityFilter">
+                                        <option value="">所有稀有度</option>
+                                        <option value="1">★ 普通</option>
+                                        <option value="2">★★ 优秀</option>
+                                        <option value="3">★★★ 稀有</option>
+                                        <option value="4">★★★★ 史诗</option>
+                                        <option value="5">★★★★★ 传说</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="number" class="form-control" id="minPriceFilter" placeholder="最低价格">
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="number" class="form-control" id="maxPriceFilter" placeholder="最高价格">
+                                </div>
+                            </div>
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <button class="btn btn-primary me-2" onclick="applyFilters()">
+                                        <i class="fas fa-filter me-1"></i>
+                                        应用筛选
+                                    </button>
+                                    <button class="btn btn-outline-secondary" onclick="clearFilters()">
+                                        <i class="fas fa-times me-1"></i>
+                                        清除筛选
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 商品列表 -->
+            <div class="row" id="marketList">
+                <div class="col-12 text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">加载商品列表中...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 上架商品 -->
+        <div class="tab-pane fade" id="sell-pane" role="tabpanel">
+            <div class="row">
+                <div class="col-12">
+                    <div class="game-card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-plus me-2"></i>
+                                上架商品
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="sellForm">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label for="itemSelect" class="form-label">选择物品</label>
+                                        <select class="form-select" id="itemSelect" required>
+                                            <option value="">请选择要上架的物品</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="quantityInput" class="form-label">数量</label>
+                                        <input type="number" class="form-control" id="quantityInput" min="1" value="1" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="priceInput" class="form-label">单价（金币）</label>
+                                        <input type="number" class="form-control" id="priceInput" min="1" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="totalPriceDisplay" class="form-label">总价</label>
+                                        <input type="text" class="form-control" id="totalPriceDisplay" readonly>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="anonymousCheck">
+                                            <label class="form-check-label" for="anonymousCheck">
+                                                匿名上架（其他玩家看不到您的QQ号）
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <button type="submit" class="btn btn-game btn-game-success">
+                                            <i class="fas fa-upload me-2"></i>
+                                            上架商品
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 我的上架 -->
+        <div class="tab-pane fade" id="my-listings-pane" role="tabpanel">
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">我的上架商品</h6>
+                        <button class="btn btn-outline-danger btn-sm" onclick="removeAllListings()">
+                            <i class="fas fa-trash me-1"></i>
+                            全部下架
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="row" id="myListingsList">
+                <div class="col-12 text-center text-muted">
+                    <i class="fas fa-list fa-2x mb-2"></i>
+                    <p>暂无上架商品</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 商品详情模态框 -->
+<div class="modal fade" id="itemDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="itemDetailTitle">
+                    <i class="fas fa-shopping-cart me-2"></i>
+                    商品详情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="itemDetailContent">
+                <!-- 商品详情内容 -->
+            </div>
+            <div class="modal-footer" id="itemDetailActions">
+                <!-- 操作按钮 -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 购买确认模态框 -->
+<div class="modal fade" id="purchaseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-shopping-cart me-2"></i>
+                    确认购买
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="purchaseContent">
+                <!-- 购买确认内容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmPurchaseBtn">确认购买</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 下架确认模态框 -->
+<div class="modal fade" id="removeListingModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-trash me-2"></i>
+                    确认下架
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="removeListingContent">
+                <!-- 下架确认内容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmRemoveBtn">确认下架</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.market-item {
+    border: 2px solid #e9ecef;
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: var(--transition);
+    cursor: pointer;
+    position: relative;
+}
+
+.market-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow);
+    transform: translateY(-2px);
+}
+
+.market-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+}
+
+.item-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.5rem;
+    color: white;
+    flex-shrink: 0;
+}
+
+.item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.item-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+    font-size: 1.1rem;
+}
+
+.item-description {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+
+.item-price {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--warning-color);
+    text-align: right;
+}
+
+.item-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.seller-info {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.item-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.item-action-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    border-radius: 6px;
+    border: none;
+    transition: var(--transition);
+}
+
+.item-action-btn:hover {
+    transform: translateY(-1px);
+}
+
+.buy-btn {
+    background: var(--success-color);
+    color: white;
+}
+
+.view-btn {
+    background: var(--primary-color);
+    color: white;
+}
+
+.remove-btn {
+    background: var(--danger-color);
+    color: white;
+}
+
+.rarity-stars {
+    color: #ffc107;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.quantity-badge {
+    background: var(--info-color);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: inline-block;
+    margin-bottom: 0.5rem;
+}
+
+.anonymous-badge {
+    background: var(--secondary-color);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: inline-block;
+    margin-left: 0.5rem;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.price-input-group {
+    position: relative;
+}
+
+.price-suggestion {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #e9ecef;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    display: none;
+}
+
+.price-suggestion-item {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+.price-suggestion-item:hover {
+    background: #f8f9fa;
+}
+
+.price-suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.my-listing-item {
+    border: 2px solid #e9ecef;
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: var(--transition);
+}
+
+.my-listing-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow);
+}
+
+.listing-status {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.status-active {
+    color: var(--success-color);
+}
+
+.status-sold {
+    color: var(--info-color);
+}
+
+.status-expired {
+    color: var(--danger-color);
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class MarketModule {
+    constructor() {
+        this.currentTab = 'browse';
+        this.marketItems = [];
+        this.myListings = [];
+        this.userItems = [];
+        this.filters = {
+            category: '',
+            rarity: '',
+            minPrice: '',
+            maxPrice: ''
+        };
+        
+        this.init();
+    }
+    
+    async init() {
+        await this.loadMarketItems();
+        await this.loadMyListings();
+        await this.loadUserItems();
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        // 搜索功能
+        const searchInput = document.getElementById('marketSearch');
+        searchInput.addEventListener('input', (e) => {
+            this.searchTerm = e.target.value;
+            this.filterItems();
+        });
+        
+        // 回车搜索
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.searchMarket();
+            }
+        });
+        
+        // 标签页切换
+        const tabs = document.querySelectorAll('#marketTabs button[data-bs-toggle="pill"]');
+        tabs.forEach(tab => {
+            tab.addEventListener('shown.bs.tab', (event) => {
+                const target = event.target.getAttribute('data-bs-target');
+                this.currentTab = target.replace('#', '').replace('-pane', '');
+                this.loadTabData(this.currentTab);
+            });
+        });
+        
+        // 上架表单
+        document.getElementById('sellForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.submitListing();
+        });
+        
+        // 价格计算
+        document.getElementById('quantityInput').addEventListener('input', () => {
+            this.calculateTotalPrice();
+        });
+        
+        document.getElementById('priceInput').addEventListener('input', () => {
+            this.calculateTotalPrice();
+        });
+    }
+    
+    async loadMarketItems() {
+        try {
+            const response = await gameApp.apiCall('/market/listings', 'GET');
+            if (response.success) {
+                this.marketItems = response.data || [];
+                this.renderMarketItems();
+            }
+        } catch (error) {
+            console.error('Failed to load market items:', error);
+            this.showEmptyState('加载商品失败');
+        }
+    }
+    
+    async loadMyListings() {
+        try {
+            const response = await gameApp.apiCall('/market/my-listings', 'GET');
+            if (response.success) {
+                this.myListings = response.data || [];
+                this.renderMyListings();
+            }
+        } catch (error) {
+            console.error('Failed to load my listings:', error);
+        }
+    }
+    
+    async loadUserItems() {
+        try {
+            // 这里应该调用获取用户物品的API
+            this.userItems = [];
+            this.populateItemSelect();
+        } catch (error) {
+            console.error('Failed to load user items:', error);
+        }
+    }
+    
+    loadTabData(tab) {
+        switch (tab) {
+            case 'browse':
+                this.renderMarketItems();
+                break;
+            case 'sell':
+                this.populateItemSelect();
+                break;
+            case 'my-listings':
+                this.renderMyListings();
+                break;
+        }
+    }
+    
+    renderMarketItems() {
+        const container = document.getElementById('marketList');
+        
+        if (this.marketItems.length === 0) {
+            this.showEmptyState('暂无商品');
+            return;
+        }
+        
+        const itemsHtml = this.marketItems.map(item => this.renderMarketItem(item)).join('');
+        container.innerHTML = itemsHtml;
+    }
+    
+    renderMarketItem(item) {
+        const rarity = item.rarity || 1;
+        const rarityColor = this.getRarityColor(rarity);
+        
+        return `
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="market-item" onclick="showItemDetail(${item.listing_id})">
+                    <div class="market-item-header">
+                        <div class="item-icon bg-${rarityColor}">
+                            <i class="fas fa-${this.getItemIcon(item.item_type)}"></i>
+                        </div>
+                        <div class="item-info">
+                            <div class="item-name">${item.item_name}</div>
+                            <div class="item-description">${item.description || ''}</div>
+                            <div class="rarity-stars">${'★'.repeat(rarity)}</div>
+                            <div class="quantity-badge">x${item.quantity}</div>
+                        </div>
+                        <div class="item-price">
+                            ${item.price} 金币
+                        </div>
+                    </div>
+                    <div class="item-meta">
+                        <div class="seller-info">
+                            <i class="fas fa-user me-1"></i>
+                            ${item.is_anonymous ? '匿名卖家' : `卖家: ${item.seller_name || '未知'}`}
+                        </div>
+                        <div class="item-actions">
+                            <button class="item-action-btn view-btn" onclick="event.stopPropagation(); showItemDetail(${item.listing_id})">
+                                <i class="fas fa-eye me-1"></i>
+                                查看
+                            </button>
+                            <button class="item-action-btn buy-btn" onclick="event.stopPropagation(); showPurchaseModal(${item.listing_id})">
+                                <i class="fas fa-shopping-cart me-1"></i>
+                                购买
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    renderMyListings() {
+        const container = document.getElementById('myListingsList');
+        
+        if (this.myListings.length === 0) {
+            container.innerHTML = `
+                <div class="col-12">
+                    <div class="empty-state">
+                        <i class="fas fa-list"></i>
+                        <p>暂无上架商品</p>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        const itemsHtml = this.myListings.map(item => this.renderMyListingItem(item)).join('');
+        container.innerHTML = itemsHtml;
+    }
+    
+    renderMyListingItem(item) {
+        const rarity = item.rarity || 1;
+        const rarityColor = this.getRarityColor(rarity);
+        const statusClass = this.getStatusClass(item.status);
+        const statusText = this.getStatusText(item.status);
+        
+        return `
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="market-item my-listing-item">
+                    <div class="listing-status ${statusClass}">${statusText}</div>
+                    <div class="market-item-header">
+                        <div class="item-icon bg-${rarityColor}">
+                            <i class="fas fa-${this.getItemIcon(item.item_type)}"></i>
+                        </div>
+                        <div class="item-info">
+                            <div class="item-name">${item.item_name}</div>
+                            <div class="item-description">${item.description || ''}</div>
+                            <div class="rarity-stars">${'★'.repeat(rarity)}</div>
+                            <div class="quantity-badge">x${item.quantity}</div>
+                        </div>
+                        <div class="item-price">
+                            ${item.price} 金币
+                        </div>
+                    </div>
+                    <div class="item-meta">
+                        <div class="seller-info">
+                            <i class="fas fa-clock me-1"></i>
+                            上架时间: ${new Date(item.created_at).toLocaleDateString()}
+                        </div>
+                        <div class="item-actions">
+                            <button class="item-action-btn remove-btn" onclick="showRemoveModal(${item.listing_id})">
+                                <i class="fas fa-trash me-1"></i>
+                                下架
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    getItemIcon(type) {
+        const icons = {
+            'fish': 'fish',
+            'rod': 'fishing-rod',
+            'accessory': 'gem',
+            'item': 'box-open',
+            'bait': 'bug'
+        };
+        return icons[type] || 'box';
+    }
+    
+    getRarityColor(rarity) {
+        const colors = {
+            1: 'secondary',
+            2: 'success',
+            3: 'primary',
+            4: 'info',
+            5: 'warning',
+            6: 'dark',
+            7: 'danger',
+            8: 'warning',
+            9: 'info',
+            10: 'danger'
+        };
+        return colors[rarity] || 'secondary';
+    }
+    
+    getStatusClass(status) {
+        const classes = {
+            'active': 'status-active',
+            'sold': 'status-sold',
+            'expired': 'status-expired'
+        };
+        return classes[status] || 'status-active';
+    }
+    
+    getStatusText(status) {
+        const texts = {
+            'active': '在售',
+            'sold': '已售出',
+            'expired': '已过期'
+        };
+        return texts[status] || '未知';
+    }
+    
+    populateItemSelect() {
+        const select = document.getElementById('itemSelect');
+        select.innerHTML = '<option value="">请选择要上架的物品</option>';
+        
+        // 这里应该从用户物品中获取可上架的物品
+        // 暂时显示占位内容
+        select.innerHTML += '<option value="1">示例物品 1</option>';
+        select.innerHTML += '<option value="2">示例物品 2</option>';
+    }
+    
+    calculateTotalPrice() {
+        const quantity = parseInt(document.getElementById('quantityInput').value) || 0;
+        const price = parseInt(document.getElementById('priceInput').value) || 0;
+        const total = quantity * price;
+        
+        document.getElementById('totalPriceDisplay').value = `${total} 金币`;
+    }
+    
+    async submitListing() {
+        try {
+            const itemId = document.getElementById('itemSelect').value;
+            const quantity = parseInt(document.getElementById('quantityInput').value);
+            const price = parseInt(document.getElementById('priceInput').value);
+            const isAnonymous = document.getElementById('anonymousCheck').checked;
+            
+            if (!itemId || !quantity || !price) {
+                gameApp.showToast('请填写完整信息', 'warning');
+                return;
+            }
+            
+            showLoading(true);
+            const response = await gameApp.apiCall('/market/list', 'POST', {
+                item_id: itemId,
+                quantity: quantity,
+                price: price,
+                is_anonymous: isAnonymous
+            });
+            
+            if (response.success) {
+                gameApp.showToast('上架成功', 'success');
+                document.getElementById('sellForm').reset();
+                await this.loadMyListings();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('上架失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    showEmptyState(message) {
+        const container = document.getElementById('marketList');
+        container.innerHTML = `
+            <div class="col-12">
+                <div class="empty-state">
+                    <i class="fas fa-shopping-cart"></i>
+                    <p>${message}</p>
+                </div>
+            </div>
+        `;
+    }
+    
+    filterItems() {
+        // 这里应该实现筛选逻辑
+        this.renderMarketItems();
+    }
+    
+    applyFilters() {
+        this.filters.category = document.getElementById('categoryFilter').value;
+        this.filters.rarity = document.getElementById('rarityFilter').value;
+        this.filters.minPrice = document.getElementById('minPriceFilter').value;
+        this.filters.maxPrice = document.getElementById('maxPriceFilter').value;
+        
+        this.filterItems();
+    }
+    
+    clearFilters() {
+        document.getElementById('categoryFilter').value = '';
+        document.getElementById('rarityFilter').value = '';
+        document.getElementById('minPriceFilter').value = '';
+        document.getElementById('maxPriceFilter').value = '';
+        
+        this.filters = {
+            category: '',
+            rarity: '',
+            minPrice: '',
+            maxPrice: ''
+        };
+        
+        this.filterItems();
+    }
+    
+    showItemDetail(listingId) {
+        const item = this.marketItems.find(i => i.listing_id === listingId);
+        if (!item) return;
+        
+        const modal = new bootstrap.Modal(document.getElementById('itemDetailModal'));
+        
+        document.getElementById('itemDetailTitle').innerHTML = `
+            <i class="fas fa-shopping-cart me-2"></i>
+            ${item.item_name}
+        `;
+        
+        document.getElementById('itemDetailContent').innerHTML = `
+            <div class="text-center">
+                <div class="item-icon bg-${this.getRarityColor(item.rarity || 1)} mx-auto mb-3" style="width: 80px; height: 80px; font-size: 2rem;">
+                    <i class="fas fa-${this.getItemIcon(item.item_type)}"></i>
+                </div>
+                <h4>${item.item_name}</h4>
+                <p class="text-muted">${item.description || '暂无描述'}</p>
+                <div class="rarity-stars">${'★'.repeat(item.rarity || 1)}</div>
+                <div class="quantity-badge">数量: x${item.quantity}</div>
+                <div class="item-price">价格: ${item.price} 金币</div>
+                <div class="seller-info mt-3">
+                    <i class="fas fa-user me-1"></i>
+                    ${item.is_anonymous ? '匿名卖家' : `卖家: ${item.seller_name || '未知'}`}
+                </div>
+            </div>
+        `;
+        
+        modal.show();
+    }
+    
+    showPurchaseModal(listingId) {
+        const item = this.marketItems.find(i => i.listing_id === listingId);
+        if (!item) return;
+        
+        const modal = new bootstrap.Modal(document.getElementById('purchaseModal'));
+        
+        document.getElementById('purchaseContent').innerHTML = `
+            <div class="text-center">
+                <i class="fas fa-shopping-cart text-primary fa-3x mb-3"></i>
+                <h5>确认购买</h5>
+                <p>确定要购买 <strong>${item.item_name}</strong> 吗？</p>
+                <p class="text-muted">数量: x${item.quantity}</p>
+                <p class="text-warning">总价: ${item.price} 金币</p>
+            </div>
+        `;
+        
+        document.getElementById('confirmPurchaseBtn').onclick = () => {
+            this.purchaseItem(listingId);
+            modal.hide();
+        };
+        
+        modal.show();
+    }
+    
+    async purchaseItem(listingId) {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/market/buy', 'POST', {
+                listing_id: listingId
+            });
+            
+            if (response.success) {
+                gameApp.showToast('购买成功', 'success');
+                await this.loadMarketItems();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('购买失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    showRemoveModal(listingId) {
+        const item = this.myListings.find(i => i.listing_id === listingId);
+        if (!item) return;
+        
+        const modal = new bootstrap.Modal(document.getElementById('removeListingModal'));
+        
+        document.getElementById('removeListingContent').innerHTML = `
+            <div class="text-center">
+                <i class="fas fa-exclamation-triangle text-warning fa-3x mb-3"></i>
+                <h5>确认下架</h5>
+                <p>确定要下架 <strong>${item.item_name}</strong> 吗？</p>
+                <p class="text-muted">此操作不可撤销</p>
+            </div>
+        `;
+        
+        document.getElementById('confirmRemoveBtn').onclick = () => {
+            this.removeListing(listingId);
+            modal.hide();
+        };
+        
+        modal.show();
+    }
+    
+    async removeListing(listingId) {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall(`/market/${listingId}`, 'DELETE');
+            
+            if (response.success) {
+                gameApp.showToast('下架成功', 'success');
+                await this.loadMyListings();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('下架失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async removeAllListings() {
+        if (await gameApp.confirm('确定要下架所有商品吗？', '确认下架')) {
+            gameApp.showToast('批量下架功能暂未实现', 'info');
+        }
+    }
+}
+
+// 全局函数
+function searchMarket() {
+    if (window.marketModule) {
+        window.marketModule.searchMarket();
+    }
+}
+
+function applyFilters() {
+    if (window.marketModule) {
+        window.marketModule.applyFilters();
+    }
+}
+
+function clearFilters() {
+    if (window.marketModule) {
+        window.marketModule.clearFilters();
+    }
+}
+
+function showItemDetail(listingId) {
+    if (window.marketModule) {
+        window.marketModule.showItemDetail(listingId);
+    }
+}
+
+function showPurchaseModal(listingId) {
+    if (window.marketModule) {
+        window.marketModule.showPurchaseModal(listingId);
+    }
+}
+
+function showRemoveModal(listingId) {
+    if (window.marketModule) {
+        window.marketModule.showRemoveModal(listingId);
+    }
+}
+
+function removeAllListings() {
+    if (window.marketModule) {
+        window.marketModule.removeAllListings();
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    window.marketModule = new MarketModule();
+});
+</script>
+{% endblock %}

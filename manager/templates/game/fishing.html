@@ -1,0 +1,788 @@
+{% extends "game/layout_game.html" %}
+
+{% block title %}钓鱼游戏 - 钓鱼{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 当前区域信息 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-map-marker-alt me-2"></i>
+                        当前钓鱼区域
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showZoneSelector()">
+                        <i class="fas fa-exchange-alt me-1"></i>
+                        切换区域
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-8">
+                            <h4 class="zone-name mb-1" id="currentZoneName">未知区域</h4>
+                            <p class="text-muted mb-0" id="currentZoneDesc">区域描述</p>
+                        </div>
+                        <div class="col-4 text-end">
+                            <div class="zone-cost">
+                                <i class="fas fa-coins text-warning me-1"></i>
+                                <span id="fishingCost">10</span> 金币/次
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 钓鱼主界面 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card text-center">
+                <div class="card-body">
+                    <!-- 钓鱼按钮区域 -->
+                    <div class="fishing-area mb-4">
+                        <div class="fishing-pond" id="fishingPond">
+                            <div class="water-surface">
+                                <div class="water-ripple" id="waterRipple"></div>
+                                <div class="fishing-line" id="fishingLine"></div>
+                                <div class="fish-shadow" id="fishShadow"></div>
+                            </div>
+                        </div>
+                        
+                        <button class="btn btn-game btn-game-primary btn-game-xl" id="fishingBtn" onclick="startFishing()">
+                            <i class="fas fa-fish me-2"></i>
+                            <span id="fishingBtnText">开始钓鱼</span>
+                        </button>
+                        
+                        <div class="fishing-cooldown mt-3" id="fishingCooldown" style="display: none;">
+                            <i class="fas fa-clock text-warning me-2"></i>
+                            <span>冷却中: </span>
+                            <span class="countdown-time" id="cooldownTime">00:00</span>
+                        </div>
+                    </div>
+
+                    <!-- 钓鱼状态信息 -->
+                    <div class="fishing-status">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="status-item">
+                                    <i class="fas fa-play-circle text-success fa-lg mb-1"></i>
+                                    <div class="status-label">自动钓鱼</div>
+                                    <div class="status-value" id="autoFishingStatus">关闭</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="status-item">
+                                    <i class="fas fa-chart-line text-info fa-lg mb-1"></i>
+                                    <div class="status-label">成功率</div>
+                                    <div class="status-value" id="successRate">100%</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="status-item">
+                                    <i class="fas fa-star text-warning fa-lg mb-1"></i>
+                                    <div class="status-label">稀有度加成</div>
+                                    <div class="status-value" id="rarityBonus">+0%</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 控制面板 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cogs me-2"></i>
+                        钓鱼控制
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-success w-100" onclick="toggleAutoFishing()">
+                                <i class="fas fa-play-circle me-2"></i>
+                                <span id="autoFishingBtnText">开启自动钓鱼</span>
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-info w-100" onclick="showZoneSelector()">
+                                <i class="fas fa-map me-2"></i>
+                                切换区域
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-warning w-100" onclick="showFishingHistory()">
+                                <i class="fas fa-history me-2"></i>
+                                钓鱼记录
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-primary w-100" onclick="showFishingStats()">
+                                <i class="fas fa-chart-bar me-2"></i>
+                                钓鱼统计
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 最近钓鱼记录 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-fish me-2"></i>
+                        最近钓鱼记录
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="fishingHistory">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-fish fa-2x mb-2"></i>
+                            <p>暂无钓鱼记录</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 区域选择模态框 -->
+<div class="modal fade" id="zoneModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-map me-2"></i>
+                    选择钓鱼区域
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="zoneList">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-2">加载区域列表中...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 钓鱼结果模态框 -->
+<div class="modal fade" id="fishingResultModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-fish me-2"></i>
+                    钓鱼结果
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center" id="fishingResultContent">
+                <!-- 钓鱼结果内容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">确定</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.fishing-area {
+    position: relative;
+    padding: 2rem 0;
+}
+
+.fishing-pond {
+    width: 200px;
+    height: 200px;
+    margin: 0 auto 2rem;
+    position: relative;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+}
+
+.water-surface {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    overflow: hidden;
+}
+
+.water-ripple {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    animation: ripple 2s infinite;
+}
+
+.fishing-line {
+    position: absolute;
+    top: 20%;
+    left: 50%;
+    width: 2px;
+    height: 60%;
+    background: linear-gradient(to bottom, #8B4513, #654321);
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.fishing-line.show {
+    opacity: 1;
+}
+
+.fish-shadow {
+    position: absolute;
+    bottom: 20%;
+    left: 50%;
+    width: 30px;
+    height: 15px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.fish-shadow.show {
+    opacity: 1;
+}
+
+@keyframes ripple {
+    0% {
+        transform: translate(-50%, -50%) scale(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(4);
+        opacity: 0;
+    }
+}
+
+@keyframes fishing {
+    0% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+    100% {
+        transform: translateY(0);
+    }
+}
+
+.fishing-animation {
+    animation: fishing 0.5s ease-in-out;
+}
+
+.fishing-cooldown {
+    color: var(--warning-color);
+    font-weight: 600;
+}
+
+.countdown-time {
+    font-family: 'Courier New', monospace;
+    font-size: 1.2rem;
+}
+
+.status-item {
+    padding: 1rem 0.5rem;
+}
+
+.status-label {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.status-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.zone-card {
+    border: 2px solid #e9ecef;
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.zone-card:hover {
+    border-color: var(--primary-color);
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.zone-card.selected {
+    border-color: var(--primary-color);
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.zone-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.5rem;
+}
+
+.zone-description {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+
+.zone-cost {
+    color: var(--warning-color);
+    font-weight: 600;
+}
+
+.zone-requirements {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.fishing-record {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    transition: var(--transition);
+}
+
+.fishing-record:hover {
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.fishing-record:last-child {
+    border-bottom: none;
+}
+
+.fish-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.2rem;
+    color: white;
+}
+
+.fish-info {
+    flex: 1;
+}
+
+.fish-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.fish-details {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.fish-value {
+    font-weight: 600;
+    color: var(--success-color);
+}
+
+.fish-time {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class FishingModule {
+    constructor() {
+        this.currentZone = null;
+        this.zones = [];
+        this.isFishing = false;
+        this.cooldownTimer = null;
+        this.userInfo = null;
+        
+        this.init();
+    }
+    
+    async init() {
+        await this.loadUserInfo();
+        await this.loadZones();
+        await this.loadFishingHistory();
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        // 定期刷新用户信息
+        setInterval(() => {
+            this.loadUserInfo();
+        }, 30000);
+    }
+    
+    async loadUserInfo() {
+        try {
+            const response = await gameApp.apiCall('/profile', 'GET');
+            if (response.success) {
+                this.userInfo = response.data;
+                this.updateDisplay();
+            }
+        } catch (error) {
+            console.error('Failed to load user info:', error);
+        }
+    }
+    
+    async loadZones() {
+        try {
+            const response = await gameApp.apiCall('/zones', 'GET');
+            if (response.success) {
+                this.zones = response.data;
+                this.updateZoneDisplay();
+            }
+        } catch (error) {
+            console.error('Failed to load zones:', error);
+        }
+    }
+    
+    async loadFishingHistory() {
+        try {
+            // 这里应该调用获取钓鱼记录的API
+            // 暂时显示占位内容
+            const container = document.getElementById('fishingHistory');
+            container.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-fish fa-2x mb-2"></i>
+                    <p>暂无钓鱼记录</p>
+                </div>
+            `;
+        } catch (error) {
+            console.error('Failed to load fishing history:', error);
+        }
+    }
+    
+    updateDisplay() {
+        if (!this.userInfo) return;
+        
+        // 更新自动钓鱼状态
+        const autoFishingStatus = document.getElementById('autoFishingStatus');
+        const autoFishingBtnText = document.getElementById('autoFishingBtnText');
+        
+        if (this.userInfo.auto_fishing_enabled) {
+            autoFishingStatus.textContent = '开启';
+            autoFishingBtnText.textContent = '关闭自动钓鱼';
+        } else {
+            autoFishingStatus.textContent = '关闭';
+            autoFishingBtnText.textContent = '开启自动钓鱼';
+        }
+    }
+    
+    updateZoneDisplay() {
+        if (!this.userInfo || this.zones.length === 0) return;
+        
+        // 找到当前区域
+        const currentZone = this.zones.find(zone => zone.id === this.userInfo.fishing_zone_id);
+        if (currentZone) {
+            this.currentZone = currentZone;
+            document.getElementById('currentZoneName').textContent = currentZone.name;
+            document.getElementById('currentZoneDesc').textContent = currentZone.description || '暂无描述';
+            document.getElementById('fishingCost').textContent = currentZone.fishing_cost || 10;
+        }
+    }
+    
+    async startFishing() {
+        if (this.isFishing) return;
+        
+        try {
+            this.isFishing = true;
+            this.updateFishingButton(true);
+            this.startFishingAnimation();
+            
+            const response = await gameApp.apiCall('/fishing/cast', 'POST');
+            
+            if (response.success) {
+                const fish = response.data.fish;
+                const message = response.data.message;
+                
+                // 显示钓鱼结果
+                this.showFishingResult(fish, message);
+                
+                // 刷新用户信息
+                await this.loadUserInfo();
+                
+                // 显示冷却时间
+                this.startCooldown();
+                
+            } else {
+                gameApp.showToast(response.message, 'danger');
+                
+                // 如果是冷却中，显示冷却时间
+                if (response.message.includes('等待')) {
+                    this.startCooldown();
+                }
+            }
+        } catch (error) {
+            gameApp.showToast('钓鱼失败，请稍后重试', 'danger');
+        } finally {
+            this.isFishing = false;
+            this.updateFishingButton(false);
+            this.stopFishingAnimation();
+        }
+    }
+    
+    updateFishingButton(fishing) {
+        const fishingBtn = document.getElementById('fishingBtn');
+        const fishingBtnText = document.getElementById('fishingBtnText');
+        
+        if (fishing) {
+            fishingBtn.disabled = true;
+            fishingBtnText.textContent = '钓鱼中...';
+        } else {
+            fishingBtn.disabled = false;
+            fishingBtnText.textContent = '开始钓鱼';
+        }
+    }
+    
+    startFishingAnimation() {
+        const fishingLine = document.getElementById('fishingLine');
+        const fishShadow = document.getElementById('fishShadow');
+        const waterRipple = document.getElementById('waterRipple');
+        
+        fishingLine.classList.add('show');
+        fishShadow.classList.add('show');
+        waterRipple.style.animation = 'ripple 1s infinite';
+    }
+    
+    stopFishingAnimation() {
+        const fishingLine = document.getElementById('fishingLine');
+        const fishShadow = document.getElementById('fishShadow');
+        const waterRipple = document.getElementById('waterRipple');
+        
+        fishingLine.classList.remove('show');
+        fishShadow.classList.remove('show');
+        waterRipple.style.animation = 'none';
+    }
+    
+    showFishingResult(fish, message) {
+        if (fish) {
+            const resultHtml = `
+                <div class="fishing-result">
+                    <div class="fish-icon bg-${this.getRarityColor(fish.rarity)} mb-3">
+                        <i class="fas fa-fish"></i>
+                    </div>
+                    <h4 class="fish-name">${fish.name}</h4>
+                    <div class="fish-details mb-2">
+                        <span class="star-rating">${'★'.repeat(fish.rarity)}</span>
+                        <span class="ms-2">重量: ${fish.weight}克</span>
+                    </div>
+                    <div class="fish-value">价值: ${fish.value} 金币</div>
+                </div>
+            `;
+            
+            document.getElementById('fishingResultContent').innerHTML = resultHtml;
+            const modal = new bootstrap.Modal(document.getElementById('fishingResultModal'));
+            modal.show();
+        } else {
+            gameApp.showToast(message, 'info');
+        }
+    }
+    
+    getRarityColor(rarity) {
+        const colors = {
+            1: 'secondary',
+            2: 'success',
+            3: 'primary',
+            4: 'info',
+            5: 'warning',
+            6: 'dark',
+            7: 'danger',
+            8: 'warning',
+            9: 'info',
+            10: 'danger'
+        };
+        return colors[rarity] || 'secondary';
+    }
+    
+    startCooldown() {
+        const cooldownSection = document.getElementById('fishingCooldown');
+        const cooldownTime = document.getElementById('cooldownTime');
+        const fishingBtn = document.getElementById('fishingBtn');
+        
+        cooldownSection.style.display = 'block';
+        fishingBtn.disabled = true;
+        
+        // 模拟冷却时间（实际应该从服务器获取）
+        let remaining = 180; // 3分钟
+        
+        const updateCooldown = () => {
+            cooldownTime.textContent = gameApp.formatTime(remaining);
+            remaining--;
+            
+            if (remaining < 0) {
+                cooldownSection.style.display = 'none';
+                fishingBtn.disabled = false;
+                return;
+            }
+            
+            setTimeout(updateCooldown, 1000);
+        };
+        
+        updateCooldown();
+    }
+    
+    async toggleAutoFishing() {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/fishing/toggle-auto', 'POST');
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                await this.loadUserInfo();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('操作失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    showZoneSelector() {
+        const modal = new bootstrap.Modal(document.getElementById('zoneModal'));
+        this.renderZoneList();
+        modal.show();
+    }
+    
+    renderZoneList() {
+        const container = document.getElementById('zoneList');
+        
+        if (this.zones.length === 0) {
+            container.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-map fa-2x mb-2"></i>
+                    <p>暂无可用区域</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const zonesHtml = this.zones.map(zone => `
+            <div class="zone-card ${zone.id === this.userInfo?.fishing_zone_id ? 'selected' : ''}" 
+                 onclick="selectZone(${zone.id})">
+                <div class="zone-name">${zone.name}</div>
+                <div class="zone-description">${zone.description || '暂无描述'}</div>
+                <div class="zone-cost">
+                    <i class="fas fa-coins text-warning me-1"></i>
+                    ${zone.fishing_cost || 10} 金币/次
+                </div>
+                ${zone.requires_pass ? '<div class="zone-requirements">需要通行证</div>' : ''}
+            </div>
+        `).join('');
+        
+        container.innerHTML = zonesHtml;
+    }
+    
+    async selectZone(zoneId) {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/zones/switch', 'POST', { zone_id: zoneId });
+            
+            if (response.success) {
+                gameApp.showToast('区域切换成功', 'success');
+                await this.loadUserInfo();
+                bootstrap.Modal.getInstance(document.getElementById('zoneModal')).hide();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('切换区域失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    showFishingHistory() {
+        gameApp.showToast('钓鱼记录功能暂未实现', 'info');
+    }
+    
+    showFishingStats() {
+        gameApp.showToast('钓鱼统计功能暂未实现', 'info');
+    }
+}
+
+// 全局函数
+function startFishing() {
+    if (window.fishingModule) {
+        window.fishingModule.startFishing();
+    }
+}
+
+function toggleAutoFishing() {
+    if (window.fishingModule) {
+        window.fishingModule.toggleAutoFishing();
+    }
+}
+
+function showZoneSelector() {
+    if (window.fishingModule) {
+        window.fishingModule.showZoneSelector();
+    }
+}
+
+function selectZone(zoneId) {
+    if (window.fishingModule) {
+        window.fishingModule.selectZone(zoneId);
+    }
+}
+
+function showFishingHistory() {
+    if (window.fishingModule) {
+        window.fishingModule.showFishingHistory();
+    }
+}
+
+function showFishingStats() {
+    if (window.fishingModule) {
+        window.fishingModule.showFishingStats();
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    window.fishingModule = new FishingModule();
+});
+</script>
+{% endblock %}

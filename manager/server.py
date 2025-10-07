@@ -39,6 +39,14 @@ def create_app(secret_key: str, services: Dict[str, Any]):
         app.config[service_name.upper()] = service_instance
 
     app.register_blueprint(admin_bp, url_prefix="/admin")
+    
+    # 注册游戏认证路由
+    from .auth_routes import auth_bp
+    app.register_blueprint(auth_bp)
+    
+    # 注册游戏路由
+    from .game_routes import game_bp
+    app.register_blueprint(game_bp)
 
     @app.route("/")
     def root():

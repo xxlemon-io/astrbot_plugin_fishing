@@ -1,0 +1,691 @@
+{% extends "game/layout_game.html" %}
+
+{% block title %}钓鱼游戏 - 商店{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 商店筛选 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h5 class="mb-0">
+                                <i class="fas fa-store me-2"></i>
+                                商店列表
+                            </h5>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="shopSearch" placeholder="搜索商店...">
+                                <button class="btn btn-outline-primary" type="button" onclick="searchShops()">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 商店列表 -->
+    <div class="row" id="shopList">
+        <div class="col-12 text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">加载中...</span>
+            </div>
+            <p class="mt-2">加载商店列表中...</p>
+        </div>
+    </div>
+</div>
+
+<!-- 商店详情模态框 -->
+<div class="modal fade" id="shopDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="shopDetailTitle">
+                    <i class="fas fa-store me-2"></i>
+                    商店详情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="shopDetailContent">
+                <!-- 商店详情内容 -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 商品详情模态框 -->
+<div class="modal fade" id="itemDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="itemDetailTitle">
+                    <i class="fas fa-shopping-cart me-2"></i>
+                    商品详情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="itemDetailContent">
+                <!-- 商品详情内容 -->
+            </div>
+            <div class="modal-footer" id="itemDetailActions">
+                <!-- 操作按钮 -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 购买确认模态框 -->
+<div class="modal fade" id="purchaseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-shopping-cart me-2"></i>
+                    确认购买
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="purchaseContent">
+                <!-- 购买确认内容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmPurchaseBtn">确认购买</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.shop-card {
+    border: 2px solid #e9ecef;
+    border-radius: var(--border-radius);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    transition: var(--transition);
+    cursor: pointer;
+    position: relative;
+}
+
+.shop-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+}
+
+.shop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.shop-info {
+    flex: 1;
+}
+
+.shop-name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.5rem;
+}
+
+.shop-description {
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+}
+
+.shop-type {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.shop-type-normal {
+    background: rgba(40, 167, 69, 0.1);
+    color: var(--success-color);
+}
+
+.shop-type-premium {
+    background: rgba(255, 193, 7, 0.1);
+    color: var(--warning-color);
+}
+
+.shop-type-limited {
+    background: rgba(220, 53, 69, 0.1);
+    color: var(--danger-color);
+}
+
+.shop-status {
+    text-align: right;
+}
+
+.shop-status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.shop-status-open {
+    background: rgba(40, 167, 69, 0.1);
+    color: var(--success-color);
+}
+
+.shop-status-closed {
+    background: rgba(220, 53, 69, 0.1);
+    color: var(--danger-color);
+}
+
+.shop-stats {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.shop-stat {
+    text-align: center;
+}
+
+.shop-stat-value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.shop-stat-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.item-card {
+    border: 2px solid #e9ecef;
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.item-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow);
+    transform: translateY(-2px);
+}
+
+.item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+}
+
+.item-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.5rem;
+    color: white;
+    flex-shrink: 0;
+}
+
+.item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.item-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+    font-size: 1.1rem;
+}
+
+.item-description {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+
+.item-price {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--warning-color);
+}
+
+.item-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+}
+
+.item-action-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    border-radius: 6px;
+    border: none;
+    transition: var(--transition);
+    flex: 1;
+    min-width: 120px;
+}
+
+.item-action-btn:hover {
+    transform: translateY(-1px);
+}
+
+.buy-btn {
+    background: var(--success-color);
+    color: white;
+}
+
+.view-btn {
+    background: var(--primary-color);
+    color: white;
+}
+
+.cost-item {
+    display: inline-block;
+    background: rgba(102, 126, 234, 0.1);
+    color: var(--primary-color);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    margin: 0.25rem;
+}
+
+.reward-item {
+    display: inline-block;
+    background: rgba(40, 167, 69, 0.1);
+    color: var(--success-color);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    margin: 0.25rem;
+}
+
+.rarity-stars {
+    color: #ffc107;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.quantity-input {
+    width: 80px;
+    text-align: center;
+}
+
+.purchase-summary {
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.purchase-total {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--warning-color);
+    text-align: center;
+    margin-top: 0.5rem;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class ShopModule {
+    constructor() {
+        this.shops = [];
+        this.currentShop = null;
+        this.currentItem = null;
+        this.searchTerm = '';
+        
+        this.init();
+    }
+    
+    async init() {
+        await this.loadShops();
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        // 搜索功能
+        const searchInput = document.getElementById('shopSearch');
+        searchInput.addEventListener('input', (e) => {
+            this.searchTerm = e.target.value;
+            this.filterShops();
+        });
+        
+        // 回车搜索
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.searchShops();
+            }
+        });
+    }
+    
+    async loadShops() {
+        try {
+            const response = await gameApp.apiCall('/shops', 'GET');
+            if (response.success) {
+                this.shops = response.data || [];
+                this.renderShops();
+            }
+        } catch (error) {
+            console.error('Failed to load shops:', error);
+            this.showEmptyState('加载商店失败');
+        }
+    }
+    
+    renderShops() {
+        const container = document.getElementById('shopList');
+        
+        if (this.shops.length === 0) {
+            this.showEmptyState('暂无商店');
+            return;
+        }
+        
+        const shopsHtml = this.shops.map(shop => this.renderShop(shop)).join('');
+        container.innerHTML = shopsHtml;
+    }
+    
+    renderShop(shop) {
+        const typeClass = `shop-type-${shop.shop_type || 'normal'}`;
+        const statusClass = shop.is_active ? 'shop-status-open' : 'shop-status-closed';
+        const statusText = shop.is_active ? '营业中' : '已关闭';
+        
+        return `
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="shop-card" onclick="showShopDetail(${shop.shop_id})">
+                    <div class="shop-header">
+                        <div class="shop-info">
+                            <div class="shop-name">${shop.name}</div>
+                            <div class="shop-description">${shop.description || '暂无描述'}</div>
+                            <span class="shop-type ${typeClass}">${this.getShopTypeName(shop.shop_type)}</span>
+                        </div>
+                        <div class="shop-status">
+                            <span class="shop-status-badge ${statusClass}">${statusText}</span>
+                        </div>
+                    </div>
+                    <div class="shop-stats">
+                        <div class="shop-stat">
+                            <div class="shop-stat-value">${shop.item_count || 0}</div>
+                            <div class="shop-stat-label">商品数量</div>
+                        </div>
+                        <div class="shop-stat">
+                            <div class="shop-stat-value">${shop.sold_count || 0}</div>
+                            <div class="shop-stat-label">已售出</div>
+                        </div>
+                        <div class="shop-stat">
+                            <div class="shop-stat-value">${this.getShopStatus(shop)}</div>
+                            <div class="shop-stat-label">状态</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    getShopTypeName(type) {
+        const names = {
+            'normal': '普通商店',
+            'premium': '高级商店',
+            'limited': '限时商店'
+        };
+        return names[type] || '普通商店';
+    }
+    
+    getShopStatus(shop) {
+        if (!shop.is_active) return '关闭';
+        
+        const now = new Date();
+        if (shop.start_time && new Date(shop.start_time) > now) return '未开始';
+        if (shop.end_time && new Date(shop.end_time) < now) return '已结束';
+        
+        return '营业中';
+    }
+    
+    showEmptyState(message) {
+        const container = document.getElementById('shopList');
+        container.innerHTML = `
+            <div class="col-12">
+                <div class="empty-state">
+                    <i class="fas fa-store"></i>
+                    <p>${message}</p>
+                </div>
+            </div>
+        `;
+    }
+    
+    filterShops() {
+        if (!this.searchTerm) {
+            this.renderShops();
+            return;
+        }
+        
+        const filteredShops = this.shops.filter(shop => 
+            shop.name.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
+            (shop.description && shop.description.toLowerCase().includes(this.searchTerm.toLowerCase()))
+        );
+        
+        const container = document.getElementById('shopList');
+        if (filteredShops.length === 0) {
+            container.innerHTML = `
+                <div class="col-12">
+                    <div class="empty-state">
+                        <i class="fas fa-search"></i>
+                        <p>未找到匹配的商店</p>
+                    </div>
+                </div>
+            `;
+        } else {
+            const shopsHtml = filteredShops.map(shop => this.renderShop(shop)).join('');
+            container.innerHTML = shopsHtml;
+        }
+    }
+    
+    async showShopDetail(shopId) {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall(`/shops/${shopId}/items`, 'GET');
+            
+            if (response.success) {
+                this.currentShop = this.shops.find(s => s.shop_id === shopId);
+                this.renderShopDetail(response.data || []);
+            } else {
+                gameApp.showToast('加载商店详情失败', 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('加载商店详情失败', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    renderShopDetail(items) {
+        const modal = new bootstrap.Modal(document.getElementById('shopDetailModal'));
+        
+        document.getElementById('shopDetailTitle').innerHTML = `
+            <i class="fas fa-store me-2"></i>
+            ${this.currentShop.name}
+        `;
+        
+        const itemsHtml = items.length > 0 ? 
+            items.map(item => this.renderShopItem(item)).join('') :
+            '<div class="col-12"><div class="empty-state"><i class="fas fa-box-open"></i><p>暂无商品</p></div></div>';
+        
+        document.getElementById('shopDetailContent').innerHTML = `
+            <div class="row">
+                <div class="col-12 mb-3">
+                    <div class="shop-info">
+                        <h6>${this.currentShop.name}</h6>
+                        <p class="text-muted">${this.currentShop.description || '暂无描述'}</p>
+                        <span class="shop-type shop-type-${this.currentShop.shop_type || 'normal'}">
+                            ${this.getShopTypeName(this.currentShop.shop_type)}
+                        </span>
+                    </div>
+                </div>
+                <div class="col-12">
+                    <h6>商品列表</h6>
+                    <div class="row">
+                        ${itemsHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        modal.show();
+    }
+    
+    renderShopItem(item) {
+        const rarity = item.rarity || 1;
+        const rarityColor = this.getRarityColor(rarity);
+        
+        return `
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="item-card" onclick="showItemDetail(${item.item_id})">
+                    <div class="item-header">
+                        <div class="item-icon bg-${rarityColor}">
+                            <i class="fas fa-${this.getItemIcon(item.item_type)}"></i>
+                        </div>
+                        <div class="item-info">
+                            <div class="item-name">${item.name}</div>
+                            <div class="item-description">${item.description || ''}</div>
+                            <div class="rarity-stars">${'★'.repeat(rarity)}</div>
+                        </div>
+                        <div class="item-price">
+                            ${this.formatPrice(item.cost)}
+                        </div>
+                    </div>
+                    <div class="item-actions">
+                        <button class="item-action-btn view-btn" onclick="event.stopPropagation(); showItemDetail(${item.item_id})">
+                            <i class="fas fa-eye me-1"></i>
+                            查看详情
+                        </button>
+                        <button class="item-action-btn buy-btn" onclick="event.stopPropagation(); showPurchaseModal(${item.item_id})">
+                            <i class="fas fa-shopping-cart me-1"></i>
+                            购买
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    getItemIcon(type) {
+        const icons = {
+            'rod': 'fishing-rod',
+            'accessory': 'gem',
+            'item': 'box-open',
+            'fish': 'fish',
+            'bait': 'bug'
+        };
+        return icons[type] || 'box';
+    }
+    
+    getRarityColor(rarity) {
+        const colors = {
+            1: 'secondary',
+            2: 'success',
+            3: 'primary',
+            4: 'info',
+            5: 'warning',
+            6: 'dark',
+            7: 'danger',
+            8: 'warning',
+            9: 'info',
+            10: 'danger'
+        };
+        return colors[rarity] || 'secondary';
+    }
+    
+    formatPrice(cost) {
+        if (typeof cost === 'object') {
+            // 处理复杂成本
+            const costs = [];
+            if (cost.coins) costs.push(`${cost.coins} 金币`);
+            if (cost.premium) costs.push(`${cost.premium} 钻石`);
+            return costs.join(' + ');
+        }
+        return `${cost || 0} 金币`;
+    }
+    
+    showItemDetail(itemId) {
+        // 这里应该显示商品详情
+        gameApp.showToast('商品详情功能暂未实现', 'info');
+    }
+    
+    showPurchaseModal(itemId) {
+        // 这里应该显示购买确认
+        gameApp.showToast('购买功能暂未实现', 'info');
+    }
+}
+
+// 全局函数
+function searchShops() {
+    if (window.shopModule) {
+        window.shopModule.searchShops();
+    }
+}
+
+function showShopDetail(shopId) {
+    if (window.shopModule) {
+        window.shopModule.showShopDetail(shopId);
+    }
+}
+
+function showItemDetail(itemId) {
+    if (window.shopModule) {
+        window.shopModule.showItemDetail(itemId);
+    }
+}
+
+function showPurchaseModal(itemId) {
+    if (window.shopModule) {
+        window.shopModule.showPurchaseModal(itemId);
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    window.shopModule = new ShopModule();
+});
+</script>
+{% endblock %}

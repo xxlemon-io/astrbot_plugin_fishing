@@ -1,0 +1,952 @@
+{% extends "game/layout_game.html" %}
+
+{% block title %}钓鱼游戏 - 背包{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 背包统计 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-backpack me-2"></i>
+                        背包概览
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-3">
+                            <div class="stat-item">
+                                <i class="fas fa-fish text-primary fa-lg mb-1"></i>
+                                <div class="stat-value" id="fishCount">0</div>
+                                <div class="stat-label">鱼类</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="stat-item">
+                                <i class="fas fa-fishing-rod text-success fa-lg mb-1"></i>
+                                <div class="stat-value" id="rodCount">0</div>
+                                <div class="stat-label">鱼竿</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="stat-item">
+                                <i class="fas fa-gem text-info fa-lg mb-1"></i>
+                                <div class="stat-value" id="accessoryCount">0</div>
+                                <div class="stat-label">饰品</div>
+                            </div>
+                        </div>
+                        <div class="col-3">
+                            <div class="stat-item">
+                                <i class="fas fa-box-open text-warning fa-lg mb-1"></i>
+                                <div class="stat-value" id="itemCount">0</div>
+                                <div class="stat-label">道具</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 背包导航 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-body p-2">
+                    <ul class="nav nav-pills nav-fill" id="inventoryTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="fish-tab" data-bs-toggle="pill" data-bs-target="#fish-pane" type="button" role="tab">
+                                <i class="fas fa-fish me-1"></i>
+                                鱼塘
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="rods-tab" data-bs-toggle="pill" data-bs-target="#rods-pane" type="button" role="tab">
+                                <i class="fas fa-fishing-rod me-1"></i>
+                                鱼竿
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="accessories-tab" data-bs-toggle="pill" data-bs-target="#accessories-pane" type="button" role="tab">
+                                <i class="fas fa-gem me-1"></i>
+                                饰品
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="items-tab" data-bs-toggle="pill" data-bs-target="#items-pane" type="button" role="tab">
+                                <i class="fas fa-box-open me-1"></i>
+                                道具
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="baits-tab" data-bs-toggle="pill" data-bs-target="#baits-pane" type="button" role="tab">
+                                <i class="fas fa-bug me-1"></i>
+                                鱼饵
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 背包内容 -->
+    <div class="tab-content" id="inventoryTabContent">
+        <!-- 鱼塘 -->
+        <div class="tab-pane fade show active" id="fish-pane" role="tabpanel">
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">我的鱼塘</h6>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-success" onclick="sellAllFish()">
+                                <i class="fas fa-coins me-1"></i>
+                                全部卖出
+                            </button>
+                            <button class="btn btn-outline-warning" onclick="sellKeepFish()">
+                                <i class="fas fa-hand-holding me-1"></i>
+                                保留卖出
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="row" id="fishList">
+                <div class="col-12 text-center text-muted">
+                    <i class="fas fa-fish fa-2x mb-2"></i>
+                    <p>鱼塘是空的</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 鱼竿 -->
+        <div class="tab-pane fade" id="rods-pane" role="tabpanel">
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">我的鱼竿</h6>
+                        <button class="btn btn-outline-danger btn-sm" onclick="sellAllRods()">
+                            <i class="fas fa-trash me-1"></i>
+                            全部出售
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="row" id="rodsList">
+                <div class="col-12 text-center text-muted">
+                    <i class="fas fa-fishing-rod fa-2x mb-2"></i>
+                    <p>暂无鱼竿</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 饰品 -->
+        <div class="tab-pane fade" id="accessories-pane" role="tabpanel">
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">我的饰品</h6>
+                        <button class="btn btn-outline-danger btn-sm" onclick="sellAllAccessories()">
+                            <i class="fas fa-trash me-1"></i>
+                            全部出售
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="row" id="accessoriesList">
+                <div class="col-12 text-center text-muted">
+                    <i class="fas fa-gem fa-2x mb-2"></i>
+                    <p>暂无饰品</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 道具 -->
+        <div class="tab-pane fade" id="items-pane" role="tabpanel">
+            <div class="row mb-3">
+                <div class="col-12">
+                    <h6 class="mb-0">我的道具</h6>
+                </div>
+            </div>
+            <div class="row" id="itemsList">
+                <div class="col-12 text-center text-muted">
+                    <i class="fas fa-box-open fa-2x mb-2"></i>
+                    <p>暂无道具</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 鱼饵 -->
+        <div class="tab-pane fade" id="baits-pane" role="tabpanel">
+            <div class="row mb-3">
+                <div class="col-12">
+                    <h6 class="mb-0">我的鱼饵</h6>
+                </div>
+            </div>
+            <div class="row" id="baitsList">
+                <div class="col-12 text-center text-muted">
+                    <i class="fas fa-bug fa-2x mb-2"></i>
+                    <p>暂无鱼饵</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 物品详情模态框 -->
+<div class="modal fade" id="itemDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="itemDetailTitle">
+                    <i class="fas fa-info-circle me-2"></i>
+                    物品详情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="itemDetailContent">
+                <!-- 物品详情内容 -->
+            </div>
+            <div class="modal-footer" id="itemDetailActions">
+                <!-- 操作按钮 -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 精炼模态框 -->
+<div class="modal fade" id="refineModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-hammer me-2"></i>
+                    精炼装备
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="refineContent">
+                <!-- 精炼内容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="confirmRefineBtn">确认精炼</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 出售确认模态框 -->
+<div class="modal fade" id="sellConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-coins me-2"></i>
+                    确认出售
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="sellConfirmContent">
+                <!-- 出售确认内容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmSellBtn">确认出售</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.inventory-item {
+    border: 2px solid #e9ecef;
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: var(--transition);
+    cursor: pointer;
+    position: relative;
+}
+
+.inventory-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow);
+    transform: translateY(-2px);
+}
+
+.inventory-item.equipped {
+    border-color: var(--success-color);
+    background: rgba(40, 167, 69, 0.05);
+}
+
+.inventory-item.locked {
+    border-color: var(--warning-color);
+    background: rgba(255, 193, 7, 0.05);
+}
+
+.item-header {
+    display: flex;
+    justify-content: between;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+}
+
+.item-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.5rem;
+    color: white;
+    flex-shrink: 0;
+}
+
+.item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.item-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+    font-size: 1.1rem;
+}
+
+.item-description {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+
+.item-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.stat-badge {
+    background: rgba(102, 126, 234, 0.1);
+    color: var(--primary-color);
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.item-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.item-action-btn {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+    border-radius: 4px;
+    border: none;
+    transition: var(--transition);
+}
+
+.item-action-btn:hover {
+    transform: translateY(-1px);
+}
+
+.equip-btn {
+    background: var(--success-color);
+    color: white;
+}
+
+.unequip-btn {
+    background: var(--warning-color);
+    color: var(--dark-color);
+}
+
+.refine-btn {
+    background: var(--info-color);
+    color: white;
+}
+
+.lock-btn {
+    background: var(--warning-color);
+    color: var(--dark-color);
+}
+
+.unlock-btn {
+    background: var(--secondary-color);
+    color: white;
+}
+
+.sell-btn {
+    background: var(--danger-color);
+    color: white;
+}
+
+.use-btn {
+    background: var(--primary-color);
+    color: white;
+}
+
+.item-status {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.status-equipped {
+    color: var(--success-color);
+}
+
+.status-locked {
+    color: var(--warning-color);
+}
+
+.rarity-stars {
+    color: #ffc107;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.refine-level {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: inline-block;
+    margin-bottom: 0.5rem;
+}
+
+.fish-quantity {
+    background: var(--info-color);
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: inline-block;
+    margin-bottom: 0.5rem;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.refine-info {
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.refine-success-rate {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--success-color);
+}
+
+.refine-cost {
+    color: var(--warning-color);
+    font-weight: 600;
+}
+
+.refine-warning {
+    color: var(--danger-color);
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class InventoryModule {
+    constructor() {
+        this.currentTab = 'fish';
+        this.inventoryData = {
+            fish: [],
+            rods: [],
+            accessories: [],
+            items: [],
+            baits: []
+        };
+        
+        this.init();
+    }
+    
+    async init() {
+        await this.loadAllInventory();
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        // 监听标签页切换
+        const tabs = document.querySelectorAll('#inventoryTabs button[data-bs-toggle="pill"]');
+        tabs.forEach(tab => {
+            tab.addEventListener('shown.bs.tab', (event) => {
+                const target = event.target.getAttribute('data-bs-target');
+                this.currentTab = target.replace('#', '').replace('-pane', '');
+                this.loadTabData(this.currentTab);
+            });
+        });
+    }
+    
+    async loadAllInventory() {
+        const types = ['fish', 'rods', 'accessories', 'items', 'baits'];
+        
+        for (const type of types) {
+            try {
+                const response = await gameApp.apiCall(`/inventory/${type}`, 'GET');
+                if (response.success) {
+                    this.inventoryData[type] = response.data || [];
+                }
+            } catch (error) {
+                console.error(`Failed to load ${type}:`, error);
+                this.inventoryData[type] = [];
+            }
+        }
+        
+        this.updateStats();
+        this.loadTabData(this.currentTab);
+    }
+    
+    updateStats() {
+        document.getElementById('fishCount').textContent = this.inventoryData.fish.length;
+        document.getElementById('rodCount').textContent = this.inventoryData.rods.length;
+        document.getElementById('accessoryCount').textContent = this.inventoryData.accessories.length;
+        document.getElementById('itemCount').textContent = this.inventoryData.items.length;
+    }
+    
+    loadTabData(type) {
+        const container = document.getElementById(`${type}List`);
+        const items = this.inventoryData[type] || [];
+        
+        if (items.length === 0) {
+            container.innerHTML = `
+                <div class="col-12">
+                    <div class="empty-state">
+                        <i class="fas fa-${this.getTypeIcon(type)}"></i>
+                        <p>暂无${this.getTypeName(type)}</p>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+        
+        const itemsHtml = items.map(item => this.renderItem(item, type)).join('');
+        container.innerHTML = itemsHtml;
+    }
+    
+    getTypeIcon(type) {
+        const icons = {
+            fish: 'fish',
+            rods: 'fishing-rod',
+            accessories: 'gem',
+            items: 'box-open',
+            baits: 'bug'
+        };
+        return icons[type] || 'box';
+    }
+    
+    getTypeName(type) {
+        const names = {
+            fish: '鱼类',
+            rods: '鱼竿',
+            accessories: '饰品',
+            items: '道具',
+            baits: '鱼饵'
+        };
+        return names[type] || '物品';
+    }
+    
+    renderItem(item, type) {
+        const rarity = item.rarity || 1;
+        const rarityColor = this.getRarityColor(rarity);
+        const isEquipped = item.is_equipped || false;
+        const isLocked = item.is_locked || false;
+        
+        let itemHtml = `
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="inventory-item ${isEquipped ? 'equipped' : ''} ${isLocked ? 'locked' : ''}" 
+                     onclick="showItemDetail('${type}', ${item.id || item.item_id})">
+                    <div class="item-header">
+                        <div class="item-icon bg-${rarityColor}">
+                            <i class="fas fa-${this.getTypeIcon(type)}"></i>
+                        </div>
+                        <div class="item-info">
+                            <div class="item-name">${item.name}</div>
+                            <div class="item-description">${item.description || ''}</div>
+                            <div class="rarity-stars">${'★'.repeat(rarity)}</div>
+                            ${item.quantity ? `<div class="fish-quantity">x${item.quantity}</div>` : ''}
+                            ${item.refine_level ? `<div class="refine-level">+${item.refine_level}</div>` : ''}
+                        </div>
+                        <div class="item-status">
+                            ${isEquipped ? '<span class="status-equipped">已装备</span>' : ''}
+                            ${isLocked ? '<span class="status-locked">已锁定</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="item-actions">
+                        ${this.renderItemActions(item, type)}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        return itemHtml;
+    }
+    
+    renderItemActions(item, type) {
+        const actions = [];
+        const isEquipped = item.is_equipped || false;
+        const isLocked = item.is_locked || false;
+        
+        // 装备/卸下按钮
+        if (type === 'rods' || type === 'accessories') {
+            if (isEquipped) {
+                actions.push(`<button class="item-action-btn unequip-btn" onclick="event.stopPropagation(); unequipItem('${type}', ${item.id || item.item_id})">卸下</button>`);
+            } else {
+                actions.push(`<button class="item-action-btn equip-btn" onclick="event.stopPropagation(); equipItem('${type}', ${item.id || item.item_id})">装备</button>`);
+            }
+        }
+        
+        // 精炼按钮
+        if (type === 'rods' || type === 'accessories') {
+            actions.push(`<button class="item-action-btn refine-btn" onclick="event.stopPropagation(); showRefineModal('${type}', ${item.id || item.item_id})">精炼</button>`);
+        }
+        
+        // 锁定/解锁按钮
+        if (type === 'rods' || type === 'accessories') {
+            if (isLocked) {
+                actions.push(`<button class="item-action-btn unlock-btn" onclick="event.stopPropagation(); toggleLock('${type}', ${item.id || item.item_id}, false)">解锁</button>`);
+            } else {
+                actions.push(`<button class="item-action-btn lock-btn" onclick="event.stopPropagation(); toggleLock('${type}', ${item.id || item.item_id}, true)">锁定</button>`);
+            }
+        }
+        
+        // 使用按钮
+        if (type === 'items' || type === 'baits') {
+            actions.push(`<button class="item-action-btn use-btn" onclick="event.stopPropagation(); useItem('${type}', ${item.id || item.item_id})">使用</button>`);
+        }
+        
+        // 出售按钮
+        if (!isEquipped) {
+            actions.push(`<button class="item-action-btn sell-btn" onclick="event.stopPropagation(); showSellModal('${type}', ${item.id || item.item_id})">出售</button>`);
+        }
+        
+        return actions.join('');
+    }
+    
+    getRarityColor(rarity) {
+        const colors = {
+            1: 'secondary',
+            2: 'success',
+            3: 'primary',
+            4: 'info',
+            5: 'warning',
+            6: 'dark',
+            7: 'danger',
+            8: 'warning',
+            9: 'info',
+            10: 'danger'
+        };
+        return colors[rarity] || 'secondary';
+    }
+    
+    async equipItem(type, itemId) {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/inventory/equip', 'POST', {
+                item_type: type,
+                item_id: itemId,
+                action: 'equip'
+            });
+            
+            if (response.success) {
+                gameApp.showToast('装备成功', 'success');
+                await this.loadAllInventory();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('装备失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async unequipItem(type, itemId) {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/inventory/equip', 'POST', {
+                item_type: type,
+                action: 'unequip'
+            });
+            
+            if (response.success) {
+                gameApp.showToast('卸下成功', 'success');
+                await this.loadAllInventory();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('卸下失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async useItem(type, itemId) {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/inventory/use', 'POST', {
+                item_type: type,
+                item_id: itemId
+            });
+            
+            if (response.success) {
+                gameApp.showToast('使用成功', 'success');
+                await this.loadAllInventory();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('使用失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    showItemDetail(type, itemId) {
+        const items = this.inventoryData[type] || [];
+        const item = items.find(i => (i.id || i.item_id) === itemId);
+        
+        if (!item) return;
+        
+        const modal = new bootstrap.Modal(document.getElementById('itemDetailModal'));
+        document.getElementById('itemDetailTitle').innerHTML = `
+            <i class="fas fa-info-circle me-2"></i>
+            ${item.name}
+        `;
+        
+        // 这里应该显示详细的物品信息
+        document.getElementById('itemDetailContent').innerHTML = `
+            <div class="text-center">
+                <div class="item-icon bg-${this.getRarityColor(item.rarity || 1)} mx-auto mb-3" style="width: 80px; height: 80px; font-size: 2rem;">
+                    <i class="fas fa-${this.getTypeIcon(type)}"></i>
+                </div>
+                <h4>${item.name}</h4>
+                <p class="text-muted">${item.description || '暂无描述'}</p>
+                <div class="rarity-stars">${'★'.repeat(item.rarity || 1)}</div>
+            </div>
+        `;
+        
+        modal.show();
+    }
+    
+    showRefineModal(type, itemId) {
+        const items = this.inventoryData[type] || [];
+        const item = items.find(i => (i.id || i.item_id) === itemId);
+        
+        if (!item) return;
+        
+        const modal = new bootstrap.Modal(document.getElementById('refineModal'));
+        document.getElementById('refineContent').innerHTML = `
+            <div class="refine-info">
+                <h6>精炼信息</h6>
+                <p>当前等级: <span class="refine-level">+${item.refine_level || 1}</span></p>
+                <p>成功率: <span class="refine-success-rate">85%</span></p>
+                <p>消耗: <span class="refine-cost">1000 金币</span></p>
+                <div class="refine-warning">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    精炼失败可能导致装备损坏或等级下降
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('confirmRefineBtn').onclick = () => {
+            this.refineItem(type, itemId);
+            modal.hide();
+        };
+        
+        modal.show();
+    }
+    
+    async refineItem(type, itemId) {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/inventory/refine', 'POST', {
+                item_type: type,
+                item_id: itemId
+            });
+            
+            if (response.success) {
+                gameApp.showToast('精炼成功', 'success');
+                await this.loadAllInventory();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('精炼失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    showSellModal(type, itemId) {
+        const items = this.inventoryData[type] || [];
+        const item = items.find(i => (i.id || i.item_id) === itemId);
+        
+        if (!item) return;
+        
+        const modal = new bootstrap.Modal(document.getElementById('sellConfirmModal'));
+        document.getElementById('sellConfirmContent').innerHTML = `
+            <div class="text-center">
+                <i class="fas fa-exclamation-triangle text-warning fa-3x mb-3"></i>
+                <h5>确认出售</h5>
+                <p>确定要出售 <strong>${item.name}</strong> 吗？</p>
+                <p class="text-muted">此操作不可撤销</p>
+            </div>
+        `;
+        
+        document.getElementById('confirmSellBtn').onclick = () => {
+            this.sellItem(type, itemId);
+            modal.hide();
+        };
+        
+        modal.show();
+    }
+    
+    async sellItem(type, itemId) {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/inventory/sell', 'POST', {
+                item_type: type,
+                item_id: itemId,
+                quantity: 1
+            });
+            
+            if (response.success) {
+                gameApp.showToast('出售成功', 'success');
+                await this.loadAllInventory();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('出售失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async sellAllFish() {
+        if (await gameApp.confirm('确定要出售所有鱼类吗？', '确认出售')) {
+            gameApp.showToast('批量出售功能暂未实现', 'info');
+        }
+    }
+    
+    async sellKeepFish() {
+        if (await gameApp.confirm('确定要出售所有鱼类（每种保留一条）吗？', '确认出售')) {
+            gameApp.showToast('保留出售功能暂未实现', 'info');
+        }
+    }
+    
+    async sellAllRods() {
+        if (await gameApp.confirm('确定要出售所有鱼竿吗？', '确认出售')) {
+            gameApp.showToast('批量出售功能暂未实现', 'info');
+        }
+    }
+    
+    async sellAllAccessories() {
+        if (await gameApp.confirm('确定要出售所有饰品吗？', '确认出售')) {
+            gameApp.showToast('批量出售功能暂未实现', 'info');
+        }
+    }
+}
+
+// 全局函数
+function showItemDetail(type, itemId) {
+    if (window.inventoryModule) {
+        window.inventoryModule.showItemDetail(type, itemId);
+    }
+}
+
+function equipItem(type, itemId) {
+    if (window.inventoryModule) {
+        window.inventoryModule.equipItem(type, itemId);
+    }
+}
+
+function unequipItem(type, itemId) {
+    if (window.inventoryModule) {
+        window.inventoryModule.unequipItem(type, itemId);
+    }
+}
+
+function useItem(type, itemId) {
+    if (window.inventoryModule) {
+        window.inventoryModule.useItem(type, itemId);
+    }
+}
+
+function showRefineModal(type, itemId) {
+    if (window.inventoryModule) {
+        window.inventoryModule.showRefineModal(type, itemId);
+    }
+}
+
+function showSellModal(type, itemId) {
+    if (window.inventoryModule) {
+        window.inventoryModule.showSellModal(type, itemId);
+    }
+}
+
+function sellAllFish() {
+    if (window.inventoryModule) {
+        window.inventoryModule.sellAllFish();
+    }
+}
+
+function sellKeepFish() {
+    if (window.inventoryModule) {
+        window.inventoryModule.sellKeepFish();
+    }
+}
+
+function sellAllRods() {
+    if (window.inventoryModule) {
+        window.inventoryModule.sellAllRods();
+    }
+}
+
+function sellAllAccessories() {
+    if (window.inventoryModule) {
+        window.inventoryModule.sellAllAccessories();
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    window.inventoryModule = new InventoryModule();
+});
+</script>
+{% endblock %}

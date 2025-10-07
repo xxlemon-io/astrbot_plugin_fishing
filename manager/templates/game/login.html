@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>钓鱼游戏 - 登录</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+        
+        .login-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            width: 100%;
+            max-width: 400px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .game-title {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .game-title h1 {
+            color: #333;
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .game-title p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .form-floating {
+            margin-bottom: 1rem;
+        }
+        
+        .form-control {
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            padding: 0.75rem 1rem;
+            font-size: 1rem;
+        }
+        
+        .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        
+        .btn-login {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 10px;
+            padding: 0.75rem 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            color: white;
+            width: 100%;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+            color: white;
+        }
+        
+        .btn-login:disabled {
+            opacity: 0.6;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-send-code {
+            background: #28a745;
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            color: white;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-send-code:hover {
+            background: #218838;
+            color: white;
+        }
+        
+        .btn-send-code:disabled {
+            background: #6c757d;
+            opacity: 0.6;
+        }
+        
+        .alert {
+            border-radius: 10px;
+            border: none;
+            margin-bottom: 1rem;
+        }
+        
+        .countdown {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .fish-icon {
+            font-size: 3rem;
+            color: #667eea;
+            margin-bottom: 1rem;
+        }
+        
+        .loading {
+            display: none;
+        }
+        
+        .loading.show {
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="game-title">
+            <div class="fish-icon">
+                <i class="fas fa-fish"></i>
+            </div>
+            <h1>钓鱼游戏</h1>
+            <p>请输入您的QQ号登录游戏</p>
+        </div>
+        
+        <div id="alertContainer"></div>
+        
+        <form id="loginForm">
+            <div class="form-floating">
+                <input type="text" class="form-control" id="qqInput" placeholder="请输入QQ号" maxlength="15">
+                <label for="qqInput">QQ号</label>
+            </div>
+            
+            <div class="form-floating">
+                <input type="text" class="form-control" id="codeInput" placeholder="请输入验证码" maxlength="6" disabled>
+                <label for="codeInput">验证码</label>
+            </div>
+            
+            <div class="d-grid gap-2">
+                <button type="button" class="btn btn-send-code" id="sendCodeBtn" disabled>
+                    <span class="btn-text">获取验证码</span>
+                    <span class="loading spinner-border spinner-border-sm" role="status"></span>
+                </button>
+            </div>
+            
+            <div class="d-grid gap-2 mt-3">
+                <button type="submit" class="btn btn-login" id="loginBtn" disabled>
+                    <span class="btn-text">登录游戏</span>
+                    <span class="loading spinner-border spinner-border-sm" role="status"></span>
+                </button>
+            </div>
+        </form>
+        
+        <div class="text-center mt-3">
+            <small class="text-muted">
+                <i class="fas fa-shield-alt"></i>
+                验证码将通过QQ私聊发送给您
+            </small>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        class GameLogin {
+            constructor() {
+                this.qqInput = document.getElementById('qqInput');
+                this.codeInput = document.getElementById('codeInput');
+                this.sendCodeBtn = document.getElementById('sendCodeBtn');
+                this.loginBtn = document.getElementById('loginBtn');
+                this.loginForm = document.getElementById('loginForm');
+                this.alertContainer = document.getElementById('alertContainer');
+                
+                this.countdownTimer = null;
+                this.countdownSeconds = 0;
+                
+                this.initEventListeners();
+            }
+            
+            initEventListeners() {
+                // QQ号输入验证
+                this.qqInput.addEventListener('input', () => {
+                    const qq = this.qqInput.value.trim();
+                    const isValid = /^\d{5,15}$/.test(qq);
+                    
+                    this.sendCodeBtn.disabled = !isValid;
+                    this.codeInput.disabled = !isValid;
+                    
+                    if (isValid) {
+                        this.codeInput.focus();
+                    }
+                });
+                
+                // 验证码输入验证
+                this.codeInput.addEventListener('input', () => {
+                    const code = this.codeInput.value.trim();
+                    const isValid = /^\d{6}$/.test(code);
+                    this.loginBtn.disabled = !isValid;
+                });
+                
+                // 发送验证码
+                this.sendCodeBtn.addEventListener('click', () => {
+                    this.sendVerificationCode();
+                });
+                
+                // 登录表单提交
+                this.loginForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.verifyAndLogin();
+                });
+                
+                // 回车键提交
+                this.codeInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.verifyAndLogin();
+                    }
+                });
+            }
+            
+            showAlert(message, type = 'danger') {
+                this.alertContainer.innerHTML = `
+                    <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                `;
+            }
+            
+            setLoading(element, loading) {
+                const btnText = element.querySelector('.btn-text');
+                const loadingSpinner = element.querySelector('.loading');
+                
+                if (loading) {
+                    btnText.style.display = 'none';
+                    loadingSpinner.classList.add('show');
+                    element.disabled = true;
+                } else {
+                    btnText.style.display = 'inline';
+                    loadingSpinner.classList.remove('show');
+                    element.disabled = false;
+                }
+            }
+            
+            startCountdown(seconds) {
+                this.countdownSeconds = seconds;
+                this.updateCountdownButton();
+                
+                this.countdownTimer = setInterval(() => {
+                    this.countdownSeconds--;
+                    this.updateCountdownButton();
+                    
+                    if (this.countdownSeconds <= 0) {
+                        clearInterval(this.countdownTimer);
+                        this.countdownTimer = null;
+                    }
+                }, 1000);
+            }
+            
+            updateCountdownButton() {
+                if (this.countdownSeconds > 0) {
+                    this.sendCodeBtn.innerHTML = `
+                        <span class="btn-text countdown">${this.countdownSeconds}秒后重试</span>
+                        <span class="loading spinner-border spinner-border-sm" role="status"></span>
+                    `;
+                    this.sendCodeBtn.disabled = true;
+                } else {
+                    this.sendCodeBtn.innerHTML = `
+                        <span class="btn-text">获取验证码</span>
+                        <span class="loading spinner-border spinner-border-sm" role="status"></span>
+                    `;
+                    this.sendCodeBtn.disabled = false;
+                }
+            }
+            
+            async sendVerificationCode() {
+                const qq = this.qqInput.value.trim();
+                
+                if (!/^\d{5,15}$/.test(qq)) {
+                    this.showAlert('请输入有效的QQ号');
+                    return;
+                }
+                
+                this.setLoading(this.sendCodeBtn, true);
+                
+                try {
+                    const response = await fetch('/game/api/send-code', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ qq_id: qq })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.showAlert('验证码已发送到您的QQ，请查收', 'success');
+                        this.startCountdown(300); // 5分钟倒计时
+                        this.codeInput.focus();
+                    } else {
+                        this.showAlert(result.message);
+                        if (result.message.includes('等待')) {
+                            // 如果是因为频率限制，启动倒计时
+                            const match = result.message.match(/(\d+)/);
+                            if (match) {
+                                this.startCountdown(parseInt(match[1]) * 60);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    this.showAlert('网络错误，请稍后重试');
+                } finally {
+                    this.setLoading(this.sendCodeBtn, false);
+                }
+            }
+            
+            async verifyAndLogin() {
+                const qq = this.qqInput.value.trim();
+                const code = this.codeInput.value.trim();
+                
+                if (!/^\d{5,15}$/.test(qq)) {
+                    this.showAlert('请输入有效的QQ号');
+                    return;
+                }
+                
+                if (!/^\d{6}$/.test(code)) {
+                    this.showAlert('请输入6位验证码');
+                    return;
+                }
+                
+                this.setLoading(this.loginBtn, true);
+                
+                try {
+                    const response = await fetch('/game/api/verify-code', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ qq_id: qq, code: code })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        this.showAlert('登录成功，正在跳转...', 'success');
+                        setTimeout(() => {
+                            window.location.href = result.redirect || '/game/';
+                        }, 1000);
+                    } else {
+                        this.showAlert(result.message);
+                    }
+                } catch (error) {
+                    this.showAlert('网络错误，请稍后重试');
+                } finally {
+                    this.setLoading(this.loginBtn, false);
+                }
+            }
+        }
+        
+        // 初始化登录页面
+        document.addEventListener('DOMContentLoaded', () => {
+            new GameLogin();
+        });
+    </script>
+</body>
+</html>
