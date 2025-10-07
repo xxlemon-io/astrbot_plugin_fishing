@@ -824,8 +824,9 @@ class InventoryModule {
     async equipItem(type, itemId) {
         try {
             showLoading(true);
+            const itemType = (type === 'rods') ? 'rod' : (type === 'accessories' ? 'accessory' : type);
             const response = await gameApp.apiCall('/inventory/equip', 'POST', {
-                item_type: type,
+                item_type: itemType,
                 item_id: itemId
             });
             
@@ -845,8 +846,9 @@ class InventoryModule {
     async unequipItem(type, itemId) {
         try {
             showLoading(true);
+            const itemType = (type === 'rods') ? 'rod' : (type === 'accessories' ? 'accessory' : type);
             const response = await gameApp.apiCall('/inventory/unequip', 'POST', {
-                item_type: type,
+                item_type: itemType,
                 item_id: itemId
             });
             
@@ -889,8 +891,9 @@ class InventoryModule {
         try {
             showLoading(true);
             const action = lock ? 'lock' : 'unlock';
+            const itemType = (type === 'rods') ? 'rod' : (type === 'accessories' ? 'accessory' : type);
             const response = await gameApp.apiCall(`/inventory/${action}`, 'POST', {
-                item_type: type,
+                item_type: itemType,
                 instance_id: itemId
             });
             
@@ -965,8 +968,9 @@ class InventoryModule {
     async refineItem(type, itemId) {
         try {
             showLoading(true);
+            const itemType = (type === 'rods') ? 'rod' : (type === 'accessories' ? 'accessory' : type);
             const response = await gameApp.apiCall('/inventory/refine', 'POST', {
-                item_type: type,
+                item_type: itemType,
                 instance_id: itemId
             });
             
@@ -1010,8 +1014,9 @@ class InventoryModule {
     async sellItem(type, itemId) {
         try {
             showLoading(true);
+            const itemType = (type === 'rods') ? 'rod' : (type === 'accessories' ? 'accessory' : type);
             const response = await gameApp.apiCall('/inventory/sell', 'POST', {
-                item_type: type,
+                item_type: itemType,
                 instance_id: itemId,
                 quantity: 1
             });
