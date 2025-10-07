@@ -410,6 +410,39 @@ class GameMechanicsService:
             ]
         }
 
+    def get_wipe_bomb_remaining(self, user_id: str) -> Dict[str, Any]:
+        """返回用户今日擦弹剩余次数与上限/已用。"""
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        # 基础上限
+        wipe_bomb_config = self.config.get("wipe_bomb", {})
+        base_max_attempts = wipe_bomb_config.get("max_attempts_per_day", 3)
+
+        # 增加次数的 buff
+        extra_attempts = 0
+        boost_buff = self.buff_repo.get_active_by_user_and_type(
+            user_id, "WIPE_BOMB_ATTEMPTS_BOOST"
+        )
+        if boost_buff and boost_buff.payload:
+            try:
+                payload = json.loads(boost_buff.payload)
+                extra_attempts = payload.get("amount", 0)
+            except json.JSONDecodeError:
+                logger.warning(f"解析擦弹buff载荷失败: user_id={user_id}")
+
+        total_max_attempts = base_max_attempts + extra_attempts
+        used_attempts_today = self.log_repo.get_wipe_bomb_log_count_today(user_id)
+        remaining_today = max(0, total_max_attempts - used_attempts_today)
+
+        return {
+            "success": True,
+            "remaining": remaining_today,
+            "used": used_attempts_today,
+            "max_attempts": total_max_attempts,
+        }
+
     def steal_fish(self, thief_id: str, victim_id: str) -> Dict[str, Any]:
         """
         处理"偷鱼"的逻辑。
