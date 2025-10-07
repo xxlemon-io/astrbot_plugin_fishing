@@ -9,8 +9,7 @@ from ..core.services.auth_service import AuthService
 # 创建认证相关的Blueprint
 auth_bp = Blueprint("auth_bp", __name__)
 
-# 全局认证服务实例
-auth_service = AuthService()
+# 注意：不再使用全局认证服务实例，而是从插件实例中获取
 
 
 def auth_login_required(f):
@@ -39,87 +38,24 @@ async def send_verification_code():
         if not qq_id or not qq_id.isdigit():
             return jsonify({"success": False, "message": "请输入有效的QQ号"})
         
-        # 检查是否可以发送验证码
-        can_send, error_msg = auth_service.can_send_code(qq_id)
-        if not can_send:
-            return jsonify({"success": False, "message": error_msg})
+        # 获取插件实例中的认证服务
+        plugin_instance = current_app.config.get("PLUGIN_INSTANCE")
+        if not plugin_instance or not hasattr(plugin_instance, 'auth_service'):
+            return jsonify({"success": False, "message": "服务不可用，请稍后重试"})
         
-        # 生成验证码
-        code = auth_service.generate_verification_code()
-        expires_at = datetime.now() + timedelta(minutes=5)
-        
-        # 存储验证码信息
-        auth_service._verification_codes[qq_id] = {
-            'code': code,
-            'expires_at': expires_at,
-            'attempts': 0
-        }
-        
-        # 更新发送限制
-        auth_service._send_limits[qq_id] = datetime.now()
+        # 使用插件实例的认证服务发送验证码
+        success, message = plugin_instance.auth_service.send_verification_code(qq_id, plugin_instance)
+        if not success:
+            return jsonify({"success": False, "message": message})
         
         # 1. 日志记录（方便测试）
         logger.info(f"========================================")
         logger.info(f"验证码已生成 - QQ: {qq_id}")
-        logger.info(f"验证码: {code}")
+        logger.info(f"消息: {message}")
         logger.info(f"有效期: 5分钟")
         logger.info(f"========================================")
         
-        # 2. 通过Bot发送私聊消息
-        plugin_instance = current_app.config.get("PLUGIN_INSTANCE")
-        if plugin_instance:
-            try:
-                # 构造消息内容
-                message = f"【钓鱼游戏】您的验证码是：{code}，5分钟内有效。"
-                
-                # 使用消息服务发送验证码
-                if hasattr(plugin_instance, 'message_service'):
-                    sent = await plugin_instance.message_service.send_private_message(qq_id, message)
-                    if sent:
-                        logger.info(f"验证码已通过消息服务发送到 QQ {qq_id}")
-                    else:
-                        logger.warning("消息服务发送失败，请查看日志获取验证码")
-                else:
-                    # 备用方案：直接发送
-                    sent = False
-                    
-                    # 方式1: 直接通过插件实例的 bot 属性（最可靠的方式）
-                    if hasattr(plugin_instance, 'bot') and hasattr(plugin_instance.bot, 'call_action'):
-                        try:
-                            await plugin_instance.bot.call_action(
-                                "send_private_msg",
-                                user_id=int(qq_id),
-                                message=message
-                            )
-                            logger.info(f"验证码已通过 plugin_instance.bot.call_action 发送到 QQ {qq_id}")
-                            sent = True
-                        except Exception as e:
-                            logger.debug(f"bot.call_action方式失败: {e}")
-                    
-                    # 方式2: 通过 context.get_platform_adapter() 获取平台适配器
-                    if not sent and hasattr(plugin_instance.context, 'get_platform_adapter'):
-                        try:
-                            platform_adapter = plugin_instance.context.get_platform_adapter()
-                            if hasattr(platform_adapter, 'bot') and hasattr(platform_adapter.bot, 'call_action'):
-                                await platform_adapter.bot.call_action(
-                                    "send_private_msg",
-                                    user_id=int(qq_id),
-                                    message=message
-                                )
-                                logger.info(f"验证码已通过 platform_adapter.bot.call_action 发送到 QQ {qq_id}")
-                                sent = True
-                        except Exception as e:
-                            logger.debug(f"platform_adapter方式失败: {e}")
-                    
-                    
-                    if not sent:
-                        logger.warning("所有发送方式都失败，请查看日志获取验证码")
-                    
-            except Exception as send_error:
-                logger.warning(f"通过Bot发送验证码失败（用户仍可通过日志查看）: {send_error}")
-                logger.info(f"验证码已记录在日志中，请查看上方日志获取验证码")
-        
-        return jsonify({"success": True, "message": "验证码已发送（请查看日志或QQ私聊）"})
+        return jsonify({"success": True, "message": "验证码已发送（请查看QQ私聊）"})
             
     except Exception as e:
         logger.error(f"发送验证码API错误: {e}", exc_info=True)
@@ -140,8 +76,13 @@ async def verify_code():
         if not code or len(code) != 6:
             return jsonify({"success": False, "message": "请输入6位验证码"})
         
+        # 获取插件实例中的认证服务
+        plugin_instance = current_app.config.get("PLUGIN_INSTANCE")
+        if not plugin_instance or not hasattr(plugin_instance, 'auth_service'):
+            return jsonify({"success": False, "message": "服务不可用，请稍后重试"})
+        
         # 验证验证码
-        is_valid, message = auth_service.verify_code(qq_id, code)
+        is_valid, message = plugin_instance.auth_service.verify_code(qq_id, code)
         if not is_valid:
             return jsonify({"success": False, "message": message})
         

@@ -38,11 +38,20 @@ class AuthService:
         
         return True, ""
     
-    def send_verification_code(self, qq_id: str, plugin_instance) -> Tuple[bool, str]:
+    def send_verification_code(self, qq_id: str, plugin_instance, skip_rate_limit: bool = False) -> Tuple[bool, str]:
         """发送验证码到QQ"""
-        can_send, error_msg = self.can_send_code(qq_id)
-        if not can_send:
-            return False, error_msg
+        # 如果跳过频率限制（比如在私聊中），则只检查锁定状态
+        if skip_rate_limit:
+            # 只检查是否被锁定，不检查发送频率
+            if qq_id in self._verification_codes:
+                code_info = self._verification_codes[qq_id]
+                if 'locked_until' in code_info and code_info['locked_until'] > datetime.now():
+                    remaining = int((code_info['locked_until'] - datetime.now()).total_seconds() / 60)
+                    return False, f"验证失败次数过多，请等待 {remaining} 分钟后再试"
+        else:
+            can_send, error_msg = self.can_send_code(qq_id)
+            if not can_send:
+                return False, error_msg
         
         # 生成验证码
         code = self.generate_verification_code()

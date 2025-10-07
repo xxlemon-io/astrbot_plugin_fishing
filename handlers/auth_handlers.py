@@ -23,7 +23,9 @@ async def get_verification_code(self, event: AstrMessageEvent):
     
     # 调用认证服务发送验证码
     try:
-        success, message = self.auth_service.send_verification_code(user_id, self)
+        # 在私聊中跳过频率限制，在群组中保持频率限制
+        skip_rate_limit = group_id is None
+        success, message = self.auth_service.send_verification_code(user_id, self, skip_rate_limit)
         
         if success:
             if group_id:
