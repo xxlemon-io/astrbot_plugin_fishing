@@ -354,15 +354,15 @@
 {% block extra_css %}
 <style>
 .inventory-item {
-    border: 2px solid #e9ecef;
+    border: 2px solid var(--card-border);
     border-radius: var(--border-radius);
     padding: 1rem;
     margin-bottom: 1rem;
     transition: var(--transition);
     cursor: pointer;
     position: relative;
-    background: white;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    background: var(--card-bg);
+    box-shadow: var(--shadow-card);
 }
 
 .inventory-item:hover {
@@ -427,7 +427,7 @@
 }
 
 .stat-badge {
-    background: rgba(102, 126, 234, 0.1);
+    background: rgba(56, 189, 248, 0.1);
     color: var(--primary-color);
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
@@ -557,7 +557,7 @@
 }
 
 .refine-info {
-    background: rgba(102, 126, 234, 0.1);
+    background: rgba(56, 189, 248, 0.1);
     border-radius: var(--border-radius);
     padding: 1rem;
     margin-bottom: 1rem;

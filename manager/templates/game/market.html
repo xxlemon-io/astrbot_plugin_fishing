@@ -271,7 +271,7 @@
 {% block extra_css %}
 <style>
 .market-item {
-    border: 2px solid #e9ecef;
+    border: 2px solid var(--card-border);
     border-radius: var(--border-radius);
     padding: 1rem;
     margin-bottom: 1rem;
@@ -426,8 +426,8 @@
     top: 100%;
     left: 0;
     right: 0;
-    background: white;
-    border: 1px solid #e9ecef;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
     border-top: none;
     border-radius: 0 0 6px 6px;
     max-height: 200px;
@@ -451,7 +451,7 @@
 }
 
 .my-listing-item {
-    border: 2px solid #e9ecef;
+    border: 2px solid var(--card-border);
     border-radius: var(--border-radius);
     padding: 1rem;
     margin-bottom: 1rem;
