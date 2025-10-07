@@ -21,12 +21,15 @@ class AuthService:
     def can_send_code(self, qq_id: str) -> Tuple[bool, str]:
         """检查是否可以发送验证码"""
         now = datetime.now()
+        logger.info(f"检查发送频率限制 - QQ: {qq_id}, 当前时间: {now}")
         
         # 检查发送频率限制（5分钟内只能发送1次）
         if qq_id in self._send_limits:
             last_send = self._send_limits[qq_id]
+            logger.info(f"上次发送时间 - QQ: {qq_id}, 上次发送: {last_send}, 时间差: {now - last_send}")
             if now - last_send < timedelta(minutes=5):
                 remaining = 5 - int((now - last_send).total_seconds() / 60)
+                logger.warning(f"频率限制触发 - QQ: {qq_id}, 剩余等待时间: {remaining} 分钟")
                 return False, f"请等待 {remaining} 分钟后再试"
         
         # 检查是否被锁定
@@ -40,8 +43,11 @@ class AuthService:
     
     def send_verification_code(self, qq_id: str, plugin_instance, skip_rate_limit: bool = False) -> Tuple[bool, str]:
         """发送验证码到QQ"""
+        logger.info(f"发送验证码请求 - QQ: {qq_id}, skip_rate_limit: {skip_rate_limit}")
+        
         # 如果跳过频率限制（比如在私聊中），则只检查锁定状态
         if skip_rate_limit:
+            logger.info(f"跳过频率限制检查 - QQ: {qq_id}")
             # 只检查是否被锁定，不检查发送频率
             if qq_id in self._verification_codes:
                 code_info = self._verification_codes[qq_id]
@@ -63,6 +69,9 @@ class AuthService:
             'expires_at': expires_at,
             'attempts': 0
         }
+        
+        # 调试日志
+        logger.info(f"验证码已存储 - QQ: {qq_id}, 验证码: {code}, 过期时间: {expires_at}")
         
         # 更新发送限制
         self._send_limits[qq_id] = datetime.now()
@@ -114,14 +123,20 @@ class AuthService:
     
     def verify_code(self, qq_id: str, input_code: str) -> Tuple[bool, str]:
         """验证验证码"""
+        logger.info(f"开始验证验证码 - QQ: {qq_id}, 输入验证码: {input_code}")
+        
         if qq_id not in self._verification_codes:
+            logger.warning(f"验证码不存在 - QQ: {qq_id}")
             return False, "请先获取验证码"
         
         code_info = self._verification_codes[qq_id]
         now = datetime.now()
         
+        logger.info(f"验证码信息 - QQ: {qq_id}, 存储的验证码: {code_info['code']}, 过期时间: {code_info['expires_at']}, 当前时间: {now}")
+        
         # 检查是否过期
         if code_info['expires_at'] < now:
+            logger.warning(f"验证码已过期 - QQ: {qq_id}, 过期时间: {code_info['expires_at']}, 当前时间: {now}")
             del self._verification_codes[qq_id]
             return False, "验证码已过期，请重新获取"
         

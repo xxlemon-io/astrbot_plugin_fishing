@@ -25,6 +25,7 @@ async def get_verification_code(self, event: AstrMessageEvent):
     try:
         # 在私聊中跳过频率限制，在群组中保持频率限制
         skip_rate_limit = group_id is None
+        logger.info(f"获取验证码命令 - QQ: {user_id}, 群组ID: {group_id}, skip_rate_limit: {skip_rate_limit}")
         success, message = self.auth_service.send_verification_code(user_id, self, skip_rate_limit)
         
         if success:
