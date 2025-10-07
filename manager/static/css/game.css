@@ -21,11 +21,17 @@
     /* 背景和文字颜色 */
     --bg-color: #f8fafc;             /* 更浅的海蓝背景 */
     --card-bg: #f1f5f9;              /* 护眼的浅蓝灰卡片 */
-    --card-border: #cbd5e1;          /* 柔和的蓝灰边框 */
+    --card-border: #94a3b8;          /* 更深的蓝灰边框 */
     --text-white: #ffffff;           /* 白色文字 */
     --text-dark: #334155;            /* 更浅的深色文字 */
     --text-gray: #64748b;            /* 灰色文字 */
     --text-muted: #94a3b8;
+    
+    /* 边框颜色层次 */
+    --border-light: #cbd5e1;          /* 浅边框 */
+    --border-medium: #94a3b8;         /* 中等边框 */
+    --border-dark: #64748b;           /* 深边框 */
+    --border-accent: var(--primary-color); /* 强调边框 */
     
     /* 渐变色 - 浅色系海洋主题 */
     --game-bg: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
@@ -147,6 +153,7 @@ body {
 .game-card:hover {
     box-shadow: var(--shadow-lg);
     transform: translateY(-2px);
+    border-color: var(--border-accent);
 }
 
 .game-card .card-header {
@@ -162,7 +169,7 @@ body {
     font-weight: 600;
     padding: 0.75rem 1.5rem;
     transition: var(--transition);
-    border: none;
+    border: 2px solid var(--border-medium);
     min-height: 44px; /* 触摸友好 */
     display: flex;
     align-items: center;
@@ -172,7 +179,7 @@ body {
 .btn-game-primary {
     background: var(--primary-gradient);
     color: var(--text-white);
-    border: none;
+    border: 2px solid var(--border-accent);
 }
 
 .btn-game-primary:hover {
@@ -184,7 +191,7 @@ body {
 .btn-game-success {
     background: var(--success-gradient);
     color: var(--text-white);
-    border: none;
+    border: 2px solid var(--success-color);
 }
 
 .btn-game-success:hover {
@@ -195,7 +202,7 @@ body {
 .btn-game-warning {
     background: var(--warning-gradient);
     color: var(--text-dark);
-    border: none;
+    border: 2px solid var(--warning-color);
 }
 
 .btn-game-warning:hover {
@@ -206,7 +213,7 @@ body {
 .btn-game-danger {
     background: var(--danger-gradient);
     color: var(--text-white);
-    border: none;
+    border: 2px solid var(--danger-color);
 }
 
 .btn-game-danger:hover {
@@ -217,7 +224,7 @@ body {
 .btn-game-info {
     background: var(--info-color);
     color: var(--text-white);
-    border: none;
+    border: 2px solid var(--info-color);
 }
 
 .btn-game-info:hover {
@@ -434,7 +441,7 @@ body {
 /* 表单样式 */
 .form-control {
     border-radius: var(--border-radius);
-    border: 2px solid var(--card-border);
+    border: 2px solid var(--border-medium);
     background: var(--card-bg);
     padding: 0.75rem 1rem;
     font-size: 1rem;

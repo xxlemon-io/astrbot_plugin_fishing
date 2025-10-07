@@ -561,7 +561,7 @@ async def api_sell_all_accessories():
 async def api_get_shops():
     """获取商店列表"""
     try:
-        shop_service = current_app.config.get("SHOP_SERVICE")
+        shop_service = current_app.config.get("shop_service")
         
         if not shop_service:
             return jsonify({"success": False, "message": "服务不可用"})
@@ -583,7 +583,7 @@ async def api_get_shops():
 async def game_api_get_shop_items(shop_id):
     """获取商店商品"""
     try:
-        shop_service = current_app.config.get("SHOP_SERVICE")
+        shop_service = current_app.config.get("shop_service")
         
         if not shop_service:
             return jsonify({"success": False, "message": "服务不可用"})
@@ -611,13 +611,13 @@ async def api_purchase_item():
         quantity = data.get("quantity", 1)
         
         user_id = session.get("game_user_id")
-        shop_service = current_app.config.get("SHOP_SERVICE")
+        shop_service = current_app.config.get("shop_service")
         
         if not shop_service:
             return jsonify({"success": False, "message": "服务不可用"})
         
         # 调用购买服务
-        result = shop_service.purchase_item(user_id, shop_id, item_id, quantity)
+        result = shop_service.purchase_item(user_id, item_id, quantity)
         
         return jsonify({
             "success": result.get("success", False),
@@ -1506,7 +1506,24 @@ async def api_get_fishing_history():
             return jsonify({"success": False, "message": "服务不可用"})
         
         # 获取最近的钓鱼记录
-        logs = log_repo.get_user_logs(user_id, log_type="fishing", limit=20)
+        fishing_records = log_repo.get_fishing_records(user_id, limit=20)
+        
+        # 转换为字典格式
+        logs = []
+        for record in fishing_records:
+            logs.append({
+                "record_id": record.record_id,
+                "user_id": record.user_id,
+                "fish_id": record.fish_id,
+                "weight": record.weight,
+                "value": record.value,
+                "timestamp": record.timestamp.isoformat(),
+                "rod_instance_id": record.rod_instance_id,
+                "accessory_instance_id": record.accessory_instance_id,
+                "bait_id": record.bait_id,
+                "location_id": record.location_id,
+                "is_king_size": record.is_king_size
+            })
         
         return jsonify({
             "success": True,
