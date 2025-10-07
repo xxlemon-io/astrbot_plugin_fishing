@@ -14,7 +14,7 @@
                         当前钓鱼区域
                     </h5>
                     <button class="btn btn-sm btn-outline-primary" onclick="showZoneSelector()">
-                        <i class="fas fa-exchange-alt me-1"></i>
+                        <i class="fas fa-exchange me-1"></i>
                         切换区域
                     </button>
                 </div>
@@ -211,6 +211,10 @@
 .fishing-area {
     position: relative;
     padding: 2rem 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 .fishing-pond {
@@ -414,6 +418,24 @@
     color: var(--text-muted);
 }
 
+.pokedex-stats {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.fish-stat-item {
+    padding: 0.75rem;
+    border: 1px solid #e9ecef;
+    border-radius: var(--border-radius);
+    background: rgba(102, 126, 234, 0.05);
+    transition: var(--transition);
+}
+
+.fish-stat-item:hover {
+    border-color: var(--primary-color);
+    background: rgba(102, 126, 234, 0.1);
+}
+
 .fish-value {
     font-weight: 600;
     color: var(--success-color);
@@ -435,6 +457,8 @@ class FishingModule {
         this.isFishing = false;
         this.cooldownTimer = null;
         this.userInfo = null;
+        this.lastCooldownCheck = 0; // 上次检查冷却的时间戳
+        this.cooldownCheckThrottle = 5000; // 冷却检查防抖间隔（5秒）
         
         this.init();
     }
@@ -443,6 +467,7 @@ class FishingModule {
         await this.loadUserInfo();
         await this.loadZones();
         await this.loadFishingHistory();
+        await this.checkCooldownStatus();
         this.setupEventListeners();
     }
     
@@ -451,6 +476,18 @@ class FishingModule {
         setInterval(() => {
             this.loadUserInfo();
         }, 30000);
+        
+        // 当页面重新变为可见时检查冷却状态（用户从其他标签页返回）
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                this.checkCooldownStatus();
+            }
+        });
+        
+        // 当窗口重新获得焦点时检查冷却状态
+        window.addEventListener('focus', () => {
+            this.checkCooldownStatus();
+        });
     }
     
     async loadUserInfo() {
@@ -493,6 +530,49 @@ class FishingModule {
         }
     }
     
+    async checkCooldownStatus() {
+        const now = Date.now();
+        // 防抖：如果距离上次检查不到5秒，跳过
+        if (now - this.lastCooldownCheck < this.cooldownCheckThrottle) {
+            return;
+        }
+        
+        try {
+            const response = await gameApp.apiCall('/fishing/cooldown', 'GET');
+            if (response.success) {
+                const data = response.data;
+                if (data.is_on_cooldown) {
+                    this.startCooldown(data.remaining_seconds);
+                } else {
+                    this.clearCooldown();
+                }
+                this.lastCooldownCheck = now;
+            }
+        } catch (error) {
+            console.error('Failed to check cooldown status:', error);
+        }
+    }
+    
+    // 只在用户尝试钓鱼时检查冷却状态
+    async checkCooldownBeforeFishing() {
+        try {
+            const response = await gameApp.apiCall('/fishing/cooldown', 'GET');
+            if (response.success) {
+                const data = response.data;
+                if (data.is_on_cooldown) {
+                    this.startCooldown(data.remaining_seconds);
+                    return false; // 仍在冷却中
+                } else {
+                    this.clearCooldown();
+                    return true; // 可以钓鱼
+                }
+            }
+        } catch (error) {
+            console.error('Failed to check cooldown status:', error);
+        }
+        return true; // 出错时允许钓鱼
+    }
+    
     updateDisplay() {
         if (!this.userInfo) return;
         
@@ -518,12 +598,22 @@ class FishingModule {
             this.currentZone = currentZone;
             document.getElementById('currentZoneName').textContent = currentZone.name;
             document.getElementById('currentZoneDesc').textContent = currentZone.description || '暂无描述';
-            document.getElementById('fishingCost').textContent = currentZone.fishing_cost || 10;
+            document.getElementById('fishingCost').textContent = gameApp.formatNumber(currentZone.fishing_cost || 10);
         }
     }
     
     async startFishing() {
         if (this.isFishing) return;
+        
+        // 检查是否在冷却中
+        const fishingBtn = document.getElementById('fishingBtn');
+        if (fishingBtn.disabled) return;
+        
+        // 在钓鱼前检查冷却状态
+        const canFish = await this.checkCooldownBeforeFishing();
+        if (!canFish) {
+            return; // 仍在冷却中，不执行钓鱼
+        }
         
         try {
             this.isFishing = true;
@@ -543,19 +633,23 @@ class FishingModule {
                 await this.loadUserInfo();
                 
                 // 显示冷却时间
-                this.startCooldown();
+                this.startCooldown(response.data.cooldown_seconds || 180);
                 
             } else {
                 gameApp.showToast(response.message, 'danger');
                 
                 // 如果是冷却中，显示冷却时间
-                if (response.message.includes('等待')) {
-                    this.startCooldown();
+                if (response.message.includes('等待') || response.message.includes('冷却')) {
+                    this.startCooldown(response.data.cooldown_seconds || 180);
+                } else {
+                    // 如果不是冷却问题，恢复按钮状态
+                    this.isFishing = false;
+                    this.updateFishingButton(false);
+                    this.stopFishingAnimation();
                 }
             }
         } catch (error) {
             gameApp.showToast('钓鱼失败，请稍后重试', 'danger');
-        } finally {
             this.isFishing = false;
             this.updateFishingButton(false);
             this.stopFishingAnimation();
@@ -605,9 +699,9 @@ class FishingModule {
                     <h4 class="fish-name">${fish.name}</h4>
                     <div class="fish-details mb-2">
                         <span class="star-rating">${'★'.repeat(fish.rarity)}</span>
-                        <span class="ms-2">重量: ${fish.weight}克</span>
+                        <span class="ms-2">重量: ${gameApp.formatNumber(fish.weight)}克</span>
                     </div>
-                    <div class="fish-value">价值: ${fish.value} 金币</div>
+                    <div class="fish-value">价值: ${gameApp.formatNumber(fish.value)} 金币</div>
                 </div>
             `;
             
@@ -635,16 +729,21 @@ class FishingModule {
         return colors[rarity] || 'secondary';
     }
     
-    startCooldown() {
+    startCooldown(seconds = 180) {
         const cooldownSection = document.getElementById('fishingCooldown');
         const cooldownTime = document.getElementById('cooldownTime');
         const fishingBtn = document.getElementById('fishingBtn');
         
+        // 清除之前的定时器
+        if (this.cooldownTimer) {
+            clearTimeout(this.cooldownTimer);
+        }
+        
         cooldownSection.style.display = 'block';
         fishingBtn.disabled = true;
         
-        // 模拟冷却时间（实际应该从服务器获取）
-        let remaining = 180; // 3分钟
+        // 使用服务器返回的冷却时间
+        let remaining = seconds;
         
         const updateCooldown = () => {
             cooldownTime.textContent = gameApp.formatTime(remaining);
@@ -653,13 +752,29 @@ class FishingModule {
             if (remaining < 0) {
                 cooldownSection.style.display = 'none';
                 fishingBtn.disabled = false;
+                this.cooldownTimer = null;
                 return;
             }
             
-            setTimeout(updateCooldown, 1000);
+            this.cooldownTimer = setTimeout(updateCooldown, 1000);
         };
         
         updateCooldown();
+    }
+    
+    clearCooldown() {
+        const cooldownSection = document.getElementById('fishingCooldown');
+        const fishingBtn = document.getElementById('fishingBtn');
+        
+        // 清除定时器
+        if (this.cooldownTimer) {
+            clearTimeout(this.cooldownTimer);
+            this.cooldownTimer = null;
+        }
+        
+        // 隐藏冷却显示，启用按钮
+        cooldownSection.style.display = 'none';
+        fishingBtn.disabled = false;
     }
     
     async toggleAutoFishing() {
@@ -706,7 +821,7 @@ class FishingModule {
                 <div class="zone-description">${zone.description || '暂无描述'}</div>
                 <div class="zone-cost">
                     <i class="fas fa-coins text-warning me-1"></i>
-                    ${zone.fishing_cost || 10} 金币/次
+                    ${gameApp.formatNumber(zone.fishing_cost || 10)} 金币/次
                 </div>
                 ${zone.requires_pass ? '<div class="zone-requirements">需要通行证</div>' : ''}
             </div>
@@ -734,12 +849,107 @@ class FishingModule {
         }
     }
     
-    showFishingHistory() {
-        gameApp.showToast('钓鱼记录功能暂未实现', 'info');
+    async showFishingHistory() {
+        try {
+            const response = await gameApp.apiCall('/fishing/history', 'GET');
+            if (response.success) {
+                const logs = response.data.logs || [];
+                this.renderFishingHistory(logs);
+            } else {
+                gameApp.showToast('获取钓鱼记录失败', 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('获取钓鱼记录失败，请稍后重试', 'danger');
+        }
     }
     
-    showFishingStats() {
-        gameApp.showToast('钓鱼统计功能暂未实现', 'info');
+    renderFishingHistory(logs) {
+        if (logs.length === 0) {
+            gameApp.showToast('暂无钓鱼记录', 'info');
+            return;
+        }
+        
+        const historyHtml = logs.map(log => `
+            <div class="fishing-record">
+                <div class="fish-icon bg-primary">
+                    <i class="fas fa-fish"></i>
+                </div>
+                <div class="fish-info">
+                    <div class="fish-name">${log.message || '钓鱼记录'}</div>
+                    <div class="fish-details">
+                        时间: ${new Date(log.timestamp).toLocaleString()}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        // 更新钓鱼记录显示
+        document.getElementById('fishingHistory').innerHTML = historyHtml;
+    }
+    
+    async showFishingStats() {
+        try {
+            const response = await gameApp.apiCall('/fishing/pokedex', 'GET');
+            if (response.success) {
+                const pokedex = response.data.pokedex || [];
+                this.renderFishingStats(pokedex);
+            } else {
+                gameApp.showToast('获取鱼类图鉴失败', 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('获取鱼类图鉴失败，请稍后重试', 'danger');
+        }
+    }
+    
+    renderFishingStats(pokedex) {
+        if (pokedex.length === 0) {
+            gameApp.showToast('暂无鱼类图鉴数据', 'info');
+            return;
+        }
+        
+        // 按稀有度分组
+        const fishesByRarity = {};
+        pokedex.forEach(fish => {
+            const rarity = fish.rarity || 1;
+            if (!fishesByRarity[rarity]) {
+                fishesByRarity[rarity] = [];
+            }
+            fishesByRarity[rarity].push(fish);
+        });
+        
+        let statsHtml = '<div class="pokedex-stats">';
+        Object.keys(fishesByRarity).sort((a, b) => b - a).forEach(rarity => {
+            const fishList = fishesByRarity[rarity];
+            statsHtml += `
+                <div class="mb-3">
+                    <h6 class="text-muted">${'★'.repeat(rarity)} 稀有度 ${rarity} (${fishList.length}种)</h6>
+                    <div class="row g-2">
+                        ${fishList.map(fish => `
+                            <div class="col-6">
+                                <div class="fish-stat-item">
+                                    <div class="fish-name">${fish.name}</div>
+                                    <div class="fish-details">
+                                        重量: ${gameApp.formatNumber(fish.weight)}克 | 价值: ${gameApp.formatNumber(fish.value)}金币
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        });
+        statsHtml += '</div>';
+        
+        // 显示在模态框中
+        const modal = new bootstrap.Modal(document.getElementById('fishingResultModal'));
+        document.getElementById('fishingResultContent').innerHTML = `
+            <div class="text-center mb-3">
+                <h4>🐠 鱼类图鉴统计</h4>
+                <p>共发现 ${pokedex.length} 种鱼类</p>
+            </div>
+            ${statsHtml}
+        `;
+        modal.show();
     }
 }
 

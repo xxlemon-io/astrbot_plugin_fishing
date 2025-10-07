@@ -1,4 +1,5 @@
 import asyncio
+import functools
 from datetime import datetime, timedelta
 from quart import Blueprint, render_template, request, session, jsonify, current_app
 from astrbot.api import logger
@@ -12,17 +13,18 @@ auth_bp = Blueprint("auth_bp", __name__)
 auth_service = AuthService()
 
 
-def login_required(f):
+def auth_login_required(f):
     """游戏登录验证装饰器"""
-    async def decorated_function(*args, **kwargs):
+    @functools.wraps(f)
+    async def wrapper(*args, **kwargs):
         if "game_user_id" not in session:
             return jsonify({"success": False, "message": "请先登录", "redirect": "/game/login"}), 401
         return await f(*args, **kwargs)
-    return decorated_function
+    return wrapper
 
 
 @auth_bp.route("/game/login", methods=["GET"])
-async def game_login_page():
+async def auth_login_page():
     """游戏登录页面"""
     return await render_template("game/login.html")
 
@@ -56,36 +58,71 @@ async def send_verification_code():
         # 更新发送限制
         auth_service._send_limits[qq_id] = datetime.now()
         
-        # 通过Bot发送验证码
-        try:
-            # 获取插件实例
-            plugin_instance = current_app.config.get("PLUGIN_INSTANCE")
-            if plugin_instance:
-                # 构造消息
+        # 1. 日志记录（方便测试）
+        logger.info(f"========================================")
+        logger.info(f"验证码已生成 - QQ: {qq_id}")
+        logger.info(f"验证码: {code}")
+        logger.info(f"有效期: 5分钟")
+        logger.info(f"========================================")
+        
+        # 2. 通过Bot发送私聊消息
+        plugin_instance = current_app.config.get("PLUGIN_INSTANCE")
+        if plugin_instance:
+            try:
+                # 构造消息内容
                 message = f"【钓鱼游戏】您的验证码是：{code}，5分钟内有效。"
                 
-                # 尝试通过插件实例发送私聊消息
-                try:
-                    # 这里需要调用Bot的消息发送功能
-                    # 由于AstrBot的API限制，我们暂时记录日志
-                    logger.info(f"验证码发送到QQ {qq_id}: {code}")
+                # 使用消息服务发送验证码
+                if hasattr(plugin_instance, 'message_service'):
+                    sent = await plugin_instance.message_service.send_private_message(qq_id, message)
+                    if sent:
+                        logger.info(f"验证码已通过消息服务发送到 QQ {qq_id}")
+                    else:
+                        logger.warning("消息服务发送失败，请查看日志获取验证码")
+                else:
+                    # 备用方案：直接发送
+                    sent = False
                     
-                    # TODO: 实际的消息发送需要通过bot_instance实现
-                    # 可以通过插件实例访问Bot的API
-                    # 暂时模拟发送成功
+                    # 方式1: 直接通过插件实例的 bot 属性（最可靠的方式）
+                    if hasattr(plugin_instance, 'bot') and hasattr(plugin_instance.bot, 'call_action'):
+                        try:
+                            await plugin_instance.bot.call_action(
+                                "send_private_msg",
+                                user_id=int(qq_id),
+                                message=message
+                            )
+                            logger.info(f"验证码已通过 plugin_instance.bot.call_action 发送到 QQ {qq_id}")
+                            sent = True
+                        except Exception as e:
+                            logger.debug(f"bot.call_action方式失败: {e}")
                     
-                except Exception as send_error:
-                    logger.error(f"发送验证码消息失败: {send_error}")
-                    # 即使发送失败，也返回成功，因为验证码已经生成
-                
-            return jsonify({"success": True, "message": "验证码已发送到您的QQ"})
-            
-        except Exception as e:
-            logger.error(f"发送验证码失败: {e}")
-            return jsonify({"success": False, "message": "发送验证码失败，请稍后重试"})
+                    # 方式2: 通过 context.get_platform_adapter() 获取平台适配器
+                    if not sent and hasattr(plugin_instance.context, 'get_platform_adapter'):
+                        try:
+                            platform_adapter = plugin_instance.context.get_platform_adapter()
+                            if hasattr(platform_adapter, 'bot') and hasattr(platform_adapter.bot, 'call_action'):
+                                await platform_adapter.bot.call_action(
+                                    "send_private_msg",
+                                    user_id=int(qq_id),
+                                    message=message
+                                )
+                                logger.info(f"验证码已通过 platform_adapter.bot.call_action 发送到 QQ {qq_id}")
+                                sent = True
+                        except Exception as e:
+                            logger.debug(f"platform_adapter方式失败: {e}")
+                    
+                    
+                    if not sent:
+                        logger.warning("所有发送方式都失败，请查看日志获取验证码")
+                    
+            except Exception as send_error:
+                logger.warning(f"通过Bot发送验证码失败（用户仍可通过日志查看）: {send_error}")
+                logger.info(f"验证码已记录在日志中，请查看上方日志获取验证码")
+        
+        return jsonify({"success": True, "message": "验证码已发送（请查看日志或QQ私聊）"})
             
     except Exception as e:
-        logger.error(f"发送验证码API错误: {e}")
+        logger.error(f"发送验证码API错误: {e}", exc_info=True)
         return jsonify({"success": False, "message": "服务器错误，请稍后重试"})
 
 
@@ -127,8 +164,15 @@ async def verify_code():
         session["game_logged_in"] = True
         
         # 更新用户最后登录时间
-        if user_service.user_repo.update_last_login_time(qq_id):
-            logger.info(f"用户 {qq_id} 通过WebUI登录成功")
+        try:
+            user = user_service.user_repo.get_by_id(qq_id)
+            if user:
+                from ..core.utils import get_now
+                user.last_login_time = get_now()
+                user_service.user_repo.update(user)
+                logger.info(f"用户 {qq_id} 通过WebUI登录成功")
+        except Exception as e:
+            logger.warning(f"更新用户登录时间失败: {e}")
         
         return jsonify({
             "success": True, 
@@ -142,7 +186,7 @@ async def verify_code():
 
 
 @auth_bp.route("/game/api/logout", methods=["POST"])
-async def game_logout():
+async def auth_logout():
     """退出游戏登录"""
     session.pop("game_user_id", None)
     session.pop("game_logged_in", None)

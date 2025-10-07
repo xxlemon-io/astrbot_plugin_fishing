@@ -313,6 +313,12 @@ async def start_admin(self, event: AstrMessageEvent):
             "fishing_zone_service": self.fishing_zone_service,
             "shop_service": self.shop_service,
             "exchange_service": self.exchange_service,
+            "fishing_service": self.fishing_service,  # 新增：钓鱼服务
+            "inventory_service": self.inventory_service,  # 新增：背包服务
+            "gacha_service": self.gacha_service,  # 新增：抽卡服务
+            "aquarium_service": self.aquarium_service,  # 新增：水族箱服务
+            "game_mechanics_service": self.game_mechanics_service,  # 新增：游戏机制服务
+            "achievement_service": self.achievement_service,  # 新增：成就服务
             "plugin_instance": self,  # 传递插件实例用于发送验证码
         }
         app = create_app(
@@ -352,10 +358,32 @@ async def stop_admin(self, event: AstrMessageEvent):
     except asyncio.CancelledError:
         # 3. 捕获CancelledError，这是成功关闭的标志
         logger.info("钓鱼插件Web管理后台已成功关闭")
+        
+        # 4. 强制释放端口，确保端口完全释放
+        try:
+            from ..utils import kill_processes_on_port
+            success, killed_pids = await kill_processes_on_port(self.port)
+            if success and killed_pids:
+                logger.info(f"已强制释放端口 {self.port}，终止了进程: {killed_pids}")
+            elif killed_pids:
+                logger.warning(f"部分释放端口 {self.port}，终止了进程: {killed_pids}")
+        except Exception as port_error:
+            logger.warning(f"强制释放端口 {self.port} 时出错: {port_error}")
+        
         yield event.plain_result("✅ 钓鱼后台已关闭")
     except Exception as e:
-        # 4. 捕获其他可能的意外错误
+        # 5. 捕获其他可能的意外错误
         logger.error(f"关闭钓鱼后台管理时发生意外错误: {e}", exc_info=True)
+        
+        # 6. 即使出错也尝试强制释放端口
+        try:
+            from ..utils import kill_processes_on_port
+            success, killed_pids = await kill_processes_on_port(self.port)
+            if success and killed_pids:
+                logger.info(f"异常情况下强制释放端口 {self.port}，终止了进程: {killed_pids}")
+        except Exception as port_error:
+            logger.warning(f"异常情况下强制释放端口 {self.port} 时出错: {port_error}")
+        
         yield event.plain_result(f"❌ 关闭钓鱼后台管理失败: {e}")
 
 async def sync_initial_data(self, event: AstrMessageEvent):

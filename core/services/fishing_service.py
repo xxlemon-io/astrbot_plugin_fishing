@@ -97,6 +97,31 @@ class FishingService:
         if not user:
             return {"success": False, "message": "用户不存在，无法钓鱼。"}
 
+        # 0. 检查钓鱼冷却时间
+        fishing_config = self.config.get("fishing", {})
+        cooldown = fishing_config.get("cooldown_seconds", 180)
+        
+        now = get_now()
+        if user.last_fishing_time and user.last_fishing_time.year > 1:
+            time_since_last_fishing = (now - user.last_fishing_time).total_seconds()
+            
+            # 检查用户是否装备了海洋之心（减少冷却时间）
+            equipped_accessory = self.inventory_repo.get_user_equipped_accessory(user_id)
+            if equipped_accessory:
+                accessory_template = self.item_template_repo.get_accessory_by_id(equipped_accessory.accessory_id)
+                if accessory_template and accessory_template.name == "海洋之心":
+                    # 海洋之心装备时，CD时间减半
+                    cooldown = cooldown / 2
+            
+            if time_since_last_fishing < cooldown:
+                remaining_time = int(cooldown - time_since_last_fishing)
+                minutes = remaining_time // 60
+                seconds = remaining_time % 60
+                if minutes > 0:
+                    return {"success": False, "message": f"钓鱼冷却中，请等待 {minutes} 分 {seconds} 秒后再试"}
+                else:
+                    return {"success": False, "message": f"钓鱼冷却中，请等待 {seconds} 秒后再试"}
+
         # 1. 检查成本（从区域配置中读取）
         zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
         if not zone:

@@ -15,7 +15,7 @@ class GameApp {
         this.setupEventListeners();
         this.loadUserInfo();
         this.setupBottomNavigation();
-        this.setupAutoRefresh();
+        // 移除自动刷新，只在用户操作后更新
     }
     
     setupEventListeners() {
@@ -64,12 +64,6 @@ class GameApp {
         });
     }
     
-    setupAutoRefresh() {
-        // 每30秒刷新用户信息
-        this.refreshInterval = setInterval(() => {
-            this.loadUserInfo();
-        }, 30000);
-    }
     
     async loadUserInfo() {
         try {

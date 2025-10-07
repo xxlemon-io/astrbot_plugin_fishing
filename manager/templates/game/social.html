@@ -1,0 +1,756 @@
+{% extends "game/layout_game.html" %}
+
+{% block title %}钓鱼游戏 - 社交{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 排行榜 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-trophy me-2"></i>
+                        排行榜
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadRanking()">
+                        <i class="fas fa-sync me-1"></i>
+                        刷新
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="rankingList">
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <p class="mt-2">加载排行榜中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 社交功能 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users me-2"></i>
+                        社交功能
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-danger w-100" onclick="showStealModal()">
+                                <i class="fas fa-hand-rock me-2"></i>
+                                偷鱼
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-warning w-100" onclick="showDispelModal()">
+                                <i class="fas fa-magic me-2"></i>
+                                驱灵
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 称号系统 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-crown me-2"></i>
+                        称号系统
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadTitles()">
+                        <i class="fas fa-sync me-1"></i>
+                        刷新
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="titlesList">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-crown fa-2x mb-2"></i>
+                            <p>暂无称号</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 成就系统 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-medal me-2"></i>
+                        成就系统
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadAchievements()">
+                        <i class="fas fa-sync me-1"></i>
+                        刷新
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="achievementsList">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-medal fa-2x mb-2"></i>
+                            <p>暂无成就</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 偷鱼模态框 -->
+<div class="modal fade" id="stealModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-hand-rock me-2"></i>
+                    偷鱼
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="stealForm">
+                    <div class="mb-3">
+                        <label for="stealTargetId" class="form-label">目标用户ID</label>
+                        <input type="text" class="form-control" id="stealTargetId" placeholder="请输入用户ID" required>
+                    </div>
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        偷鱼有冷却时间，请谨慎使用。
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="executeSteal()">偷鱼</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 驱灵模态框 -->
+<div class="modal fade" id="dispelModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-magic me-2"></i>
+                    驱灵
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="dispelForm">
+                    <div class="mb-3">
+                        <label for="dispelTargetId" class="form-label">目标用户ID</label>
+                        <input type="text" class="form-control" id="dispelTargetId" placeholder="请输入用户ID" required>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        驱灵可以驱散目标的海灵守护效果，需要消耗驱灵香。
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-warning" onclick="executeDispel()">驱灵</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.ranking-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border: 1px solid #e9ecef;
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+    transition: var(--transition);
+}
+
+.ranking-item:hover {
+    border-color: var(--primary-color);
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.ranking-item.top-3 {
+    border-color: var(--warning-color);
+    background: rgba(255, 193, 7, 0.1);
+}
+
+.ranking-position {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-weight: 600;
+    font-size: 1.2rem;
+    color: white;
+    flex-shrink: 0;
+}
+
+.ranking-position.first {
+    background: linear-gradient(135deg, #ffd700, #ffed4e);
+    color: #333;
+}
+
+.ranking-position.second {
+    background: linear-gradient(135deg, #c0c0c0, #e8e8e8);
+    color: #333;
+}
+
+.ranking-position.third {
+    background: linear-gradient(135deg, #cd7f32, #daa520);
+    color: white;
+}
+
+.ranking-position.other {
+    background: var(--primary-color);
+}
+
+.ranking-info {
+    flex: 1;
+}
+
+.ranking-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.ranking-details {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.ranking-stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.8rem;
+}
+
+.ranking-stat {
+    color: var(--text-muted);
+}
+
+.title-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border: 1px solid #e9ecef;
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.title-item:hover {
+    border-color: var(--primary-color);
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.title-item.active {
+    border-color: var(--success-color);
+    background: rgba(40, 167, 69, 0.1);
+}
+
+.title-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.5rem;
+    color: white;
+    background: var(--primary-color);
+    flex-shrink: 0;
+}
+
+.title-info {
+    flex: 1;
+}
+
+.title-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.title-description {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.title-id {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.achievement-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border: 1px solid #e9ecef;
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.achievement-item:hover {
+    border-color: var(--primary-color);
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.achievement-item.completed {
+    border-color: var(--success-color);
+    background: rgba(40, 167, 69, 0.1);
+}
+
+.achievement-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.5rem;
+    color: white;
+    flex-shrink: 0;
+}
+
+.achievement-icon.completed {
+    background: var(--success-color);
+}
+
+.achievement-icon.pending {
+    background: var(--secondary-color);
+}
+
+.achievement-info {
+    flex: 1;
+}
+
+.achievement-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.achievement-description {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.achievement-progress {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    height: 8px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.achievement-progress-bar {
+    height: 100%;
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    transition: width 0.3s ease;
+}
+
+.achievement-status {
+    text-align: right;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class SocialModule {
+    constructor() {
+        this.rankingData = [];
+        this.titlesData = [];
+        this.achievementsData = [];
+        
+        this.init();
+    }
+    
+    async init() {
+        await this.loadRanking();
+        await this.loadTitles();
+        await this.loadAchievements();
+    }
+    
+    async loadRanking() {
+        try {
+            const response = await gameApp.apiCall('/social/ranking', 'GET');
+            if (response.success) {
+                this.rankingData = response.data.leaderboard || [];
+                this.renderRanking();
+            }
+        } catch (error) {
+            console.error('Failed to load ranking:', error);
+        }
+    }
+    
+    renderRanking() {
+        const container = document.getElementById('rankingList');
+        
+        if (this.rankingData.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-trophy"></i>
+                    <p>暂无排行榜数据</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const rankingHtml = this.rankingData.map((user, index) => {
+            const position = index + 1;
+            const positionClass = position <= 3 ? 
+                (position === 1 ? 'first' : position === 2 ? 'second' : 'third') : 
+                'other';
+            
+            return `
+                <div class="ranking-item ${position <= 3 ? 'top-3' : ''}">
+                    <div class="ranking-position ${positionClass}">
+                        ${position <= 3 ? '🏆' : position}
+                    </div>
+                    <div class="ranking-info">
+                        <div class="ranking-name">${user.nickname || '未知用户'}</div>
+                        <div class="ranking-details">
+                            称号: ${user.title || '无'} | 
+                            饰品: ${user.accessory || '无'} | 
+                            鱼竿: ${user.fishing_rod || '无'}
+                        </div>
+                        <div class="ranking-stats">
+                            <div class="ranking-stat">金币: ${gameApp.formatNumber(user.coins || 0)}</div>
+                            <div class="ranking-stat">钓鱼次数: ${user.total_fishing_count || 0}</div>
+                            <div class="ranking-stat">总重量: ${user.total_weight_caught || 0}克</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        container.innerHTML = rankingHtml;
+    }
+    
+    async loadTitles() {
+        try {
+            const response = await gameApp.apiCall('/social/titles', 'GET');
+            if (response.success) {
+                this.titlesData = response.data.titles || [];
+                this.renderTitles();
+            }
+        } catch (error) {
+            console.error('Failed to load titles:', error);
+        }
+    }
+    
+    renderTitles() {
+        const container = document.getElementById('titlesList');
+        
+        if (this.titlesData.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-crown"></i>
+                    <p>暂无称号</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const titlesHtml = this.titlesData.map(title => `
+            <div class="title-item" onclick="useTitle(${title.title_id})">
+                <div class="title-icon">
+                    <i class="fas fa-crown"></i>
+                </div>
+                <div class="title-info">
+                    <div class="title-name">${title.name}</div>
+                    <div class="title-description">${title.description}</div>
+                    <div class="title-id">ID: ${title.title_id}</div>
+                </div>
+            </div>
+        `).join('');
+        
+        container.innerHTML = titlesHtml;
+    }
+    
+    async loadAchievements() {
+        try {
+            const response = await gameApp.apiCall('/social/achievements', 'GET');
+            if (response.success) {
+                this.achievementsData = response.data.achievements || [];
+                this.renderAchievements();
+            }
+        } catch (error) {
+            console.error('Failed to load achievements:', error);
+        }
+    }
+    
+    renderAchievements() {
+        const container = document.getElementById('achievementsList');
+        
+        if (this.achievementsData.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-medal"></i>
+                    <p>暂无成就</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const achievementsHtml = this.achievementsData.map(achievement => {
+            const isCompleted = achievement.completed_at !== null;
+            const progress = achievement.progress || 0;
+            const target = achievement.target || 100;
+            const progressPercent = Math.min((progress / target) * 100, 100);
+            
+            return `
+                <div class="achievement-item ${isCompleted ? 'completed' : ''}" onclick="showAchievementDetail(${achievement.id})">
+                    <div class="achievement-icon ${isCompleted ? 'completed' : 'pending'}">
+                        <i class="fas fa-${achievement.icon || 'medal'}"></i>
+                    </div>
+                    <div class="achievement-info">
+                        <div class="achievement-name">${achievement.name}</div>
+                        <div class="achievement-description">${achievement.description}</div>
+                        ${!isCompleted ? `
+                            <div class="achievement-progress">
+                                <div class="achievement-progress-bar" style="width: ${progressPercent}%"></div>
+                            </div>
+                            <div class="achievement-status">进度: ${progress} / ${target}</div>
+                        ` : `
+                            <div class="achievement-status">✅ 已完成</div>
+                        `}
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        container.innerHTML = achievementsHtml;
+    }
+    
+    showStealModal() {
+        const modal = new bootstrap.Modal(document.getElementById('stealModal'));
+        modal.show();
+    }
+    
+    showDispelModal() {
+        const modal = new bootstrap.Modal(document.getElementById('dispelModal'));
+        modal.show();
+    }
+    
+    async executeSteal() {
+        const targetId = document.getElementById('stealTargetId').value;
+        
+        if (!targetId) {
+            gameApp.showToast('请输入目标用户ID', 'warning');
+            return;
+        }
+        
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/social/steal', 'POST', {
+                target_id: targetId
+            });
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                bootstrap.Modal.getInstance(document.getElementById('stealModal')).hide();
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('偷鱼失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async executeDispel() {
+        const targetId = document.getElementById('dispelTargetId').value;
+        
+        if (!targetId) {
+            gameApp.showToast('请输入目标用户ID', 'warning');
+            return;
+        }
+        
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/social/dispel', 'POST', {
+                target_id: targetId
+            });
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                bootstrap.Modal.getInstance(document.getElementById('dispelModal')).hide();
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('驱灵失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async useTitle(titleId) {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/social/titles/use', 'POST', {
+                title_id: titleId
+            });
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                await this.loadTitles();
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('使用称号失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    showAchievementDetail(achievementId) {
+        const achievement = this.achievementsData.find(a => a.id === achievementId);
+        if (!achievement) return;
+        
+        const isCompleted = achievement.completed_at !== null;
+        const progress = achievement.progress || 0;
+        const target = achievement.target || 100;
+        const progressPercent = Math.min((progress / target) * 100, 100);
+        
+        const detailHtml = `
+            <div class="text-center">
+                <div class="achievement-icon ${isCompleted ? 'completed' : 'pending'} mx-auto mb-3" style="width: 80px; height: 80px; font-size: 2rem;">
+                    <i class="fas fa-${achievement.icon || 'medal'}"></i>
+                </div>
+                <h4>${achievement.name}</h4>
+                <p class="text-muted">${achievement.description}</p>
+                ${!isCompleted ? `
+                    <div class="achievement-progress mb-3">
+                        <div class="achievement-progress-bar" style="width: ${progressPercent}%"></div>
+                    </div>
+                    <p>进度: ${progress} / ${target}</p>
+                ` : `
+                    <p class="text-success">✅ 已完成</p>
+                `}
+                <p class="text-info">奖励: ${achievement.reward || '无'}</p>
+            </div>
+        `;
+        
+        // 这里可以显示一个模态框或弹窗来展示成就详情
+        gameApp.showToast(`成就: ${achievement.name}`, 'info');
+    }
+}
+
+// 全局函数
+function loadRanking() {
+    if (window.socialModule) {
+        window.socialModule.loadRanking();
+    }
+}
+
+function loadTitles() {
+    if (window.socialModule) {
+        window.socialModule.loadTitles();
+    }
+}
+
+function loadAchievements() {
+    if (window.socialModule) {
+        window.socialModule.loadAchievements();
+    }
+}
+
+function showStealModal() {
+    if (window.socialModule) {
+        window.socialModule.showStealModal();
+    }
+}
+
+function showDispelModal() {
+    if (window.socialModule) {
+        window.socialModule.showDispelModal();
+    }
+}
+
+function executeSteal() {
+    if (window.socialModule) {
+        window.socialModule.executeSteal();
+    }
+}
+
+function executeDispel() {
+    if (window.socialModule) {
+        window.socialModule.executeDispel();
+    }
+}
+
+function useTitle(titleId) {
+    if (window.socialModule) {
+        window.socialModule.useTitle(titleId);
+    }
+}
+
+function showAchievementDetail(achievementId) {
+    if (window.socialModule) {
+        window.socialModule.showAchievementDetail(achievementId);
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    window.socialModule = new SocialModule();
+});
+</script>
+{% endblock %}

@@ -23,6 +23,9 @@ class ExchangeService:
         self.inventory_service = ExchangeInventoryService(user_repo, exchange_repo, config, log_repo, market_service)
         self.account_service = ExchangeAccountService(user_repo)
         
+        # 设置价格服务引用
+        self.inventory_service.price_service = self.price_service
+        
         # 商品定义（用于兼容性）
         self.commodities = self.price_service.commodities
 

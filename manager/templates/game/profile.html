@@ -170,74 +170,26 @@
         </div>
     </div>
 
-    <!-- 设置选项 -->
+
+    <!-- 税收记录 -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="game-card">
-                <div class="card-header">
+                <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">
-                        <i class="fas fa-cog me-2"></i>
-                        设置
+                        <i class="fas fa-receipt me-2"></i>
+                        税收记录
                     </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadTaxRecords()">
+                        <i class="fas fa-sync me-1"></i>
+                        刷新
+                    </button>
                 </div>
                 <div class="card-body">
-                    <div class="settings-list">
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <i class="fas fa-bell text-primary me-3"></i>
-                                <div>
-                                    <h6 class="mb-1">消息通知</h6>
-                                    <p class="text-muted mb-0">接收游戏相关通知</p>
-                                </div>
-                            </div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="notificationSwitch" checked>
-                            </div>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <i class="fas fa-volume-up text-success me-3"></i>
-                                <div>
-                                    <h6 class="mb-1">音效</h6>
-                                    <p class="text-muted mb-0">游戏音效开关</p>
-                                </div>
-                            </div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="soundSwitch" checked>
-                            </div>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <i class="fas fa-moon text-info me-3"></i>
-                                <div>
-                                    <h6 class="mb-1">深色模式</h6>
-                                    <p class="text-muted mb-0">切换深色主题</p>
-                                </div>
-                            </div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="darkModeSwitch">
-                            </div>
-                        </div>
-                        
-                        <div class="setting-item">
-                            <div class="setting-info">
-                                <i class="fas fa-language text-warning me-3"></i>
-                                <div>
-                                    <h6 class="mb-1">语言设置</h6>
-                                    <p class="text-muted mb-0">选择界面语言</p>
-                                </div>
-                            </div>
-                            <div class="dropdown">
-                                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                    简体中文
-                                </button>
-                                <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item" href="#">简体中文</a></li>
-                                    <li><a class="dropdown-item" href="#">English</a></li>
-                                </ul>
-                            </div>
+                    <div id="taxRecordsList">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-receipt fa-2x mb-2"></i>
+                            <p>暂无税收记录</p>
                         </div>
                     </div>
                 </div>
@@ -251,6 +203,18 @@
             <div class="game-card">
                 <div class="card-body">
                     <div class="row g-3">
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-success w-100" onclick="signIn()">
+                                <i class="fas fa-calendar-check me-2"></i>
+                                每日签到
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-info w-100" onclick="showTaxRecords()">
+                                <i class="fas fa-receipt me-2"></i>
+                                税收记录
+                            </button>
+                        </div>
                         <div class="col-6">
                             <button class="btn btn-game btn-game-primary w-100" onclick="exportData()">
                                 <i class="fas fa-download me-2"></i>
@@ -335,6 +299,27 @@
         </div>
     </div>
 </div>
+
+<!-- 帮助模态框 -->
+<div class="modal fade" id="helpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-question-circle me-2"></i>
+                    帮助中心
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="helpContent">
+                <!-- 帮助内容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">确定</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_css %}
@@ -371,7 +356,7 @@
 }
 
 .stat-list {
-    space-y: 0.75rem;
+    /* space-y: 0.75rem; - 这不是有效的CSS属性 */
 }
 
 .stat-item {
@@ -467,6 +452,41 @@
     transition: width 0.3s ease;
 }
 
+.tax-record-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    transition: var(--transition);
+}
+
+.tax-record-item:hover {
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.tax-record-item:last-child {
+    border-bottom: none;
+}
+
+.tax-record-info {
+    flex: 1;
+}
+
+.tax-record-amount {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.tax-record-details {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.tax-record-status {
+    text-align: right;
+}
+
 .achievement-reward {
     font-size: 0.8rem;
     color: var(--success-color);
@@ -480,38 +500,6 @@
     font-size: 1.2rem;
 }
 
-.settings-list {
-    space-y: 1rem;
-}
-
-.setting-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 0;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.setting-item:last-child {
-    border-bottom: none;
-}
-
-.setting-info {
-    display: flex;
-    align-items: center;
-    flex: 1;
-}
-
-.setting-info h6 {
-    color: var(--dark-color);
-    margin-bottom: 0.25rem;
-}
-
-.setting-info p {
-    color: var(--text-muted);
-    font-size: 0.875rem;
-    margin-bottom: 0;
-}
 
 .empty-state {
     text-align: center;
@@ -544,18 +532,7 @@ class ProfileModule {
     }
     
     setupEventListeners() {
-        // 设置开关事件
-        document.getElementById('notificationSwitch').addEventListener('change', (e) => {
-            this.updateSetting('notifications', e.target.checked);
-        });
-        
-        document.getElementById('soundSwitch').addEventListener('change', (e) => {
-            this.updateSetting('sound', e.target.checked);
-        });
-        
-        document.getElementById('darkModeSwitch').addEventListener('change', (e) => {
-            this.updateSetting('darkMode', e.target.checked);
-        });
+        // 其他事件监听器
     }
     
     async loadUserInfo() {
@@ -572,12 +549,19 @@ class ProfileModule {
     
     async loadAchievements() {
         try {
-            // 这里应该调用获取成就的API
-            // 暂时显示占位内容
-            this.achievements = [];
-            this.renderAchievements();
+            const response = await gameApp.apiCall('/social/achievements', 'GET');
+            if (response.success) {
+                this.achievements = response.data.achievements || [];
+                this.renderAchievements();
+            } else {
+                console.error('Failed to load achievements:', response.message);
+                this.achievements = [];
+                this.renderAchievements();
+            }
         } catch (error) {
             console.error('Failed to load achievements:', error);
+            this.achievements = [];
+            this.renderAchievements();
         }
     }
     
@@ -610,6 +594,10 @@ class ProfileModule {
             const lastLogin = new Date(this.userInfo.last_login_time);
             document.getElementById('lastLogin').textContent = lastLogin.toLocaleString();
         }
+        
+        // 更新成就数量
+        const completedAchievements = this.achievements.filter(a => a.is_completed).length;
+        document.getElementById('achievementCount').textContent = completedAchievements;
     }
     
     renderAchievements() {
@@ -629,6 +617,10 @@ class ProfileModule {
         
         const achievementsHtml = this.achievements.map(achievement => this.renderAchievement(achievement)).join('');
         container.innerHTML = achievementsHtml;
+        
+        // 更新成就数量显示
+        const completedAchievements = this.achievements.filter(a => a.is_completed).length;
+        document.getElementById('achievementCount').textContent = completedAchievements;
     }
     
     renderAchievement(achievement) {
@@ -664,31 +656,6 @@ class ProfileModule {
         `;
     }
     
-    updateSetting(key, value) {
-        // 保存设置到本地存储
-        const settings = JSON.parse(localStorage.getItem('gameSettings') || '{}');
-        settings[key] = value;
-        localStorage.setItem('gameSettings', JSON.stringify(settings));
-        
-        // 应用设置
-        this.applySettings();
-        
-        gameApp.showToast('设置已保存', 'success');
-    }
-    
-    applySettings() {
-        const settings = JSON.parse(localStorage.getItem('gameSettings') || '{}');
-        
-        // 应用深色模式
-        if (settings.darkMode) {
-            document.body.classList.add('dark-mode');
-        } else {
-            document.body.classList.remove('dark-mode');
-        }
-        
-        // 应用音效设置
-        // 这里可以控制音效的播放
-    }
     
     editProfile() {
         const modal = new bootstrap.Modal(document.getElementById('editProfileModal'));
@@ -726,7 +693,77 @@ class ProfileModule {
     }
     
     showAllAchievements() {
-        gameApp.showToast('成就系统功能暂未完全实现', 'info');
+        // 成就系统已实现，直接显示成就
+        this.showAchievements();
+    }
+    
+    async signIn() {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/user/sign-in', 'POST');
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                await this.loadUserInfo();
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('签到失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async loadTaxRecords() {
+        try {
+            const response = await gameApp.apiCall('/user/tax-records', 'GET');
+            if (response.success) {
+                const records = response.data.records || [];
+                this.renderTaxRecords(records);
+            } else {
+                gameApp.showToast('获取税收记录失败', 'danger');
+            }
+        } catch (error) {
+            console.error('Failed to load tax records:', error);
+        }
+    }
+    
+    renderTaxRecords(records) {
+        const container = document.getElementById('taxRecordsList');
+        
+        if (records.length === 0) {
+            container.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-receipt fa-2x mb-2"></i>
+                    <p>暂无税收记录</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const recordsHtml = records.map(record => `
+            <div class="tax-record-item">
+                <div class="tax-record-info">
+                    <div class="tax-record-amount">${gameApp.formatNumber(record.amount)} 金币</div>
+                    <div class="tax-record-details">
+                        时间: ${new Date(record.timestamp).toLocaleString()} | 
+                        类型: ${record.type || '税收'}
+                    </div>
+                </div>
+                <div class="tax-record-status">
+                    <span class="badge bg-${record.status === 'paid' ? 'success' : 'warning'}">
+                        ${record.status === 'paid' ? '已缴纳' : '待缴纳'}
+                    </span>
+                </div>
+            </div>
+        `).join('');
+        
+        container.innerHTML = recordsHtml;
+    }
+    
+    showTaxRecords() {
+        this.loadTaxRecords();
     }
     
     showAchievementDetail(achievementId) {
@@ -754,18 +791,84 @@ class ProfileModule {
     }
     
     exportData() {
-        gameApp.showToast('数据导出功能暂未实现', 'info');
+        try {
+            // 导出用户数据
+            const data = {
+                user_info: this.userInfo,
+                achievements: this.achievements,
+                export_time: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `fishing_game_data_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            gameApp.showToast('数据导出成功', 'success');
+        } catch (error) {
+            gameApp.showToast('数据导出失败', 'danger');
+        }
     }
     
     clearCache() {
         if (gameApp.confirm('确定要清理缓存吗？这将清除所有本地数据。', '确认清理')) {
-            localStorage.clear();
-            gameApp.showToast('缓存已清理', 'success');
+            try {
+                localStorage.clear();
+                sessionStorage.clear();
+                gameApp.showToast('缓存已清理', 'success');
+                // 重新加载页面
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } catch (error) {
+                gameApp.showToast('缓存清理失败', 'danger');
+            }
         }
     }
     
     showHelp() {
-        gameApp.showToast('帮助中心功能暂未实现', 'info');
+        const helpContent = `
+            <div class="help-content">
+                <h5>🎮 钓鱼游戏帮助</h5>
+                <div class="mb-3">
+                    <h6>基本操作</h6>
+                    <ul>
+                        <li><strong>钓鱼：</strong>选择区域后点击"开始钓鱼"</li>
+                        <li><strong>背包：</strong>查看和管理你的物品</li>
+                        <li><strong>商店：</strong>购买各种装备和道具</li>
+                        <li><strong>市场：</strong>与其他玩家交易</li>
+                    </ul>
+                </div>
+                <div class="mb-3">
+                    <h6>游戏系统</h6>
+                    <ul>
+                        <li><strong>抽卡：</strong>获得稀有装备和道具</li>
+                        <li><strong>水族箱：</strong>安全存储鱼类</li>
+                        <li><strong>交易所：</strong>投资大宗商品</li>
+                        <li><strong>社交：</strong>排行榜、偷鱼、称号等</li>
+                    </ul>
+                </div>
+                <div class="mb-3">
+                    <h6>注意事项</h6>
+                    <ul>
+                        <li>钓鱼有冷却时间，请耐心等待</li>
+                        <li>装备可以精炼提升属性</li>
+                        <li>道具使用后会有各种效果</li>
+                        <li>定期签到可以获得奖励</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+        
+        // 显示帮助模态框
+        const modal = new bootstrap.Modal(document.getElementById('helpModal'));
+        document.getElementById('helpContent').innerHTML = helpContent;
+        modal.show();
     }
 }
 
@@ -785,6 +888,24 @@ function saveProfile() {
 function showAllAchievements() {
     if (window.profileModule) {
         window.profileModule.showAllAchievements();
+    }
+}
+
+function signIn() {
+    if (window.profileModule) {
+        window.profileModule.signIn();
+    }
+}
+
+function showTaxRecords() {
+    if (window.profileModule) {
+        window.profileModule.showTaxRecords();
+    }
+}
+
+function loadTaxRecords() {
+    if (window.profileModule) {
+        window.profileModule.loadTaxRecords();
     }
 }
 

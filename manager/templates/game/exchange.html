@@ -1,0 +1,935 @@
+{% extends "game/layout_game.html" %}
+
+{% block title %}钓鱼游戏 - 交易所{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 账户状态 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-line me-2"></i>
+                        交易所账户
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="openExchangeAccount()" id="openAccountBtn">
+                        <i class="fas fa-plus me-1"></i>
+                        开通账户
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="accountStatus">
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <p class="mt-2">检查账户状态中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 市场行情 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>
+                        市场行情
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadMarketStatus()">
+                        <i class="fas fa-sync me-1"></i>
+                        刷新
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="marketStatus">
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <p class="mt-2">加载市场数据中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 交易操作 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-exchange me-2"></i>
+                        交易操作
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-success w-100" onclick="showBuyModal()">
+                                <i class="fas fa-arrow-up me-2"></i>
+                                买入
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-danger w-100" onclick="showSellModal()">
+                                <i class="fas fa-arrow-down me-2"></i>
+                                卖出
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-warning w-100" onclick="showClearModal()">
+                                <i class="fas fa-trash me-2"></i>
+                                清仓
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-info w-100" onclick="loadInventory()">
+                                <i class="fas fa-box me-2"></i>
+                                查看持仓
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 持仓信息 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-box me-2"></i>
+                        我的持仓
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadInventory()">
+                        <i class="fas fa-sync me-1"></i>
+                        刷新
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="inventoryList">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-box fa-2x mb-2"></i>
+                            <p>暂无持仓</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 买入模态框 -->
+<div class="modal fade" id="buyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-arrow-up me-2"></i>
+                    买入商品
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="buyForm">
+                    <div class="mb-3">
+                        <label for="buyCommoditySelect" class="form-label">选择商品</label>
+                        <select class="form-select" id="buyCommoditySelect" required>
+                            <option value="">请选择商品</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="buyQuantity" class="form-label">数量</label>
+                        <input type="number" class="form-control" id="buyQuantity" value="1" min="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <div class="alert alert-info">
+                            <small id="buyPriceInfo">请选择商品查看价格</small>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" onclick="executeBuy()">买入</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 卖出模态框 -->
+<div class="modal fade" id="sellModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-arrow-down me-2"></i>
+                    卖出商品
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="sellForm">
+                    <div class="mb-3">
+                        <label for="sellCommoditySelect" class="form-label">选择商品</label>
+                        <select class="form-select" id="sellCommoditySelect" required>
+                            <option value="">请选择商品</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="sellQuantity" class="form-label">数量</label>
+                        <input type="number" class="form-control" id="sellQuantity" value="1" min="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <div class="alert alert-info">
+                            <small id="sellPriceInfo">请选择商品查看价格</small>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="executeSell()">卖出</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 清仓模态框 -->
+<div class="modal fade" id="clearModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-trash me-2"></i>
+                    清仓操作
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    清仓操作将卖出所有持仓商品，请确认操作。
+                </div>
+                <div class="mb-3">
+                    <label for="clearCommoditySelect" class="form-label">选择清仓范围</label>
+                    <select class="form-select" id="clearCommoditySelect">
+                        <option value="">清空所有商品</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-warning" onclick="executeClear()">确认清仓</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.commodity-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border: 1px solid #e9ecef;
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+    transition: var(--transition);
+}
+
+.commodity-item:hover {
+    border-color: var(--primary-color);
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.commodity-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.5rem;
+    color: white;
+    flex-shrink: 0;
+}
+
+.commodity-info {
+    flex: 1;
+}
+
+.commodity-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.commodity-details {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.commodity-price {
+    font-weight: 600;
+    color: var(--success-color);
+}
+
+.price-change {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.price-up {
+    color: var(--success-color);
+}
+
+.price-down {
+    color: var(--danger-color);
+}
+
+.price-stable {
+    color: var(--text-muted);
+}
+
+.inventory-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    transition: var(--transition);
+}
+
+.inventory-item:hover {
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.inventory-item:last-child {
+    border-bottom: none;
+}
+
+.inventory-info {
+    flex: 1;
+}
+
+.inventory-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.inventory-details {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.inventory-value {
+    text-align: right;
+}
+
+.profit-loss {
+    font-weight: 600;
+}
+
+.profit {
+    color: var(--success-color);
+}
+
+.loss {
+    color: var(--danger-color);
+}
+
+.neutral {
+    color: var(--text-muted);
+}
+
+.account-status {
+    text-align: center;
+    padding: 2rem;
+}
+
+.account-status.success {
+    color: var(--success-color);
+}
+
+.account-status.error {
+    color: var(--danger-color);
+}
+
+.market-sentiment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem;
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.sentiment-bullish {
+    background: rgba(40, 167, 69, 0.1);
+    color: var(--success-color);
+}
+
+.sentiment-bearish {
+    background: rgba(220, 53, 69, 0.1);
+    color: var(--danger-color);
+}
+
+.sentiment-neutral {
+    background: rgba(108, 117, 125, 0.1);
+    color: var(--text-muted);
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class ExchangeModule {
+    constructor() {
+        this.marketData = null;
+        this.inventoryData = null;
+        this.userInfo = null;
+        this.hasAccount = false;
+        
+        this.init();
+    }
+    
+    async init() {
+        await this.loadUserInfo();
+        await this.checkAccountStatus();
+        if (this.hasAccount) {
+            await this.loadMarketStatus();
+            await this.loadInventory();
+        }
+    }
+    
+    async loadUserInfo() {
+        try {
+            const response = await gameApp.apiCall('/profile', 'GET');
+            if (response.success) {
+                this.userInfo = response.data;
+            }
+        } catch (error) {
+            console.error('Failed to load user info:', error);
+        }
+    }
+    
+    async checkAccountStatus() {
+        try {
+            const response = await gameApp.apiCall('/exchange/status', 'GET');
+            if (response.success) {
+                this.hasAccount = true;
+                this.updateAccountStatus(true);
+            } else {
+                this.hasAccount = false;
+                this.updateAccountStatus(false);
+            }
+        } catch (error) {
+            this.hasAccount = false;
+            this.updateAccountStatus(false);
+        }
+    }
+    
+    updateAccountStatus(hasAccount) {
+        const container = document.getElementById('accountStatus');
+        const openBtn = document.getElementById('openAccountBtn');
+        
+        if (hasAccount) {
+            container.innerHTML = `
+                <div class="account-status success">
+                    <i class="fas fa-check-circle fa-3x mb-3"></i>
+                    <h4>账户已开通</h4>
+                    <p class="text-muted">您可以开始进行交易操作</p>
+                </div>
+            `;
+            openBtn.style.display = 'none';
+        } else {
+            container.innerHTML = `
+                <div class="account-status error">
+                    <i class="fas fa-times-circle fa-3x mb-3"></i>
+                    <h4>账户未开通</h4>
+                    <p class="text-muted">请先开通交易所账户</p>
+                </div>
+            `;
+            openBtn.style.display = 'block';
+        }
+    }
+    
+    async openExchangeAccount() {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/exchange/open-account', 'POST');
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                await this.checkAccountStatus();
+                if (this.hasAccount) {
+                    await this.loadMarketStatus();
+                    await this.loadInventory();
+                }
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('开通账户失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async loadMarketStatus() {
+        try {
+            const response = await gameApp.apiCall('/exchange/status', 'GET');
+            if (response.success) {
+                this.marketData = response.data;
+                this.renderMarketStatus();
+            }
+        } catch (error) {
+            console.error('Failed to load market status:', error);
+        }
+    }
+    
+    renderMarketStatus() {
+        if (!this.marketData) return;
+        
+        const container = document.getElementById('marketStatus');
+        const prices = this.marketData.prices || {};
+        const commodities = this.marketData.commodities || {};
+        const sentiment = this.marketData.market_sentiment || 'neutral';
+        const trend = this.marketData.price_trend || 'stable';
+        
+        // 市场情绪
+        const sentimentClass = `sentiment-${sentiment}`;
+        const sentimentEmoji = this.getSentimentEmoji(sentiment);
+        const trendEmoji = this.getTrendEmoji(trend);
+        
+        let marketHtml = `
+            <div class="market-sentiment ${sentimentClass}">
+                <i class="fas fa-${sentimentEmoji} me-2"></i>
+                市场情绪: ${sentiment} ${trendEmoji}
+            </div>
+        `;
+        
+        // 商品列表
+        Object.keys(commodities).forEach(commodityId => {
+            const commodity = commodities[commodityId];
+            const price = prices[commodityId] || 0;
+            
+            marketHtml += `
+                <div class="commodity-item">
+                    <div class="commodity-icon bg-primary">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="commodity-info">
+                        <div class="commodity-name">${commodity.name}</div>
+                        <div class="commodity-details">${commodity.description}</div>
+                        <div class="commodity-price">${gameApp.formatNumber(price)} 金币</div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = marketHtml;
+    }
+    
+    getSentimentEmoji(sentiment) {
+        const emojiMap = {
+            'bullish': 'arrow-up',
+            'bearish': 'arrow-down',
+            'neutral': 'minus',
+            'optimistic': 'smile',
+            'pessimistic': 'frown',
+            'volatile': 'random'
+        };
+        return emojiMap[sentiment] || 'question';
+    }
+    
+    getTrendEmoji(trend) {
+        const emojiMap = {
+            'rising': '📈',
+            'falling': '📉',
+            'stable': '➖',
+            'volatile': '🌊',
+            'sideways': '↔️'
+        };
+        return emojiMap[trend] || '❓';
+    }
+    
+    async loadInventory() {
+        try {
+            const response = await gameApp.apiCall('/exchange/inventory', 'GET');
+            if (response.success) {
+                this.inventoryData = response.data;
+                this.renderInventory();
+            }
+        } catch (error) {
+            console.error('Failed to load inventory:', error);
+        }
+    }
+    
+    renderInventory() {
+        if (!this.inventoryData || !this.inventoryData.inventory) {
+            document.getElementById('inventoryList').innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-box fa-2x mb-2"></i>
+                    <p>暂无持仓</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const inventory = this.inventoryData.inventory;
+        const analysis = this.inventoryData.analysis || {};
+        
+        let inventoryHtml = `
+            <div class="mb-3">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="stat-item">
+                            <div class="stat-value">${gameApp.formatNumber(analysis.total_cost || 0)}</div>
+                            <div class="stat-label">总成本</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stat-item">
+                            <div class="stat-value">${gameApp.formatNumber(analysis.total_current_value || 0)}</div>
+                            <div class="stat-label">当前价值</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stat-item">
+                            <div class="stat-value ${analysis.is_profit ? 'profit' : 'loss'}">${analysis.is_profit ? '+' : ''}${gameApp.formatNumber(analysis.profit_loss || 0)}</div>
+                            <div class="stat-label">盈亏</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        Object.keys(inventory).forEach(commodityId => {
+            const commodity = inventory[commodityId];
+            const profitLoss = commodity.profit_loss || 0;
+            const currentValue = commodity.total_current_value || 0;
+            const profitClass = profitLoss > 0 ? 'profit' : profitLoss < 0 ? 'loss' : 'neutral';
+            
+            inventoryHtml += `
+                <div class="inventory-item">
+                    <div class="inventory-info">
+                        <div class="inventory-name">${commodity.name}</div>
+                        <div class="inventory-details">
+                            数量: ${gameApp.formatNumber(commodity.total_quantity)} | 
+                            成本: ${gameApp.formatNumber(commodity.total_cost)} 金币
+                        </div>
+                    </div>
+                    <div class="inventory-value">
+                        <div class="current-value">
+                            当前价值: ${gameApp.formatNumber(currentValue)} 金币
+                        </div>
+                        <div class="profit-loss ${profitClass}">
+                            ${profitLoss > 0 ? '+' : ''}${gameApp.formatNumber(profitLoss)} 金币
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        document.getElementById('inventoryList').innerHTML = inventoryHtml;
+    }
+    
+    showBuyModal() {
+        if (!this.hasAccount) {
+            gameApp.showToast('请先开通交易所账户', 'warning');
+            return;
+        }
+        
+        const modal = new bootstrap.Modal(document.getElementById('buyModal'));
+        
+        // 填充商品选择
+        const select = document.getElementById('buyCommoditySelect');
+        select.innerHTML = '<option value="">请选择商品</option>';
+        
+        if (this.marketData && this.marketData.commodities) {
+            Object.keys(this.marketData.commodities).forEach(commodityId => {
+                const commodity = this.marketData.commodities[commodityId];
+                const price = this.marketData.prices[commodityId] || 0;
+                
+                const option = document.createElement('option');
+                option.value = commodity.name;
+                option.textContent = `${commodity.name} - ${gameApp.formatNumber(price)} 金币`;
+                select.appendChild(option);
+            });
+        }
+        
+        // 监听商品选择变化
+        select.addEventListener('change', () => {
+            this.updateBuyPriceInfo();
+        });
+        
+        modal.show();
+    }
+    
+    updateBuyPriceInfo() {
+        const commodityName = document.getElementById('buyCommoditySelect').value;
+        const quantity = parseInt(document.getElementById('buyQuantity').value) || 1;
+        
+        if (!commodityName || !this.marketData) {
+            document.getElementById('buyPriceInfo').textContent = '请选择商品查看价格';
+            return;
+        }
+        
+        // 查找商品价格
+        let price = 0;
+        Object.keys(this.marketData.commodities).forEach(commodityId => {
+            if (this.marketData.commodities[commodityId].name === commodityName) {
+                price = this.marketData.prices[commodityId] || 0;
+            }
+        });
+        
+        const totalPrice = price * quantity;
+        document.getElementById('buyPriceInfo').textContent = 
+            `单价: ${gameApp.formatNumber(price)} 金币 | 总价: ${gameApp.formatNumber(totalPrice)} 金币`;
+    }
+    
+    showSellModal() {
+        if (!this.hasAccount) {
+            gameApp.showToast('请先开通交易所账户', 'warning');
+            return;
+        }
+        
+        const modal = new bootstrap.Modal(document.getElementById('sellModal'));
+        
+        // 填充商品选择
+        const select = document.getElementById('sellCommoditySelect');
+        select.innerHTML = '<option value="">请选择商品</option>';
+        
+        if (this.inventoryData && this.inventoryData.inventory) {
+            Object.keys(this.inventoryData.inventory).forEach(commodityId => {
+                const commodity = this.inventoryData.inventory[commodityId];
+                if (commodity.total_quantity > 0) {
+                    const option = document.createElement('option');
+                    option.value = commodity.name;
+                    option.textContent = `${commodity.name} (${commodity.total_quantity}个)`;
+                    select.appendChild(option);
+                }
+            });
+        }
+        
+        // 监听商品选择变化
+        select.addEventListener('change', () => {
+            this.updateSellPriceInfo();
+        });
+        
+        modal.show();
+    }
+    
+    updateSellPriceInfo() {
+        const commodityName = document.getElementById('sellCommoditySelect').value;
+        const quantity = parseInt(document.getElementById('sellQuantity').value) || 1;
+        
+        if (!commodityName || !this.marketData) {
+            document.getElementById('sellPriceInfo').textContent = '请选择商品查看价格';
+            return;
+        }
+        
+        // 查找商品价格
+        let price = 0;
+        Object.keys(this.marketData.commodities).forEach(commodityId => {
+            if (this.marketData.commodities[commodityId].name === commodityName) {
+                price = this.marketData.prices[commodityId] || 0;
+            }
+        });
+        
+        const totalPrice = price * quantity;
+        document.getElementById('sellPriceInfo').textContent = 
+            `单价: ${gameApp.formatNumber(price)} 金币 | 总价: ${gameApp.formatNumber(totalPrice)} 金币`;
+    }
+    
+    showClearModal() {
+        if (!this.hasAccount) {
+            gameApp.showToast('请先开通交易所账户', 'warning');
+            return;
+        }
+        
+        const modal = new bootstrap.Modal(document.getElementById('clearModal'));
+        
+        // 填充商品选择
+        const select = document.getElementById('clearCommoditySelect');
+        select.innerHTML = '<option value="">清空所有商品</option>';
+        
+        if (this.inventoryData && this.inventoryData.inventory) {
+            Object.keys(this.inventoryData.inventory).forEach(commodityId => {
+                const commodity = this.inventoryData.inventory[commodityId];
+                if (commodity.total_quantity > 0) {
+                    const option = document.createElement('option');
+                    option.value = commodity.name;
+                    option.textContent = `清空 ${commodity.name} (${commodity.total_quantity}个)`;
+                    select.appendChild(option);
+                }
+            });
+        }
+        
+        modal.show();
+    }
+    
+    async executeBuy() {
+        const commodityName = document.getElementById('buyCommoditySelect').value;
+        const quantity = parseInt(document.getElementById('buyQuantity').value);
+        
+        if (!commodityName || !quantity) {
+            gameApp.showToast('请选择商品和数量', 'warning');
+            return;
+        }
+        
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/exchange/buy', 'POST', {
+                commodity_name: commodityName,
+                quantity: quantity
+            });
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                await this.loadInventory();
+                await this.loadUserInfo();
+                bootstrap.Modal.getInstance(document.getElementById('buyModal')).hide();
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('买入失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async executeSell() {
+        const commodityName = document.getElementById('sellCommoditySelect').value;
+        const quantity = parseInt(document.getElementById('sellQuantity').value);
+        
+        if (!commodityName || !quantity) {
+            gameApp.showToast('请选择商品和数量', 'warning');
+            return;
+        }
+        
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/exchange/sell', 'POST', {
+                commodity_name: commodityName,
+                quantity: quantity
+            });
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                await this.loadInventory();
+                await this.loadUserInfo();
+                bootstrap.Modal.getInstance(document.getElementById('sellModal')).hide();
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('卖出失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async executeClear() {
+        const commodityName = document.getElementById('clearCommoditySelect').value;
+        
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/exchange/clear', 'POST', {
+                commodity_name: commodityName || null
+            });
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                await this.loadInventory();
+                await this.loadUserInfo();
+                bootstrap.Modal.getInstance(document.getElementById('clearModal')).hide();
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('清仓失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+}
+
+// 全局函数
+function openExchangeAccount() {
+    if (window.exchangeModule) {
+        window.exchangeModule.openExchangeAccount();
+    }
+}
+
+function loadMarketStatus() {
+    if (window.exchangeModule) {
+        window.exchangeModule.loadMarketStatus();
+    }
+}
+
+function loadInventory() {
+    if (window.exchangeModule) {
+        window.exchangeModule.loadInventory();
+    }
+}
+
+function showBuyModal() {
+    if (window.exchangeModule) {
+        window.exchangeModule.showBuyModal();
+    }
+}
+
+function showSellModal() {
+    if (window.exchangeModule) {
+        window.exchangeModule.showSellModal();
+    }
+}
+
+function showClearModal() {
+    if (window.exchangeModule) {
+        window.exchangeModule.showClearModal();
+    }
+}
+
+function executeBuy() {
+    if (window.exchangeModule) {
+        window.exchangeModule.executeBuy();
+    }
+}
+
+function executeSell() {
+    if (window.exchangeModule) {
+        window.exchangeModule.executeSell();
+    }
+}
+
+function executeClear() {
+    if (window.exchangeModule) {
+        window.exchangeModule.executeClear();
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    window.exchangeModule = new ExchangeModule();
+});
+</script>
+{% endblock %}

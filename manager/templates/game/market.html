@@ -504,10 +504,37 @@ class MarketModule {
     }
     
     async init() {
+        await this.loadUserInfo();
         await this.loadMarketItems();
         await this.loadMyListings();
         await this.loadUserItems();
         this.setupEventListeners();
+    }
+    
+    async loadUserInfo() {
+        try {
+            const response = await gameApp.apiCall('/profile', 'GET');
+            if (response.success) {
+                this.userInfo = response.data;
+                this.updateUserDisplay();
+            }
+        } catch (error) {
+            console.error('Failed to load user info:', error);
+        }
+    }
+    
+    updateUserDisplay() {
+        if (this.userInfo) {
+            // 更新用户信息显示
+            const coinsElement = document.getElementById('userCoins');
+            const premiumElement = document.getElementById('userPremium');
+            if (coinsElement) {
+                coinsElement.textContent = gameApp.formatNumber(this.userInfo.coins || 0);
+            }
+            if (premiumElement) {
+                premiumElement.textContent = gameApp.formatNumber(this.userInfo.premium_currency || 0);
+            }
+        }
     }
     
     setupEventListeners() {
@@ -918,6 +945,7 @@ class MarketModule {
             if (response.success) {
                 gameApp.showToast('购买成功', 'success');
                 await this.loadMarketItems();
+                await this.loadUserInfo();
             } else {
                 gameApp.showToast(response.message, 'danger');
             }
@@ -971,7 +999,21 @@ class MarketModule {
     
     async removeAllListings() {
         if (await gameApp.confirm('确定要下架所有商品吗？', '确认下架')) {
-            gameApp.showToast('批量下架功能暂未实现', 'info');
+            try {
+                showLoading(true);
+                const response = await gameApp.apiCall('/market/remove-all', 'POST');
+                
+                if (response.success) {
+                    gameApp.showToast(response.data.message, 'success');
+                    await this.loadMyListings();
+                } else {
+                    gameApp.showToast(response.data.message, 'danger');
+                }
+            } catch (error) {
+                gameApp.showToast('批量下架失败，请稍后重试', 'danger');
+            } finally {
+                showLoading(false);
+            }
         }
     }
 }

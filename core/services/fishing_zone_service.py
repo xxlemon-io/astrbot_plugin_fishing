@@ -165,3 +165,38 @@ class FishingZoneService:
     def delete_zone(self, zone_id: int):
         self.inventory_repo.delete_zone(zone_id)
         self.strategies = self._load_strategies()  # Reload strategies
+
+    def switch_zone(self, user_id: str, zone_id: int) -> Dict[str, Any]:
+        """
+        切换用户的钓鱼区域。
+        
+        Args:
+            user_id: 用户ID
+            zone_id: 目标区域ID
+            
+        Returns:
+            包含操作结果的字典
+        """
+        # 直接调用 FishingService 的 set_user_fishing_zone 方法
+        # 这样可以确保与命令行方式完全一致
+        from ..services.fishing_service import FishingService
+        from ..repositories.sqlite_user_repo import SqliteUserRepository
+        from ..repositories.sqlite_log_repo import SqliteLogRepository
+        from ..repositories.sqlite_user_buff_repo import SqliteUserBuffRepository
+        
+        # 创建 FishingService 实例
+        user_repo = SqliteUserRepository(self.inventory_repo.db_path)
+        log_repo = SqliteLogRepository(self.inventory_repo.db_path)
+        buff_repo = SqliteUserBuffRepository(self.inventory_repo.db_path)
+        fishing_service = FishingService(
+            user_repo=user_repo,
+            inventory_repo=self.inventory_repo,
+            item_template_repo=self.item_template_repo,
+            log_repo=log_repo,
+            buff_repo=buff_repo,
+            fishing_zone_service=self,
+            config=self.config
+        )
+        
+        # 调用 FishingService 的 set_user_fishing_zone 方法
+        return fishing_service.set_user_fishing_zone(user_id, zone_id)

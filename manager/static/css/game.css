@@ -1,24 +1,62 @@
 /* 游戏专用样式 - 移动端优先 */
 
-/* 基础设置 */
+/* 基础设置 - 基于draw/styles.py的颜色系统 */
 :root {
-    --primary-color: #667eea;
-    --secondary-color: #764ba2;
-    --success-color: #28a745;
-    --warning-color: #ffc107;
-    --danger-color: #dc3545;
-    --info-color: #17a2b8;
-    --light-color: #f8f9fa;
-    --dark-color: #343a40;
+    /* 主色调 - 基于draw/styles.py的蓝色系 */
+    --primary-color: #3399ff;        /* COLOR_HEADER_BG: (51, 153, 255) */
+    --secondary-color: #6c8ebf;      /* primary_light: (108, 142, 191) */
+    --accent-color: #4a6986;         /* primary_medium: (74, 105, 134) */
+    --dark-accent: #34495e;          /* primary_dark: (52, 73, 94) */
     
-    --game-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --card-bg: rgba(255, 255, 255, 0.95);
+    /* 状态颜色 - 基于draw/styles.py的温和色彩 */
+    --success-color: #4caf50;        /* COLOR_SUCCESS: (76, 175, 80) */
+    --warning-color: #ffb74d;        /* COLOR_WARNING: (255, 183, 77) */
+    --danger-color: #e57373;         /* COLOR_ERROR: (229, 115, 115) */
+    --info-color: #36a2eb;           /* COLOR_LOCK: (54, 162, 235) */
+    
+    /* 特殊颜色 */
+    --gold-color: #f0ad4e;           /* COLOR_GOLD: (240, 173, 78) */
+    --rare-color: #9575cd;           /* COLOR_RARE: (149, 117, 205) */
+    
+    /* 背景和文字颜色 */
+    --bg-color: #f5f5f5;             /* COLOR_BACKGROUND: (245, 245, 245) */
+    --card-bg: #ffffff;              /* COLOR_CARD_BG: (255, 255, 255) */
+    --card-border: #e6e6e6;          /* COLOR_CARD_BORDER: (230, 230, 230) */
+    --text-white: #ffffff;           /* COLOR_TEXT_WHITE: (255, 255, 255) */
+    --text-dark: #323232;            /* COLOR_TEXT_DARK: (50, 50, 50) */
+    --text-gray: #78788c;            /* COLOR_TEXT_GRAY: (120, 120, 140) */
+    --text-muted: #6c757d;
+    
+    /* 渐变色 */
+    --game-bg: linear-gradient(135deg, #3399ff 0%, #6c8ebf 100%);
+    --card-bg-glass: rgba(255, 255, 255, 0.95);
+    --primary-gradient: linear-gradient(135deg, #3399ff 0%, #4a6986 100%);
+    --success-gradient: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
+    --warning-gradient: linear-gradient(135deg, #ffb74d 0%, #ffcc02 100%);
+    --danger-gradient: linear-gradient(135deg, #e57373 0%, #ef5350 100%);
+    
+    /* 阴影 */
     --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.15);
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
     
+    /* 边框和圆角 */
     --border-radius: 12px;
     --border-radius-lg: 16px;
+    --border-radius-sm: 8px;
     --transition: all 0.3s ease;
+    
+    /* 稀有度颜色 - 基于draw/styles.py的稀有度映射 */
+    --rarity-1: #b0c4de;             /* 1星 钢蓝色 */
+    --rarity-2: #6495ed;             /* 2星 矢车菊蓝 */
+    --rarity-3: #9370db;             /* 3星 中紫罗兰红 */
+    --rarity-4: #da70d6;             /* 4星 兰花紫 */
+    --rarity-5: #ffa500;             /* 5星 橙色 */
+    --rarity-6: #ff4500;             /* 6星 红橙色 */
+    --rarity-7: #dc143c;             /* 7星 深红色 */
+    --rarity-8: #b22222;             /* 8星 火砖红 */
+    --rarity-9: #8b0000;             /* 9星 暗红色 */
+    --rarity-10: #800000;            /* 10星 栗色 */
 }
 
 * {
@@ -27,7 +65,7 @@
 
 body {
     font-family: 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--game-bg);
+    background: var(--bg-color);
     min-height: 100vh;
     padding-top: 56px; /* 顶部导航栏高度 */
     padding-bottom: 60px; /* 底部导航栏高度 */
@@ -38,8 +76,8 @@ body {
 /* 顶部导航栏 */
 .game-navbar {
     backdrop-filter: blur(10px);
-    background: rgba(102, 126, 234, 0.95) !important;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    background: var(--primary-gradient) !important;
+    box-shadow: var(--shadow);
     z-index: 1030;
 }
 
@@ -65,9 +103,9 @@ body {
 
 /* 底部导航栏 */
 .game-bottom-nav {
-    background: rgba(52, 58, 64, 0.95) !important;
+    background: var(--dark-accent) !important;
     backdrop-filter: blur(10px);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--card-border);
     z-index: 1030;
 }
 
@@ -76,13 +114,13 @@ body {
     padding: 0.5rem 0.25rem;
     text-decoration: none;
     transition: var(--transition);
-    border-radius: 8px;
+    border-radius: var(--border-radius-sm);
     margin: 0 0.25rem;
 }
 
 .game-bottom-nav .nav-link:hover,
 .game-bottom-nav .nav-link.active {
-    color: white !important;
+    color: var(--text-white) !important;
     background: rgba(255, 255, 255, 0.1);
 }
 
@@ -99,9 +137,9 @@ body {
 /* 卡片样式 */
 .game-card {
     background: var(--card-bg);
+    border: 1px solid var(--card-border);
     border-radius: var(--border-radius);
-    box-shadow: var(--shadow);
-    border: none;
+    box-shadow: var(--shadow-card);
     backdrop-filter: blur(10px);
     transition: var(--transition);
 }
@@ -132,44 +170,59 @@ body {
 }
 
 .btn-game-primary {
-    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-    color: white;
+    background: var(--primary-gradient);
+    color: var(--text-white);
+    border: none;
 }
 
 .btn-game-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
-    color: white;
+    box-shadow: 0 8px 20px rgba(51, 153, 255, 0.3);
+    color: var(--text-white);
 }
 
 .btn-game-success {
-    background: var(--success-color);
-    color: white;
+    background: var(--success-gradient);
+    color: var(--text-white);
+    border: none;
 }
 
 .btn-game-success:hover {
-    background: #218838;
-    color: white;
+    background: var(--success-color);
+    color: var(--text-white);
 }
 
 .btn-game-warning {
-    background: var(--warning-color);
-    color: var(--dark-color);
+    background: var(--warning-gradient);
+    color: var(--text-dark);
+    border: none;
 }
 
 .btn-game-warning:hover {
-    background: #e0a800;
-    color: var(--dark-color);
+    background: var(--warning-color);
+    color: var(--text-dark);
 }
 
 .btn-game-danger {
-    background: var(--danger-color);
-    color: white;
+    background: var(--danger-gradient);
+    color: var(--text-white);
+    border: none;
 }
 
 .btn-game-danger:hover {
-    background: #c82333;
-    color: white;
+    background: var(--danger-color);
+    color: var(--text-white);
+}
+
+.btn-game-info {
+    background: var(--info-color);
+    color: var(--text-white);
+    border: none;
+}
+
+.btn-game-info:hover {
+    background: #2e7d8a;
+    color: var(--text-white);
 }
 
 /* 大按钮 - 移动端友好 */
@@ -313,6 +366,36 @@ body {
         margin-bottom: 1.5rem;
     }
 }
+
+/* 稀有度颜色类 */
+.rarity-1 { color: var(--rarity-1) !important; }
+.rarity-2 { color: var(--rarity-2) !important; }
+.rarity-3 { color: var(--rarity-3) !important; }
+.rarity-4 { color: var(--rarity-4) !important; }
+.rarity-5 { color: var(--rarity-5) !important; }
+.rarity-6 { color: var(--rarity-6) !important; }
+.rarity-7 { color: var(--rarity-7) !important; }
+.rarity-8 { color: var(--rarity-8) !important; }
+.rarity-9 { color: var(--rarity-9) !important; }
+.rarity-10 { color: var(--rarity-10) !important; }
+
+/* 稀有度背景色类 */
+.bg-rarity-1 { background-color: var(--rarity-1) !important; }
+.bg-rarity-2 { background-color: var(--rarity-2) !important; }
+.bg-rarity-3 { background-color: var(--rarity-3) !important; }
+.bg-rarity-4 { background-color: var(--rarity-4) !important; }
+.bg-rarity-5 { background-color: var(--rarity-5) !important; }
+.bg-rarity-6 { background-color: var(--rarity-6) !important; }
+.bg-rarity-7 { background-color: var(--rarity-7) !important; }
+.bg-rarity-8 { background-color: var(--rarity-8) !important; }
+.bg-rarity-9 { background-color: var(--rarity-9) !important; }
+.bg-rarity-10 { background-color: var(--rarity-10) !important; }
+
+/* 特殊颜色类 */
+.text-gold { color: var(--gold-color) !important; }
+.text-rare { color: var(--rare-color) !important; }
+.bg-gold { background-color: var(--gold-color) !important; }
+.bg-rare { background-color: var(--rare-color) !important; }
 
 /* 工具提示 */
 .tooltip {

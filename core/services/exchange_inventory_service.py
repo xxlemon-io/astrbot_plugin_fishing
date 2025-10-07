@@ -24,18 +24,50 @@ class ExchangeInventoryService:
             "fish_roe": {"name": "鱼卵", "description": "珍贵的鱼类卵子，营养价值极高"},
             "fish_oil": {"name": "鱼油", "description": "从鱼类中提取的油脂，用途广泛"}
         }
+        
+        # 价格服务引用（将在初始化时设置）
+        self.price_service = None
 
     def get_user_commodities(self, user_id: str) -> List[UserCommodity]:
         """获取用户的大宗商品库存"""
         return self.exchange_repo.get_user_commodities(user_id)
+    
+    def _get_current_prices(self) -> Dict[str, int]:
+        """获取当前市场价格"""
+        try:
+            if self.price_service:
+                market_status = self.price_service.get_market_status()
+                if market_status.get("success"):
+                    return market_status.get("prices", {})
+            
+            # 如果价格服务不可用，返回初始价格
+            return self.config.get("initial_prices", {
+                "dried_fish": 6000,
+                "fish_roe": 12000,
+                "fish_oil": 10000
+            })
+        except Exception as e:
+            logger.error(f"获取当前价格失败: {e}")
+            # 返回初始价格作为后备
+            return self.config.get("initial_prices", {
+                "dried_fish": 6000,
+                "fish_roe": 12000,
+                "fish_oil": 10000
+            })
 
     def get_user_inventory(self, user_id: str) -> Dict[str, Any]:
         """获取用户库存信息"""
         try:
             inventory = self.get_user_commodities(user_id)
             
+            # 获取当前市场价格
+            current_prices = self._get_current_prices()
+            
             # 按商品分组统计
             inventory_summary = {}
+            total_cost = 0
+            total_current_value = 0
+            
             for item in inventory:
                 commodity_id = item.commodity_id
                 if commodity_id not in inventory_summary:
@@ -43,22 +75,47 @@ class ExchangeInventoryService:
                         "name": self.commodities[commodity_id]["name"],
                         "total_quantity": 0,
                         "total_cost": 0,
+                        "total_current_value": 0,
+                        "profit_loss": 0,
                         "items": []
                     }
                 
+                # 计算当前价值
+                current_price = current_prices.get(commodity_id, 0)
+                item_cost = item.purchase_price * item.quantity
+                item_current_value = current_price * item.quantity
+                item_profit_loss = item_current_value - item_cost
+                
                 inventory_summary[commodity_id]["total_quantity"] += item.quantity
-                inventory_summary[commodity_id]["total_cost"] += item.purchase_price * item.quantity
+                inventory_summary[commodity_id]["total_cost"] += item_cost
+                inventory_summary[commodity_id]["total_current_value"] += item_current_value
+                inventory_summary[commodity_id]["profit_loss"] += item_profit_loss
                 inventory_summary[commodity_id]["items"].append({
                     "instance_id": item.instance_id,
                     "quantity": item.quantity,
                     "purchase_price": item.purchase_price,
+                    "current_price": current_price,
                     "purchased_at": item.purchased_at,
                     "expires_at": item.expires_at
                 })
+                
+                # 累计总成本和价值
+                total_cost += item_cost
+                total_current_value += item_current_value
+            
+            # 计算总盈亏
+            total_profit_loss = total_current_value - total_cost
+            is_profit = total_profit_loss > 0
             
             return {
                 "success": True,
                 "inventory": inventory_summary,
+                "analysis": {
+                    "total_cost": total_cost,
+                    "total_current_value": total_current_value,
+                    "profit_loss": total_profit_loss,
+                    "is_profit": is_profit
+                },
                 "total_items": len(inventory)
             }
         except Exception as e:

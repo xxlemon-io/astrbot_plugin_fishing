@@ -1,0 +1,692 @@
+{% extends "game/layout_game.html" %}
+
+{% block title %}钓鱼游戏 - 水族箱{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 水族箱概览 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-water me-2"></i>
+                        水族箱概览
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="upgradeAquarium()">
+                        <i class="fas fa-arrow-up me-1"></i>
+                        升级容量
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="stat-item">
+                                <i class="fas fa-fish text-primary fa-2x mb-2"></i>
+                                <div class="stat-value" id="totalFish">0</div>
+                                <div class="stat-label">总鱼数</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-item">
+                                <i class="fas fa-box text-info fa-2x mb-2"></i>
+                                <div class="stat-value" id="capacity">0</div>
+                                <div class="stat-label">容量</div>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="stat-item">
+                                <i class="fas fa-coins text-warning fa-2x mb-2"></i>
+                                <div class="stat-value" id="totalValue">0</div>
+                                <div class="stat-label">总价值</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <div class="progress">
+                            <div class="progress-bar" id="capacityProgress" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <small class="text-muted" id="capacityText">0 / 0</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 鱼类管理 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-fish me-2"></i>
+                        鱼类管理
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="fishList">
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <p class="mt-2">加载鱼类列表中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 操作面板 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cogs me-2"></i>
+                        操作面板
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-success w-100" onclick="showAddFishModal()">
+                                <i class="fas fa-plus me-2"></i>
+                                添加鱼类
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-warning w-100" onclick="showRemoveFishModal()">
+                                <i class="fas fa-minus me-2"></i>
+                                移出鱼类
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-info w-100" onclick="loadAquarium()">
+                                <i class="fas fa-sync me-2"></i>
+                                刷新数据
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-game btn-game-primary w-100" onclick="showAquariumHelp()">
+                                <i class="fas fa-question-circle me-2"></i>
+                                帮助
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加鱼类模态框 -->
+<div class="modal fade" id="addFishModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus me-2"></i>
+                    添加鱼类到水族箱
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addFishForm">
+                    <div class="mb-3">
+                        <label for="addFishSelect" class="form-label">选择鱼类</label>
+                        <select class="form-select" id="addFishSelect" required>
+                            <option value="">请选择鱼类</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="addFishQuantity" class="form-label">数量</label>
+                        <input type="number" class="form-control" id="addFishQuantity" value="1" min="1" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="addFishToAquarium()">添加</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 移出鱼类模态框 -->
+<div class="modal fade" id="removeFishModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-minus me-2"></i>
+                    从水族箱移出鱼类
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="removeFishForm">
+                    <div class="mb-3">
+                        <label for="removeFishSelect" class="form-label">选择鱼类</label>
+                        <select class="form-select" id="removeFishSelect" required>
+                            <option value="">请选择鱼类</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="removeFishQuantity" class="form-label">数量</label>
+                        <input type="number" class="form-control" id="removeFishQuantity" value="1" min="1" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="removeFishFromAquarium()">移出</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 水族箱帮助模态框 -->
+<div class="modal fade" id="aquariumHelpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-question-circle me-2"></i>
+                    水族箱帮助
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="help-content">
+                    <h6>🐠 水族箱系统说明</h6>
+                    <ul>
+                        <li><strong>安全存储：</strong>水族箱是一个安全的存储空间，鱼放在里面不会被偷</li>
+                        <li><strong>默认容量：</strong>默认容量50条，可以通过升级增加容量</li>
+                        <li><strong>自动存储：</strong>从市场购买的鱼默认放入水族箱</li>
+                        <li><strong>正常交易：</strong>可以正常上架和购买</li>
+                    </ul>
+                    
+                    <h6>📋 可用操作</h6>
+                    <ul>
+                        <li><strong>查看水族箱：</strong>查看水族箱中的鱼类</li>
+                        <li><strong>添加鱼类：</strong>将鱼从鱼塘放入水族箱</li>
+                        <li><strong>移出鱼类：</strong>将鱼从水族箱移回鱼塘</li>
+                        <li><strong>升级容量：</strong>升级水族箱容量</li>
+                    </ul>
+                    
+                    <h6>💡 使用技巧</h6>
+                    <ul>
+                        <li>使用鱼类ID（如F3）或纯数字ID来操作</li>
+                        <li>定期检查水族箱容量，及时升级</li>
+                        <li>将稀有鱼类放入水族箱保护</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.stat-item {
+    padding: 1rem 0.5rem;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.fish-item {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border: 1px solid #e9ecef;
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+    transition: var(--transition);
+}
+
+.fish-item:hover {
+    border-color: var(--primary-color);
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.fish-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.5rem;
+    color: white;
+    flex-shrink: 0;
+}
+
+.fish-info {
+    flex: 1;
+}
+
+.fish-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.fish-details {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.fish-quantity {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+.fish-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.rarity-1 { background: #6c757d; }
+.rarity-2 { background: #28a745; }
+.rarity-3 { background: #007bff; }
+.rarity-4 { background: #17a2b8; }
+.rarity-5 { background: #ffc107; }
+.rarity-6 { background: #343a40; }
+.rarity-7 { background: #dc3545; }
+.rarity-8 { background: #fd7e14; }
+.rarity-9 { background: #20c997; }
+.rarity-10 { background: #e83e8c; }
+
+.help-content h6 {
+    color: var(--primary-color);
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.help-content ul {
+    padding-left: 1.5rem;
+}
+
+.help-content li {
+    margin-bottom: 0.5rem;
+    line-height: 1.5;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class AquariumModule {
+    constructor() {
+        this.aquariumData = null;
+        this.pondFish = [];
+        
+        this.init();
+    }
+    
+    async init() {
+        await this.loadAquarium();
+        await this.loadPondFish();
+    }
+    
+    async loadAquarium() {
+        try {
+            const response = await gameApp.apiCall('/aquarium', 'GET');
+            if (response.success) {
+                this.aquariumData = response.data;
+                this.updateDisplay();
+            }
+        } catch (error) {
+            console.error('Failed to load aquarium:', error);
+        }
+    }
+    
+    async loadPondFish() {
+        try {
+            const response = await gameApp.apiCall('/inventory/fish', 'GET');
+            if (response.success) {
+                this.pondFish = response.data.fishes || [];
+            }
+        } catch (error) {
+            console.error('Failed to load pond fish:', error);
+        }
+    }
+    
+    updateDisplay() {
+        if (!this.aquariumData) return;
+        
+        const stats = this.aquariumData.stats || {};
+        const fishes = this.aquariumData.fishes || [];
+        
+        // 更新概览统计
+        document.getElementById('totalFish').textContent = gameApp.formatNumber(stats.total_count || 0);
+        document.getElementById('capacity').textContent = gameApp.formatNumber(stats.capacity || 0);
+        document.getElementById('totalValue').textContent = gameApp.formatNumber(stats.total_value || 0);
+        
+        // 更新容量进度条
+        const capacityPercent = stats.capacity > 0 ? (stats.total_count / stats.capacity) * 100 : 0;
+        document.getElementById('capacityProgress').style.width = `${capacityPercent}%`;
+        document.getElementById('capacityText').textContent = `${gameApp.formatNumber(stats.total_count || 0)} / ${gameApp.formatNumber(stats.capacity || 0)}`;
+        
+        // 更新鱼类列表
+        this.renderFishList(fishes);
+    }
+    
+    renderFishList(fishes) {
+        const container = document.getElementById('fishList');
+        
+        if (fishes.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-water"></i>
+                    <p>水族箱是空的，快去钓鱼吧！</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // 按稀有度分组
+        const fishesByRarity = {};
+        fishes.forEach(fish => {
+            const rarity = fish.rarity || 1;
+            if (!fishesByRarity[rarity]) {
+                fishesByRarity[rarity] = [];
+            }
+            fishesByRarity[rarity].push(fish);
+        });
+        
+        let fishHtml = '';
+        Object.keys(fishesByRarity).sort((a, b) => b - a).forEach(rarity => {
+            const fishList = fishesByRarity[rarity];
+            fishHtml += `
+                <div class="mb-3">
+                    <h6 class="text-muted">${'★'.repeat(rarity)} 稀有度 ${rarity}</h6>
+                    ${fishList.map(fish => this.renderFishItem(fish)).join('')}
+                </div>
+            `;
+        });
+        
+        container.innerHTML = fishHtml;
+    }
+    
+    renderFishItem(fish) {
+        const fishId = fish.fish_id || 0;
+        const fcode = `F${fishId}`;
+        
+        return `
+            <div class="fish-item">
+                <div class="fish-icon rarity-${fish.rarity || 1}">
+                    <i class="fas fa-fish"></i>
+                </div>
+                <div class="fish-info">
+                    <div class="fish-name">${fish.name}</div>
+                    <div class="fish-details">
+                        ID: ${fcode} | 价值: ${gameApp.formatNumber(fish.base_value)} 金币/个
+                    </div>
+                    <div class="fish-quantity">数量: ${gameApp.formatNumber(fish.quantity)}</div>
+                </div>
+                <div class="fish-actions">
+                    <button class="btn btn-sm btn-outline-primary" onclick="quickAddFish(${fishId})">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="quickRemoveFish(${fishId})">
+                        <i class="fas fa-minus"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+    
+    showAddFishModal() {
+        const modal = new bootstrap.Modal(document.getElementById('addFishModal'));
+        
+        // 填充鱼类选择
+        const select = document.getElementById('addFishSelect');
+        select.innerHTML = '<option value="">请选择鱼类</option>';
+        
+        this.pondFish.forEach(fish => {
+            const option = document.createElement('option');
+            option.value = fish.fish_id;
+            option.textContent = `${fish.name} (${gameApp.formatNumber(fish.quantity)}条)`;
+            select.appendChild(option);
+        });
+        
+        modal.show();
+    }
+    
+    showRemoveFishModal() {
+        const modal = new bootstrap.Modal(document.getElementById('removeFishModal'));
+        
+        // 填充水族箱中的鱼类选择
+        const select = document.getElementById('removeFishSelect');
+        select.innerHTML = '<option value="">请选择鱼类</option>';
+        
+        if (this.aquariumData && this.aquariumData.fishes) {
+            this.aquariumData.fishes.forEach(fish => {
+                const option = document.createElement('option');
+                option.value = fish.fish_id;
+                option.textContent = `${fish.name} (${gameApp.formatNumber(fish.quantity)}条)`;
+                select.appendChild(option);
+            });
+        }
+        
+        modal.show();
+    }
+    
+    async addFishToAquarium() {
+        const fishId = document.getElementById('addFishSelect').value;
+        const quantity = parseInt(document.getElementById('addFishQuantity').value);
+        
+        if (!fishId) {
+            gameApp.showToast('请选择鱼类', 'warning');
+            return;
+        }
+        
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/aquarium/add', 'POST', {
+                fish_id: parseInt(fishId),
+                quantity: quantity
+            });
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                await this.loadAquarium();
+                await this.loadPondFish();
+                bootstrap.Modal.getInstance(document.getElementById('addFishModal')).hide();
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('添加失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async removeFishFromAquarium() {
+        const fishId = document.getElementById('removeFishSelect').value;
+        const quantity = parseInt(document.getElementById('removeFishQuantity').value);
+        
+        if (!fishId) {
+            gameApp.showToast('请选择鱼类', 'warning');
+            return;
+        }
+        
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/aquarium/remove', 'POST', {
+                fish_id: parseInt(fishId),
+                quantity: quantity
+            });
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                await this.loadAquarium();
+                await this.loadPondFish();
+                bootstrap.Modal.getInstance(document.getElementById('removeFishModal')).hide();
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('移出失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async upgradeAquarium() {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/aquarium/upgrade', 'POST');
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                await this.loadAquarium();
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('升级失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    showAquariumHelp() {
+        const modal = new bootstrap.Modal(document.getElementById('aquariumHelpModal'));
+        modal.show();
+    }
+    
+    async quickAddFish(fishId) {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/aquarium/add', 'POST', {
+                fish_id: fishId,
+                quantity: 1
+            });
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                await this.loadAquarium();
+                await this.loadPondFish();
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('添加失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async quickRemoveFish(fishId) {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/aquarium/remove', 'POST', {
+                fish_id: fishId,
+                quantity: 1
+            });
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                await this.loadAquarium();
+                await this.loadPondFish();
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('移出失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+}
+
+// 全局函数
+function showAddFishModal() {
+    if (window.aquariumModule) {
+        window.aquariumModule.showAddFishModal();
+    }
+}
+
+function showRemoveFishModal() {
+    if (window.aquariumModule) {
+        window.aquariumModule.showRemoveFishModal();
+    }
+}
+
+function addFishToAquarium() {
+    if (window.aquariumModule) {
+        window.aquariumModule.addFishToAquarium();
+    }
+}
+
+function removeFishFromAquarium() {
+    if (window.aquariumModule) {
+        window.aquariumModule.removeFishFromAquarium();
+    }
+}
+
+function upgradeAquarium() {
+    if (window.aquariumModule) {
+        window.aquariumModule.upgradeAquarium();
+    }
+}
+
+function loadAquarium() {
+    if (window.aquariumModule) {
+        window.aquariumModule.loadAquarium();
+    }
+}
+
+function showAquariumHelp() {
+    if (window.aquariumModule) {
+        window.aquariumModule.showAquariumHelp();
+    }
+}
+
+function quickAddFish(fishId) {
+    if (window.aquariumModule) {
+        window.aquariumModule.quickAddFish(fishId);
+    }
+}
+
+function quickRemoveFish(fishId) {
+    if (window.aquariumModule) {
+        window.aquariumModule.quickRemoveFish(fishId);
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    window.aquariumModule = new AquariumModule();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,829 @@
+{% extends "game/layout_game.html" %}
+
+{% block title %}钓鱼游戏 - 抽卡{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- 卡池选择 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cube me-2"></i>
+                        选择卡池
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="poolList">
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <p class="mt-2">加载卡池列表中...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 抽卡区域 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card text-center">
+                <div class="card-body">
+                    <div id="gachaArea">
+                        <div class="gacha-machine mb-4">
+                            <div class="machine-body">
+                                <div class="machine-screen" id="machineScreen">
+                                    <i class="fas fa-question-circle fa-5x text-muted"></i>
+                                    <p class="mt-3">选择一个卡池开始抽卡</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="gacha-controls" id="gachaControls" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-6">
+                                    <button class="btn btn-game btn-game-primary w-100" onclick="singleDraw()">
+                                        <i class="fas fa-cube me-2"></i>
+                                        单抽
+                                    </button>
+                                </div>
+                                <div class="col-6">
+                                    <button class="btn btn-game btn-game-warning w-100" onclick="tenDraw()">
+                                        <i class="fas fa-cube-d20 me-2"></i>
+                                        十连
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 擦弹功能 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bomb me-2"></i>
+                        擦弹
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-8">
+                            <input type="number" class="form-control" id="wipeBombAmount" placeholder="输入投入金额" min="1">
+                        </div>
+                        <div class="col-4">
+                            <button class="btn btn-game btn-game-danger w-100" onclick="wipeBomb()">
+                                <i class="fas fa-bomb me-1"></i>
+                                擦弹
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            快捷输入: 
+                            <button class="btn btn-sm btn-outline-secondary" onclick="setWipeBombAmount('allin')">梭哈</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="setWipeBombAmount('halfin')">梭一半</button>
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 抽卡记录 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-history me-2"></i>
+                        抽卡记录
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadGachaHistory()">
+                        <i class="fas fa-sync me-1"></i>
+                        刷新
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="gachaHistory">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-cube fa-2x mb-2"></i>
+                            <p>暂无抽卡记录</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 擦弹记录 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="game-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-bomb me-2"></i>
+                        擦弹记录
+                    </h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadWipeBombHistory()">
+                        <i class="fas fa-sync me-1"></i>
+                        刷新
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div id="wipeBombHistory">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-bomb fa-2x mb-2"></i>
+                            <p>暂无擦弹记录</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 抽卡结果模态框 -->
+<div class="modal fade" id="gachaResultModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-gift me-2"></i>
+                    抽卡结果
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="gachaResultContent">
+                <!-- 抽卡结果内容 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">确定</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 卡池详情模态框 -->
+<div class="modal fade" id="poolDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle me-2"></i>
+                    卡池详情
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="poolDetailsContent">
+                <!-- 卡池详情内容 -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.gacha-machine {
+    position: relative;
+    margin: 0 auto;
+    max-width: 300px;
+}
+
+.machine-body {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    position: relative;
+    overflow: hidden;
+}
+
+.machine-body::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.1) 50%, transparent 70%);
+    animation: shine 3s infinite;
+}
+
+.machine-screen {
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: 15px;
+    padding: 2rem;
+    color: white;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+}
+
+@keyframes shine {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.pool-card {
+    border: 2px solid #e9ecef;
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: var(--transition);
+    cursor: pointer;
+}
+
+.pool-card:hover {
+    border-color: var(--primary-color);
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.pool-card.selected {
+    border-color: var(--primary-color);
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.pool-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.5rem;
+}
+
+.pool-description {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+
+.pool-cost {
+    color: var(--warning-color);
+    font-weight: 600;
+}
+
+.gacha-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    transition: var(--transition);
+}
+
+.gacha-item:hover {
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.gacha-item:last-child {
+    border-bottom: none;
+}
+
+.item-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.2rem;
+    color: white;
+}
+
+.item-info {
+    flex: 1;
+}
+
+.item-name {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.item-details {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.rarity-1 { background: #6c757d; }
+.rarity-2 { background: #28a745; }
+.rarity-3 { background: #007bff; }
+.rarity-4 { background: #17a2b8; }
+.rarity-5 { background: #ffc107; }
+.rarity-6 { background: #343a40; }
+.rarity-7 { background: #dc3545; }
+.rarity-8 { background: #fd7e14; }
+.rarity-9 { background: #20c997; }
+.rarity-10 { background: #e83e8c; }
+
+.wipe-bomb-record {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    transition: var(--transition);
+}
+
+.wipe-bomb-record:hover {
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.wipe-bomb-record:last-child {
+    border-bottom: none;
+}
+
+.wipe-bomb-info {
+    flex: 1;
+}
+
+.wipe-bomb-amount {
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 0.25rem;
+}
+
+.wipe-bomb-details {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.wipe-bomb-result {
+    text-align: right;
+}
+
+.profit {
+    color: var(--success-color);
+    font-weight: 600;
+}
+
+.loss {
+    color: var(--danger-color);
+    font-weight: 600;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class GachaModule {
+    constructor() {
+        this.pools = [];
+        this.selectedPool = null;
+        this.userInfo = null;
+        
+        this.init();
+    }
+    
+    async init() {
+        await this.loadUserInfo();
+        await this.loadPools();
+        await this.loadGachaHistory();
+        await this.loadWipeBombHistory();
+    }
+    
+    async loadUserInfo() {
+        try {
+            const response = await gameApp.apiCall('/profile', 'GET');
+            if (response.success) {
+                this.userInfo = response.data;
+                // 更新右上角显示
+                this.updateTopBar();
+            }
+        } catch (error) {
+            console.error('Failed to load user info:', error);
+        }
+    }
+    
+    updateTopBar() {
+        if (this.userInfo) {
+            document.getElementById('userCoins').textContent = gameApp.formatNumber(this.userInfo.coins || 0);
+            document.getElementById('userPremium').textContent = gameApp.formatNumber(this.userInfo.premium_currency || 0);
+        }
+    }
+    
+    async loadPools() {
+        try {
+            const response = await gameApp.apiCall('/gacha/pools', 'GET');
+            if (response.success) {
+                this.pools = response.data.pools || [];
+                this.renderPools();
+            }
+        } catch (error) {
+            console.error('Failed to load pools:', error);
+        }
+    }
+    
+    renderPools() {
+        const container = document.getElementById('poolList');
+        
+        if (this.pools.length === 0) {
+            container.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-cube fa-2x mb-2"></i>
+                    <p>暂无可用卡池</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const poolsHtml = this.pools.map(pool => `
+            <div class="pool-card ${pool.gacha_pool_id === this.selectedPool?.gacha_pool_id ? 'selected' : ''}" 
+                 onclick="selectPool(${pool.gacha_pool_id})">
+                <div class="pool-name">${pool.name}</div>
+                <div class="pool-description">${pool.description || '暂无描述'}</div>
+                <div class="pool-cost">
+                    ${pool.cost_premium_currency ? 
+                        `<i class="fas fa-gem text-info me-1"></i>${pool.cost_premium_currency} 高级货币/次` : 
+                        `<i class="fas fa-coins text-warning me-1"></i>${pool.cost_coins} 金币/次`
+                    }
+                </div>
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-outline-primary" onclick="showPoolDetails(${pool.gacha_pool_id}, event)">
+                        <i class="fas fa-info-circle me-1"></i>
+                        详情
+                    </button>
+                </div>
+            </div>
+        `).join('');
+        
+        container.innerHTML = poolsHtml;
+    }
+    
+    selectPool(poolId) {
+        this.selectedPool = this.pools.find(pool => pool.gacha_pool_id === poolId);
+        
+        // 更新UI
+        document.querySelectorAll('.pool-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        event.currentTarget.classList.add('selected');
+        
+        // 显示抽卡控制
+        document.getElementById('gachaControls').style.display = 'block';
+        
+        // 更新机器屏幕
+        const screen = document.getElementById('machineScreen');
+        screen.innerHTML = `
+            <i class="fas fa-cube fa-5x text-primary"></i>
+            <h4 class="mt-3">${this.selectedPool.name}</h4>
+            <p>准备开始抽卡</p>
+        `;
+    }
+    
+    async singleDraw() {
+        if (!this.selectedPool) {
+            gameApp.showToast('请先选择卡池', 'warning');
+            return;
+        }
+        
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/gacha/draw', 'POST', {
+                pool_id: this.selectedPool.gacha_pool_id
+            });
+            
+            if (response.success) {
+                this.showGachaResult(response.data.results || []);
+                await this.loadUserInfo();
+                await this.loadGachaHistory();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('抽卡失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async tenDraw() {
+        if (!this.selectedPool) {
+            gameApp.showToast('请先选择卡池', 'warning');
+            return;
+        }
+        
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/gacha/draw-ten', 'POST', {
+                pool_id: this.selectedPool.gacha_pool_id
+            });
+            
+            if (response.success) {
+                this.showGachaResult(response.data.results || []);
+                await this.loadUserInfo();
+                await this.loadGachaHistory();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('十连抽卡失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    showGachaResult(results) {
+        if (results.length === 0) {
+            gameApp.showToast('没有获得任何物品', 'info');
+            return;
+        }
+        
+        const resultHtml = results.map(item => `
+            <div class="gacha-item">
+                <div class="item-icon rarity-${item.rarity || 1}">
+                    <i class="fas fa-${this.getItemIcon(item.type)}"></i>
+                </div>
+                <div class="item-info">
+                    <div class="item-name">${item.name}</div>
+                    <div class="item-details">
+                        ${item.type === 'coins' ? 
+                            `数量: ${item.quantity}` : 
+                            `稀有度: ${'★'.repeat(item.rarity || 1)}`
+                        }
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        document.getElementById('gachaResultContent').innerHTML = `
+            <div class="text-center mb-3">
+                <h4>🎉 抽卡成功！</h4>
+                <p>获得了 ${results.length} 件物品</p>
+            </div>
+            <div class="gacha-results">
+                ${resultHtml}
+            </div>
+        `;
+        
+        const modal = new bootstrap.Modal(document.getElementById('gachaResultModal'));
+        modal.show();
+    }
+    
+    getItemIcon(type) {
+        const icons = {
+            'coins': 'coins',
+            'rod': 'fishing-rod',
+            'accessory': 'gem',
+            'item': 'box',
+            'fish': 'fish'
+        };
+        return icons[type] || 'gift';
+    }
+    
+    async wipeBomb() {
+        const amount = document.getElementById('wipeBombAmount').value;
+        if (!amount || amount <= 0) {
+            gameApp.showToast('请输入有效的投入金额', 'warning');
+            return;
+        }
+        
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/gacha/wipe-bomb', 'POST', {
+                contribution_amount: parseInt(amount)
+            });
+            
+            if (response.success) {
+                const data = response.data;
+                const profit = data.profit || 0;
+                const multiplier = data.multiplier || 0;
+                
+                let message = `投入: ${data.contribution} 金币\n`;
+                message += `倍率: ${multiplier.toFixed(2)}x\n`;
+                message += `奖励: ${data.reward} 金币\n`;
+                message += `盈亏: ${profit >= 0 ? '+' : ''}${profit} 金币`;
+                
+                gameApp.showToast(message, profit >= 0 ? 'success' : 'warning');
+                
+                await this.loadUserInfo();
+                await this.loadWipeBombHistory();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('擦弹失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    setWipeBombAmount(type) {
+        if (!this.userInfo) return;
+        
+        const coins = this.userInfo.coins || 0;
+        let amount = 0;
+        
+        if (type === 'allin') {
+            amount = coins;
+        } else if (type === 'halfin') {
+            amount = Math.floor(coins / 2);
+        }
+        
+        document.getElementById('wipeBombAmount').value = amount;
+    }
+    
+    async loadGachaHistory() {
+        try {
+            const response = await gameApp.apiCall('/gacha/history', 'GET');
+            if (response.success) {
+                const records = response.data.records || [];
+                this.renderGachaHistory(records);
+            }
+        } catch (error) {
+            console.error('Failed to load gacha history:', error);
+        }
+    }
+    
+    renderGachaHistory(records) {
+        const container = document.getElementById('gachaHistory');
+        
+        if (records.length === 0) {
+            container.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-cube fa-2x mb-2"></i>
+                    <p>暂无抽卡记录</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const historyHtml = records.map(record => `
+            <div class="gacha-item">
+                <div class="item-icon rarity-${record.rarity}">
+                    <i class="fas fa-${this.getItemIcon(record.item_type)}"></i>
+                </div>
+                <div class="item-info">
+                    <div class="item-name">${record.item_name}</div>
+                    <div class="item-details">
+                        稀有度: ${'★'.repeat(record.rarity)} | 
+                        时间: ${new Date(record.timestamp).toLocaleString()}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        container.innerHTML = historyHtml;
+    }
+    
+    async loadWipeBombHistory() {
+        try {
+            const response = await gameApp.apiCall('/gacha/wipe-bomb/history', 'GET');
+            if (response.success) {
+                const records = response.data.logs || [];
+                this.renderWipeBombHistory(records);
+            }
+        } catch (error) {
+            console.error('Failed to load wipe bomb history:', error);
+        }
+    }
+    
+    renderWipeBombHistory(records) {
+        const container = document.getElementById('wipeBombHistory');
+        
+        if (records.length === 0) {
+            container.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-bomb fa-2x mb-2"></i>
+                    <p>暂无擦弹记录</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const historyHtml = records.map(record => {
+            const profit = record.reward - record.contribution;
+            const profitClass = profit >= 0 ? 'profit' : 'loss';
+            const profitText = profit >= 0 ? `+${profit}` : profit;
+            
+            return `
+                <div class="wipe-bomb-record">
+                    <div class="wipe-bomb-info">
+                        <div class="wipe-bomb-amount">投入: ${record.contribution} 金币</div>
+                        <div class="wipe-bomb-details">
+                            倍率: ${record.multiplier.toFixed(2)}x | 
+                            时间: ${new Date(record.timestamp).toLocaleString()}
+                        </div>
+                    </div>
+                    <div class="wipe-bomb-result">
+                        <div>奖励: ${record.reward} 金币</div>
+                        <div class="${profitClass}">盈亏: ${profitText} 金币</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        container.innerHTML = historyHtml;
+    }
+    
+    async showPoolDetails(poolId, event) {
+        event.stopPropagation();
+        
+        try {
+            const response = await gameApp.apiCall(`/gacha/pools/${poolId}`, 'GET');
+            if (response.success) {
+                const pool = response.data.pool;
+                const probabilities = response.data.probabilities || [];
+                
+                const detailsHtml = `
+                    <div class="pool-details">
+                        <h4>${pool.name}</h4>
+                        <p class="text-muted">${pool.description}</p>
+                        <div class="pool-cost mb-3">
+                            ${pool.cost_premium_currency ? 
+                                `<i class="fas fa-gem text-info me-1"></i>${pool.cost_premium_currency} 高级货币/次` : 
+                                `<i class="fas fa-coins text-warning me-1"></i>${pool.cost_coins} 金币/次`
+                            }
+                        </div>
+                        <h5>物品概率</h5>
+                        <div class="probability-list">
+                            ${probabilities.map(item => `
+                                <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                                    <div>
+                                        <span class="me-2">${'★'.repeat(item.item_rarity)}</span>
+                                        <span>${item.item_name}</span>
+                                    </div>
+                                    <span class="badge bg-primary">${(item.probability * 100).toFixed(2)}%</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('poolDetailsContent').innerHTML = detailsHtml;
+                const modal = new bootstrap.Modal(document.getElementById('poolDetailsModal'));
+                modal.show();
+            }
+        } catch (error) {
+            gameApp.showToast('获取卡池详情失败', 'danger');
+        }
+    }
+}
+
+// 全局函数
+function selectPool(poolId) {
+    if (window.gachaModule) {
+        window.gachaModule.selectPool(poolId);
+    }
+}
+
+function singleDraw() {
+    if (window.gachaModule) {
+        window.gachaModule.singleDraw();
+    }
+}
+
+function tenDraw() {
+    if (window.gachaModule) {
+        window.gachaModule.tenDraw();
+    }
+}
+
+function wipeBomb() {
+    if (window.gachaModule) {
+        window.gachaModule.wipeBomb();
+    }
+}
+
+function setWipeBombAmount(type) {
+    if (window.gachaModule) {
+        window.gachaModule.setWipeBombAmount(type);
+    }
+}
+
+function loadGachaHistory() {
+    if (window.gachaModule) {
+        window.gachaModule.loadGachaHistory();
+    }
+}
+
+function loadWipeBombHistory() {
+    if (window.gachaModule) {
+        window.gachaModule.loadWipeBombHistory();
+    }
+}
+
+function showPoolDetails(poolId, event) {
+    if (window.gachaModule) {
+        window.gachaModule.showPoolDetails(poolId, event);
+    }
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', () => {
+    window.gachaModule = new GachaModule();
+});
+</script>
+{% endblock %}

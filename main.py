@@ -31,18 +31,22 @@ from .core.services.achievement_service import AchievementService
 from .core.services.game_mechanics_service import GameMechanicsService
 from .core.services.effect_manager import EffectManager
 from .core.services.fishing_zone_service import FishingZoneService
+from .core.services.auth_service import AuthService
 
 from .core.database.migration import run_migrations
 
 # ==========================================================
 # 导入所有指令函数
 # ==========================================================
-from .handlers import admin_handlers, common_handlers, inventory_handlers, fishing_handlers, market_handlers, social_handlers, gacha_handlers, aquarium_handlers
+from .handlers import admin_handlers, common_handlers, inventory_handlers, fishing_handlers, market_handlers, social_handlers, gacha_handlers, aquarium_handlers, auth_handlers
 
 # 新增交易所相关导入
 from .core.repositories.sqlite_exchange_repo import SqliteExchangeRepository
 from .core.services.exchange_service import ExchangeService
 from .handlers.exchange_handlers import ExchangeHandlers
+
+# 导入消息服务
+from .core.services.message_service import MessageService
 
 
 class FishingPlugin(Star):
@@ -193,6 +197,12 @@ class FishingPlugin(Star):
         
         # 初始化交易所处理器
         self.exchange_handlers = ExchangeHandlers(self)
+        
+        # 初始化消息服务
+        self.message_service = MessageService(self)
+        
+        # 初始化认证服务
+        self.auth_service = AuthService()
 
         # 3.2 实例化效果管理器并自动注册所有效果（需要在fishing_service之后）
         self.effect_manager = EffectManager()
@@ -212,6 +222,9 @@ class FishingPlugin(Star):
         self.inventory_service.effect_manager = self.effect_manager
 
         self.item_template_service = ItemTemplateService(self.item_template_repo, self.gacha_repo)
+        
+        # 注册消息通知器到钓鱼服务
+        self.fishing_service.register_notifier(self._send_notification)
 
         # --- 4. 启动后台任务 ---
         self.fishing_service.start_auto_fishing_task()
@@ -253,6 +266,27 @@ class FishingPlugin(Star):
         """
         admin_id = event.get_sender_id()
         return self.impersonation_map.get(admin_id, admin_id)
+    
+    def store_user_message_origin(self, event: AstrMessageEvent):
+        """存储用户的消息来源，用于主动消息发送"""
+        user_id = event.get_sender_id()
+        unified_msg_origin = event.unified_msg_origin
+        self.message_service.store_unified_msg_origin(user_id, unified_msg_origin)
+    
+    def _send_notification(self, user_id: str, message: str):
+        """发送通知消息的内部方法"""
+        try:
+            # 使用消息服务发送主动消息
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # 如果事件循环正在运行，创建任务
+                loop.create_task(self.message_service.send_active_message(user_id, message))
+            else:
+                # 如果事件循环没有运行，直接运行
+                loop.run_until_complete(self.message_service.send_active_message(user_id, message))
+        except Exception as e:
+            logger.error(f"发送通知消息失败: {e}")
 
     async def initialize(self):
         """可选择实现异步的插件初始化方法，当实例化该插件类之后会自动调用该方法。"""
@@ -269,11 +303,15 @@ class FishingPlugin(Star):
 
     @filter.command("注册")
     async def register_user(self, event: AstrMessageEvent):
+        # 存储用户的消息来源
+        self.store_user_message_origin(event)
         async for r in common_handlers.register_user(self, event):
             yield r
 
     @filter.command("钓鱼")
     async def fish(self, event: AstrMessageEvent):
+        # 存储用户的消息来源
+        self.store_user_message_origin(event)
         async for r in fishing_handlers.fish(self, event):
             yield r
 
@@ -301,6 +339,15 @@ class FishingPlugin(Star):
     async def fishing_help(self, event: AstrMessageEvent):
         async for r in common_handlers.fishing_help(self, event):
             yield r
+
+    @filter.command("获取验证码", alias={"验证码", "获取码"})
+    async def get_verification_code(self, event: AstrMessageEvent):
+        async for r in auth_handlers.get_verification_code(self, event):
+            yield r
+
+
+
+
 
     # =========== 背包与资产 ==========
 
@@ -706,7 +753,27 @@ class FishingPlugin(Star):
         self.fishing_service.stop_auto_fishing_task()
         self.achievement_service.stop_achievement_check_task()
         self.exchange_service.stop_daily_price_update_task()
-        if self.web_admin_task:
-            self.web_admin_task.cancel()
+        
+        # 关闭 Web 管理后台并强制释放端口
+        if self.web_admin_task and not self.web_admin_task.done():
+            try:
+                self.web_admin_task.cancel()
+                await self.web_admin_task
+            except asyncio.CancelledError:
+                logger.info("Web管理后台任务已取消")
+            except Exception as e:
+                logger.warning(f"取消Web管理后台任务时出错: {e}")
+            
+            # 强制释放端口
+            try:
+                from .utils import kill_processes_on_port
+                success, killed_pids = await kill_processes_on_port(self.port)
+                if success and killed_pids:
+                    logger.info(f"插件终止时强制释放端口 {self.port}，终止了进程: {killed_pids}")
+                elif killed_pids:
+                    logger.warning(f"插件终止时部分释放端口 {self.port}，终止了进程: {killed_pids}")
+            except Exception as port_error:
+                logger.warning(f"插件终止时强制释放端口 {self.port} 时出错: {port_error}")
+        
         logger.info("钓鱼插件已成功终止。")
 

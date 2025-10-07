@@ -368,6 +368,57 @@
 </style>
 {% endblock %}
 
+<!-- 购买确认模态框 -->
+<div class="modal fade" id="purchaseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-shopping-cart me-2"></i>
+                    购买确认
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="purchase-info">
+                    <h6>商品信息</h6>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <strong>商品名称:</strong>
+                        </div>
+                        <div class="col-6" id="purchaseItemName">-</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <strong>单价:</strong>
+                        </div>
+                        <div class="col-6" id="purchaseItemPrice">-</div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <strong>购买数量:</strong>
+                        </div>
+                        <div class="col-6">
+                            <input type="number" class="form-control form-control-sm" id="purchaseQuantity" 
+                                   value="1" min="1" onchange="updatePurchaseTotal()">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <strong>总价:</strong>
+                        </div>
+                        <div class="col-6 text-primary fw-bold" id="purchaseTotal">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="executePurchase()">确认购买</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% block extra_js %}
 <script>
 class ShopModule {
@@ -381,8 +432,35 @@ class ShopModule {
     }
     
     async init() {
+        await this.loadUserInfo();
         await this.loadShops();
         this.setupEventListeners();
+    }
+    
+    async loadUserInfo() {
+        try {
+            const response = await gameApp.apiCall('/profile', 'GET');
+            if (response.success) {
+                this.userInfo = response.data;
+                this.updateUserDisplay();
+            }
+        } catch (error) {
+            console.error('Failed to load user info:', error);
+        }
+    }
+    
+    updateUserDisplay() {
+        if (this.userInfo) {
+            // 更新用户信息显示
+            const coinsElement = document.getElementById('userCoins');
+            const premiumElement = document.getElementById('userPremium');
+            if (coinsElement) {
+                coinsElement.textContent = gameApp.formatNumber(this.userInfo.coins || 0);
+            }
+            if (premiumElement) {
+                premiumElement.textContent = gameApp.formatNumber(this.userInfo.premium_currency || 0);
+            }
+        }
     }
     
     setupEventListeners() {
@@ -611,7 +689,7 @@ class ShopModule {
     
     getItemIcon(type) {
         const icons = {
-            'rod': 'fishing-rod',
+            'rod': 'anchor',
             'accessory': 'gem',
             'item': 'box-open',
             'fish': 'fish',
@@ -648,13 +726,176 @@ class ShopModule {
     }
     
     showItemDetail(itemId) {
-        // 这里应该显示商品详情
-        gameApp.showToast('商品详情功能暂未实现', 'info');
+        // 查找商品信息
+        const item = this.findItemById(itemId);
+        if (!item) {
+            gameApp.showToast('商品不存在', 'warning');
+            return;
+        }
+        
+        // 显示商品详情模态框
+        const modal = new bootstrap.Modal(document.getElementById('itemDetailModal'));
+        
+        document.getElementById('itemDetailTitle').innerHTML = `
+            <i class="fas fa-info-circle me-2"></i>
+            ${item.name}
+        `;
+        
+        document.getElementById('itemDetailContent').innerHTML = `
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="item-image text-center mb-3">
+                        <i class="fas fa-${this.getItemIcon(item.type)} fa-5x text-primary"></i>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <h5>${item.name}</h5>
+                    <p class="text-muted">${item.description || '暂无描述'}</p>
+                    <div class="item-details">
+                        <div class="row mb-2">
+                            <div class="col-4"><strong>价格:</strong></div>
+                            <div class="col-8">${gameApp.formatNumber(item.price)} 金币</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-4"><strong>类型:</strong></div>
+                            <div class="col-8">${this.getItemTypeName(item.type)}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-4"><strong>稀有度:</strong></div>
+                            <div class="col-8">${'★'.repeat(item.rarity || 1)}</div>
+                        </div>
+                        <div class="row mb-2">
+                            <div class="col-4"><strong>库存:</strong></div>
+                            <div class="col-8">${item.stock || '无限'}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('itemDetailActions').innerHTML = `
+            <button type="button" class="btn btn-primary" onclick="showPurchaseModal(${itemId})">
+                <i class="fas fa-shopping-cart me-1"></i>
+                购买
+            </button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+        `;
+        
+        modal.show();
+    }
+    
+    findItemById(itemId) {
+        // 在所有商店中查找商品
+        for (const shop of this.shops) {
+            const item = shop.items.find(item => item.item_id === itemId);
+            if (item) {
+                return { ...item, shop_id: shop.shop_id, shop_name: shop.name };
+            }
+        }
+        return null;
+    }
+    
+    getItemIcon(type) {
+        const icons = {
+            'rod': 'anchor',
+            'accessory': 'gem',
+            'item': 'box',
+            'bait': 'bug',
+            'fish': 'fish'
+        };
+        return icons[type] || 'gift';
+    }
+    
+    getItemTypeName(type) {
+        const types = {
+            'rod': '鱼竿',
+            'accessory': '饰品',
+            'item': '道具',
+            'bait': '鱼饵',
+            'fish': '鱼类'
+        };
+        return types[type] || '未知';
     }
     
     showPurchaseModal(itemId) {
-        // 这里应该显示购买确认
-        gameApp.showToast('购买功能暂未实现', 'info');
+        const item = this.findItemById(itemId);
+        if (!item) {
+            gameApp.showToast('商品不存在', 'warning');
+            return;
+        }
+        
+        // 关闭详情模态框
+        const detailModal = bootstrap.Modal.getInstance(document.getElementById('itemDetailModal'));
+        if (detailModal) {
+            detailModal.hide();
+        }
+        
+        // 存储当前购买的商品ID
+        this.currentPurchaseItemId = itemId;
+        
+        // 显示购买确认模态框
+        const modal = new bootstrap.Modal(document.getElementById('purchaseModal'));
+        
+        document.getElementById('purchaseItemName').textContent = item.name;
+        document.getElementById('purchaseItemPrice').textContent = gameApp.formatNumber(item.price);
+        document.getElementById('purchaseQuantity').value = 1;
+        document.getElementById('purchaseQuantity').max = item.stock || 999;
+        
+        // 更新总价
+        this.updatePurchaseTotal();
+        
+        modal.show();
+    }
+    
+    updatePurchaseTotal() {
+        const quantity = parseInt(document.getElementById('purchaseQuantity').value) || 1;
+        const price = parseInt(document.getElementById('purchaseItemPrice').textContent.replace(/,/g, '')) || 0;
+        const total = quantity * price;
+        document.getElementById('purchaseTotal').textContent = gameApp.formatNumber(total);
+    }
+    
+    async executePurchase() {
+        const quantity = parseInt(document.getElementById('purchaseQuantity').value);
+        const itemId = this.getCurrentPurchaseItemId();
+        
+        if (!itemId || !quantity) {
+            gameApp.showToast('请选择商品和数量', 'warning');
+            return;
+        }
+        
+        const item = this.findItemById(itemId);
+        if (!item) {
+            gameApp.showToast('商品不存在', 'warning');
+            return;
+        }
+        
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/shop/purchase', 'POST', {
+                shop_id: item.shop_id,
+                item_id: itemId,
+                quantity: quantity
+            });
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                bootstrap.Modal.getInstance(document.getElementById('purchaseModal')).hide();
+                await this.loadShops();
+                await this.loadUserInfo();
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('购买失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    getCurrentPurchaseItemId() {
+        // 从当前显示的购买信息中获取商品ID
+        // 这里需要存储当前购买的商品ID
+        return this.currentPurchaseItemId;
     }
 }
 
@@ -680,6 +921,18 @@ function showItemDetail(itemId) {
 function showPurchaseModal(itemId) {
     if (window.shopModule) {
         window.shopModule.showPurchaseModal(itemId);
+    }
+}
+
+function updatePurchaseTotal() {
+    if (window.shopModule) {
+        window.shopModule.updatePurchaseTotal();
+    }
+}
+
+function executePurchase() {
+    if (window.shopModule) {
+        window.shopModule.executePurchase();
     }
 }
 

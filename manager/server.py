@@ -84,20 +84,20 @@ def create_app(secret_key: str, services: Dict[str, Any]):
 
 def login_required(f):
     @functools.wraps(f)
-    async def decorated_function(*args, **kwargs):
+    async def wrapper(*args, **kwargs):
         if "logged_in" not in session:
             return redirect(url_for("admin_bp.login"))
         return await f(*args, **kwargs)
-    return decorated_function
+    return wrapper
 
 def admin_required(f):
     @functools.wraps(f)
-    async def decorated_function(*args, **kwargs):
+    async def wrapper(*args, **kwargs):
         if not session.get("is_admin"):
             await flash("无权限访问该页面", "danger")
             return redirect(url_for("admin_bp.login"))
         return await f(*args, **kwargs)
-    return decorated_function
+    return wrapper
 
 @admin_bp.route("/login", methods=["GET", "POST"])
 async def login():

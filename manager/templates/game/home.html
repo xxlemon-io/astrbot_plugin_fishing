@@ -75,7 +75,7 @@
                     <div class="row">
                         <div class="col-6">
                             <div class="equipment-item text-center">
-                                <i class="fas fa-fishing-rod text-primary fa-2x mb-2"></i>
+                                <i class="fas fa-anchor text-primary fa-2x mb-2"></i>
                                 <div class="equipment-name" id="currentRod">无鱼竿</div>
                                 <div class="equipment-level" id="rodLevel"></div>
                             </div>
@@ -222,6 +222,26 @@
         </div>
     </div>
 </div>
+
+<!-- 区域选择模态框 -->
+<div class="modal fade" id="zoneSelectModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-map-marker-alt me-2"></i>
+                    选择钓鱼区域
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="zoneList" class="row g-3">
+                    <!-- 区域列表将在这里动态加载 -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_css %}
@@ -320,6 +340,71 @@
     font-weight: 600;
     color: var(--success-color);
 }
+
+.zone-card {
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--card-bg);
+    height: 100%;
+}
+
+.zone-card:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.zone-card.selected {
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark));
+    color: white;
+}
+
+.zone-name {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--dark-color);
+}
+
+.zone-card.selected .zone-name {
+    color: white;
+}
+
+.zone-description {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+    line-height: 1.4;
+}
+
+.zone-card.selected .zone-description {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.zone-cost {
+    font-size: 0.9rem;
+    color: var(--warning-color);
+    font-weight: 500;
+}
+
+.zone-card.selected .zone-cost {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.zone-requirements {
+    font-size: 0.8rem;
+    color: var(--danger-color);
+    margin-top: 0.5rem;
+    font-weight: 500;
+}
+
+.zone-card.selected .zone-requirements {
+    color: rgba(255, 255, 255, 0.8);
+}
 </style>
 {% endblock %}
 
@@ -328,13 +413,18 @@
 class GameHome {
     constructor() {
         this.userInfo = null;
+        this.isFishing = false;
         this.cooldownTimer = null;
+        this.lastCooldownCheck = 0; // 上次检查冷却的时间戳
+        this.cooldownCheckThrottle = 5000; // 冷却检查防抖间隔（5秒）
+        this.zones = []; // 区域列表
         this.init();
     }
     
     async init() {
         await this.loadUserInfo();
         await this.loadRecentRecords();
+        await this.checkCooldownStatus();
         this.setupEventListeners();
     }
     
@@ -343,6 +433,18 @@ class GameHome {
         setInterval(() => {
             this.loadUserInfo();
         }, 30000);
+        
+        // 当页面重新变为可见时检查冷却状态（用户从其他标签页返回）
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                this.checkCooldownStatus();
+            }
+        });
+        
+        // 当窗口重新获得焦点时检查冷却状态
+        window.addEventListener('focus', () => {
+            this.checkCooldownStatus();
+        });
     }
     
     async loadUserInfo() {
@@ -351,6 +453,13 @@ class GameHome {
             if (response.success) {
                 this.userInfo = response.data;
                 this.updateUserDisplay();
+            } else {
+                // 检查是否需要重定向到登录页面
+                if (response.redirect && response.redirect.includes('/login')) {
+                    window.location.href = response.redirect;
+                    return;
+                }
+                console.error('Failed to load user info:', response.message);
             }
         } catch (error) {
             console.error('Failed to load user info:', error);
@@ -363,11 +472,11 @@ class GameHome {
         // 更新状态显示
         document.getElementById('userCoinsDisplay').textContent = gameApp.formatNumber(this.userInfo.coins || 0);
         document.getElementById('userPremiumDisplay').textContent = gameApp.formatNumber(this.userInfo.premium_currency || 0);
-        document.getElementById('userFishingCount').textContent = this.userInfo.total_fishing_count || 0;
-        document.getElementById('totalWeight').textContent = this.userInfo.total_weight_caught || 0;
+        document.getElementById('userFishingCount').textContent = gameApp.formatNumber(this.userInfo.total_fishing_count || 0);
+        document.getElementById('totalWeight').textContent = gameApp.formatNumber(this.userInfo.total_weight_caught || 0);
         document.getElementById('totalEarned').textContent = gameApp.formatNumber(this.userInfo.total_coins_earned || 0);
-        document.getElementById('consecutiveDays').textContent = this.userInfo.consecutive_login_days || 0;
-        document.getElementById('pondCapacity').textContent = this.userInfo.fish_pond_capacity || 0;
+        document.getElementById('consecutiveDays').textContent = gameApp.formatNumber(this.userInfo.consecutive_login_days || 0);
+        document.getElementById('pondCapacity').textContent = gameApp.formatNumber(this.userInfo.fish_pond_capacity || 0);
         
         // 更新自动钓鱼状态
         const autoFishingText = document.getElementById('autoFishingText');
@@ -375,6 +484,39 @@ class GameHome {
             autoFishingText.textContent = '关闭自动钓鱼';
         } else {
             autoFishingText.textContent = '开启自动钓鱼';
+        }
+        
+        // 更新装备信息
+        this.updateEquipmentDisplay();
+    }
+    
+    updateEquipmentDisplay() {
+        if (!this.userInfo) return;
+        
+        // 更新鱼竿信息
+        const currentRod = document.getElementById('currentRod');
+        const rodLevel = document.getElementById('rodLevel');
+        
+        if (this.userInfo.equipped_rod) {
+            const rod = this.userInfo.equipped_rod;
+            currentRod.textContent = rod.name || '未知鱼竿';
+            rodLevel.textContent = `+${rod.refine_level || 0}`;
+        } else {
+            currentRod.textContent = '无鱼竿';
+            rodLevel.textContent = '';
+        }
+        
+        // 更新饰品信息
+        const currentAccessory = document.getElementById('currentAccessory');
+        const accessoryLevel = document.getElementById('accessoryLevel');
+        
+        if (this.userInfo.equipped_accessory) {
+            const accessory = this.userInfo.equipped_accessory;
+            currentAccessory.textContent = accessory.name || '未知饰品';
+            accessoryLevel.textContent = `+${accessory.refine_level || 0}`;
+        } else {
+            currentAccessory.textContent = '无饰品';
+            accessoryLevel.textContent = '';
         }
     }
     
@@ -394,9 +536,67 @@ class GameHome {
         }
     }
     
-    async goFishing() {
+    async checkCooldownStatus() {
+        const now = Date.now();
+        // 防抖：如果距离上次检查不到5秒，跳过
+        if (now - this.lastCooldownCheck < this.cooldownCheckThrottle) {
+            return;
+        }
+        
         try {
+            const response = await gameApp.apiCall('/fishing/cooldown', 'GET');
+            if (response.success) {
+                const data = response.data;
+                if (data.is_on_cooldown) {
+                    this.startCooldown(data.remaining_seconds);
+                } else {
+                    this.clearCooldown();
+                }
+                this.lastCooldownCheck = now;
+            }
+        } catch (error) {
+            console.error('Failed to check cooldown status:', error);
+        }
+    }
+    
+    // 只在用户尝试钓鱼时检查冷却状态
+    async checkCooldownBeforeFishing() {
+        try {
+            const response = await gameApp.apiCall('/fishing/cooldown', 'GET');
+            if (response.success) {
+                const data = response.data;
+                if (data.is_on_cooldown) {
+                    this.startCooldown(data.remaining_seconds);
+                    return false; // 仍在冷却中
+                } else {
+                    this.clearCooldown();
+                    return true; // 可以钓鱼
+                }
+            }
+        } catch (error) {
+            console.error('Failed to check cooldown status:', error);
+        }
+        return true; // 出错时允许钓鱼
+    }
+    
+    async goFishing() {
+        if (this.isFishing) return;
+        
+        // 检查是否在冷却中
+        const fishingBtn = document.querySelector('button[onclick="goFishing()"]');
+        if (fishingBtn && fishingBtn.disabled) return;
+        
+        // 在钓鱼前检查冷却状态
+        const canFish = await this.checkCooldownBeforeFishing();
+        if (!canFish) {
+            return; // 仍在冷却中，不执行钓鱼
+        }
+        
+        try {
+            this.isFishing = true;
             showLoading(true);
+            this.updateFishingButton(true);
+            
             const response = await gameApp.apiCall('/fishing/cast', 'POST');
             
             if (response.success) {
@@ -410,21 +610,95 @@ class GameHome {
                 await this.loadUserInfo();
                 
                 // 显示冷却时间
-                this.showCooldown();
+                this.startCooldown(response.data.cooldown_seconds || 180);
                 
             } else {
+                // 检查是否需要重定向到登录页面
+                if (response.redirect && response.redirect.includes('/login')) {
+                    window.location.href = response.redirect;
+                    return;
+                }
+                
                 gameApp.showToast(response.message, 'danger');
                 
                 // 如果是冷却中，显示冷却时间
-                if (response.message.includes('等待')) {
-                    this.showCooldown();
+                if (response.message.includes('等待') || response.message.includes('冷却')) {
+                    this.startCooldown(response.data.cooldown_seconds || 180);
+                } else {
+                    // 如果不是冷却问题，恢复按钮状态
+                    this.isFishing = false;
+                    this.updateFishingButton(false);
                 }
             }
         } catch (error) {
             gameApp.showToast('钓鱼失败，请稍后重试', 'danger');
+            this.isFishing = false;
+            this.updateFishingButton(false);
         } finally {
             showLoading(false);
         }
+    }
+    
+    updateFishingButton(fishing) {
+        const fishingBtn = document.querySelector('button[onclick="goFishing()"]');
+        if (fishingBtn) {
+            if (fishing) {
+                fishingBtn.disabled = true;
+                fishingBtn.innerHTML = '<i class="fas fa-fish me-2"></i>钓鱼中...';
+            } else {
+                fishingBtn.disabled = false;
+                fishingBtn.innerHTML = '<i class="fas fa-fish me-2"></i>开始钓鱼';
+            }
+        }
+    }
+    
+    startCooldown(seconds = 180) {
+        const fishingBtn = document.querySelector('button[onclick="goFishing()"]');
+        if (!fishingBtn) return;
+        
+        // 清除之前的定时器
+        if (this.cooldownTimer) {
+            clearTimeout(this.cooldownTimer);
+        }
+        
+        fishingBtn.disabled = true;
+        
+        // 使用服务器返回的冷却时间
+        let remaining = seconds;
+        
+        const updateCooldown = () => {
+            if (remaining <= 0) {
+                fishingBtn.disabled = false;
+                fishingBtn.innerHTML = '<i class="fas fa-fish me-2"></i>开始钓鱼';
+                this.cooldownTimer = null;
+                return;
+            }
+            
+            const minutes = Math.floor(remaining / 60);
+            const secs = remaining % 60;
+            const timeStr = minutes > 0 ? `${minutes}:${secs.toString().padStart(2, '0')}` : `${secs}秒`;
+            fishingBtn.innerHTML = `<i class="fas fa-clock me-2"></i>冷却中 ${timeStr}`;
+            
+            remaining--;
+            this.cooldownTimer = setTimeout(updateCooldown, 1000);
+        };
+        
+        updateCooldown();
+    }
+    
+    clearCooldown() {
+        const fishingBtn = document.querySelector('button[onclick="goFishing()"]');
+        if (!fishingBtn) return;
+        
+        // 清除定时器
+        if (this.cooldownTimer) {
+            clearTimeout(this.cooldownTimer);
+            this.cooldownTimer = null;
+        }
+        
+        // 恢复按钮状态
+        fishingBtn.disabled = false;
+        fishingBtn.innerHTML = '<i class="fas fa-fish me-2"></i>开始钓鱼';
     }
     
     showFishingResult(fish, message) {
@@ -521,8 +795,14 @@ class GameHome {
     async signIn() {
         try {
             showLoading(true);
-            // 这里应该调用签到API
-            gameApp.showToast('签到功能暂未实现', 'info');
+            const response = await gameApp.apiCall('/user/sign-in', 'POST');
+            
+            if (response.success) {
+                gameApp.showToast(response.data.message, 'success');
+                await this.loadUserInfo();
+            } else {
+                gameApp.showToast(response.data.message, 'danger');
+            }
         } catch (error) {
             gameApp.showToast('签到失败，请稍后重试', 'danger');
         } finally {
@@ -539,6 +819,11 @@ class GameHome {
                 gameApp.showToast(response.data.message, 'success');
                 await this.loadUserInfo();
             } else {
+                // 检查是否需要重定向到登录页面
+                if (response.redirect && response.redirect.includes('/login')) {
+                    window.location.href = response.redirect;
+                    return;
+                }
                 gameApp.showToast(response.message, 'danger');
             }
         } catch (error) {
@@ -550,10 +835,76 @@ class GameHome {
     
     async switchZone() {
         try {
-            // 这里应该显示区域选择模态框
-            gameApp.showToast('区域切换功能暂未实现', 'info');
+            // 加载区域列表
+            await this.loadZones();
+            // 渲染区域列表
+            this.renderZoneList();
+            // 显示区域选择模态框
+            const modal = new bootstrap.Modal(document.getElementById('zoneSelectModal'));
+            modal.show();
         } catch (error) {
             gameApp.showToast('切换区域失败，请稍后重试', 'danger');
+        }
+    }
+    
+    async loadZones() {
+        try {
+            const response = await gameApp.apiCall('/zones', 'GET');
+            if (response.success) {
+                this.zones = response.data;
+            }
+        } catch (error) {
+            console.error('Failed to load zones:', error);
+        }
+    }
+    
+    renderZoneList() {
+        const container = document.getElementById('zoneList');
+        
+        if (this.zones.length === 0) {
+            container.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-map fa-2x mb-2"></i>
+                    <p>暂无可用区域</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const zonesHtml = this.zones.map(zone => `
+            <div class="col-md-6">
+                <div class="zone-card ${zone.id === this.userInfo?.fishing_zone_id ? 'selected' : ''}" 
+                     onclick="selectZone(${zone.id})">
+                    <div class="zone-name">${zone.name}</div>
+                    <div class="zone-description">${zone.description || '暂无描述'}</div>
+                    <div class="zone-cost">
+                        <i class="fas fa-coins text-warning me-1"></i>
+                        ${gameApp.formatNumber(zone.fishing_cost || 10)} 金币/次
+                    </div>
+                    ${zone.requires_pass ? '<div class="zone-requirements">需要通行证</div>' : ''}
+                </div>
+            </div>
+        `).join('');
+        
+        container.innerHTML = zonesHtml;
+    }
+    
+    async selectZone(zoneId) {
+        try {
+            showLoading(true);
+            const response = await gameApp.apiCall('/zones/switch', 'POST', { zone_id: zoneId });
+            
+            if (response.success) {
+                gameApp.showToast('区域切换成功', 'success');
+                await this.loadUserInfo();
+                bootstrap.Modal.getInstance(document.getElementById('zoneSelectModal')).hide();
+            } else {
+                gameApp.showToast(response.message, 'danger');
+            }
+        } catch (error) {
+            gameApp.showToast('切换区域失败，请稍后重试', 'danger');
+        } finally {
+            showLoading(false);
         }
     }
 }
@@ -586,6 +937,12 @@ function switchZone() {
 function refreshUserInfo() {
     if (window.gameHome) {
         window.gameHome.loadUserInfo();
+    }
+}
+
+function selectZone(zoneId) {
+    if (window.gameHome) {
+        window.gameHome.selectZone(zoneId);
     }
 }
 

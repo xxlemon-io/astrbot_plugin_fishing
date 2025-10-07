@@ -38,7 +38,7 @@ class AuthService:
         
         return True, ""
     
-    def send_verification_code(self, qq_id: str, bot_instance) -> Tuple[bool, str]:
+    def send_verification_code(self, qq_id: str, plugin_instance) -> Tuple[bool, str]:
         """发送验证码到QQ"""
         can_send, error_msg = self.can_send_code(qq_id)
         if not can_send:
@@ -61,15 +61,44 @@ class AuthService:
         # 通过Bot发送消息
         try:
             message = f"【钓鱼游戏】您的验证码是：{code}，5分钟内有效。"
-            # 这里需要调用Bot的消息发送功能
-            # 由于AstrBot的API限制，我们需要通过插件实例来发送
-            # 暂时记录日志，实际发送需要在路由中处理
-            logger.info(f"验证码发送到QQ {qq_id}: {code}")
             
-            # TODO: 实际的消息发送需要通过bot_instance实现
-            # 这里先返回成功，实际发送在路由中处理
+            # 使用现有的消息服务发送验证码
+            if plugin_instance and hasattr(plugin_instance, 'message_service'):
+                try:
+                    import asyncio
+                    loop = asyncio.get_event_loop()
+                    success = loop.run_until_complete(plugin_instance.message_service.send_private_message(
+                        user_id=qq_id,
+                        message=message
+                    ))
+                    if success:
+                        logger.info(f"验证码已通过消息服务发送到 QQ {qq_id}")
+                        return True, "验证码已发送"
+                    else:
+                        logger.warning(f"消息服务发送失败，验证码: {code}")
+                        return True, "验证码已生成（请查看日志）"
+                except Exception as e:
+                    logger.debug(f"消息服务发送失败: {e}")
             
-            return True, "验证码已发送"
+            # 备用方案：直接通过bot发送
+            if plugin_instance and hasattr(plugin_instance, 'bot') and hasattr(plugin_instance.bot, 'call_action'):
+                try:
+                    import asyncio
+                    loop = asyncio.get_event_loop()
+                    loop.create_task(plugin_instance.bot.call_action(
+                        "send_private_msg",
+                        user_id=int(qq_id),
+                        message=message
+                    ))
+                    logger.info(f"验证码已通过 bot.call_action 发送到 QQ {qq_id}")
+                    return True, "验证码已发送"
+                except Exception as e:
+                    logger.debug(f"bot.call_action发送失败: {e}")
+            
+            # 如果所有方式都失败，记录日志
+            logger.warning(f"所有发送方式都失败，验证码: {code}")
+            return True, "验证码已生成（请查看日志）"
+            
         except Exception as e:
             logger.error(f"发送验证码失败: {e}")
             return False, "发送验证码失败，请稍后重试"

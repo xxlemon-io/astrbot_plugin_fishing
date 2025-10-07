@@ -1,70 +1,86 @@
+import functools
 from quart import Blueprint, render_template, request, session, jsonify, current_app
 from astrbot.api import logger
-
-from .auth_routes import login_required
+from ..core.utils import get_now
 
 # 创建游戏相关的Blueprint
 game_bp = Blueprint("game_bp", __name__)
 
 
+def game_login_required(f):
+    """游戏登录验证装饰器"""
+    @functools.wraps(f)
+    async def wrapper(*args, **kwargs):
+        if "game_user_id" not in session:
+            # 检查是否是API请求
+            if request.path.startswith('/game/api/'):
+                return jsonify({"success": False, "message": "请先登录", "redirect": "/game/login"}), 401
+            else:
+                # 对于页面请求，重定向到登录页面
+                from quart import redirect, url_for
+                return redirect(url_for('auth_bp.auth_login_page'))
+        return await f(*args, **kwargs)
+    return wrapper
+
+
 @game_bp.route("/game/")
-@login_required
+@game_login_required
 async def game_home():
     """游戏主页"""
     return await render_template("game/home.html")
 
 
 @game_bp.route("/game/fishing")
-@login_required
+@game_login_required
 async def game_fishing():
     """钓鱼页面"""
     return await render_template("game/fishing.html")
 
 
 @game_bp.route("/game/inventory")
-@login_required
+@game_login_required
 async def game_inventory():
     """背包页面"""
     return await render_template("game/inventory.html")
 
 
 @game_bp.route("/game/shop")
-@login_required
+@game_login_required
 async def game_shop():
     """商店页面"""
     return await render_template("game/shop.html")
 
 
 @game_bp.route("/game/market")
-@login_required
+@game_login_required
 async def game_market():
     """市场页面"""
     return await render_template("game/market.html")
 
 
 @game_bp.route("/game/gacha")
-@login_required
+@game_login_required
 async def game_gacha():
     """抽卡页面"""
     return await render_template("game/gacha.html")
 
 
 @game_bp.route("/game/social")
-@login_required
+@game_login_required
 async def game_social():
     """社交页面"""
     return await render_template("game/social.html")
 
 
 @game_bp.route("/game/exchange")
-@login_required
+@game_login_required
 async def game_exchange():
     """交易所页面"""
     return await render_template("game/exchange.html")
 
 
 @game_bp.route("/game/profile")
-@login_required
+@game_login_required
 async def game_profile():
     """个人中心页面"""
     return await render_template("game/profile.html")
@@ -73,12 +89,14 @@ async def game_profile():
 # ========== API 路由 ==========
 
 @game_bp.route("/game/api/profile", methods=["GET"])
-@login_required
+@game_login_required
 async def api_get_profile():
     """获取用户个人信息"""
     try:
         user_id = session.get("game_user_id")
         user_service = current_app.config.get("USER_SERVICE")
+        inventory_service = current_app.config.get("INVENTORY_SERVICE")
+        item_template_service = current_app.config.get("ITEM_TEMPLATE_SERVICE")
         
         if not user_service:
             return jsonify({"success": False, "message": "服务不可用"})
@@ -86,6 +104,36 @@ async def api_get_profile():
         user = user_service.user_repo.get_by_id(user_id)
         if not user:
             return jsonify({"success": False, "message": "用户不存在"})
+        
+        # 获取装备的鱼竿信息
+        equipped_rod = None
+        if user.equipped_rod_instance_id and inventory_service and item_template_service:
+            try:
+                rod_instance = inventory_service.inventory_repo.get_user_rod_instance_by_id(user_id, user.equipped_rod_instance_id)
+                if rod_instance:
+                    rod_template = item_template_service.get_rod_by_id(rod_instance.rod_id)
+                    if rod_template:
+                        equipped_rod = {
+                            "name": rod_template.name,
+                            "refine_level": rod_instance.refine_level
+                        }
+            except Exception as e:
+                logger.warning(f"获取装备鱼竿信息失败: {e}")
+        
+        # 获取装备的饰品信息
+        equipped_accessory = None
+        if user.equipped_accessory_instance_id and inventory_service and item_template_service:
+            try:
+                accessory_instance = inventory_service.inventory_repo.get_user_accessory_instance_by_id(user_id, user.equipped_accessory_instance_id)
+                if accessory_instance:
+                    accessory_template = item_template_service.get_accessory_by_id(accessory_instance.accessory_id)
+                    if accessory_template:
+                        equipped_accessory = {
+                            "name": accessory_template.name,
+                            "refine_level": accessory_instance.refine_level
+                        }
+            except Exception as e:
+                logger.warning(f"获取装备饰品信息失败: {e}")
         
         # 获取用户详细信息
         user_data = {
@@ -101,6 +149,8 @@ async def api_get_profile():
             "aquarium_capacity": user.aquarium_capacity,
             "fishing_zone_id": user.fishing_zone_id,
             "auto_fishing_enabled": user.auto_fishing_enabled,
+            "equipped_rod": equipped_rod,
+            "equipped_accessory": equipped_accessory,
             "created_at": user.created_at.isoformat() if user.created_at else None,
             "last_login_time": user.last_login_time.isoformat() if user.last_login_time else None
         }
@@ -112,8 +162,73 @@ async def api_get_profile():
         return jsonify({"success": False, "message": "获取用户信息失败"})
 
 
+@game_bp.route("/game/api/fishing/cooldown", methods=["GET"])
+@game_login_required
+async def api_get_fishing_cooldown():
+    """获取钓鱼冷却状态"""
+    try:
+        user_id = session.get("game_user_id")
+        fishing_service = current_app.config.get("FISHING_SERVICE")
+        
+        if not fishing_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        # 获取用户信息
+        user_repo = current_app.config.get("USER_SERVICE").user_repo
+        user = user_repo.get_by_id(user_id)
+        
+        if not user:
+            return jsonify({"success": False, "message": "用户不存在"})
+        
+        # 计算冷却时间
+        fishing_config = fishing_service.config.get("fishing", {})
+        cooldown = fishing_config.get("cooldown_seconds", 180)
+        
+        now = get_now()
+        if user.last_fishing_time and user.last_fishing_time.year > 1:
+            time_since_last_fishing = (now - user.last_fishing_time).total_seconds()
+            
+            # 检查用户是否装备了海洋之心（减少冷却时间）
+            inventory_service = current_app.config.get("INVENTORY_SERVICE")
+            if inventory_service:
+                equipped_accessory = inventory_service.inventory_repo.get_user_equipped_accessory(user_id)
+                if equipped_accessory:
+                    item_template_service = current_app.config.get("ITEM_TEMPLATE_SERVICE")
+                    if item_template_service:
+                        accessory_template = item_template_service.get_accessory_by_id(equipped_accessory.accessory_id)
+                        if accessory_template and accessory_template.name == "海洋之心":
+                            # 海洋之心装备时，CD时间减半
+                            cooldown = cooldown / 2
+            
+            remaining_time = max(0, cooldown - time_since_last_fishing)
+            
+            return jsonify({
+                "success": True,
+                "data": {
+                    "is_on_cooldown": remaining_time > 0,
+                    "remaining_seconds": int(remaining_time),
+                    "cooldown_seconds": int(cooldown),
+                    "last_fishing_time": user.last_fishing_time.isoformat() if user.last_fishing_time else None
+                }
+            })
+        else:
+            return jsonify({
+                "success": True,
+                "data": {
+                    "is_on_cooldown": False,
+                    "remaining_seconds": 0,
+                    "cooldown_seconds": int(cooldown),
+                    "last_fishing_time": None
+                }
+            })
+        
+    except Exception as e:
+        logger.error(f"获取钓鱼冷却状态失败: {e}")
+        return jsonify({"success": False, "message": "获取钓鱼冷却状态失败"})
+
+
 @game_bp.route("/game/api/fishing/cast", methods=["POST"])
-@login_required
+@game_login_required
 async def api_fishing_cast():
     """钓鱼API"""
     try:
@@ -147,7 +262,7 @@ async def api_fishing_cast():
 
 
 @game_bp.route("/game/api/fishing/toggle-auto", methods=["POST"])
-@login_required
+@game_login_required
 async def api_fishing_toggle_auto():
     """切换自动钓鱼"""
     try:
@@ -173,7 +288,7 @@ async def api_fishing_toggle_auto():
 
 
 @game_bp.route("/game/api/zones", methods=["GET"])
-@login_required
+@game_login_required
 async def api_get_zones():
     """获取钓鱼区域列表"""
     try:
@@ -195,7 +310,7 @@ async def api_get_zones():
 
 
 @game_bp.route("/game/api/zones/switch", methods=["POST"])
-@login_required
+@game_login_required
 async def api_switch_zone():
     """切换钓鱼区域"""
     try:
@@ -212,7 +327,7 @@ async def api_switch_zone():
             return jsonify({"success": False, "message": "服务不可用"})
         
         # 调用区域切换服务
-        result = fishing_zone_service.switch_user_zone(user_id, zone_id)
+        result = fishing_zone_service.switch_zone(user_id, zone_id)
         
         if result.get("success"):
             return jsonify({
@@ -231,7 +346,7 @@ async def api_switch_zone():
 
 
 @game_bp.route("/game/api/inventory/<item_type>", methods=["GET"])
-@login_required
+@game_login_required
 async def api_get_inventory(item_type):
     """获取背包数据"""
     try:
@@ -243,15 +358,15 @@ async def api_get_inventory(item_type):
         
         # 根据类型获取不同的背包数据
         if item_type == "fish":
-            result = inventory_service.get_user_fish_inventory(user_id)
+            result = inventory_service.get_user_fish_pond(user_id)
         elif item_type == "rods":
-            result = inventory_service.get_user_rods(user_id)
+            result = inventory_service.get_user_rod_inventory(user_id)
         elif item_type == "accessories":
-            result = inventory_service.get_user_accessories(user_id)
+            result = inventory_service.get_user_accessory_inventory(user_id)
         elif item_type == "items":
-            result = inventory_service.get_user_items(user_id)
+            result = inventory_service.get_user_item_inventory(user_id)
         elif item_type == "baits":
-            result = inventory_service.get_user_baits(user_id)
+            result = inventory_service.get_user_bait_inventory(user_id)
         else:
             return jsonify({"success": False, "message": "无效的物品类型"})
         
@@ -266,7 +381,7 @@ async def api_get_inventory(item_type):
 
 
 @game_bp.route("/game/api/inventory/equip", methods=["POST"])
-@login_required
+@game_login_required
 async def api_equip_item():
     """装备/卸下物品"""
     try:
@@ -283,9 +398,10 @@ async def api_equip_item():
         
         # 调用装备服务
         if action == "equip":
-            result = inventory_service.equip_item(user_id, item_type, item_id)
+            result = inventory_service.equip_item(user_id, item_id, item_type)
         else:
-            result = inventory_service.unequip_item(user_id, item_type)
+            # 取消装备
+            result = {"success": False, "message": "取消装备功能暂未实现"}
         
         if result.get("success"):
             return jsonify({
@@ -304,7 +420,7 @@ async def api_equip_item():
 
 
 @game_bp.route("/game/api/inventory/refine", methods=["POST"])
-@login_required
+@game_login_required
 async def api_refine_item():
     """精炼物品"""
     try:
@@ -319,7 +435,7 @@ async def api_refine_item():
             return jsonify({"success": False, "message": "服务不可用"})
         
         # 调用精炼服务
-        result = inventory_service.refine_item(user_id, item_type, item_id)
+        result = inventory_service.refine(user_id, item_id, item_type)
         
         return jsonify({
             "success": result.get("success", False),
@@ -332,7 +448,7 @@ async def api_refine_item():
 
 
 @game_bp.route("/game/api/inventory/sell", methods=["POST"])
-@login_required
+@game_login_required
 async def api_sell_item():
     """出售物品"""
     try:
@@ -360,8 +476,88 @@ async def api_sell_item():
         return jsonify({"success": False, "message": "出售失败，请稍后重试"})
 
 
+@game_bp.route("/game/api/inventory/sell-all-fish", methods=["POST"])
+@game_login_required
+async def api_sell_all_fish():
+    """批量出售所有鱼类"""
+    try:
+        user_id = session.get("game_user_id")
+        inventory_service = current_app.config.get("INVENTORY_SERVICE")
+        
+        result = inventory_service.sell_all_fish(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"批量出售鱼类失败: {e}")
+        return jsonify({"success": False, "message": "批量出售失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/inventory/sell-keep-fish", methods=["POST"])
+@game_login_required
+async def api_sell_keep_fish():
+    """保留出售鱼类（每种保留一条）"""
+    try:
+        user_id = session.get("game_user_id")
+        inventory_service = current_app.config.get("INVENTORY_SERVICE")
+        
+        result = inventory_service.sell_all_fish(user_id, keep_one=True)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"保留出售鱼类失败: {e}")
+        return jsonify({"success": False, "message": "保留出售失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/inventory/sell-all-rods", methods=["POST"])
+@game_login_required
+async def api_sell_all_rods():
+    """批量出售所有鱼竿"""
+    try:
+        user_id = session.get("game_user_id")
+        inventory_service = current_app.config.get("INVENTORY_SERVICE")
+        
+        result = inventory_service.sell_all_rods(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"批量出售鱼竿失败: {e}")
+        return jsonify({"success": False, "message": "批量出售失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/inventory/sell-all-accessories", methods=["POST"])
+@game_login_required
+async def api_sell_all_accessories():
+    """批量出售所有饰品"""
+    try:
+        user_id = session.get("game_user_id")
+        inventory_service = current_app.config.get("INVENTORY_SERVICE")
+        
+        result = inventory_service.sell_all_accessories(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"批量出售饰品失败: {e}")
+        return jsonify({"success": False, "message": "批量出售失败，请稍后重试"})
+
+
 @game_bp.route("/game/api/shops", methods=["GET"])
-@login_required
+@game_login_required
 async def api_get_shops():
     """获取商店列表"""
     try:
@@ -383,8 +579,8 @@ async def api_get_shops():
 
 
 @game_bp.route("/game/api/shops/<int:shop_id>/items", methods=["GET"])
-@login_required
-async def api_get_shop_items(shop_id):
+@game_login_required
+async def game_api_get_shop_items(shop_id):
     """获取商店商品"""
     try:
         shop_service = current_app.config.get("SHOP_SERVICE")
@@ -405,7 +601,7 @@ async def api_get_shop_items(shop_id):
 
 
 @game_bp.route("/game/api/shops/purchase", methods=["POST"])
-@login_required
+@game_login_required
 async def api_purchase_item():
     """购买商品"""
     try:
@@ -431,3 +627,991 @@ async def api_purchase_item():
     except Exception as e:
         logger.error(f"购买失败: {e}")
         return jsonify({"success": False, "message": "购买失败，请稍后重试"})
+
+
+# ========== 市场系统 API ==========
+
+@game_bp.route("/game/api/market/listings", methods=["GET"])
+@game_login_required
+async def api_get_market_listings():
+    """获取市场商品列表"""
+    try:
+        market_service = current_app.config.get("MARKET_SERVICE")
+        
+        if not market_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = market_service.get_market_listings()
+        
+        return jsonify({
+            "success": True,
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"获取市场商品失败: {e}")
+        return jsonify({"success": False, "message": "获取市场商品失败"})
+
+
+@game_bp.route("/game/api/market/my-listings", methods=["GET"])
+@game_login_required
+async def api_get_my_listings():
+    """获取我的上架商品"""
+    try:
+        user_id = session.get("game_user_id")
+        market_service = current_app.config.get("MARKET_SERVICE")
+        
+        if not market_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = market_service.get_user_listings(user_id)
+        
+        return jsonify({
+            "success": True,
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"获取我的上架商品失败: {e}")
+        return jsonify({"success": False, "message": "获取我的上架商品失败"})
+
+
+@game_bp.route("/game/api/market/list", methods=["POST"])
+@game_login_required
+async def api_list_item():
+    """上架商品"""
+    try:
+        data = await request.get_json()
+        item_type = data.get("item_type")
+        item_id = data.get("item_id")
+        quantity = data.get("quantity", 1)
+        price = data.get("price")
+        
+        user_id = session.get("game_user_id")
+        market_service = current_app.config.get("MARKET_SERVICE")
+        
+        if not market_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = market_service.list_item(user_id, item_type, item_id, quantity, price)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"上架商品失败: {e}")
+        return jsonify({"success": False, "message": "上架商品失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/market/buy", methods=["POST"])
+@game_login_required
+async def api_buy_item():
+    """购买商品"""
+    try:
+        data = await request.get_json()
+        listing_id = data.get("listing_id")
+        quantity = data.get("quantity", 1)
+        
+        user_id = session.get("game_user_id")
+        market_service = current_app.config.get("MARKET_SERVICE")
+        
+        if not market_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = market_service.buy_item(user_id, listing_id, quantity)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"购买商品失败: {e}")
+        return jsonify({"success": False, "message": "购买商品失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/market/remove", methods=["POST"])
+@game_login_required
+async def api_remove_listing():
+    """下架商品"""
+    try:
+        data = await request.get_json()
+        listing_id = data.get("listing_id")
+        
+        user_id = session.get("game_user_id")
+        market_service = current_app.config.get("MARKET_SERVICE")
+        
+        if not market_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = market_service.remove_listing(user_id, listing_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"下架商品失败: {e}")
+        return jsonify({"success": False, "message": "下架商品失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/market/remove-all", methods=["POST"])
+@game_login_required
+async def api_remove_all_listings():
+    """批量下架所有商品"""
+    try:
+        user_id = session.get("game_user_id")
+        market_service = current_app.config.get("MARKET_SERVICE")
+        
+        if not market_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = market_service.remove_all_listings(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"批量下架失败: {e}")
+        return jsonify({"success": False, "message": "批量下架失败，请稍后重试"})
+
+
+# ========== 抽卡系统 API ==========
+
+@game_bp.route("/game/api/gacha/pools", methods=["GET"])
+@game_login_required
+async def api_get_gacha_pools():
+    """获取所有卡池"""
+    try:
+        gacha_service = current_app.config.get("GACHA_SERVICE")
+        
+        if not gacha_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        pools = gacha_service.get_all_pools()
+        
+        return jsonify({
+            "success": True,
+            "data": pools
+        })
+        
+    except Exception as e:
+        logger.error(f"获取卡池列表失败: {e}")
+        return jsonify({"success": False, "message": "获取卡池列表失败"})
+
+
+@game_bp.route("/game/api/gacha/pools/<int:pool_id>", methods=["GET"])
+@game_login_required
+async def api_get_gacha_pool_details(pool_id):
+    """获取卡池详情"""
+    try:
+        gacha_service = current_app.config.get("GACHA_SERVICE")
+        
+        if not gacha_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = gacha_service.get_pool_details(pool_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"获取卡池详情失败: {e}")
+        return jsonify({"success": False, "message": "获取卡池详情失败"})
+
+
+@game_bp.route("/game/api/gacha/draw", methods=["POST"])
+@game_login_required
+async def api_gacha_draw():
+    """单次抽卡"""
+    try:
+        data = await request.get_json()
+        pool_id = data.get("pool_id")
+        
+        if not pool_id:
+            return jsonify({"success": False, "message": "请选择卡池"})
+        
+        user_id = session.get("game_user_id")
+        gacha_service = current_app.config.get("GACHA_SERVICE")
+        
+        if not gacha_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = gacha_service.perform_draw(user_id, pool_id, num_draws=1)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"抽卡失败: {e}")
+        return jsonify({"success": False, "message": "抽卡失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/gacha/draw-ten", methods=["POST"])
+@game_login_required
+async def api_gacha_draw_ten():
+    """十连抽卡"""
+    try:
+        data = await request.get_json()
+        pool_id = data.get("pool_id")
+        
+        if not pool_id:
+            return jsonify({"success": False, "message": "请选择卡池"})
+        
+        user_id = session.get("game_user_id")
+        gacha_service = current_app.config.get("GACHA_SERVICE")
+        
+        if not gacha_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = gacha_service.perform_draw(user_id, pool_id, num_draws=10)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"十连抽卡失败: {e}")
+        return jsonify({"success": False, "message": "十连抽卡失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/gacha/history", methods=["GET"])
+@game_login_required
+async def api_get_gacha_history():
+    """获取抽卡记录"""
+    try:
+        user_id = session.get("game_user_id")
+        gacha_service = current_app.config.get("GACHA_SERVICE")
+        
+        if not gacha_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = gacha_service.get_user_gacha_history(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"获取抽卡记录失败: {e}")
+        return jsonify({"success": False, "message": "获取抽卡记录失败"})
+
+
+@game_bp.route("/game/api/gacha/wipe-bomb", methods=["POST"])
+@game_login_required
+async def api_gacha_wipe_bomb():
+    """擦弹功能"""
+    try:
+        data = await request.get_json()
+        contribution_amount = data.get("contribution_amount")
+        
+        if not contribution_amount:
+            return jsonify({"success": False, "message": "请输入投入金额"})
+        
+        user_id = session.get("game_user_id")
+        game_mechanics_service = current_app.config.get("GAME_MECHANICS_SERVICE")
+        
+        if not game_mechanics_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = game_mechanics_service.perform_wipe_bomb(user_id, int(contribution_amount))
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"擦弹失败: {e}")
+        return jsonify({"success": False, "message": "擦弹失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/gacha/wipe-bomb/history", methods=["GET"])
+@game_login_required
+async def api_get_wipe_bomb_history():
+    """获取擦弹记录"""
+    try:
+        user_id = session.get("game_user_id")
+        game_mechanics_service = current_app.config.get("GAME_MECHANICS_SERVICE")
+        
+        if not game_mechanics_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = game_mechanics_service.get_wipe_bomb_history(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"获取擦弹记录失败: {e}")
+        return jsonify({"success": False, "message": "获取擦弹记录失败"})
+
+
+# ========== 水族箱系统 API ==========
+
+@game_bp.route("/game/aquarium")
+@game_login_required
+async def game_aquarium():
+    """水族箱页面"""
+    return await render_template("game/aquarium.html")
+
+
+@game_bp.route("/game/api/aquarium", methods=["GET"])
+@game_login_required
+async def api_get_aquarium():
+    """获取水族箱信息"""
+    try:
+        user_id = session.get("game_user_id")
+        aquarium_service = current_app.config.get("AQUARIUM_SERVICE")
+        
+        if not aquarium_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = aquarium_service.get_user_aquarium(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"获取水族箱信息失败: {e}")
+        return jsonify({"success": False, "message": "获取水族箱信息失败"})
+
+
+@game_bp.route("/game/api/aquarium/add", methods=["POST"])
+@game_login_required
+async def api_add_to_aquarium():
+    """添加鱼到水族箱"""
+    try:
+        data = await request.get_json()
+        fish_id = data.get("fish_id")
+        quantity = data.get("quantity", 1)
+        
+        if not fish_id:
+            return jsonify({"success": False, "message": "请选择鱼类"})
+        
+        user_id = session.get("game_user_id")
+        aquarium_service = current_app.config.get("AQUARIUM_SERVICE")
+        
+        if not aquarium_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = aquarium_service.add_fish_to_aquarium(user_id, fish_id, quantity)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"添加鱼到水族箱失败: {e}")
+        return jsonify({"success": False, "message": "添加鱼到水族箱失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/aquarium/remove", methods=["POST"])
+@game_login_required
+async def api_remove_from_aquarium():
+    """从水族箱移出鱼"""
+    try:
+        data = await request.get_json()
+        fish_id = data.get("fish_id")
+        quantity = data.get("quantity", 1)
+        
+        if not fish_id:
+            return jsonify({"success": False, "message": "请选择鱼类"})
+        
+        user_id = session.get("game_user_id")
+        aquarium_service = current_app.config.get("AQUARIUM_SERVICE")
+        
+        if not aquarium_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = aquarium_service.remove_fish_from_aquarium(user_id, fish_id, quantity)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"从水族箱移出鱼失败: {e}")
+        return jsonify({"success": False, "message": "从水族箱移出鱼失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/aquarium/upgrade", methods=["POST"])
+@game_login_required
+async def api_upgrade_aquarium():
+    """升级水族箱"""
+    try:
+        user_id = session.get("game_user_id")
+        aquarium_service = current_app.config.get("AQUARIUM_SERVICE")
+        
+        if not aquarium_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = aquarium_service.upgrade_aquarium(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"升级水族箱失败: {e}")
+        return jsonify({"success": False, "message": "升级水族箱失败，请稍后重试"})
+
+
+# ========== 交易所系统 API ==========
+
+@game_bp.route("/game/api/exchange/open-account", methods=["POST"])
+@game_login_required
+async def api_open_exchange_account():
+    """开通交易所账户"""
+    try:
+        user_id = session.get("game_user_id")
+        exchange_service = current_app.config.get("EXCHANGE_SERVICE")
+        
+        if not exchange_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = exchange_service.open_exchange_account(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"开通交易所账户失败: {e}")
+        return jsonify({"success": False, "message": "开通交易所账户失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/exchange/status", methods=["GET"])
+@game_login_required
+async def api_get_exchange_status():
+    """获取市场状态"""
+    try:
+        exchange_service = current_app.config.get("EXCHANGE_SERVICE")
+        
+        if not exchange_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = exchange_service.get_market_status()
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"获取市场状态失败: {e}")
+        return jsonify({"success": False, "message": "获取市场状态失败"})
+
+
+@game_bp.route("/game/api/exchange/inventory", methods=["GET"])
+@game_login_required
+async def api_get_exchange_inventory():
+    """获取持仓信息"""
+    try:
+        user_id = session.get("game_user_id")
+        exchange_service = current_app.config.get("EXCHANGE_SERVICE")
+        
+        if not exchange_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = exchange_service.get_user_inventory(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"获取持仓信息失败: {e}")
+        return jsonify({"success": False, "message": "获取持仓信息失败"})
+
+
+@game_bp.route("/game/api/exchange/buy", methods=["POST"])
+@game_login_required
+async def api_exchange_buy():
+    """买入商品"""
+    try:
+        data = await request.get_json()
+        commodity_name = data.get("commodity_name")
+        quantity = data.get("quantity", 1)
+        
+        if not commodity_name or not quantity:
+            return jsonify({"success": False, "message": "请选择商品和数量"})
+        
+        user_id = session.get("game_user_id")
+        exchange_service = current_app.config.get("EXCHANGE_SERVICE")
+        
+        if not exchange_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        # 获取市场状态以获取商品ID和价格
+        market_status = exchange_service.get_market_status()
+        if not market_status.get("success"):
+            return jsonify({"success": False, "message": "获取市场状态失败"})
+        
+        # 查找商品ID
+        commodity_id = None
+        for cid, info in market_status["commodities"].items():
+            if info["name"] == commodity_name:
+                commodity_id = cid
+                break
+        
+        if not commodity_id:
+            return jsonify({"success": False, "message": f"找不到商品: {commodity_name}"})
+        
+        current_price = market_status["prices"].get(commodity_id, 0)
+        if current_price <= 0:
+            return jsonify({"success": False, "message": f"商品 {commodity_name} 价格异常"})
+        
+        result = exchange_service.purchase_commodity(user_id, commodity_id, quantity, current_price)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"买入商品失败: {e}")
+        return jsonify({"success": False, "message": "买入商品失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/exchange/sell", methods=["POST"])
+@game_login_required
+async def api_exchange_sell():
+    """卖出商品"""
+    try:
+        data = await request.get_json()
+        commodity_name = data.get("commodity_name")
+        quantity = data.get("quantity", 1)
+        
+        if not commodity_name or not quantity:
+            return jsonify({"success": False, "message": "请选择商品和数量"})
+        
+        user_id = session.get("game_user_id")
+        exchange_service = current_app.config.get("EXCHANGE_SERVICE")
+        
+        if not exchange_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        # 获取市场状态以获取商品ID和价格
+        market_status = exchange_service.get_market_status()
+        if not market_status.get("success"):
+            return jsonify({"success": False, "message": "获取市场状态失败"})
+        
+        # 查找商品ID
+        commodity_id = None
+        for cid, info in market_status["commodities"].items():
+            if info["name"] == commodity_name:
+                commodity_id = cid
+                break
+        
+        if not commodity_id:
+            return jsonify({"success": False, "message": f"找不到商品: {commodity_name}"})
+        
+        current_price = market_status["prices"].get(commodity_id, 0)
+        if current_price <= 0:
+            return jsonify({"success": False, "message": f"商品 {commodity_name} 价格异常"})
+        
+        result = exchange_service.sell_commodity(user_id, commodity_id, quantity, current_price)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"卖出商品失败: {e}")
+        return jsonify({"success": False, "message": "卖出商品失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/exchange/clear", methods=["POST"])
+@game_login_required
+async def api_exchange_clear():
+    """清仓"""
+    try:
+        data = await request.get_json()
+        commodity_name = data.get("commodity_name")  # 可选，如果指定则只清空该商品
+        
+        user_id = session.get("game_user_id")
+        exchange_service = current_app.config.get("EXCHANGE_SERVICE")
+        
+        if not exchange_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        if (commodity_name):
+            # 清空指定商品
+            market_status = exchange_service.get_market_status()
+            if not market_status.get("success"):
+                return jsonify({"success": False, "message": "获取市场状态失败"})
+            
+            commodity_id = None
+            for cid, info in market_status["commodities"].items():
+                if info["name"] == commodity_name:
+                    commodity_id = cid
+                    break
+            
+            if not commodity_id:
+                return jsonify({"success": False, "message": f"找不到商品: {commodity_name}"})
+            
+            result = exchange_service.clear_commodity_inventory(user_id, commodity_id)
+        else:
+            # 清空所有商品
+            result = exchange_service.clear_all_inventory(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"清仓失败: {e}")
+        return jsonify({"success": False, "message": "清仓失败，请稍后重试"})
+
+
+# ========== 社交系统 API ==========
+
+@game_bp.route("/game/api/social/ranking", methods=["GET"])
+@game_login_required
+async def api_get_ranking():
+    """获取排行榜"""
+    try:
+        user_service = current_app.config.get("USER_SERVICE")
+        
+        if not user_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        leaderboard_data = user_service.get_leaderboard_data()
+        
+        return jsonify({
+            "success": True,
+            "data": leaderboard_data
+        })
+        
+    except Exception as e:
+        logger.error(f"获取排行榜失败: {e}")
+        return jsonify({"success": False, "message": "获取排行榜失败"})
+
+
+@game_bp.route("/game/api/social/steal", methods=["POST"])
+@game_login_required
+async def api_steal_fish():
+    """偷鱼功能"""
+    try:
+        data = await request.get_json()
+        target_id = data.get("target_id")
+        
+        if not target_id:
+            return jsonify({"success": False, "message": "请指定目标用户"})
+        
+        user_id = session.get("game_user_id")
+        game_mechanics_service = current_app.config.get("GAME_MECHANICS_SERVICE")
+        
+        if not game_mechanics_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = game_mechanics_service.steal_fish(user_id, target_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"偷鱼失败: {e}")
+        return jsonify({"success": False, "message": "偷鱼失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/social/dispel", methods=["POST"])
+@game_login_required
+async def api_dispel_protection():
+    """驱灵功能"""
+    try:
+        data = await request.get_json()
+        target_id = data.get("target_id")
+        
+        if not target_id:
+            return jsonify({"success": False, "message": "请指定目标用户"})
+        
+        user_id = session.get("game_user_id")
+        game_mechanics_service = current_app.config.get("GAME_MECHANICS_SERVICE")
+        
+        if not game_mechanics_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        # 检查是否有驱灵香
+        inventory_service = current_app.config.get("INVENTORY_SERVICE")
+        if not inventory_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        user_inventory = inventory_service.get_user_item_inventory(user_id)
+        dispel_items = [item for item in user_inventory.get("items", []) 
+                       if item.get("effect_type") == "STEAL_PROTECTION_REMOVAL"]
+        
+        if not dispel_items:
+            return jsonify({"success": False, "message": "你没有驱灵香，无法使用此功能"})
+        
+        # 检查目标是否有海灵守护效果
+        dispel_result = game_mechanics_service.check_steal_protection(target_id)
+        if not dispel_result.get("has_protection"):
+            return jsonify({"success": False, "message": f"【{dispel_result.get('target_name', '目标')}】没有海灵守护效果，无需驱散"})
+        
+        # 扣除驱灵香
+        dispel_item = dispel_items[0]
+        user_service = current_app.config.get("USER_SERVICE")
+        remove_result = user_service.remove_item_from_user_inventory(user_id, "item", dispel_item["item_id"], 1)
+        if not remove_result.get("success"):
+            return jsonify({"success": False, "message": f"扣除驱灵香失败：{remove_result.get('message', '未知错误')}"})
+        
+        # 驱散目标的海灵守护buff
+        result = game_mechanics_service.dispel_steal_protection(target_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"驱灵失败: {e}")
+        return jsonify({"success": False, "message": "驱灵失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/social/titles", methods=["GET"])
+@game_login_required
+async def api_get_titles():
+    """获取称号列表"""
+    try:
+        user_id = session.get("game_user_id")
+        user_service = current_app.config.get("USER_SERVICE")
+        
+        if not user_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = user_service.get_user_titles(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"获取称号列表失败: {e}")
+        return jsonify({"success": False, "message": "获取称号列表失败"})
+
+
+@game_bp.route("/game/api/social/titles/use", methods=["POST"])
+@game_login_required
+async def api_use_title():
+    """使用称号"""
+    try:
+        data = await request.get_json()
+        title_id = data.get("title_id")
+        
+        if not title_id:
+            return jsonify({"success": False, "message": "请选择称号"})
+        
+        user_id = session.get("game_user_id")
+        user_service = current_app.config.get("USER_SERVICE")
+        
+        if not user_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = user_service.use_title(user_id, int(title_id))
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"使用称号失败: {e}")
+        return jsonify({"success": False, "message": "使用称号失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/social/achievements", methods=["GET"])
+@game_login_required
+async def api_get_achievements():
+    """获取成就列表"""
+    try:
+        user_id = session.get("game_user_id")
+        achievement_service = current_app.config.get("ACHIEVEMENT_SERVICE")
+        
+        if not achievement_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = achievement_service.get_user_achievements(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"获取成就列表失败: {e}")
+        return jsonify({"success": False, "message": "获取成就列表失败"})
+
+
+# ========== 增强功能 API ==========
+
+@game_bp.route("/game/api/user/sign-in", methods=["POST"])
+@game_login_required
+async def api_sign_in():
+    """签到功能"""
+    try:
+        user_id = session.get("game_user_id")
+        user_service = current_app.config.get("USER_SERVICE")
+        
+        if not user_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = user_service.daily_sign_in(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"签到失败: {e}")
+        return jsonify({"success": False, "message": "签到失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/fishing/history", methods=["GET"])
+@game_login_required
+async def api_get_fishing_history():
+    """获取钓鱼记录"""
+    try:
+        user_id = session.get("game_user_id")
+        log_repo = current_app.config.get("LOG_REPO")
+        
+        if not log_repo:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        # 获取最近的钓鱼记录
+        logs = log_repo.get_user_logs(user_id, log_type="fishing", limit=20)
+        
+        return jsonify({
+            "success": True,
+            "data": {"logs": logs}
+        })
+        
+    except Exception as e:
+        logger.error(f"获取钓鱼记录失败: {e}")
+        return jsonify({"success": False, "message": "获取钓鱼记录失败"})
+
+
+@game_bp.route("/game/api/fishing/pokedex", methods=["GET"])
+@game_login_required
+async def api_get_pokedex():
+    """获取鱼类图鉴"""
+    try:
+        user_id = session.get("game_user_id")
+        fishing_service = current_app.config.get("FISHING_SERVICE")
+        
+        if not fishing_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = fishing_service.get_user_pokedex(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"获取鱼类图鉴失败: {e}")
+        return jsonify({"success": False, "message": "获取鱼类图鉴失败"})
+
+
+@game_bp.route("/game/api/inventory/use-item", methods=["POST"])
+@game_login_required
+async def api_use_item():
+    """使用道具"""
+    try:
+        data = await request.get_json()
+        item_id = data.get("item_id")
+        quantity = data.get("quantity", 1)
+        
+        if not item_id:
+            return jsonify({"success": False, "message": "请选择道具"})
+        
+        user_id = session.get("game_user_id")
+        inventory_service = current_app.config.get("INVENTORY_SERVICE")
+        
+        if not inventory_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = inventory_service.use_item(user_id, item_id, quantity)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"使用道具失败: {e}")
+        return jsonify({"success": False, "message": "使用道具失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/pond/upgrade", methods=["POST"])
+@game_login_required
+async def api_upgrade_pond():
+    """升级鱼塘"""
+    try:
+        user_id = session.get("game_user_id")
+        inventory_service = current_app.config.get("INVENTORY_SERVICE")
+        
+        if not inventory_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = inventory_service.upgrade_fish_pond(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"升级鱼塘失败: {e}")
+        return jsonify({"success": False, "message": "升级鱼塘失败，请稍后重试"})
+
+
+@game_bp.route("/game/api/user/tax-records", methods=["GET"])
+@game_login_required
+async def api_get_tax_records():
+    """获取税收记录"""
+    try:
+        user_id = session.get("game_user_id")
+        user_service = current_app.config.get("USER_SERVICE")
+        
+        if not user_service:
+            return jsonify({"success": False, "message": "服务不可用"})
+        
+        result = user_service.get_tax_record(user_id)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "data": result
+        })
+        
+    except Exception as e:
+        logger.error(f"获取税收记录失败: {e}")
+        return jsonify({"success": False, "message": "获取税收记录失败"})
