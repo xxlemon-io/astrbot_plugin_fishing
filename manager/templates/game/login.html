@@ -154,7 +154,7 @@
             </div>
             
             <div class="form-floating">
-                <input type="text" class="form-control" id="codeInput" placeholder="请输入验证码" maxlength="6" disabled>
+                <input type="text" class="form-control" id="codeInput" placeholder="请输入验证码" maxlength="6">
                 <label for="codeInput">验证码</label>
             </div>
             
@@ -205,7 +205,6 @@
                     const isValid = /^\d{5,15}$/.test(qq);
                     
                     this.sendCodeBtn.disabled = !isValid;
-                    this.codeInput.disabled = !isValid;
                     
                     // 移除自动跳转光标，让用户手动点击验证码输入框
                 });
@@ -337,13 +336,20 @@
                 const qq = this.qqInput.value.trim();
                 const code = this.codeInput.value.trim();
                 
-                if (!/^\d{5,15}$/.test(qq)) {
-                    this.showAlert('请输入有效的QQ号');
+                if (!/^\d{6}$/.test(code)) {
+                    this.showAlert('请输入6位验证码');
                     return;
                 }
                 
-                if (!/^\d{6}$/.test(code)) {
-                    this.showAlert('请输入6位验证码');
+                // 如果QQ号为空，提示用户输入QQ号
+                if (!qq) {
+                    this.showAlert('请输入QQ号');
+                    this.qqInput.focus();
+                    return;
+                }
+                
+                if (!/^\d{5,15}$/.test(qq)) {
+                    this.showAlert('请输入有效的QQ号');
                     return;
                 }
                 

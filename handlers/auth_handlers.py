@@ -17,19 +17,21 @@ async def get_verification_code(self, event: AstrMessageEvent):
     
     # 检查是否在群组中
     group_id = event.get_group_id()
-    if group_id:
+    is_private_chat = group_id is None or group_id == ""
+    
+    if not is_private_chat:
         # 在群组中，提示将通过私聊发送验证码
         yield event.plain_result(f"@{sender_name} 为了安全起见，验证码将通过私聊发送给您，请查看私聊消息。")
     
     # 调用认证服务发送验证码
     try:
         # 在私聊中跳过频率限制，在群组中保持频率限制
-        skip_rate_limit = group_id is None
-        logger.info(f"获取验证码命令 - QQ: {user_id}, 群组ID: {group_id}, skip_rate_limit: {skip_rate_limit}")
+        skip_rate_limit = is_private_chat
+        logger.info(f"获取验证码命令 - QQ: {user_id}, 群组ID: {group_id}, 是否私聊: {is_private_chat}, skip_rate_limit: {skip_rate_limit}")
         success, message = self.auth_service.send_verification_code(user_id, self, skip_rate_limit)
         
         if success:
-            if group_id:
+            if not is_private_chat:
                 # 在群组中，只显示成功消息
                 yield event.plain_result("验证码已发送到您的私聊，请查看私聊消息。")
             else:
