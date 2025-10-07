@@ -96,7 +96,7 @@ class AuthService:
                         return True, "验证码已发送"
                     else:
                         logger.warning(f"消息服务发送失败，验证码: {code}")
-                        return True, f"验证码发送失败，您的验证码是：{code}，5分钟内有效"
+                        return True, f"您的验证码是：{code}，5分钟内有效"
                 except Exception as e:
                     logger.debug(f"消息服务发送失败: {e}")
             
@@ -117,7 +117,7 @@ class AuthService:
             
             # 如果所有方式都失败，记录日志并返回验证码
             logger.warning(f"所有发送方式都失败，验证码: {code}")
-            return True, f"验证码发送失败，您的验证码是：{code}，5分钟内有效"
+            return True, f"您的验证码是：{code}，5分钟内有效"
             
         except Exception as e:
             logger.error(f"发送验证码失败: {e}")
