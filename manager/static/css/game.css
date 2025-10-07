@@ -2,38 +2,38 @@
 
 /* 基础设置 - 海洋主题配色系统 */
 :root {
-    /* 主色调 - 海洋蓝色系 */
-    --primary-color: #1e3a8a;        /* 深海蓝 */
-    --secondary-color: #0ea5e9;      /* 海蓝 */
-    --accent-color: #0891b2;         /* 青蓝 */
-    --dark-accent: #0c4a6e;          /* 深蓝 */
+    /* 主色调 - 浅色系海洋蓝色系 */
+    --primary-color: #0ea5e9;        /* 海蓝 */
+    --secondary-color: #38bdf8;      /* 浅海蓝 */
+    --accent-color: #22d3ee;         /* 青蓝 */
+    --dark-accent: #0284c7;          /* 深海蓝 */
     
-    /* 状态颜色 - 海洋主题色彩 */
-    --success-color: #10b981;        /* 海绿 */
-    --warning-color: #f59e0b;        /* 珊瑚橙 */
-    --danger-color: #ef4444;         /* 珊瑚红 */
-    --info-color: #06b6d4;           /* 青蓝 */
+    /* 状态颜色 - 浅色系海洋主题色彩 */
+    --success-color: #22c55e;        /* 浅海绿 */
+    --warning-color: #fbbf24;        /* 浅珊瑚橙 */
+    --danger-color: #f87171;         /* 浅珊瑚红 */
+    --info-color: #22d3ee;           /* 浅青蓝 */
     
     /* 特殊颜色 */
-    --gold-color: #fbbf24;           /* 沙金 */
-    --rare-color: #8b5cf6;           /* 海紫 */
+    --gold-color: #fde047;           /* 浅沙金 */
+    --rare-color: #a78bfa;           /* 浅海紫 */
     
     /* 背景和文字颜色 */
-    --bg-color: #f0f9ff;             /* 浅海蓝背景 */
-    --card-bg: #ffffff;              /* 白色卡片 */
-    --card-border: #e0f2fe;          /* 浅蓝边框 */
+    --bg-color: #f8fafc;             /* 更浅的海蓝背景 */
+    --card-bg: #f1f5f9;              /* 护眼的浅蓝灰卡片 */
+    --card-border: #cbd5e1;          /* 柔和的蓝灰边框 */
     --text-white: #ffffff;           /* 白色文字 */
-    --text-dark: #1e293b;            /* 深色文字 */
+    --text-dark: #334155;            /* 更浅的深色文字 */
     --text-gray: #64748b;            /* 灰色文字 */
     --text-muted: #94a3b8;
     
-    /* 渐变色 - 海洋主题 */
-    --game-bg: linear-gradient(135deg, #0ea5e9 0%, #1e3a8a 100%);
+    /* 渐变色 - 浅色系海洋主题 */
+    --game-bg: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
     --card-bg-glass: rgba(255, 255, 255, 0.95);
-    --primary-gradient: linear-gradient(135deg, #0ea5e9 0%, #1e3a8a 100%);
-    --success-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
-    --warning-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    --danger-gradient: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    --primary-gradient: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
+    --success-gradient: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    --warning-gradient: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    --danger-gradient: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
     
     /* 阴影 */
     --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -46,17 +46,17 @@
     --border-radius-sm: 8px;
     --transition: all 0.3s ease;
     
-    /* 稀有度颜色 - 海洋主题稀有度映射 */
-    --rarity-1: #94a3b8;             /* 1星 浅灰蓝 */
-    --rarity-2: #0ea5e9;             /* 2星 海蓝 */
-    --rarity-3: #06b6d4;             /* 3星 青蓝 */
-    --rarity-4: #8b5cf6;             /* 4星 海紫 */
-    --rarity-5: #f59e0b;             /* 5星 珊瑚橙 */
-    --rarity-6: #10b981;             /* 6星 海绿 */
-    --rarity-7: #ef4444;             /* 7星 珊瑚红 */
-    --rarity-8: #fbbf24;             /* 8星 沙金 */
-    --rarity-9: #dc2626;             /* 9星 深红 */
-    --rarity-10: #7c2d12;            /* 10星 深棕红 */
+    /* 稀有度颜色 - 浅色系海洋主题稀有度映射 */
+    --rarity-1: #cbd5e1;             /* 1星 浅灰蓝 */
+    --rarity-2: #38bdf8;             /* 2星 浅海蓝 */
+    --rarity-3: #22d3ee;             /* 3星 浅青蓝 */
+    --rarity-4: #a78bfa;             /* 4星 浅海紫 */
+    --rarity-5: #fbbf24;             /* 5星 浅珊瑚橙 */
+    --rarity-6: #22c55e;             /* 6星 浅海绿 */
+    --rarity-7: #f87171;             /* 7星 浅珊瑚红 */
+    --rarity-8: #fde047;             /* 8星 浅沙金 */
+    --rarity-9: #f87171;             /* 9星 浅红 */
+    --rarity-10: #dc2626;            /* 10星 深红 */
 }
 
 * {
@@ -150,10 +150,10 @@ body {
 }
 
 .game-card .card-header {
-    background: transparent;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    background: rgba(148, 163, 184, 0.1);
+    border-bottom: 1px solid var(--card-border);
     font-weight: 600;
-    color: var(--dark-color);
+    color: var(--text-dark);
 }
 
 /* 按钮样式 */
@@ -177,7 +177,7 @@ body {
 
 .btn-game-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(14, 165, 233, 0.3);
+    box-shadow: 0 8px 20px rgba(56, 189, 248, 0.3);
     color: var(--text-white);
 }
 
@@ -221,7 +221,7 @@ body {
 }
 
 .btn-game-info:hover {
-    background: #0891b2;
+    background: #22d3ee;
     color: var(--text-white);
 }
 
@@ -249,6 +249,15 @@ body {
     justify-content: center;
 }
 
+/* 卡片中的图标使用主题色，确保对比度 */
+.game-card i,
+.game-card .fas,
+.game-card .far,
+.game-card .fab,
+.game-card .fa {
+    color: var(--primary-color);
+}
+
 /* 状态指示器 */
 .status-indicator {
     display: inline-block;
@@ -262,21 +271,21 @@ body {
 .status-offline { background: var(--danger-color); }
 .status-busy { background: var(--warning-color); }
 
-/* 稀有度颜色 - 海洋主题 */
-.rarity-1 { color: #94a3b8; } /* 浅灰蓝 */
-.rarity-2 { color: #0ea5e9; } /* 海蓝 */
-.rarity-3 { color: #06b6d4; } /* 青蓝 */
-.rarity-4 { color: #8b5cf6; } /* 海紫 */
-.rarity-5 { color: #f59e0b; } /* 珊瑚橙 */
-.rarity-6 { color: #10b981; } /* 海绿 */
-.rarity-7 { color: #ef4444; } /* 珊瑚红 */
-.rarity-8 { color: #fbbf24; } /* 沙金 */
-.rarity-9 { color: #dc2626; } /* 深红 */
-.rarity-10 { color: #7c2d12; } /* 深棕红 */
+/* 稀有度颜色 - 浅色系海洋主题 */
+.rarity-1 { color: #cbd5e1; } /* 浅灰蓝 */
+.rarity-2 { color: #38bdf8; } /* 浅海蓝 */
+.rarity-3 { color: #22d3ee; } /* 浅青蓝 */
+.rarity-4 { color: #a78bfa; } /* 浅海紫 */
+.rarity-5 { color: #fbbf24; } /* 浅珊瑚橙 */
+.rarity-6 { color: #22c55e; } /* 浅海绿 */
+.rarity-7 { color: #f87171; } /* 浅珊瑚红 */
+.rarity-8 { color: #fde047; } /* 浅沙金 */
+.rarity-9 { color: #f87171; } /* 浅红 */
+.rarity-10 { color: #dc2626; } /* 深红 */
 
 /* 星级显示 */
 .star-rating {
-    color: #fbbf24;
+    color: #fde047;
     font-size: 0.9rem;
 }
 
@@ -405,24 +414,28 @@ body {
 /* 模态框 */
 .modal-content {
     border-radius: var(--border-radius-lg);
-    border: none;
+    border: 1px solid var(--card-border);
     box-shadow: var(--shadow-lg);
+    background: var(--card-bg);
 }
 
 .modal-header {
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    background: rgba(148, 163, 184, 0.1);
+    border-bottom: 1px solid var(--card-border);
     border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
 }
 
 .modal-footer {
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    background: rgba(148, 163, 184, 0.05);
+    border-top: 1px solid var(--card-border);
     border-radius: 0 0 var(--border-radius-lg) var(--border-radius-lg);
 }
 
 /* 表单样式 */
 .form-control {
     border-radius: var(--border-radius);
-    border: 2px solid #e9ecef;
+    border: 2px solid var(--card-border);
+    background: var(--card-bg);
     padding: 0.75rem 1rem;
     font-size: 1rem;
     transition: var(--transition);
@@ -430,7 +443,7 @@ body {
 
 .form-control:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 0.2rem rgba(14, 165, 233, 0.25);
+    box-shadow: 0 0 0 0.2rem rgba(56, 189, 248, 0.25);
 }
 
 .form-floating > .form-control {
@@ -440,13 +453,14 @@ body {
 /* 列表样式 */
 .list-group-item {
     border: none;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid var(--card-border);
+    background: var(--card-bg);
     padding: 1rem;
     transition: var(--transition);
 }
 
 .list-group-item:hover {
-    background: rgba(14, 165, 233, 0.05);
+    background: rgba(56, 189, 248, 0.05);
 }
 
 .list-group-item:last-child {
@@ -474,7 +488,7 @@ body {
 
 /* 文本样式 */
 .text-gradient {
-    background: linear-gradient(135deg, #0ea5e9 0%, #1e3a8a 100%);
+    background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
