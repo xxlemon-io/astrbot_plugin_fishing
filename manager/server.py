@@ -50,7 +50,7 @@ def create_app(secret_key: str, services: Dict[str, Any]):
 
     @app.route("/")
     def root():
-        return redirect(url_for("admin_bp.index"))
+        return redirect(url_for("auth_bp.auth_login_page"))
     
     @app.route("/favicon.ico")
     def favicon():
