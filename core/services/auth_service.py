@@ -72,6 +72,8 @@ class AuthService:
         
         # 调试日志
         logger.info(f"验证码已存储 - QQ: {qq_id}, 验证码: {code}, 过期时间: {expires_at}")
+        logger.info(f"存储后验证码数量: {len(self._verification_codes)}")
+        logger.info(f"存储后验证码QQ号: {list(self._verification_codes.keys())}")
         
         # 更新发送限制
         self._send_limits[qq_id] = datetime.now()
@@ -124,6 +126,8 @@ class AuthService:
     def verify_code(self, qq_id: str, input_code: str) -> Tuple[bool, str]:
         """验证验证码"""
         logger.info(f"开始验证验证码 - QQ: {qq_id}, 输入验证码: {input_code}")
+        logger.info(f"当前存储的验证码数量: {len(self._verification_codes)}")
+        logger.info(f"存储的验证码QQ号: {list(self._verification_codes.keys())}")
         
         if qq_id not in self._verification_codes:
             logger.warning(f"验证码不存在 - QQ: {qq_id}")

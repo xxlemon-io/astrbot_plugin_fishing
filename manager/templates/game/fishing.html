@@ -516,8 +516,23 @@ class FishingModule {
     
     async loadFishingHistory() {
         try {
-            // 这里应该调用获取钓鱼记录的API
-            // 暂时显示占位内容
+            const response = await gameApp.apiCall('/fishing/history', 'GET');
+            if (response.success) {
+                const logs = response.data.logs || [];
+                this.renderFishingHistory(logs);
+            } else {
+                // 如果API调用失败，显示占位内容
+                const container = document.getElementById('fishingHistory');
+                container.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="fas fa-fish fa-2x mb-2"></i>
+                        <p>暂无钓鱼记录</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Failed to load fishing history:', error);
+            // 出错时显示占位内容
             const container = document.getElementById('fishingHistory');
             container.innerHTML = `
                 <div class="text-center text-muted">
@@ -525,8 +540,6 @@ class FishingModule {
                     <p>暂无钓鱼记录</p>
                 </div>
             `;
-        } catch (error) {
-            console.error('Failed to load fishing history:', error);
         }
     }
     

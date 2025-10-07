@@ -319,6 +319,7 @@ async def start_admin(self, event: AstrMessageEvent):
             "aquarium_service": self.aquarium_service,  # 新增：水族箱服务
             "game_mechanics_service": self.game_mechanics_service,  # 新增：游戏机制服务
             "achievement_service": self.achievement_service,  # 新增：成就服务
+            "log_repo": self.log_repo,  # 新增：日志仓储
             "plugin_instance": self,  # 传递插件实例用于发送验证码
         }
         app = create_app(

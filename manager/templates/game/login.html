@@ -90,7 +90,7 @@
         }
         
         .btn-send-code {
-            background: #28a745;
+            background: #17a2b8;
             border: none;
             border-radius: 8px;
             padding: 0.5rem 1rem;
@@ -100,7 +100,7 @@
         }
         
         .btn-send-code:hover {
-            background: #218838;
+            background: #138496;
             color: white;
         }
         
@@ -160,7 +160,7 @@
             
             <div class="d-grid gap-2">
                 <button type="button" class="btn btn-send-code" id="sendCodeBtn" disabled>
-                    <span class="btn-text">获取验证码</span>
+                    <span class="btn-text">通过私聊获取验证码</span>
                     <span class="loading spinner-border spinner-border-sm" role="status"></span>
                 </button>
             </div>
@@ -218,7 +218,7 @@
                 
                 // 发送验证码
                 this.sendCodeBtn.addEventListener('click', () => {
-                    this.sendVerificationCode();
+                    this.showPrivateChatInstructions();
                 });
                 
                 // 登录表单提交
@@ -242,6 +242,28 @@
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 `;
+            }
+            
+            showPrivateChatInstructions() {
+                const qq = this.qqInput.value.trim();
+                if (!/^\d{5,15}$/.test(qq)) {
+                    this.showAlert('请先输入有效的QQ号');
+                    return;
+                }
+                
+                const instructions = `
+                    <div class="alert alert-info" role="alert">
+                        <h6><i class="fas fa-info-circle"></i> 如何获取验证码：</h6>
+                        <ol class="mb-0">
+                            <li>打开QQ，找到机器人好友</li>
+                            <li>发送私聊消息：<code>/获取验证码</code></li>
+                            <li>机器人会通过私聊发送验证码给您</li>
+                            <li>将收到的验证码输入到下方输入框中</li>
+                        </ol>
+                    </div>
+                `;
+                
+                this.alertContainer.innerHTML = instructions;
             }
             
             setLoading(element, loading) {

@@ -522,8 +522,23 @@ class GameHome {
     
     async loadRecentRecords() {
         try {
-            // 这里应该调用获取最近钓鱼记录的API
-            // 暂时显示占位内容
+            const response = await gameApp.apiCall('/fishing/history', 'GET');
+            if (response.success) {
+                const logs = response.data.logs || [];
+                this.renderRecentRecords(logs);
+            } else {
+                // 如果API调用失败，显示占位内容
+                const container = document.getElementById('recentFishingRecords');
+                container.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="fas fa-fish fa-2x mb-2"></i>
+                        <p>暂无钓鱼记录</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Failed to load recent records:', error);
+            // 出错时显示占位内容
             const container = document.getElementById('recentFishingRecords');
             container.innerHTML = `
                 <div class="text-center text-muted">
@@ -531,9 +546,39 @@ class GameHome {
                     <p>暂无钓鱼记录</p>
                 </div>
             `;
-        } catch (error) {
-            console.error('Failed to load recent records:', error);
         }
+    }
+    
+    renderRecentRecords(logs) {
+        const container = document.getElementById('recentFishingRecords');
+        
+        if (logs.length === 0) {
+            container.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-fish fa-2x mb-2"></i>
+                    <p>暂无钓鱼记录</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // 只显示最近5条记录
+        const recentLogs = logs.slice(0, 5);
+        const historyHtml = recentLogs.map(log => `
+            <div class="fishing-record">
+                <div class="fish-icon bg-primary">
+                    <i class="fas fa-fish"></i>
+                </div>
+                <div class="fish-info">
+                    <div class="fish-name">${log.message || '钓鱼记录'}</div>
+                    <div class="fish-details">
+                        时间: ${new Date(log.timestamp).toLocaleString()}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        container.innerHTML = historyHtml;
     }
     
     async checkCooldownStatus() {
