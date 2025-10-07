@@ -1,11 +1,11 @@
 
 body {
     padding-top: 56px;
-    background-color: #f8f9fa;
+    background-color: #f0f9ff;
 }
 
 .table-hover tbody tr:hover {
-    background-color: #f1f1f1;
+    background-color: #e0f2fe;
     cursor: pointer;
 }
 

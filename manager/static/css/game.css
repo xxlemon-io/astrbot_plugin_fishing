@@ -1,39 +1,39 @@
 /* 游戏专用样式 - 移动端优先 */
 
-/* 基础设置 - 基于draw/styles.py的颜色系统 */
+/* 基础设置 - 海洋主题配色系统 */
 :root {
-    /* 主色调 - 基于draw/styles.py的蓝色系 */
-    --primary-color: #3399ff;        /* COLOR_HEADER_BG: (51, 153, 255) */
-    --secondary-color: #6c8ebf;      /* primary_light: (108, 142, 191) */
-    --accent-color: #4a6986;         /* primary_medium: (74, 105, 134) */
-    --dark-accent: #34495e;          /* primary_dark: (52, 73, 94) */
+    /* 主色调 - 海洋蓝色系 */
+    --primary-color: #1e3a8a;        /* 深海蓝 */
+    --secondary-color: #0ea5e9;      /* 海蓝 */
+    --accent-color: #0891b2;         /* 青蓝 */
+    --dark-accent: #0c4a6e;          /* 深蓝 */
     
-    /* 状态颜色 - 基于draw/styles.py的温和色彩 */
-    --success-color: #4caf50;        /* COLOR_SUCCESS: (76, 175, 80) */
-    --warning-color: #ffb74d;        /* COLOR_WARNING: (255, 183, 77) */
-    --danger-color: #e57373;         /* COLOR_ERROR: (229, 115, 115) */
-    --info-color: #36a2eb;           /* COLOR_LOCK: (54, 162, 235) */
+    /* 状态颜色 - 海洋主题色彩 */
+    --success-color: #10b981;        /* 海绿 */
+    --warning-color: #f59e0b;        /* 珊瑚橙 */
+    --danger-color: #ef4444;         /* 珊瑚红 */
+    --info-color: #06b6d4;           /* 青蓝 */
     
     /* 特殊颜色 */
-    --gold-color: #f0ad4e;           /* COLOR_GOLD: (240, 173, 78) */
-    --rare-color: #9575cd;           /* COLOR_RARE: (149, 117, 205) */
+    --gold-color: #fbbf24;           /* 沙金 */
+    --rare-color: #8b5cf6;           /* 海紫 */
     
     /* 背景和文字颜色 */
-    --bg-color: #f5f5f5;             /* COLOR_BACKGROUND: (245, 245, 245) */
-    --card-bg: #ffffff;              /* COLOR_CARD_BG: (255, 255, 255) */
-    --card-border: #e6e6e6;          /* COLOR_CARD_BORDER: (230, 230, 230) */
-    --text-white: #ffffff;           /* COLOR_TEXT_WHITE: (255, 255, 255) */
-    --text-dark: #323232;            /* COLOR_TEXT_DARK: (50, 50, 50) */
-    --text-gray: #78788c;            /* COLOR_TEXT_GRAY: (120, 120, 140) */
-    --text-muted: #6c757d;
+    --bg-color: #f0f9ff;             /* 浅海蓝背景 */
+    --card-bg: #ffffff;              /* 白色卡片 */
+    --card-border: #e0f2fe;          /* 浅蓝边框 */
+    --text-white: #ffffff;           /* 白色文字 */
+    --text-dark: #1e293b;            /* 深色文字 */
+    --text-gray: #64748b;            /* 灰色文字 */
+    --text-muted: #94a3b8;
     
-    /* 渐变色 */
-    --game-bg: linear-gradient(135deg, #3399ff 0%, #6c8ebf 100%);
+    /* 渐变色 - 海洋主题 */
+    --game-bg: linear-gradient(135deg, #0ea5e9 0%, #1e3a8a 100%);
     --card-bg-glass: rgba(255, 255, 255, 0.95);
-    --primary-gradient: linear-gradient(135deg, #3399ff 0%, #4a6986 100%);
-    --success-gradient: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
-    --warning-gradient: linear-gradient(135deg, #ffb74d 0%, #ffcc02 100%);
-    --danger-gradient: linear-gradient(135deg, #e57373 0%, #ef5350 100%);
+    --primary-gradient: linear-gradient(135deg, #0ea5e9 0%, #1e3a8a 100%);
+    --success-gradient: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    --warning-gradient: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    --danger-gradient: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
     
     /* 阴影 */
     --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -46,17 +46,17 @@
     --border-radius-sm: 8px;
     --transition: all 0.3s ease;
     
-    /* 稀有度颜色 - 基于draw/styles.py的稀有度映射 */
-    --rarity-1: #b0c4de;             /* 1星 钢蓝色 */
-    --rarity-2: #6495ed;             /* 2星 矢车菊蓝 */
-    --rarity-3: #9370db;             /* 3星 中紫罗兰红 */
-    --rarity-4: #da70d6;             /* 4星 兰花紫 */
-    --rarity-5: #ffa500;             /* 5星 橙色 */
-    --rarity-6: #ff4500;             /* 6星 红橙色 */
-    --rarity-7: #dc143c;             /* 7星 深红色 */
-    --rarity-8: #b22222;             /* 8星 火砖红 */
-    --rarity-9: #8b0000;             /* 9星 暗红色 */
-    --rarity-10: #800000;            /* 10星 栗色 */
+    /* 稀有度颜色 - 海洋主题稀有度映射 */
+    --rarity-1: #94a3b8;             /* 1星 浅灰蓝 */
+    --rarity-2: #0ea5e9;             /* 2星 海蓝 */
+    --rarity-3: #06b6d4;             /* 3星 青蓝 */
+    --rarity-4: #8b5cf6;             /* 4星 海紫 */
+    --rarity-5: #f59e0b;             /* 5星 珊瑚橙 */
+    --rarity-6: #10b981;             /* 6星 海绿 */
+    --rarity-7: #ef4444;             /* 7星 珊瑚红 */
+    --rarity-8: #fbbf24;             /* 8星 沙金 */
+    --rarity-9: #dc2626;             /* 9星 深红 */
+    --rarity-10: #7c2d12;            /* 10星 深棕红 */
 }
 
 * {
@@ -177,7 +177,7 @@ body {
 
 .btn-game-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(51, 153, 255, 0.3);
+    box-shadow: 0 8px 20px rgba(14, 165, 233, 0.3);
     color: var(--text-white);
 }
 
@@ -221,7 +221,7 @@ body {
 }
 
 .btn-game-info:hover {
-    background: #2e7d8a;
+    background: #0891b2;
     color: var(--text-white);
 }
 
@@ -262,21 +262,21 @@ body {
 .status-offline { background: var(--danger-color); }
 .status-busy { background: var(--warning-color); }
 
-/* 稀有度颜色 */
-.rarity-1 { color: #6c757d; } /* 灰色 */
-.rarity-2 { color: #28a745; } /* 绿色 */
-.rarity-3 { color: #007bff; } /* 蓝色 */
-.rarity-4 { color: #6f42c1; } /* 紫色 */
-.rarity-5 { color: #fd7e14; } /* 橙色 */
-.rarity-6 { color: #20c997; } /* 青色 */
-.rarity-7 { color: #e83e8c; } /* 粉色 */
-.rarity-8 { color: #ffc107; } /* 金色 */
-.rarity-9 { color: #17a2b8; } /* 青色 */
-.rarity-10 { color: #dc3545; } /* 红色 */
+/* 稀有度颜色 - 海洋主题 */
+.rarity-1 { color: #94a3b8; } /* 浅灰蓝 */
+.rarity-2 { color: #0ea5e9; } /* 海蓝 */
+.rarity-3 { color: #06b6d4; } /* 青蓝 */
+.rarity-4 { color: #8b5cf6; } /* 海紫 */
+.rarity-5 { color: #f59e0b; } /* 珊瑚橙 */
+.rarity-6 { color: #10b981; } /* 海绿 */
+.rarity-7 { color: #ef4444; } /* 珊瑚红 */
+.rarity-8 { color: #fbbf24; } /* 沙金 */
+.rarity-9 { color: #dc2626; } /* 深红 */
+.rarity-10 { color: #7c2d12; } /* 深棕红 */
 
 /* 星级显示 */
 .star-rating {
-    color: #ffc107;
+    color: #fbbf24;
     font-size: 0.9rem;
 }
 
@@ -430,7 +430,7 @@ body {
 
 .form-control:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    box-shadow: 0 0 0 0.2rem rgba(14, 165, 233, 0.25);
 }
 
 .form-floating > .form-control {
@@ -446,7 +446,7 @@ body {
 }
 
 .list-group-item:hover {
-    background: rgba(102, 126, 234, 0.05);
+    background: rgba(14, 165, 233, 0.05);
 }
 
 .list-group-item:last-child {
@@ -474,7 +474,7 @@ body {
 
 /* 文本样式 */
 .text-gradient {
-    background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+    background: linear-gradient(135deg, #0ea5e9 0%, #1e3a8a 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
