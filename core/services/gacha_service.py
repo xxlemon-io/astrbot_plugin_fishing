@@ -154,22 +154,35 @@ class GachaService:
             is_limited = bool(getattr(pool, "is_limited_time", 0))
             open_until_raw = getattr(pool, "open_until", None)
             if is_limited and open_until_raw:
-                # 解析为本地(UTC+8)时间
-                normalized = open_until_raw.replace("T", " ")
+                # 解析时间字符串，支持多种格式
                 dt = None
-                for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+                
+                # 尝试解析ISO格式
+                if "T" in open_until_raw:
                     try:
-                        dt = datetime.strptime(normalized, fmt)
-                        break
+                        dt = datetime.fromisoformat(open_until_raw.replace("Z", "+00:00"))
                     except ValueError:
-                        continue
+                        pass
+                
+                # 如果ISO解析失败，尝试本地时间格式
+                if dt is None:
+                    normalized = open_until_raw.replace("T", " ")
+                    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+                        try:
+                            dt = datetime.strptime(normalized, fmt)
+                            # 假设是本地时间(UTC+8)
+                            dt = dt.replace(tzinfo=timezone(timedelta(hours=8)))
+                            break
+                        except ValueError:
+                            continue
+                
                 if dt is not None:
-                    dt = dt.replace(tzinfo=timezone(timedelta(hours=8)))
                     now = get_now()
                     if now > dt:
                         display_time = f"{dt.year}/{dt.month:02d}/{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}"
                         return {"success": False, "message": f"该卡池已结束开放（截止: {display_time}），无法抽卡"}
-        except Exception:
+        except Exception as e:
+            logger.warning(f"限时卡池时间解析失败: {e}")
             # 解析失败时不中断抽卡流程
             pass
 

@@ -844,7 +844,17 @@ class FishingModule {
             return;
         }
         
-        const zonesHtml = this.zones.map(zone => `
+        const zonesHtml = this.zones.map(zone => {
+            const quota = zone.daily_rare_fish_quota || 0;
+            const caught = zone.rare_fish_caught_today || 0;
+            const remaining = Math.max(0, quota - caught);
+            const rareHtml = quota === 0
+                ? '<div class="zone-requirements text-muted">无稀有鱼</div>'
+                : remaining > 0
+                    ? `<div class="zone-requirements" style="color: var(--success-color)">剩余稀有鱼：${remaining} 条</div>`
+                    : '<div class="zone-requirements text-muted">今日稀有鱼已捕完</div>';
+            
+            return `
             <div class="zone-card ${zone.id === this.userInfo?.fishing_zone_id ? 'selected' : ''}" 
                  onclick="selectZone(${zone.id})">
                 <div class="zone-name">${zone.name}</div>
@@ -853,9 +863,11 @@ class FishingModule {
                     <i class="fas fa-coins text-warning me-1"></i>
                     ${gameApp.formatNumber(zone.fishing_cost || 10)} 金币/次
                 </div>
+                ${rareHtml}
                 ${zone.requires_pass ? '<div class="zone-requirements">需要通行证</div>' : ''}
             </div>
-        `).join('');
+        `;
+        }).join('');
         
         container.innerHTML = zonesHtml;
     }

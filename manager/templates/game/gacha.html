@@ -392,6 +392,49 @@ class GachaModule {
         await this.loadPools();
         await this.loadGachaHistory();
         await this.loadWipeBombHistory();
+        
+        // 启动定时器，每分钟更新一次时间显示
+        this.startTimeUpdateTimer();
+    }
+    
+    startTimeUpdateTimer() {
+        // 每分钟更新一次时间显示
+        setInterval(() => {
+            this.updatePoolTimeDisplays();
+        }, 60000); // 60秒
+    }
+    
+    updatePoolTimeDisplays() {
+        // 更新所有限时卡池的时间显示
+        const poolCards = document.querySelectorAll('.pool-card');
+        poolCards.forEach(card => {
+            const poolId = parseInt(card.getAttribute('onclick').match(/\d+/)[0]);
+            const pool = this.pools.find(p => p.gacha_pool_id === poolId);
+            
+            if (pool && pool.is_limited_time && pool.open_until) {
+                const isExpired = this.isPoolExpired(pool.open_until);
+                const timeLeft = this.getTimeLeft(pool.open_until);
+                
+                // 更新卡片状态
+                if (isExpired) {
+                    card.classList.add('expired');
+                } else {
+                    card.classList.remove('expired');
+                }
+                
+                // 更新时间显示
+                const timeElement = card.querySelector('.pool-time');
+                if (timeElement) {
+                    if (isExpired) {
+                        timeElement.textContent = '已过期';
+                        timeElement.className = 'pool-time text-danger';
+                    } else if (timeLeft) {
+                        timeElement.textContent = `剩余: ${timeLeft}`;
+                        timeElement.className = 'pool-time text-warning';
+                    }
+                }
+            }
+        });
     }
     
     async loadUserInfo() {
@@ -439,31 +482,54 @@ class GachaModule {
             return;
         }
         
-        const poolsHtml = this.pools.map(pool => `
-            <div class="pool-card ${pool.gacha_pool_id === this.selectedPool?.gacha_pool_id ? 'selected' : ''}" 
-                 onclick="selectPool(${pool.gacha_pool_id})">
-                <div class="pool-name">${pool.name}</div>
-                <div class="pool-description">${pool.description || '暂无描述'}</div>
-                <div class="pool-cost">
-                    ${pool.cost_premium_currency ? 
-                        `<i class="fas fa-gem text-info me-1"></i>${pool.cost_premium_currency} 高级货币/次` : 
-                        `<i class="fas fa-coins text-warning me-1"></i>${pool.cost_coins} 金币/次`
-                    }
+        const poolsHtml = this.pools.map(pool => {
+            const isLimited = pool.is_limited_time && pool.open_until;
+            const isExpired = isLimited && this.isPoolExpired(pool.open_until);
+            const timeLeft = isLimited ? this.getTimeLeft(pool.open_until) : null;
+            
+            return `
+                <div class="pool-card ${pool.gacha_pool_id === this.selectedPool?.gacha_pool_id ? 'selected' : ''} ${isExpired ? 'expired' : ''}" 
+                     onclick="selectPool(${pool.gacha_pool_id})">
+                    <div class="pool-name">
+                        ${pool.name}
+                        ${isLimited ? '<i class="fas fa-clock ms-2 text-warning"></i>' : ''}
+                    </div>
+                    <div class="pool-description">${pool.description || '暂无描述'}</div>
+                    ${isLimited && timeLeft ? `
+                        <div class="pool-time ${isExpired ? 'text-danger' : 'text-warning'}">
+                            <i class="fas fa-clock me-1"></i>
+                            ${isExpired ? '已过期' : `剩余: ${timeLeft}`}
+                        </div>
+                    ` : ''}
+                    <div class="pool-cost">
+                        ${pool.cost_premium_currency ? 
+                            `<i class="fas fa-gem text-info me-1"></i>${pool.cost_premium_currency} 高级货币/次` : 
+                            `<i class="fas fa-coins text-warning me-1"></i>${pool.cost_coins} 金币/次`
+                        }
+                    </div>
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-outline-primary" onclick="showPoolDetails(${pool.gacha_pool_id}, event)">
+                            <i class="fas fa-info-circle me-1"></i>
+                            详情
+                        </button>
+                    </div>
                 </div>
-                <div class="mt-2">
-                    <button class="btn btn-sm btn-outline-primary" onclick="showPoolDetails(${pool.gacha_pool_id}, event)">
-                        <i class="fas fa-info-circle me-1"></i>
-                        详情
-                    </button>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
         
         container.innerHTML = poolsHtml;
     }
     
     selectPool(poolId) {
-        this.selectedPool = this.pools.find(pool => pool.gacha_pool_id === poolId);
+        const pool = this.pools.find(pool => pool.gacha_pool_id === poolId);
+        
+        // 检查是否过期
+        if (pool.is_limited_time && pool.open_until && this.isPoolExpired(pool.open_until)) {
+            gameApp.showToast('该卡池已过期，无法选择', 'warning');
+            return;
+        }
+        
+        this.selectedPool = pool;
         
         // 更新UI
         document.querySelectorAll('.pool-card').forEach(card => {
@@ -483,9 +549,68 @@ class GachaModule {
         `;
     }
     
+    isPoolExpired(openUntil) {
+        if (!openUntil) return false;
+        
+        try {
+            // 解析时间字符串，支持多种格式
+            let endTime;
+            if (openUntil.includes('T')) {
+                endTime = new Date(openUntil);
+            } else {
+                // 假设是本地时间格式 YYYY-MM-DD HH:MM
+                endTime = new Date(openUntil.replace(' ', 'T'));
+            }
+            
+            return endTime < new Date();
+        } catch (e) {
+            console.error('时间解析错误:', e);
+            return false;
+        }
+    }
+    
+    getTimeLeft(openUntil) {
+        if (!openUntil) return null;
+        
+        try {
+            let endTime;
+            if (openUntil.includes('T')) {
+                endTime = new Date(openUntil);
+            } else {
+                endTime = new Date(openUntil.replace(' ', 'T'));
+            }
+            
+            const now = new Date();
+            const diff = endTime - now;
+            
+            if (diff <= 0) return null;
+            
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            
+            if (days > 0) {
+                return `${days}天${hours}小时`;
+            } else if (hours > 0) {
+                return `${hours}小时${minutes}分钟`;
+            } else {
+                return `${minutes}分钟`;
+            }
+        } catch (e) {
+            console.error('时间计算错误:', e);
+            return null;
+        }
+    }
+    
     async singleDraw() {
         if (!this.selectedPool) {
             gameApp.showToast('请先选择卡池', 'warning');
+            return;
+        }
+        
+        // 检查卡池是否过期
+        if (this.selectedPool.is_limited_time && this.selectedPool.open_until && this.isPoolExpired(this.selectedPool.open_until)) {
+            gameApp.showToast('该卡池已过期，无法抽卡', 'warning');
             return;
         }
         
@@ -512,6 +637,12 @@ class GachaModule {
     async tenDraw() {
         if (!this.selectedPool) {
             gameApp.showToast('请先选择卡池', 'warning');
+            return;
+        }
+        
+        // 检查卡池是否过期
+        if (this.selectedPool.is_limited_time && this.selectedPool.open_until && this.isPoolExpired(this.selectedPool.open_until)) {
+            gameApp.showToast('该卡池已过期，无法抽卡', 'warning');
             return;
         }
         
@@ -737,10 +868,28 @@ class GachaModule {
                 const pool = response.data.pool;
                 const probabilities = response.data.probabilities || [];
                 
+                const isLimited = pool.is_limited_time && pool.open_until;
+                const isExpired = isLimited && this.isPoolExpired(pool.open_until);
+                const timeLeft = isLimited ? this.getTimeLeft(pool.open_until) : null;
+                
                 const detailsHtml = `
                     <div class="pool-details">
-                        <h4>${pool.name}</h4>
+                        <h4>
+                            ${pool.name}
+                            ${isLimited ? '<i class="fas fa-clock ms-2 text-warning"></i>' : ''}
+                        </h4>
                         <p class="text-muted">${pool.description}</p>
+                        ${isLimited ? `
+                            <div class="pool-time-info mb-3 p-3 rounded ${isExpired ? 'bg-danger' : 'bg-warning'} text-white">
+                                <i class="fas fa-clock me-2"></i>
+                                <strong>限时卡池</strong>
+                                <br>
+                                ${isExpired ? 
+                                    `已过期 (截止: ${pool.open_until})` : 
+                                    `剩余时间: ${timeLeft} (截止: ${pool.open_until})`
+                                }
+                            </div>
+                        ` : ''}
                         <div class="pool-cost mb-3">
                             ${pool.cost_premium_currency ? 
                                 `<i class="fas fa-gem text-info me-1"></i>${pool.cost_premium_currency} 高级货币/次` : 

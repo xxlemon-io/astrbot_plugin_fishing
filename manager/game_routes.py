@@ -1004,7 +1004,7 @@ async def api_gacha_draw():
         })
         
     except Exception as e:
-        logger.error(f"抽卡失败: {e}")
+        logger.error(f"单次抽卡失败: {e}", exc_info=True)
         return jsonify({"success": False, "message": "抽卡失败，请稍后重试"})
 
 
@@ -1033,7 +1033,7 @@ async def api_gacha_draw_ten():
         })
         
     except Exception as e:
-        logger.error(f"十连抽卡失败: {e}")
+        logger.error(f"十连抽卡失败: {e}", exc_info=True)
         return jsonify({"success": False, "message": "十连抽卡失败，请稍后重试"})
 
 
