@@ -91,7 +91,9 @@ class InventoryService:
             if fish_template:
                 enriched_items.append({
                     "fish_id": item.fish_id,  # 添加fish_id字段
+                    "id": item.fish_id,  # 添加id字段用于前端
                     "name": fish_template.name,
+                    "description": fish_template.description,
                     "rarity": fish_template.rarity,
                     "base_value": fish_template.base_value,
                     "quantity": item.quantity
@@ -127,6 +129,7 @@ class InventoryService:
                 enriched_rods.append({
                     "name": rod_template.name,
                     "rarity": rod_template.rarity,
+                    "id": rod_instance.rod_instance_id,  # 添加id字段用于前端
                     "instance_id": rod_instance.rod_instance_id,
                     "display_code": getattr(rod_instance, 'display_code', f"R{self._to_base36(rod_instance.rod_instance_id)}"),
                     "description": rod_template.description,
@@ -163,7 +166,9 @@ class InventoryService:
             if bait_template:
                 enriched_baits.append({
                     "bait_id": bait_id,
+                    "id": bait_id,  # 添加id字段用于前端
                     "name": bait_template.name,
+                    "description": bait_template.description or bait_template.effect_description,
                     "rarity": bait_template.rarity,
                     "quantity": quantity,
                     "duration_minutes": bait_template.duration_minutes,
@@ -188,6 +193,7 @@ class InventoryService:
                 enriched_accessories.append({
                     "name": accessory_template.name,
                     "rarity": accessory_template.rarity,
+                    "id": accessory_instance.accessory_instance_id,  # 添加id字段用于前端
                     "instance_id": accessory_instance.accessory_instance_id,
                     "display_code": getattr(accessory_instance, 'display_code', f"A{self._to_base36(accessory_instance.accessory_instance_id)}"),
                     "description": accessory_template.description,
@@ -224,7 +230,9 @@ class InventoryService:
             if item_template:
                 enriched_items.append({
                     "item_id": item_id,
+                    "id": item_id,  # 添加id字段用于前端
                     "name": item_template.name,
+                    "description": item_template.description or item_template.effect_description,
                     "rarity": item_template.rarity,
                     "quantity": quantity,
                     "effect_description": item_template.effect_description,

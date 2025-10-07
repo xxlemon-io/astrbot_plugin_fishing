@@ -6,7 +6,7 @@
 
 ## 🚀 重大更新通知 🚀
 
-<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 15px; margin: 20px 0; box-shadow: 0 8px 32px rgba(0,0,0,0.1);">
+<div style="background: linear-gradient(135deg, #0ea5e9 0%, #1e3a8a 100%); padding: 20px; border-radius: 15px; margin: 20px 0; box-shadow: 0 8px 32px rgba(14, 165, 233, 0.2);">
 
 ### ✨ **v2.0.0 震撼发布** ✨
 
