@@ -1,5 +1,9 @@
 from astrbot.api.event import filter, AstrMessageEvent
 from ..utils import parse_target_user_id, to_percentage, safe_datetime_handler
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..main import FishingPlugin
 
 
 def _get_field(obj, key, default=None):
@@ -19,14 +23,14 @@ def _format_pool_details(pool, probabilities):
     message += f"ID: {pool['gacha_pool_id']} - {pool['name']}\n"
     message += f"描述: {pool['description']}\n"
     # 限时开放信息展示（安全检查字段）
-    is_limited_time = bool(_get_field(pool, 'is_limited_time'))
-    open_until = _get_field(pool, 'open_until')
+    is_limited_time = bool(_get_field(pool, "is_limited_time"))
+    open_until = _get_field(pool, "open_until")
     if is_limited_time and open_until:
-        display_time = str(open_until).replace('T', ' ').replace('-', '/')
+        display_time = str(open_until).replace("T", " ").replace("-", "/")
         if len(display_time) > 16:
             display_time = display_time[:16]
         message += f"限时开放 至: {display_time}\n"
-    if _get_field(pool, 'cost_premium_currency'):
+    if _get_field(pool, "cost_premium_currency"):
         message += f"花费: {pool['cost_premium_currency']} 高级货币 / 次\n\n"
     else:
         message += f"花费: {pool['cost_coins']} 金币 / 次\n\n"
@@ -39,20 +43,21 @@ def _format_pool_details(pool, probabilities):
             )
     return message
 
-async def gacha(self, event: AstrMessageEvent):
+
+async def gacha(plugin: "FishingPlugin", event: AstrMessageEvent):
     """抽卡"""
-    user_id = self._get_effective_user_id(event)
+    user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
         # 展示所有的抽奖池信息并显示帮助
-        pools = self.gacha_service.get_all_pools()
+        pools = plugin.gacha_service.get_all_pools()
         if not pools:
             yield event.plain_result("❌ 当前没有可用的抽奖池。")
             return
         message = "【🎰 抽奖池列表】\n\n"
         for pool in pools.get("pools", []):
             cost_text = f"💰 金币 {pool['cost_coins']} / 次"
-            if pool['cost_premium_currency']:
+            if pool["cost_premium_currency"]:
                 cost_text = f"💎 高级货币 {pool['cost_premium_currency']} / 次"
             message += f"ID: {pool['gacha_pool_id']} - {pool['name']} - {pool['description']}\n {cost_text}\n\n"
         # 添加卡池详细信息
@@ -66,7 +71,7 @@ async def gacha(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 抽奖池 ID 必须是数字，请检查后重试。")
         return
     pool_id = int(pool_id)
-    if result := self.gacha_service.perform_draw(user_id, pool_id, num_draws=1):
+    if result := plugin.gacha_service.perform_draw(user_id, pool_id, num_draws=1):
         if result["success"]:
             items = result.get("results", [])
             message = f"🎉 抽卡成功！您抽到了 {len(items)} 件物品：\n"
@@ -83,9 +88,10 @@ async def gacha(self, event: AstrMessageEvent):
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-async def ten_gacha(self, event: AstrMessageEvent):
+
+async def ten_gacha(plugin: "FishingPlugin", event: AstrMessageEvent):
     """十连抽卡"""
-    user_id = self._get_effective_user_id(event)
+    user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
         yield event.plain_result("❌ 请指定要进行十连抽卡的抽奖池 ID，例如：/十连 1")
@@ -95,7 +101,7 @@ async def ten_gacha(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 抽奖池 ID 必须是数字，请检查后重试。")
         return
     pool_id = int(pool_id)
-    if result := self.gacha_service.perform_draw(user_id, pool_id, num_draws=10):
+    if result := plugin.gacha_service.perform_draw(user_id, pool_id, num_draws=10):
         if result["success"]:
             items = result.get("results", [])
             message = f"🎉 十连抽卡成功！您抽到了 {len(items)} 件物品：\n"
@@ -112,7 +118,8 @@ async def ten_gacha(self, event: AstrMessageEvent):
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-async def view_gacha_pool(self, event: AstrMessageEvent):
+
+async def view_gacha_pool(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看当前卡池"""
     args = event.message_str.split(" ")
     if len(args) < 2:
@@ -123,7 +130,7 @@ async def view_gacha_pool(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 卡池 ID 必须是数字，请检查后重试。")
         return
     pool_id = int(pool_id)
-    if result := self.gacha_service.get_pool_details(pool_id):
+    if result := plugin.gacha_service.get_pool_details(pool_id):
         if result["success"]:
             pool = result.get("pool", {})
             probabilities = result.get("probabilities", [])
@@ -133,10 +140,11 @@ async def view_gacha_pool(self, event: AstrMessageEvent):
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-async def gacha_history(self, event: AstrMessageEvent):
+
+async def gacha_history(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看抽卡记录"""
-    user_id = self._get_effective_user_id(event)
-    if result := self.gacha_service.get_user_gacha_history(user_id):
+    user_id = plugin._get_effective_user_id(event)
+    if result := plugin.gacha_service.get_user_gacha_history(user_id):
         if result["success"]:
             history = result.get("records", [])
             if not history:
@@ -144,42 +152,45 @@ async def gacha_history(self, event: AstrMessageEvent):
                 return
             total_count = len(history)
             message = f"【📜 抽卡记录】共 {total_count} 条\n\n"
-            
+
             for record in history:
                 message += f"物品名称: {record['item_name']} (稀有度: {'⭐' * record['rarity']})\n"
                 message += f"时间: {safe_datetime_handler(record['timestamp'])}\n\n"
-            
+
             yield event.plain_result(message)
         else:
             yield event.plain_result(f"❌ 查看抽卡记录失败：{result['message']}")
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-async def wipe_bomb(self, event: AstrMessageEvent):
+
+async def wipe_bomb(plugin: "FishingPlugin", event: AstrMessageEvent):
     """擦弹功能"""
-    user_id = self._get_effective_user_id(event)
+    user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
         yield event.plain_result("💸 请指定要擦弹的数量 ID，例如：/擦弹 123456789")
         return
     contribution_amount = args[1]
-    if contribution_amount in ['allin', 'halfin', '梭哈', '梭一半']:
+    if contribution_amount in ["allin", "halfin", "梭哈", "梭一半"]:
         # 查询用户当前金币数量
-        if user := self.user_repo.get_by_id(user_id):
+        if user := plugin.user_repo.get_by_id(user_id):
             coins = user.coins
         else:
             yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
             return
-        if contribution_amount in ('allin', '梭哈'):
+        if contribution_amount in ("allin", "梭哈"):
             contribution_amount = coins
-        elif contribution_amount in ('halfin', '梭一半'):
+        elif contribution_amount in ("halfin", "梭一半"):
             contribution_amount = coins // 2
         contribution_amount = str(contribution_amount)
     # 判断是否为int或数字字符串
     if not contribution_amount.isdigit():
         yield event.plain_result("❌ 擦弹数量必须是数字，请检查后重试。")
         return
-    if result := self.game_mechanics_service.perform_wipe_bomb(user_id, int(contribution_amount)):
+    if result := plugin.game_mechanics_service.perform_wipe_bomb(
+        user_id, int(contribution_amount)
+    ):
         if result["success"]:
             message = ""
             contribution = result["contribution"]
@@ -187,7 +198,7 @@ async def wipe_bomb(self, event: AstrMessageEvent):
             reward = result["reward"]
             profit = result["profit"]
             remaining_today = result["remaining_today"]
-            
+
             # 格式化倍率，智能精度显示
             if multiplier < 0.01:
                 # 当倍率小于0.01时，显示4位小数以避免混淆
@@ -203,21 +214,22 @@ async def wipe_bomb(self, event: AstrMessageEvent):
             else:
                 message += f"💥 你投入 {contribution} 金币，获得了 {multiplier_formatted} 倍奖励！\n 💰 奖励金额：{reward} 金币（亏损：- {abs(profit)})\n"
             message += f"剩余擦弹次数：{remaining_today} 次\n"
-            
+
             # 如果触发了抑制模式，添加通知信息
             if "suppression_notice" in result:
                 message += f"\n{result['suppression_notice']}"
-            
+
             yield event.plain_result(message)
         else:
             yield event.plain_result(f"⚠️ 擦弹失败：{result['message']}")
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-async def wipe_bomb_history(self, event: AstrMessageEvent):
+
+async def wipe_bomb_history(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看擦弹记录"""
-    user_id = self._get_effective_user_id(event)
-    if result := self.game_mechanics_service.get_wipe_bomb_history(user_id):
+    user_id = plugin._get_effective_user_id(event)
+    if result := plugin.game_mechanics_service.get_wipe_bomb_history(user_id):
         if result["success"]:
             history = result.get("logs", [])
             if not history:
