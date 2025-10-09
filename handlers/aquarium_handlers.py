@@ -1,20 +1,24 @@
 from astrbot.api.event import AstrMessageEvent
 from ..utils import format_rarity_display
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..main import FishingPlugin
 
 
-async def aquarium(self, event: AstrMessageEvent):
+async def aquarium(plugin: "FishingPlugin", event: AstrMessageEvent):
     """水族箱主命令：
     - "水族箱": 显示水族箱列表
     - "水族箱 帮助": 显示帮助
     """
     args = event.message_str.strip().split()
     if len(args) >= 2 and args[1] == "帮助":
-        async for r in aquarium_help(self, event):
+        async for r in aquarium_help(plugin, event):
             yield r
         return
 
-    user_id = self._get_effective_user_id(event)
-    result = self.aquarium_service.get_user_aquarium(user_id)
+    user_id = plugin._get_effective_user_id(event)
+    result = plugin.aquarium_service.get_user_aquarium(user_id)
 
     if not result["success"]:
         yield event.plain_result(f"❌ {result['message']}")
@@ -53,9 +57,9 @@ async def aquarium(self, event: AstrMessageEvent):
     yield event.plain_result(message)
 
 
-async def add_to_aquarium(self, event: AstrMessageEvent):
+async def add_to_aquarium(plugin: "FishingPlugin", event: AstrMessageEvent):
     """将鱼从鱼塘添加到水族箱"""
-    user_id = self._get_effective_user_id(event)
+    user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     
     if len(args) < 2:
@@ -80,7 +84,7 @@ async def add_to_aquarium(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 鱼ID格式错误！请使用F开头的短码（如F3）或纯数字ID")
         return
 
-    result = self.aquarium_service.add_fish_to_aquarium(user_id, fish_id, quantity)
+    result = plugin.aquarium_service.add_fish_to_aquarium(user_id, fish_id, quantity)
     
     if result["success"]:
         yield event.plain_result(f"✅ {result['message']}")
@@ -88,9 +92,10 @@ async def add_to_aquarium(self, event: AstrMessageEvent):
         yield event.plain_result(f"❌ {result['message']}")
 
 
-async def remove_from_aquarium(self, event: AstrMessageEvent):
+async def remove_from_aquarium(plugin: "FishingPlugin", event: AstrMessageEvent):
     """将鱼从水族箱移回鱼塘"""
-    user_id = self._get_effective_user_id(event)
+
+    user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     
     if len(args) < 2:
@@ -115,7 +120,7 @@ async def remove_from_aquarium(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 鱼ID格式错误！请使用F开头的短码（如F3）或纯数字ID")
         return
 
-    result = self.aquarium_service.remove_fish_from_aquarium(user_id, fish_id, quantity)
+    result = plugin.aquarium_service.remove_fish_from_aquarium(user_id, fish_id, quantity)
     
     if result["success"]:
         yield event.plain_result(f"✅ {result['message']}")
@@ -123,11 +128,11 @@ async def remove_from_aquarium(self, event: AstrMessageEvent):
         yield event.plain_result(f"❌ {result['message']}")
 
 
-async def upgrade_aquarium(self, event: AstrMessageEvent):
+async def upgrade_aquarium(plugin: "FishingPlugin", event: AstrMessageEvent):
     """升级水族箱容量"""
-    user_id = self._get_effective_user_id(event)
+    user_id = plugin._get_effective_user_id(event)
     # 直接尝试升级，失败时会返回具体原因（包含所需费用）
-    result = self.aquarium_service.upgrade_aquarium(user_id)
+    result = plugin.aquarium_service.upgrade_aquarium(user_id)
     
     if result["success"]:
         yield event.plain_result(f"✅ {result['message']}")
@@ -138,7 +143,7 @@ async def upgrade_aquarium(self, event: AstrMessageEvent):
     # 过度信息命令删除：在升级操作中按需提示
 
 
-async def aquarium_help(self, event: AstrMessageEvent):
+async def aquarium_help(plugin: "FishingPlugin", event: AstrMessageEvent):
     """水族箱帮助信息"""
     message = """【🐠 水族箱系统帮助】：
 

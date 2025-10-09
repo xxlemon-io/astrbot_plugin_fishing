@@ -2,41 +2,50 @@ import os
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.core.message.components import At
 from ..utils import to_percentage, format_accessory_or_rod, format_rarity_display
+from typing import TYPE_CHECKING
 
-async def user_backpack(self, event: AstrMessageEvent):
+if TYPE_CHECKING:
+    from ..main import FishingPlugin
+
+
+async def user_backpack(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看用户背包"""
-    user_id = self._get_effective_user_id(event)
-    if user := self.user_repo.get_by_id(user_id):
+    user_id = plugin._get_effective_user_id(event)
+    if user := plugin.user_repo.get_by_id(user_id):
         try:
             # 导入绘制函数
             from ..draw.backpack import draw_backpack_image, get_user_backpack_data
-            
+
             # 获取用户背包数据
-            backpack_data = get_user_backpack_data(self.inventory_service, user_id)
-            
+            backpack_data = get_user_backpack_data(plugin.inventory_service, user_id)
+
             # 设置用户昵称
-            backpack_data['nickname'] = user.nickname or user_id
-            
+            backpack_data["nickname"] = user.nickname or user_id
+
             # 生成背包图像
-            image = await draw_backpack_image(backpack_data, self.data_dir)
+            image = await draw_backpack_image(backpack_data, plugin.data_dir)
             # 保存图像到临时文件
-            image_path = os.path.join(self.tmp_dir, "user_backpack.png")
+            image_path = os.path.join(plugin.tmp_dir, "user_backpack.png")
             image.save(image_path)
             yield event.image_result(image_path)
         except Exception as e:
             # 记录错误日志
             from astrbot.api import logger
+
             logger.error(f"生成背包图片时发生错误: {e}")
-            
+
             # 返回错误信息
-            yield event.plain_result("❌ 生成背包图片时发生错误，请尝试清理背包。如果问题持续存在，请联系管理员。")
+            yield event.plain_result(
+                "❌ 生成背包图片时发生错误，请尝试清理背包。如果问题持续存在，请联系管理员。"
+            )
     else:
         yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
 
-async def pond(self, event: AstrMessageEvent):
+
+async def pond(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看用户鱼塘内的鱼"""
-    user_id = self._get_effective_user_id(event)
-    if pond_fish := self.inventory_service.get_user_fish_pond(user_id):
+    user_id = plugin._get_effective_user_id(event)
+    if pond_fish := plugin.inventory_service.get_user_fish_pond(user_id):
         fishes = pond_fish["fishes"]
         # 把fishes按稀有度分组
         fished_by_rarity = {}
@@ -47,13 +56,13 @@ async def pond(self, event: AstrMessageEvent):
             fished_by_rarity[rarity].append(fish)
         # 构造输出信息
         message = "【🐠 鱼塘】：\n"
-        
+
         for rarity in sorted(fished_by_rarity.keys(), reverse=True):
             fish_list = fished_by_rarity[rarity]
             if fish_list:
                 message += f"\n {format_rarity_display(rarity)}：\n"
                 for fish in fish_list:
-                    fish_id = int(fish.get('fish_id', 0) or 0)
+                    fish_id = int(fish.get("fish_id", 0) or 0)
                     fcode = f"F{fish_id}" if fish_id else "F0"
                     message += f"  - {fish['name']} x  {fish['quantity']} （{fish['base_value']}金币 / 个） ID: {fcode}\n"
         message += f"\n🐟 总鱼数：{pond_fish['stats']['total_count']} 条\n"
@@ -62,12 +71,13 @@ async def pond(self, event: AstrMessageEvent):
     else:
         yield event.plain_result("🐟 您的鱼塘是空的，快去钓鱼吧！")
 
-async def peek_pond(self, event: AstrMessageEvent):
+
+async def peek_pond(plugin: "FishingPlugin", event: AstrMessageEvent):
     """偷看他人鱼塘内的鱼"""
-    user_id = self._get_effective_user_id(event)
+    user_id = plugin._get_effective_user_id(event)
     message_obj = event.message_obj
     target_user_id = None
-    
+
     # 首先尝试从@中获取用户ID
     if hasattr(message_obj, "message"):
         # 检查消息中是否有At对象
@@ -75,7 +85,7 @@ async def peek_pond(self, event: AstrMessageEvent):
             if isinstance(comp, At):
                 target_user_id = str(comp.qq)
                 break
-    
+
     # 如果没有@，尝试从消息文本中解析
     if target_user_id is None:
         message_text = event.message_str.strip()
@@ -84,19 +94,21 @@ async def peek_pond(self, event: AstrMessageEvent):
             parts = message_text.split()
             if len(parts) >= 2:
                 target_user_id = parts[1].strip()
-    
+
     if not target_user_id:
-        yield event.plain_result("❌ 请指定要查看的用户！\n用法：/偷看鱼塘 @用户 或 /偷看鱼塘 用户ID")
+        yield event.plain_result(
+            "❌ 请指定要查看的用户！\n用法：/偷看鱼塘 @用户 或 /偷看鱼塘 用户ID"
+        )
         return
-    
+
     # 检查目标用户是否存在
-    target_user = self.user_repo.get_by_id(target_user_id)
+    target_user = plugin.user_repo.get_by_id(target_user_id)
     if not target_user:
         yield event.plain_result(f"❌ 用户 {target_user_id} 不存在！")
         return
-    
+
     # 获取目标用户的鱼塘信息
-    if pond_fish := self.inventory_service.get_user_fish_pond(target_user_id):
+    if pond_fish := plugin.inventory_service.get_user_fish_pond(target_user_id):
         fishes = pond_fish["fishes"]
         # 把fishes按稀有度分组
         fished_by_rarity = {}
@@ -105,16 +117,16 @@ async def peek_pond(self, event: AstrMessageEvent):
             if rarity not in fished_by_rarity:
                 fished_by_rarity[rarity] = []
             fished_by_rarity[rarity].append(fish)
-        
+
         # 构造输出信息
         message = f"【🔍 偷看 {target_user.nickname} 的鱼塘】：\n"
-        
+
         for rarity in sorted(fished_by_rarity.keys(), reverse=True):
             fish_list = fished_by_rarity[rarity]
             if fish_list:
                 message += f"\n {format_rarity_display(rarity)} 稀有度 {rarity}：\n"
                 for fish in fish_list:
-                    fish_id = int(fish.get('fish_id', 0) or 0)
+                    fish_id = int(fish.get("fish_id", 0) or 0)
                     fcode = f"F{fish_id}" if fish_id else "F0"
                     message += f"  - {fish['name']} x  {fish['quantity']} （{fish['base_value']}金币 / 个） ID: {fcode}\n"
         message += f"\n🐟 总鱼数：{pond_fish['stats']['total_count']} 条\n"
@@ -123,65 +135,78 @@ async def peek_pond(self, event: AstrMessageEvent):
     else:
         yield event.plain_result(f"🐟 {target_user.nickname} 的鱼塘是空的！")
 
-async def pond_capacity(self, event: AstrMessageEvent):
+
+async def pond_capacity(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看用户鱼塘容量"""
-    user_id = self._get_effective_user_id(event)
-    pond_capacity = self.inventory_service.get_user_fish_pond_capacity(user_id)
+    user_id = plugin._get_effective_user_id(event)
+    pond_capacity = plugin.inventory_service.get_user_fish_pond_capacity(user_id)
     if pond_capacity["success"]:
         message = f"🐠 您的鱼塘容量为 {pond_capacity['current_fish_count']} / {pond_capacity['fish_pond_capacity']} 条鱼。"
         yield event.plain_result(message)
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-async def upgrade_pond(self, event: AstrMessageEvent):
+
+async def upgrade_pond(plugin: "FishingPlugin", event: AstrMessageEvent):
     """升级鱼塘容量"""
-    user_id = self._get_effective_user_id(event)
-    result = self.inventory_service.upgrade_fish_pond(user_id)
+    user_id = plugin._get_effective_user_id(event)
+    result = plugin.inventory_service.upgrade_fish_pond(user_id)
     if result["success"]:
-        yield event.plain_result(f"🐠 鱼塘升级成功！新容量为 {result['new_capacity']} 条鱼。")
+        yield event.plain_result(
+            f"🐠 鱼塘升级成功！新容量为 {result['new_capacity']} 条鱼。"
+        )
     else:
         yield event.plain_result(f"❌ 升级失败：{result['message']}")
 
-async def rod(self, event: AstrMessageEvent):
+
+async def rod(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看用户鱼竿信息"""
-    user_id = self._get_effective_user_id(event)
-    rod_info = self.inventory_service.get_user_rod_inventory(user_id)
+    user_id = plugin._get_effective_user_id(event)
+    rod_info = plugin.inventory_service.get_user_rod_inventory(user_id)
     if rod_info and rod_info["rods"]:
         rods = rod_info["rods"]
         total_count = len(rods)
-        
+
         # 检查是否超过显示限制
         if total_count > 20:
-            yield event.plain_result(f"🎣 您有 {total_count} 根鱼竿，数量过多无法完整显示。\n💡 建议使用「背包」命令查看完整信息，或使用「出售鱼竿」命令清理不需要的鱼竿。")
+            yield event.plain_result(
+                f"🎣 您有 {total_count} 根鱼竿，数量过多无法完整显示。\n💡 建议使用「背包」命令查看完整信息，或使用「出售鱼竿」命令清理不需要的鱼竿。"
+            )
             return
-        
+
         # 构造输出信息,附带emoji
         message = f"【🎣 鱼竿】共 {total_count} 根：\n"
         for rod in rods:
             message += format_accessory_or_rod(rod)
-            if rod.get("bonus_rare_fish_chance", 1) != 1 and rod.get("bonus_fish_weight", 1.0) != 1.0:
+            if (
+                rod.get("bonus_rare_fish_chance", 1) != 1
+                and rod.get("bonus_fish_weight", 1.0) != 1.0
+            ):
                 message += f"   - 钓上鱼鱼类几率加成: {to_percentage(rod['bonus_rare_fish_chance'])}\n"
             message += f"   -精炼等级: {rod.get('refine_level', 1)}\n"
-        
+
         # 检查消息长度，如果太长则截断
         if len(message) > 3000:
-            message = message[:3000] + "\n\n📝 消息过长已截断，建议使用「背包」命令查看完整信息。"
-        
+            message = (
+                message[:3000]
+                + "\n\n📝 消息过长已截断，建议使用「背包」命令查看完整信息。"
+            )
+
         yield event.plain_result(message)
     else:
         yield event.plain_result("🎣 您还没有鱼竿，快去商店购买或抽奖获得吧！")
 
 
-async def bait(self, event: AstrMessageEvent):
+async def bait(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看用户鱼饵信息"""
-    user_id = self._get_effective_user_id(event)
-    bait_info = self.inventory_service.get_user_bait_inventory(user_id)
+    user_id = plugin._get_effective_user_id(event)
+    bait_info = plugin.inventory_service.get_user_bait_inventory(user_id)
     if bait_info and bait_info["baits"]:
         # 构造输出信息,附带emoji
         message = "【🐟 鱼饵】：\n"
-        
+
         for bait in bait_info["baits"]:
-            bait_id = int(bait.get('bait_id', 0) or 0)
+            bait_id = int(bait.get("bait_id", 0) or 0)
             bcode = f"B{bait_id}" if bait_id else "B0"
             message += f" - {bait['name']} x {bait['quantity']} (稀有度: {format_rarity_display(bait['rarity'])}) ID: {bcode}\n"
             if bait["duration_minutes"] > 0:
@@ -193,14 +218,15 @@ async def bait(self, event: AstrMessageEvent):
     else:
         yield event.plain_result("🐟 您还没有鱼饵，快去商店购买或抽奖获得吧！")
 
-async def items(self, event: AstrMessageEvent):
+
+async def items(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看用户道具信息（文本版）"""
-    user_id = self._get_effective_user_id(event)
-    item_info = self.inventory_service.get_user_item_inventory(user_id)
+    user_id = plugin._get_effective_user_id(event)
+    item_info = plugin.inventory_service.get_user_item_inventory(user_id)
     if item_info and item_info.get("items"):
         message = "【📦 道具】：\n"
         for it in item_info["items"]:
-            item_id = int(it.get('item_id', 0) or 0)
+            item_id = int(it.get("item_id", 0) or 0)
             dcode = f"D{item_id}" if item_id else "D0"
             consumable_text = "消耗品" if it.get("is_consumable") else "非消耗"
             message += f" - {it['name']} x {it['quantity']} (稀有度: {format_rarity_display(it['rarity'])}，{consumable_text}) ID: {dcode}\n"
@@ -211,21 +237,22 @@ async def items(self, event: AstrMessageEvent):
     else:
         yield event.plain_result("📦 您还没有道具。")
 
-async def use_item(self, event: AstrMessageEvent):
+
+async def use_item(plugin: "FishingPlugin", event: AstrMessageEvent):
     """使用一个或多个道具"""
-    user_id = self._get_effective_user_id(event)
+    user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
         yield event.plain_result("❌ 请指定要使用的道具 ID，例如：/使用道具 1")
         return
-    
+
     item_id_str = args[1]
     if not item_id_str.isdigit():
         yield event.plain_result("❌ 道具 ID 必须是数字。")
         return
-    
+
     item_id = int(item_id_str)
-    
+
     quantity = 1
     if len(args) > 2 and args[2].isdigit():
         quantity = int(args[2])
@@ -233,56 +260,62 @@ async def use_item(self, event: AstrMessageEvent):
             yield event.plain_result("❌ 数量必须是正整数。")
             return
 
-    result = self.inventory_service.use_item(user_id, item_id, quantity)
-    
+    result = plugin.inventory_service.use_item(user_id, item_id, quantity)
+
     if result and result.get("success"):
         yield event.plain_result(f"✅ {result['message']}")
     else:
-        error_message = result.get('message', '未知错误') if result else '未知错误'
+        error_message = result.get("message", "未知错误") if result else "未知错误"
         yield event.plain_result(f"❌ 使用道具失败：{error_message}")
 
-async def open_all_money_bags(self, event: AstrMessageEvent):
+
+async def open_all_money_bags(plugin: "FishingPlugin", event: AstrMessageEvent):
     """开启全部钱袋：/开启全部钱袋"""
-    user_id = self._get_effective_user_id(event)
-    
-    result = self.inventory_service.open_all_money_bags(user_id)
-    
+    user_id = plugin._get_effective_user_id(event)
+
+    result = plugin.inventory_service.open_all_money_bags(user_id)
+
     if result and result.get("success"):
         yield event.plain_result(f"✅ {result['message']}")
     else:
-        error_message = result.get('message', '未知错误') if result else '未知错误'
+        error_message = result.get("message", "未知错误") if result else "未知错误"
         yield event.plain_result(f"❌ 开启钱袋失败：{error_message}")
 
 
-async def accessories(self, event: AstrMessageEvent):
+async def accessories(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看用户饰品信息"""
-    user_id = self._get_effective_user_id(event)
-    accessories_info = self.inventory_service.get_user_accessory_inventory(user_id)
+    user_id = plugin._get_effective_user_id(event)
+    accessories_info = plugin.inventory_service.get_user_accessory_inventory(user_id)
     if accessories_info and accessories_info["accessories"]:
         accessories = accessories_info["accessories"]
         total_count = len(accessories)
-        
+
         # 检查是否超过显示限制
         if total_count > 20:
-            yield event.plain_result(f"💍 您有 {total_count} 个饰品，数量过多无法完整显示。\n💡 建议使用「背包」命令查看完整信息，或使用「出售饰品」命令清理不需要的饰品。")
+            yield event.plain_result(
+                f"💍 您有 {total_count} 个饰品，数量过多无法完整显示。\n💡 建议使用「背包」命令查看完整信息，或使用「出售饰品」命令清理不需要的饰品。"
+            )
             return
-        
+
         # 构造输出信息,附带emoji
         message = f"【💍 饰品】共 {total_count} 个：\n"
         for accessory in accessories:
             message += format_accessory_or_rod(accessory)
             message += f"   -精炼等级: {accessory.get('refine_level', 1)}\n"
-        
+
         # 检查消息长度，如果太长则截断
         if len(message) > 3000:
-            message = message[:3000] + "\n\n📝 消息过长已截断，建议使用「背包」命令查看完整信息。"
-        
+            message = (
+                message[:3000]
+                + "\n\n📝 消息过长已截断，建议使用「背包」命令查看完整信息。"
+            )
+
         yield event.plain_result(message)
     else:
         yield event.plain_result("💍 您还没有饰品，快去商店购买或抽奖获得吧！")
 
 
-async def refine_help(self, event: AstrMessageEvent):
+async def refine_help(plugin: "FishingPlugin", event: AstrMessageEvent):
     """精炼系统帮助（当前版本）"""
     help_message = """🔨 精炼系统指南（当前版本）
 
@@ -376,31 +409,31 @@ async def refine_help(self, event: AstrMessageEvent):
     yield event.plain_result(help_message)
 
 
-
-
-
-
-async def use_equipment(self, event: AstrMessageEvent, equipment_type: str = None):
+async def use_equipment(plugin: "FishingPlugin", event: AstrMessageEvent, equipment_type: str = None):
     """统一使用命令 - 根据短码前缀自动判断类型"""
-    user_id = self._get_effective_user_id(event)
+    user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要使用的物品ID，例如：/使用 R1A2B（鱼竿）、/使用 A3C4D（饰品）、/使用 D1（道具）、/使用 B2（鱼饵）\n💡 道具支持数量参数：/使用 D1 10（使用10个道具）")
+        yield event.plain_result(
+            "❌ 请指定要使用的物品ID，例如：/使用 R1A2B（鱼竿）、/使用 A3C4D（饰品）、/使用 D1（道具）、/使用 B2（鱼饵）\n💡 道具支持数量参数：/使用 D1 10（使用10个道具）"
+        )
         return
 
     token = args[1].strip().upper()
-    
+
     # 检查是否为数字ID（旧格式）
     if token.isdigit():
-        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n• D开头：道具（如 D1）\n• B开头：鱼饵（如 B2）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        yield event.plain_result(
+            "❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n• D开头：道具（如 D1）\n• B开头：鱼饵（如 B2）\n\n💡 提示：使用 /背包 查看您的物品短码"
+        )
         return
-    
+
     # 根据前缀自动判断物品类型
     if token.startswith("R"):
         target_type = "rod"
         type_name = "鱼竿"
     elif token.startswith("A"):
-        target_type = "accessory" 
+        target_type = "accessory"
         type_name = "饰品"
     elif token.startswith("D"):
         target_type = "item"
@@ -414,37 +447,49 @@ async def use_equipment(self, event: AstrMessageEvent, equipment_type: str = Non
             target_type = equipment_type
             type_name = "鱼竿" if equipment_type == "rod" else "饰品"
         else:
-            yield event.plain_result("❌ 请使用正确的物品ID：R开头为鱼竿，A开头为饰品，D开头为道具，B开头为鱼饵")
+            yield event.plain_result(
+                "❌ 请使用正确的物品ID：R开头为鱼竿，A开头为饰品，D开头为道具，B开头为鱼饵"
+            )
             return
 
     # 处理不同类型的物品
     if target_type in ["rod", "accessory"]:
         # 装备类物品
-        equipment_info = self.inventory_service.get_user_rod_inventory(user_id) if target_type == "rod" else self.inventory_service.get_user_accessory_inventory(user_id)
-        
-        if not equipment_info or not equipment_info.get("rods" if target_type == "rod" else "accessories"):
+        equipment_info = (
+            plugin.inventory_service.get_user_rod_inventory(user_id)
+            if target_type == "rod"
+            else plugin.inventory_service.get_user_accessory_inventory(user_id)
+        )
+
+        if not equipment_info or not equipment_info.get(
+            "rods" if target_type == "rod" else "accessories"
+        ):
             yield event.plain_result(f"❌ 您还没有{type_name}，请先购买或抽奖获得。")
             return
 
         # 解析实例ID
         if target_type == "rod":
-            instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
+            instance_id = plugin.inventory_service.resolve_rod_instance_id(user_id, token)
         else:
-            instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
-        
+            instance_id = plugin.inventory_service.resolve_accessory_instance_id(
+                user_id, token
+            )
+
         if instance_id is None:
             yield event.plain_result(f"❌ 无效的{type_name}ID，请检查后重试。")
             return
 
         # 装备物品
-        if result := self.inventory_service.equip_item(user_id, int(instance_id), target_type):
+        if result := plugin.inventory_service.equip_item(
+            user_id, int(instance_id), target_type
+        ):
             if result["success"]:
                 yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 使用{type_name}失败：{result['message']}")
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
-    
+
     elif target_type == "item":
         # 道具类物品（简单数字ID）
         try:
@@ -452,7 +497,7 @@ async def use_equipment(self, event: AstrMessageEvent, equipment_type: str = Non
         except Exception:
             yield event.plain_result("❌ 无效的道具ID，请检查后重试。")
             return
-        
+
         # 处理数量参数
         quantity = 1
         if len(args) > 2 and args[2].isdigit():
@@ -460,16 +505,16 @@ async def use_equipment(self, event: AstrMessageEvent, equipment_type: str = Non
             if quantity <= 0:
                 yield event.plain_result("❌ 数量必须是正整数。")
                 return
-        
+
         # 使用道具
-        if result := self.inventory_service.use_item(user_id, int(item_id), quantity):
+        if result := plugin.inventory_service.use_item(user_id, int(item_id), quantity):
             if result["success"]:
                 yield event.plain_result(result["message"])
             else:
                 yield event.plain_result(f"❌ 使用道具失败：{result['message']}")
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
-    
+
     elif target_type == "bait":
         # 鱼饵类物品（简单数字ID）
         try:
@@ -477,9 +522,9 @@ async def use_equipment(self, event: AstrMessageEvent, equipment_type: str = Non
         except Exception:
             yield event.plain_result("❌ 无效的鱼饵ID，请检查后重试。")
             return
-        
+
         # 使用鱼饵
-        if result := self.inventory_service.use_bait(user_id, int(bait_id)):
+        if result := plugin.inventory_service.use_bait(user_id, int(bait_id)):
             if result["success"]:
                 yield event.plain_result(result["message"])
             else:
@@ -487,10 +532,11 @@ async def use_equipment(self, event: AstrMessageEvent, equipment_type: str = Non
         else:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-async def use_bait(self, event: AstrMessageEvent):
+
+async def use_bait(plugin: "FishingPlugin", event: AstrMessageEvent):
     """使用鱼饵"""
-    user_id = self._get_effective_user_id(event)
-    bait_info = self.inventory_service.get_user_bait_inventory(user_id)
+    user_id = plugin._get_effective_user_id(event)
+    bait_info = plugin.inventory_service.get_user_bait_inventory(user_id)
     if not bait_info or not bait_info["baits"]:
         yield event.plain_result("❌ 您还没有鱼饵，请先购买或抽奖获得。")
         return
@@ -502,7 +548,7 @@ async def use_bait(self, event: AstrMessageEvent):
     if not bait_instance_id.isdigit():
         yield event.plain_result("❌ 鱼饵 ID 必须是数字，请检查后重试。")
         return
-    if result := self.inventory_service.use_bait(user_id, int(bait_instance_id)):
+    if result := plugin.inventory_service.use_bait(user_id, int(bait_instance_id)):
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
@@ -511,23 +557,25 @@ async def use_bait(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
 
-async def refine_equipment(self, event: AstrMessageEvent, equipment_type: str = None):
+async def refine_equipment(plugin: "FishingPlugin", event: AstrMessageEvent, equipment_type: str = None):
     """统一精炼装备命令 - 根据短码前缀自动判断类型"""
-    user_id = self._get_effective_user_id(event)
+    user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
         # 如果没有参数，返回精炼帮助
-        async for r in refine_help(self, event):
+        async for r in refine_help(plugin, event):
             yield r
         return
 
     token = args[1].strip().upper()
-    
+
     # 检查是否为数字ID（旧格式）
     if token.isdigit():
-        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        yield event.plain_result(
+            "❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n\n💡 提示：使用 /背包 查看您的物品短码"
+        )
         return
-    
+
     # 根据前缀自动判断装备类型
     if token.startswith("R"):
         target_type = "rod"
@@ -546,16 +594,18 @@ async def refine_equipment(self, event: AstrMessageEvent, equipment_type: str = 
 
     # 解析实例ID
     if target_type == "rod":
-        instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
+        instance_id = plugin.inventory_service.resolve_rod_instance_id(user_id, token)
     else:
-        instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
-    
+        instance_id = plugin.inventory_service.resolve_accessory_instance_id(
+            user_id, token
+        )
+
     if instance_id is None:
         yield event.plain_result(f"❌ 无效的{type_name}ID，请检查后重试。")
         return
 
     # 精炼物品
-    if result := self.inventory_service.refine(user_id, int(instance_id), target_type):
+    if result := plugin.inventory_service.refine(user_id, int(instance_id), target_type):
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
@@ -563,21 +613,26 @@ async def refine_equipment(self, event: AstrMessageEvent, equipment_type: str = 
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-async def sell_equipment(self, event: AstrMessageEvent, equipment_type: str = None):
+
+async def sell_equipment(plugin: "FishingPlugin", event: AstrMessageEvent, equipment_type: str = None):
     """统一出售物品命令 - 根据短码前缀自动判断类型"""
-    user_id = self._get_effective_user_id(event)
+    user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要出售的物品ID，例如：/出售 R1A2B（鱼竿）、/出售 A3C4D（饰品）、/出售 D1（道具）\n💡 道具支持数量参数：/出售 D1 10（出售10个道具）")
+        yield event.plain_result(
+            "❌ 请指定要出售的物品ID，例如：/出售 R1A2B（鱼竿）、/出售 A3C4D（饰品）、/出售 D1（道具）\n💡 道具支持数量参数：/出售 D1 10（出售10个道具）"
+        )
         return
 
     token = args[1].strip().upper()
-    
+
     # 检查是否为数字ID（旧格式）
     if token.isdigit():
-        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n• D开头：道具（如 D1）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        yield event.plain_result(
+            "❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n• D开头：道具（如 D1）\n\n💡 提示：使用 /背包 查看您的物品短码"
+        )
         return
-    
+
     # 根据前缀自动判断物品类型
     if token.startswith("R"):
         target_type = "rod"
@@ -594,7 +649,9 @@ async def sell_equipment(self, event: AstrMessageEvent, equipment_type: str = No
             target_type = equipment_type
             type_name = "鱼竿" if equipment_type == "rod" else "饰品"
         else:
-            yield event.plain_result("❌ 请使用正确的物品ID：R开头为鱼竿，A开头为饰品，D开头为道具")
+            yield event.plain_result(
+                "❌ 请使用正确的物品ID：R开头为鱼竿，A开头为饰品，D开头为道具"
+            )
             return
 
     # 处理道具的特殊情况（需要解析数量参数）
@@ -605,7 +662,7 @@ async def sell_equipment(self, event: AstrMessageEvent, equipment_type: str = No
         except ValueError:
             yield event.plain_result("❌ 无效的道具ID，请检查后重试。")
             return
-        
+
         # 解析数量参数
         quantity = 1
         if len(args) >= 3 and args[2].isdigit():
@@ -613,9 +670,9 @@ async def sell_equipment(self, event: AstrMessageEvent, equipment_type: str = No
             if quantity <= 0:
                 yield event.plain_result("❌ 数量必须是正整数")
                 return
-        
+
         # 出售道具
-        if result := self.inventory_service.sell_item(user_id, item_id, quantity):
+        if result := plugin.inventory_service.sell_item(user_id, item_id, quantity):
             if result["success"]:
                 yield event.plain_result(result["message"])
             else:
@@ -627,16 +684,20 @@ async def sell_equipment(self, event: AstrMessageEvent, equipment_type: str = No
     # 处理装备（鱼竿和饰品）
     # 解析实例ID
     if target_type == "rod":
-        instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
+        instance_id = plugin.inventory_service.resolve_rod_instance_id(user_id, token)
     else:
-        instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
-    
+        instance_id = plugin.inventory_service.resolve_accessory_instance_id(
+            user_id, token
+        )
+
     if instance_id is None:
         yield event.plain_result(f"❌ 无效的{type_name}ID，请检查后重试。")
         return
 
     # 出售物品
-    if result := self.inventory_service.sell_equipment(user_id, int(instance_id), target_type):
+    if result := plugin.inventory_service.sell_equipment(
+        user_id, int(instance_id), target_type
+    ):
         if result["success"]:
             yield event.plain_result(result["message"])
         else:
@@ -644,21 +705,26 @@ async def sell_equipment(self, event: AstrMessageEvent, equipment_type: str = No
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
-async def lock_equipment(self, event: AstrMessageEvent, equipment_type: str = None):
+
+async def lock_equipment(plugin: "FishingPlugin", event: AstrMessageEvent, equipment_type: str = None):
     """统一锁定装备命令 - 根据短码前缀自动判断类型"""
-    user_id = self._get_effective_user_id(event)
+    user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要锁定的装备ID，例如：/锁定 R1A2B 或 /锁定 A3C4D")
+        yield event.plain_result(
+            "❌ 请指定要锁定的装备ID，例如：/锁定 R1A2B 或 /锁定 A3C4D"
+        )
         return
 
     token = args[1].strip().upper()
-    
+
     # 检查是否为数字ID（旧格式）
     if token.isdigit():
-        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        yield event.plain_result(
+            "❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n\n💡 提示：使用 /背包 查看您的物品短码"
+        )
         return
-    
+
     # 根据前缀自动判断装备类型
     if token.startswith("R"):
         target_type = "rod"
@@ -677,40 +743,47 @@ async def lock_equipment(self, event: AstrMessageEvent, equipment_type: str = No
 
     # 解析实例ID
     if target_type == "rod":
-        instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
+        instance_id = plugin.inventory_service.resolve_rod_instance_id(user_id, token)
     else:
-        instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
-    
+        instance_id = plugin.inventory_service.resolve_accessory_instance_id(
+            user_id, token
+        )
+
     if instance_id is None:
         yield event.plain_result(f"❌ 无效的{type_name}ID，请检查后重试。")
         return
 
     # 锁定物品
     if target_type == "rod":
-        result = self.inventory_service.lock_rod(user_id, int(instance_id))
+        result = plugin.inventory_service.lock_rod(user_id, int(instance_id))
     else:
-        result = self.inventory_service.lock_accessory(user_id, int(instance_id))
-    
+        result = plugin.inventory_service.lock_accessory(user_id, int(instance_id))
+
     if result["success"]:
         yield event.plain_result(result["message"])
     else:
         yield event.plain_result(f"❌ 锁定失败：{result['message']}")
 
-async def unlock_equipment(self, event: AstrMessageEvent, equipment_type: str = None):
+
+async def unlock_equipment(plugin: "FishingPlugin", event: AstrMessageEvent, equipment_type: str = None):
     """统一解锁装备命令 - 根据短码前缀自动判断类型"""
-    user_id = self._get_effective_user_id(event)
+    user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要解锁的装备ID，例如：/解锁 R1A2B 或 /解锁 A3C4D")
+        yield event.plain_result(
+            "❌ 请指定要解锁的装备ID，例如：/解锁 R1A2B 或 /解锁 A3C4D"
+        )
         return
 
     token = args[1].strip().upper()
-    
+
     # 检查是否为数字ID（旧格式）
     if token.isdigit():
-        yield event.plain_result("❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n\n💡 提示：使用 /背包 查看您的物品短码")
+        yield event.plain_result(
+            "❌ 请使用正确的物品ID！\n\n📝 短码格式：\n• R开头：鱼竿（如 R2N9C）\n• A开头：饰品（如 A7K3Q）\n\n💡 提示：使用 /背包 查看您的物品短码"
+        )
         return
-    
+
     # 根据前缀自动判断装备类型
     if token.startswith("R"):
         target_type = "rod"
@@ -729,37 +802,41 @@ async def unlock_equipment(self, event: AstrMessageEvent, equipment_type: str = 
 
     # 解析实例ID
     if target_type == "rod":
-        instance_id = self.inventory_service.resolve_rod_instance_id(user_id, token)
+        instance_id = plugin.inventory_service.resolve_rod_instance_id(user_id, token)
     else:
-        instance_id = self.inventory_service.resolve_accessory_instance_id(user_id, token)
-    
+        instance_id = plugin.inventory_service.resolve_accessory_instance_id(
+            user_id, token
+        )
+
     if instance_id is None:
         yield event.plain_result(f"❌ 无效的{type_name}ID，请检查后重试。")
         return
 
     # 解锁物品
     if target_type == "rod":
-        result = self.inventory_service.unlock_rod(user_id, int(instance_id))
+        result = plugin.inventory_service.unlock_rod(user_id, int(instance_id))
     else:
-        result = self.inventory_service.unlock_accessory(user_id, int(instance_id))
-    
+        result = plugin.inventory_service.unlock_accessory(user_id, int(instance_id))
+
     if result["success"]:
         yield event.plain_result(result["message"])
     else:
         yield event.plain_result(f"❌ 解锁失败：{result['message']}")
 
-async def coins(self, event: AstrMessageEvent):
+
+async def coins(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看用户金币信息"""
-    user_id = self._get_effective_user_id(event)
-    if user := self.user_repo.get_by_id(user_id):
+    user_id = plugin._get_effective_user_id(event)
+    if user := plugin.user_repo.get_by_id(user_id):
         yield event.plain_result(f"💰 您的金币余额：{user.coins} 金币")
     else:
         yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
 
-async def premium(self, event: AstrMessageEvent):
+
+async def premium(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看用户高级货币信息"""
-    user_id = self._get_effective_user_id(event)
-    if user := self.user_repo.get_by_id(user_id):
+    user_id = plugin._get_effective_user_id(event)
+    if user := plugin.user_repo.get_by_id(user_id):
         yield event.plain_result(f"💎 您的高级货币余额：{user.premium_currency}")
     else:
         yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")

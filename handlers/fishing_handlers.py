@@ -4,10 +4,14 @@ from ..core.utils import get_now
 from ..utils import safe_datetime_handler, to_percentage, safe_get_file_path
 from ..draw.pokedex import draw_pokedex
 from astrbot.api.message_components import Image as AstrImage
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..main import FishingPlugin
 
 
 class FishingHandlers:
-    def __init__(self, plugin):
+    def __init__(self, plugin: "FishingPlugin"):
         self.plugin = plugin
         self.user_service = plugin.user_service
         self.fishing_service = plugin.fishing_service
@@ -38,8 +42,8 @@ def _compute_cooldown_seconds(base_seconds, equipped_accessory):
     return base_seconds
 
 
-def _get_fishing_cost(self, user):
-    zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+def _get_fishing_cost(plugin: "FishingPlugin", user):
+    zone = plugin.inventory_repo.get_zone_by_id(user.fishing_zone_id)
     return zone.fishing_cost if zone else 10
 
 
@@ -58,21 +62,22 @@ def _build_fish_message(result, fishing_cost):
         return message
     return f"{result['message']}\n💸消耗：{fishing_cost} 金币/次"
 
-async def fish(self, event: AstrMessageEvent):
+
+async def fish(plugin: "FishingPlugin", event: AstrMessageEvent):
     """钓鱼"""
-    user_id = self._get_effective_user_id(event)
-    user = self.user_repo.get_by_id(user_id)
+    user_id = plugin._get_effective_user_id(event)
+    user = plugin.user_repo.get_by_id(user_id)
     if not user:
         yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
         return
     # 检查用户钓鱼CD
     lst_time = user.last_fishing_time
-    info = self.user_service.get_user_current_accessory(user_id)
+    info = plugin.user_service.get_user_current_accessory(user_id)
     if info["success"] is False:
         yield event.plain_result(f"❌ 获取用户饰品信息失败：{info['message']}")
         return
     equipped_accessory = info.get("accessory")
-    base_cooldown = self.game_config["fishing"]["cooldown_seconds"]
+    base_cooldown = plugin.game_config["fishing"]["cooldown_seconds"]
     cooldown_seconds = _compute_cooldown_seconds(base_cooldown, equipped_accessory)
     # 修复时区问题
     now = _normalize_now_for(lst_time)
@@ -80,25 +85,27 @@ async def fish(self, event: AstrMessageEvent):
         wait_time = cooldown_seconds - (now - lst_time).total_seconds()
         yield event.plain_result(f"⏳ 您还需要等待 {int(wait_time)} 秒才能再次钓鱼。")
         return
-    fishing_cost = _get_fishing_cost(self, user)
-    result = self.fishing_service.go_fish(user_id)
+    fishing_cost = _get_fishing_cost(plugin, user)
+    result = plugin.fishing_service.go_fish(user_id)
     if not result:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
         return
     yield event.plain_result(_build_fish_message(result, fishing_cost))
 
-async def auto_fish(self, event: AstrMessageEvent):
+
+async def auto_fish(plugin: "FishingPlugin", event: AstrMessageEvent):
     """自动钓鱼"""
-    user_id = self._get_effective_user_id(event)
-    result = self.fishing_service.toggle_auto_fishing(user_id)
+    user_id = plugin._get_effective_user_id(event)
+    result = plugin.fishing_service.toggle_auto_fishing(user_id)
     yield event.plain_result(result["message"])
 
-async def fishing_area(self, event: AstrMessageEvent):
+
+async def fishing_area(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看当前钓鱼区域"""
-    user_id = self._get_effective_user_id(event)
+    user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        result = self.fishing_service.get_user_fishing_zones(user_id)
+        result = plugin.fishing_service.get_user_fishing_zones(user_id)
         if not result:
             yield event.plain_result("❌ 出错啦！请稍后再试。")
             return
@@ -109,33 +116,37 @@ async def fishing_area(self, event: AstrMessageEvent):
         message = "【🌊 钓鱼区域】\n"
         for zone in zones:
             status_icons = []
-            if zone['whether_in_use']:
+            if zone["whether_in_use"]:
                 status_icons.append("✅")
-            if not zone['is_active']:
+            if not zone["is_active"]:
                 status_icons.append("🚫")
-            if zone.get('requires_pass'):
+            if zone.get("requires_pass"):
                 status_icons.append("🔑")
             status_text = " ".join(status_icons) if status_icons else ""
-            message += f"区域名称: {zone['name']} (ID: {zone['zone_id']}) {status_text}\n"
+            message += (
+                f"区域名称: {zone['name']} (ID: {zone['zone_id']}) {status_text}\n"
+            )
             message += f"描述: {zone['description']}\n"
             message += f"💰 钓鱼消耗: {zone.get('fishing_cost', 10)} 金币/次\n"
-            if zone.get('requires_pass'):
-                required_item_name = zone.get('required_item_name', '通行证')
+            if zone.get("requires_pass"):
+                required_item_name = zone.get("required_item_name", "通行证")
                 message += f"🔑 需要 {required_item_name} 才能进入\n"
-            if zone.get('available_from') or zone.get('available_until'):
+            if zone.get("available_from") or zone.get("available_until"):
                 message += "⏰ 开放时间: "
-                if zone.get('available_from') and zone.get('available_until'):
-                    from_time = zone['available_from'].strftime('%Y-%m-%d %H:%M')
-                    until_time = zone['available_until'].strftime('%Y-%m-%d %H:%M')
+                if zone.get("available_from") and zone.get("available_until"):
+                    from_time = zone["available_from"].strftime("%Y-%m-%d %H:%M")
+                    until_time = zone["available_until"].strftime("%Y-%m-%d %H:%M")
                     message += f"{from_time} 至 {until_time}\n"
-                elif zone.get('available_from'):
-                    from_time = zone['available_from'].strftime('%Y-%m-%d %H:%M')
+                elif zone.get("available_from"):
+                    from_time = zone["available_from"].strftime("%Y-%m-%d %H:%M")
                     message += f"{from_time} 开始\n"
-                elif zone.get('available_until'):
-                    until_time = zone['available_until'].strftime('%Y-%m-%d %H:%M')
+                elif zone.get("available_until"):
+                    until_time = zone["available_until"].strftime("%Y-%m-%d %H:%M")
                     message += f"至 {until_time} 结束\n"
-            remaining_rare = max(0, zone['daily_rare_fish_quota'] - zone['rare_fish_caught_today'])
-            if zone.get('daily_rare_fish_quota', 0) > 0:
+            remaining_rare = max(
+                0, zone["daily_rare_fish_quota"] - zone["rare_fish_caught_today"]
+            )
+            if zone.get("daily_rare_fish_quota", 0) > 0:
                 message += f"剩余稀有鱼类数量: {remaining_rare}\n"
             message += "\n"
         message += "使用「/钓鱼区域 ID」命令切换钓鱼区域。\n"
@@ -146,50 +157,55 @@ async def fishing_area(self, event: AstrMessageEvent):
         yield event.plain_result("❌ 钓鱼区域 ID 必须是数字，请检查后重试。")
         return
     zone_id = int(zone_id)
-    
+
     # 动态获取所有有效的区域ID
-    all_zones = self.fishing_zone_service.get_all_zones()
-    valid_zone_ids = [zone['id'] for zone in all_zones]
-    
+    all_zones = plugin.fishing_zone_service.get_all_zones()
+    valid_zone_ids = [zone["id"] for zone in all_zones]
+
     if zone_id not in valid_zone_ids:
-        yield event.plain_result(f"❌ 无效的钓鱼区域 ID。有效ID为: {', '.join(map(str, valid_zone_ids))}")
+        yield event.plain_result(
+            f"❌ 无效的钓鱼区域 ID。有效ID为: {', '.join(map(str, valid_zone_ids))}"
+        )
         yield event.plain_result("💡 请使用「/钓鱼区域 <ID>」命令指定区域ID")
         return
-    
+
     # 切换用户的钓鱼区域
-    result = self.fishing_service.set_user_fishing_zone(user_id, zone_id)
+    result = plugin.fishing_service.set_user_fishing_zone(user_id, zone_id)
     yield event.plain_result(result["message"] if result else "❌ 出错啦！请稍后再试。")
 
-async def fish_pokedex(self, event: AstrMessageEvent):
+
+async def fish_pokedex(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看鱼类图鉴"""
-    user_id = self._get_effective_user_id(event)
+    user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split()
     page = 1
     if len(args) > 1 and args[1].isdigit():
         page = int(args[1])
-    
-    pokedex_data = self.fishing_service.get_user_pokedex(user_id)
+
+    pokedex_data = plugin.fishing_service.get_user_pokedex(user_id)
     if not pokedex_data or not pokedex_data.get("success"):
-        yield event.plain_result(f"❌ 查看图鉴失败: {pokedex_data.get('message', '未知错误')}")
+        yield event.plain_result(
+            f"❌ 查看图鉴失败: {pokedex_data.get('message', '未知错误')}"
+        )
         return
-        
+
     pokedex_list = pokedex_data.get("pokedex", [])
     if not pokedex_list:
         yield event.plain_result("❌ 您还没有捕捉到任何鱼类，快去钓鱼吧！")
         return
 
-    user_info = self.user_repo.get_by_id(user_id)
-    
+    user_info = plugin.user_repo.get_by_id(user_id)
+
     # 绘制图片
-    output_path = safe_get_file_path(self, f"pokedex_{user_id}_page_{page}.png")
-    
+    output_path = safe_get_file_path(plugin, f"pokedex_{user_id}_page_{page}.png")
+
     try:
         await draw_pokedex(
-            pokedex_data, 
-            {"nickname": user_info.nickname, "user_id": user_id}, 
-            output_path, 
+            pokedex_data,
+            {"nickname": user_info.nickname, "user_id": user_id},
+            output_path,
             page=page,
-            data_dir=self.data_dir
+            data_dir=plugin.data_dir,
         )
         yield event.image_result(output_path)
     except Exception as e:
