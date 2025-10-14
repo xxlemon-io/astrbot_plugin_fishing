@@ -1,9 +1,11 @@
+--- START OF FILE fishing_service.py ---
+
 import json
 import random
 import threading
 import time
 from typing import Dict, Any, Optional
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 from astrbot.api import logger
 
 # 导入仓储接口和领域模型
@@ -40,7 +42,8 @@ class FishingService:
         self.fishing_zone_service = fishing_zone_service
         self.config = config
 
-        self.today = get_today()
+        self.beijing_tz = timezone(timedelta(hours=8))
+        self.last_daily_check_time = datetime.now(self.beijing_tz)
         # 自动钓鱼线程相关属性
         self.auto_fishing_thread: Optional[threading.Thread] = None
         self.auto_fishing_running = False
@@ -293,17 +296,6 @@ class FishingService:
         weight = random.randint(fish_template.min_weight, fish_template.max_weight)
         value = fish_template.base_value
 
-        # 计算一下是否超过用户鱼塘容量
-        user_fish_inventory = self.inventory_repo.get_fish_inventory(user.user_id)
-        if user.fish_pond_capacity == sum(item.quantity for item in user_fish_inventory):
-            # 随机删除用户的一条鱼
-            random_fish = random.choice(user_fish_inventory)
-            self.inventory_repo.update_fish_quantity(
-                user.user_id,
-                random_fish.fish_id,
-                -1
-            )
-
         if fish_template.rarity >= 4:
             # 如果是4星及以上稀有鱼，增加用户的稀有鱼捕获计数
             zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
@@ -331,8 +323,34 @@ class FishingService:
             if fractional > 0 and random.random() < fractional:
                 total_catches += 1
 
-        # 5. 更新数据库
-        self.inventory_repo.add_fish_to_inventory(user.user_id, fish_template.fish_id, quantity= total_catches)
+        # --- 修复开始：移动并修正鱼塘容量检查逻辑 ---
+        # 5. 处理鱼塘容量（在确定总渔获量后）
+        user_fish_inventory = self.inventory_repo.get_fish_inventory(user.user_id)
+        current_fish_count = sum(item.quantity for item in user_fish_inventory)
+        
+        # 计算放入新鱼后是否会溢出，以及溢出多少
+        overflow_amount = (current_fish_count + total_catches) - user.fish_pond_capacity
+
+        if overflow_amount > 0:
+            # 鱼塘空间不足，需要移除 `overflow_amount` 条鱼
+            # 采用循环随机移除的策略，确保腾出足够空间
+            for _ in range(overflow_amount):
+                # 每次循环都重新获取一次库存，防止某个种类的鱼被移除完
+                current_inventory_for_removal = self.inventory_repo.get_fish_inventory(user.user_id)
+                if not current_inventory_for_removal:
+                    break # 如果鱼塘已经空了，就停止移除
+                
+                # 随机选择一个鱼种（堆叠）来移除
+                random_fish_stack = random.choice(current_inventory_for_removal)
+                self.inventory_repo.update_fish_quantity(
+                    user.user_id,
+                    random_fish_stack.fish_id,
+                    -1
+                )
+        # --- 修复结束 ---
+
+        # 6. 更新数据库
+        self.inventory_repo.add_fish_to_inventory(user.user_id, fish_template.fish_id, quantity=total_catches)
 
         # 更新用户统计数据
         user.total_fishing_count += total_catches
@@ -391,7 +409,7 @@ class FishingService:
         )
         self.log_repo.add_fishing_record(record)
 
-        # 6. 构建成功返回结果
+        # 7. 构建成功返回结果
         result = {
             "success": True,
             "fish": {
@@ -764,7 +782,7 @@ class FishingService:
         # 记录被传送用户信息（不发送通知，避免凌晨打扰玩家）
         if relocated_users:
             logger.info(f"被传送用户详情：{relocated_users}")
-
+            
 
     def start_auto_fishing_task(self):
         """启动自动钓鱼的后台线程。"""

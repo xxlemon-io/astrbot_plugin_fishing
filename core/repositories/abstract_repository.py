@@ -8,7 +8,8 @@ from ..domain.models import (
     UserRodInstance, UserAccessoryInstance, UserFishInventoryItem, UserAquariumItem,
     FishingRecord, GachaRecord, WipeBombLog, MarketListing, TaxRecord,
     GachaPool, GachaPoolItem, FishingZone, UserBuff, AquariumUpgrade,
-    ShopOffer, ShopOfferCost, ShopOfferReward
+    ShopOffer, ShopOfferCost, ShopOfferReward,
+    Commodity, Exchange, UserCommodity  # 新增交易所模型导入
 )
 
 # 定义用户成就进度的数据结构
@@ -31,9 +32,28 @@ class AbstractUserRepository(ABC):
     # 获取所有用户ID
     @abstractmethod
     def get_all_user_ids(self, auto_fishing_only: bool = False) -> List[str]: pass
-    # 获取排行榜所需的核心数据
+
+    # ========================================================================
+    # === 修改：用三个更具体的方法替换旧的 get_leaderboard_data ===
+    # ========================================================================
     @abstractmethod
-    def get_leaderboard_data(self, limit: int) -> List[Dict[str, Any]]: pass
+    def get_top_users_by_fish_count(self, limit: int) -> List[User]:
+        """按总钓鱼数获取排行榜用户列表。"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_top_users_by_coins(self, limit: int) -> List[User]:
+        """按金币数获取排行榜用户列表。"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_top_users_by_weight(self, limit: int) -> List[User]:
+        """按总重量获取排行榜用户列表。"""
+        raise NotImplementedError
+    # ========================================================================
+    # === 修改结束 ===
+    # ========================================================================
+
     # 获取资产超过阈值的用户列表
     @abstractmethod
     def get_high_value_users(self, threshold: int) -> List[User]: pass
@@ -96,7 +116,7 @@ class AbstractItemTemplateRepository(ABC):
     def get_all_items(self) -> List[Item]: pass
     # 添加道具模板
     @abstractmethod
-    def add_item_template(self, item_data: Dict[str, Any]) -> Item: pass
+    def add_item_template(self, item_data: Dict[str, Any]) -> None: pass
     # 更新道具模板
     @abstractmethod
     def update_item_template(self, item_id: int, item_data: Dict[str, Any]) -> None: pass
@@ -108,7 +128,7 @@ class AbstractItemTemplateRepository(ABC):
     def get_random_fish(self, rarity: Optional[int] = None) -> Optional[Fish]: pass
     # 添加鱼类模板
     @abstractmethod
-    def add_fish_template(self, fish_data: Dict[str, Any]) -> Fish: pass
+    def add_fish_template(self, fish_data: Dict[str, Any]) -> None: pass
     # 更新鱼类模板
     @abstractmethod
     def update_fish_template(self, fish_id: int, fish_data: Dict[str, Any]) -> None: pass
@@ -117,7 +137,7 @@ class AbstractItemTemplateRepository(ABC):
     def delete_fish_template(self, fish_id: int) -> None: pass
     # 添加鱼饵模板
     @abstractmethod
-    def add_bait_template(self, bait_data: Dict[str, Any]) -> Bait: pass
+    def add_bait_template(self, bait_data: Dict[str, Any]) -> None: pass
     # 更新鱼饵模板
     @abstractmethod
     def update_bait_template(self, bait_id: int, bait_data: Dict[str, Any]) -> None: pass
@@ -126,7 +146,7 @@ class AbstractItemTemplateRepository(ABC):
     def delete_bait_template(self, bait_id: int) -> None: pass
     # 添加鱼竿模板
     @abstractmethod
-    def add_rod_template(self, rod_data: Dict[str, Any]) -> Rod: pass
+    def add_rod_template(self, rod_data: Dict[str, Any]) -> None: pass
     # 更新鱼竿模板
     @abstractmethod
     def update_rod_template(self, rod_id: int, rod_data: Dict[str, Any]) -> None: pass
@@ -135,7 +155,7 @@ class AbstractItemTemplateRepository(ABC):
     def delete_rod_template(self, rod_id: int) -> None: pass
     # 添加饰品模板
     @abstractmethod
-    def add_accessory_template(self, accessory_data: Dict[str, Any]) -> Accessory: pass
+    def add_accessory_template(self, accessory_data: Dict[str, Any]) -> None: pass
     # 更新饰品模板
     @abstractmethod
     def update_accessory_template(self, accessory_id: int, accessory_data: Dict[str, Any]) -> None: pass
@@ -144,7 +164,7 @@ class AbstractItemTemplateRepository(ABC):
     def delete_accessory_template(self, accessory_id: int) -> None: pass
     # 添加称号模板
     @abstractmethod
-    def add_title_template(self, title_data: Dict[str, Any]) -> Title: pass
+    def add_title_template(self, data: Dict[str, Any]) -> None: pass
 
 class AbstractInventoryRepository(ABC):
     """用户库存仓储接口"""
@@ -248,7 +268,7 @@ class AbstractInventoryRepository(ABC):
     def set_equipment_status(self, user_id: str, rod_instance_id: Optional[int] = None, accessory_instance_id: Optional[int] = None) -> None: pass
     # 获取用户所有一次性鱼饵
     @abstractmethod
-    def get_user_disposable_baits(self, user_id: str) -> Dict[int, int]: pass
+    def get_user_disposable_baits(self, user_id: str) -> List[int]: pass
     # 获取用户拥有的所有称号
     @abstractmethod
     def get_user_titles(self, user_id: str) -> List[int]: pass
@@ -261,9 +281,6 @@ class AbstractInventoryRepository(ABC):
     # 删除一个饰品实例
     @abstractmethod
     def delete_accessory_instance(self, accessory_instance_id: int) -> None: pass
-    # 更新用户鱼类数量(增减)
-    @abstractmethod
-    def update_fish_quantity(self, user_id: str, fish_id: int, delta: int) -> None: pass
     # 获取钓鱼区域信息
     @abstractmethod
     def get_zone_by_id(self, zone_id: int) -> FishingZone: pass
@@ -294,16 +311,16 @@ class AbstractInventoryRepository(ABC):
 
     # 获取用户的鱼竿实例
     @abstractmethod
-    def update_rod_instance(self, instance): pass
+    def update_rod_instance(self, instance: UserRodInstance): pass
     # 获取用户的饰品实例
     @abstractmethod
-    def update_accessory_instance(self, instance): pass
+    def update_accessory_instance(self, instance: UserAccessoryInstance): pass
     # 获取用户的同一鱼竿实例
     @abstractmethod
-    def get_same_rod_instances(self, user_id, rod_id) -> List[UserRodInstance]: pass
+    def get_same_rod_instances(self, user_id: str, rod_id: int) -> List[UserRodInstance]: pass
     # 获取用户的同一饰品实例
     @abstractmethod
-    def get_same_accessory_instances(self, user_id, accessory_id) -> List[UserAccessoryInstance]: pass
+    def get_same_accessory_instances(self, user_id: str, accessory_id: int) -> List[UserAccessoryInstance]: pass
 
     @abstractmethod
     def add_item_to_user(self, user_id: str, item_id: int, quantity: int):
@@ -318,22 +335,22 @@ class AbstractExchangeRepository(ABC):
     """大宗商品交易所的数据仓储抽象基类"""
 
     @abstractmethod
-    def get_all_commodities(self) -> List['Commodity']:
+    def get_all_commodities(self) -> List[Commodity]:
         """获取所有大宗商品的模板信息"""
         pass
 
     @abstractmethod
-    def get_commodity_by_id(self, commodity_id: str) -> Optional['Commodity']:
+    def get_commodity_by_id(self, commodity_id: str) -> Optional[Commodity]:
         """通过ID获取单个大宗商品信息"""
         pass
 
     @abstractmethod
-    def get_prices_for_date(self, date: str) -> List['Exchange']:
+    def get_prices_for_date(self, date: str) -> List[Exchange]:
         """获取指定日期的所有商品价格"""
         pass
 
     @abstractmethod
-    def add_exchange_price(self, price: 'Exchange') -> None:
+    def add_exchange_price(self, price: Exchange) -> None:
         """新增一条交易所价格记录"""
         pass
 
@@ -343,12 +360,12 @@ class AbstractExchangeRepository(ABC):
         pass
 
     @abstractmethod
-    def get_user_commodities(self, user_id: str) -> List['UserCommodity']:
+    def get_user_commodities(self, user_id: str) -> List[UserCommodity]:
         """获取用户持有的所有大宗商品"""
         pass
 
     @abstractmethod
-    def add_user_commodity(self, user_commodity: 'UserCommodity') -> 'UserCommodity':
+    def add_user_commodity(self, user_commodity: UserCommodity) -> UserCommodity:
         """为用户新增大宗商品库存"""
         pass
 
@@ -363,7 +380,7 @@ class AbstractExchangeRepository(ABC):
         pass
 
     @abstractmethod
-    def get_user_commodity_by_instance_id(self, instance_id: int) -> Optional['UserCommodity']:
+    def get_user_commodity_by_instance_id(self, instance_id: int) -> Optional[UserCommodity]:
         """通过实例ID获取用户商品"""
         pass
 
@@ -386,7 +403,7 @@ class AbstractGachaRepository(ABC):
     def get_all_pools(self) -> List[GachaPool]: pass
     # 新增一个抽卡池
     @abstractmethod
-    def add_pool_template(self, data: Dict[str, Any]) -> GachaPool: pass
+    def add_pool_template(self, data: Dict[str, Any]) -> None: pass
     # 更新抽卡池信息
     @abstractmethod
     def update_pool_template(self, pool_id: int, data: Dict[str, Any]) -> None: pass
@@ -398,7 +415,7 @@ class AbstractGachaRepository(ABC):
     def copy_pool_template(self, pool_id: int) -> int: pass
     # 添加物品到抽卡池
     @abstractmethod
-    def add_item_to_pool(self, pool_id: int, data: Dict[str, Any]) -> GachaPoolItem: pass
+    def add_item_to_pool(self, pool_id: int, data: Dict[str, Any]) -> None: pass
     # 更新抽卡池物品
     @abstractmethod
     def update_pool_item(self, item_pool_id: int, data: Dict[str, Any]) -> None: pass
@@ -472,6 +489,8 @@ class AbstractLogRepository(ABC):
     # 获取用户历史上最大的擦弹倍数
     @abstractmethod
     def get_max_wipe_bomb_multiplier(self, user_id: str) -> float: pass
+    @abstractmethod
+    def get_min_wipe_bomb_multiplier(self, user_id: str) -> Optional[float]: pass
 
     @abstractmethod
     def get_gacha_records_count_today(

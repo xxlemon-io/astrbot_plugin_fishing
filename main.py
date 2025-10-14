@@ -18,6 +18,7 @@ from .core.repositories.sqlite_shop_repo import SqliteShopRepository
 from .core.repositories.sqlite_log_repo import SqliteLogRepository
 from .core.repositories.sqlite_achievement_repo import SqliteAchievementRepository
 from .core.repositories.sqlite_user_buff_repo import SqliteUserBuffRepository
+from .core.repositories.sqlite_exchange_repo import SqliteExchangeRepository # 新增交易所Repo
 
 from .core.services.data_setup_service import DataSetupService
 from .core.services.item_template_service import ItemTemplateService
@@ -31,6 +32,7 @@ from .core.services.achievement_service import AchievementService
 from .core.services.game_mechanics_service import GameMechanicsService
 from .core.services.effect_manager import EffectManager
 from .core.services.fishing_zone_service import FishingZoneService
+from .core.services.exchange_service import ExchangeService # 新增交易所Service
 
 from .core.database.migration import run_migrations
 
@@ -38,11 +40,7 @@ from .core.database.migration import run_migrations
 # 导入所有指令函数
 # ==========================================================
 from .handlers import admin_handlers, common_handlers, inventory_handlers, fishing_handlers, market_handlers, social_handlers, gacha_handlers, aquarium_handlers
-
-# 新增交易所相关导入
-from .core.repositories.sqlite_exchange_repo import SqliteExchangeRepository
-from .core.services.exchange_service import ExchangeService
-from .handlers.exchange_handlers import ExchangeHandlers
+from .handlers.exchange_handlers import ExchangeHandlers # 新增交易所Handlers
 
 
 class FishingPlugin(Star):
@@ -81,6 +79,7 @@ class FishingPlugin(Star):
         self.game_config = {
             "fishing": {"cost": config.get("fish_cost", 10), "cooldown_seconds": config.get("fish_cooldown_seconds", 180)},
             "steal": {"cooldown_seconds": config.get("steal_cooldown", 1800)},
+            "electric_fish": {"cooldown_seconds": config.get("electric_fish_cooldown", 7200)}, # 合并的功能：“电鱼”
             "wipe_bomb": {"max_attempts_per_day": config.get("wipe_bomb_attempts", 3)},
             "pond_upgrades": [
                 { "from": 480, "to": 999, "cost": 50000 },
@@ -166,6 +165,7 @@ class FishingPlugin(Star):
             self.game_config,
         )
         self.shop_service = ShopService(self.item_template_repo, self.inventory_repo, self.user_repo, self.shop_repo, self.game_config)
+        # MarketService 依赖 exchange_repo
         self.market_service = MarketService(self.market_repo, self.inventory_repo, self.user_repo, self.log_repo,
                                            self.item_template_repo, self.exchange_repo, self.game_config)
         self.achievement_service = AchievementService(self.achievement_repo, self.user_repo, self.inventory_repo,
@@ -187,12 +187,13 @@ class FishingPlugin(Star):
             self.user_repo,
             self.item_template_repo
         )
-
+        
         # 初始化交易所服务
         self.exchange_service = ExchangeService(self.user_repo, self.exchange_repo, self.game_config, self.log_repo, self.market_service)
         
         # 初始化交易所处理器
         self.exchange_handlers = ExchangeHandlers(self)
+
 
         # 3.2 实例化效果管理器并自动注册所有效果（需要在fishing_service之后）
         self.effect_manager = EffectManager()
@@ -216,7 +217,7 @@ class FishingPlugin(Star):
         # --- 4. 启动后台任务 ---
         self.fishing_service.start_auto_fishing_task()
         self.achievement_service.start_achievement_check_task()
-        self.exchange_service.start_daily_price_update_task()
+        self.exchange_service.start_daily_price_update_task() # 启动交易所后台任务
 
         # --- 5. 初始化核心游戏数据 ---
         data_setup_service = DataSetupService(
@@ -264,7 +265,6 @@ class FishingPlugin(Star):
     |_|   |_|___/_| |_|_|_| |_|\\__, |
                                |___/
                                """)
-
     # =========== 基础与核心 ==========
 
     @filter.command("注册")
@@ -350,8 +350,6 @@ class FishingPlugin(Star):
         async for r in aquarium_handlers.upgrade_aquarium(self, event):
             yield r
 
-    # 提示：帮助入口整合到“水族箱 帮助”子命令中
-
     @filter.command("鱼竿")
     async def rod(self, event: AstrMessageEvent):
         async for r in inventory_handlers.rod(self, event):
@@ -377,19 +375,15 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.items(self, event):
             yield r
 
-
     @filter.command("开启全部钱袋", alias={"打开全部钱袋", "打开所有钱袋"})
     async def open_all_money_bags(self, event: AstrMessageEvent):
         async for r in inventory_handlers.open_all_money_bags(self, event):
             yield r
 
-
     @filter.command("饰品")
     async def accessories(self, event: AstrMessageEvent):
         async for r in inventory_handlers.accessories(self, event):
             yield r
-
-
 
     @filter.command("锁定", alias={"上锁"})
     async def lock_equipment(self, event: AstrMessageEvent):
@@ -401,14 +395,10 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.unlock_equipment(self, event):
             yield r
 
-
     @filter.command("使用", alias={"装备"})
     async def use_equipment(self, event: AstrMessageEvent):
         async for r in inventory_handlers.use_equipment(self, event):
             yield r
-
-
-
 
     @filter.command("金币")
     async def coins(self, event: AstrMessageEvent):
@@ -469,8 +459,6 @@ class FishingPlugin(Star):
         async for r in market_handlers.shop(self, event):
             yield r
 
-    
-
     @filter.command("商店购买", alias={"购买商店商品", "购买商店"})
     async def buy_in_shop(self, event: AstrMessageEvent):
         async for r in market_handlers.buy_in_shop(self, event):
@@ -485,8 +473,6 @@ class FishingPlugin(Star):
     async def list_any(self, event: AstrMessageEvent):
         async for r in market_handlers.list_any(self, event):
             yield r
-
-
 
     @filter.command("购买")
     async def buy_item(self, event: AstrMessageEvent):
@@ -535,6 +521,29 @@ class FishingPlugin(Star):
         async for r in gacha_handlers.wipe_bomb_history(self, event):
             yield r
 
+    @filter.command("命运之轮", alias={"wof", "命运"})
+    async def wheel_of_fate_start(self, event: AstrMessageEvent):
+        """开始命运之轮游戏"""
+        async for r in gacha_handlers.start_wheel_of_fate(self, event):
+            yield r
+        
+    @filter.command("继续")
+    async def wheel_of_fate_continue(self, event: AstrMessageEvent):
+        """在命运之轮中继续"""
+        async for r in gacha_handlers.continue_wheel_of_fate(self, event):
+            yield r
+
+    @filter.command("放弃")
+    async def wheel_of_fate_stop(self, event: AstrMessageEvent):
+        """在命运之轮中放弃并结算"""
+        async for r in gacha_handlers.stop_wheel_of_fate(self, event):
+            yield r
+
+    @filter.command("骰子", alias={"大小"})
+    async def sicbo(self, event: AstrMessageEvent):
+        async for r in gacha_handlers.sicbo(self, event):
+            yield r
+
     # =========== 社交 ==========
 
     @filter.command("排行榜", alias={"phb"})
@@ -545,6 +554,11 @@ class FishingPlugin(Star):
     @filter.command("偷鱼")
     async def steal_fish(self, event: AstrMessageEvent):
         async for r in social_handlers.steal_fish(self, event):
+            yield r
+
+    @filter.command("电鱼")
+    async def electric_fish(self, event: AstrMessageEvent):
+        async for r in social_handlers.electric_fish(self, event):
             yield r
 
     @filter.command("驱灵")
@@ -571,7 +585,7 @@ class FishingPlugin(Star):
     async def tax_record(self, event: AstrMessageEvent):
         async for r in social_handlers.tax_record(self, event):
             yield r
-
+            
     # =========== 交易所 ==========
 
     @filter.command("交易所")
@@ -687,7 +701,6 @@ class FishingPlugin(Star):
         async for r in admin_handlers.reward_all_items(self, event):
             yield r
 
-
     async def _check_port_active(self):
         """验证端口是否实际已激活"""
         try:
@@ -697,7 +710,7 @@ class FishingPlugin(Star):
             )
             writer.close()
             return True
-        except:  # noqa: E22
+        except:
             return False
 
     async def terminate(self):
@@ -705,8 +718,7 @@ class FishingPlugin(Star):
         logger.info("钓鱼插件正在终止...")
         self.fishing_service.stop_auto_fishing_task()
         self.achievement_service.stop_achievement_check_task()
-        self.exchange_service.stop_daily_price_update_task()
+        self.exchange_service.stop_daily_price_update_task() # 终止交易所后台任务
         if self.web_admin_task:
             self.web_admin_task.cancel()
         logger.info("钓鱼插件已成功终止。")
-
