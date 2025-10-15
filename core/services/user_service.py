@@ -47,6 +47,14 @@ class UserService:
         self.config = config
 
     def register(self, user_id: str, nickname: str) -> Dict[str, Any]:
+        """
+        注册新用户。
+        Args:
+            user_id: 用户ID
+            nickname: 用户昵称
+        Returns:
+            一个包含成功状态和消息的字典。
+        """
         if self.user_repo.check_exists(user_id):
             return {"success": False, "message": "用户已注册"}
 
@@ -72,9 +80,17 @@ class UserService:
             return {"success": False, "message": "用户已存在"}
 
         nickname = data.get("nickname")
-        initial_coins = data.get("coins", self.config.get("user", {}).get("initial_coins", 200))
+        initial_coins = data.get("coins")
+        if not isinstance(initial_coins, int):
+            initial_coins = self.config.get("user", {}).get("initial_coins", 200)
 
-        new_user = User(user_id=user_id, nickname=nickname, coins=initial_coins, created_at=get_now())
+        # 先最小化创建用户记录
+        new_user = User(
+            user_id=user_id,
+            nickname=nickname,
+            coins=initial_coins,
+            created_at=get_now()
+        )
         self.user_repo.add(new_user)
 
         allowed_fields = {
@@ -127,6 +143,9 @@ class UserService:
         }
 
     def daily_sign_in(self, user_id: str) -> Dict[str, Any]:
+        """
+        处理用户每日签到。
+        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "请先注册才能签到"}
@@ -190,6 +209,9 @@ class UserService:
         }
 
     def get_user_current_accessory(self, user_id: str) -> Dict[str, Any]:
+        """
+        获取用户当前装备的配件信息。
+        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
@@ -209,6 +231,9 @@ class UserService:
         }
 
     def get_user_titles(self, user_id: str) -> Dict[str, Any]:
+        """
+        获取用户拥有的称号列表。
+        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
@@ -228,6 +253,9 @@ class UserService:
         return {"success": True, "titles": titles_data}
 
     def use_title(self, user_id: str, title_id: int) -> Dict[str, Any]:
+        """
+        装备一个称号。
+        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
@@ -240,6 +268,9 @@ class UserService:
         return {"success": True, "message": f"✅ 成功装备 {title_template.name}！"}
 
     def get_user_currency(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        获取用户的货币信息。
+        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在", "coins": 0, "premium_currency": 0}
@@ -250,6 +281,14 @@ class UserService:
         }
 
     def modify_user_coins(self, user_id: str, amount: int) -> Dict[str, Any]:
+        """
+        修改用户的金币数量。
+        Args:
+            user_id: 用户ID
+            amount: 修改的金币数量
+        Returns:
+            包含成功状态和消息的字典。
+        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
@@ -278,6 +317,17 @@ class UserService:
         return {"success": True, "records": records_data}
 
     def get_users_for_admin(self, page: int = 1, per_page: int = 20, search: str = None) -> Dict[str, Any]:
+        """
+        获取用户列表用于后台管理
+        
+        Args:
+            page: 页码（从1开始）
+            per_page: 每页数量
+            search: 搜索关键词
+            
+        Returns:
+            包含用户列表和分页信息的字典
+        """
         offset = (page - 1) * per_page
         if search:
             users = self.user_repo.search_users(search, per_page, offset)
@@ -301,6 +351,15 @@ class UserService:
         }
 
     def get_user_details_for_admin(self, user_id: str) -> Dict[str, Any]:
+        """
+        获取用户详细信息用于后台管理
+        
+        Args:
+            user_id: 用户ID
+            
+        Returns:
+            包含用户详细信息的字典
+        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
@@ -311,7 +370,10 @@ class UserService:
             if rod_instance:
                 rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
                 if rod_template:
-                    equipped_rod = {"name": rod_template.name, "refine_level": rod_instance.refine_level}
+                    equipped_rod = {
+                        "name": rod_template.name, 
+                        "refine_level": rod_instance.refine_level
+                        }
         
         equipped_accessory = None
         if user.equipped_accessory_instance_id:
@@ -319,7 +381,10 @@ class UserService:
             if accessory_instance:
                 accessory_template = self.item_template_repo.get_accessory_by_id(accessory_instance.accessory_id)
                 if accessory_template:
-                    equipped_accessory = {"name": accessory_template.name, "refine_level": accessory_instance.refine_level}
+                    equipped_accessory = {
+                        "name": accessory_template.name, 
+                        "refine_level": accessory_instance.refine_level
+                        }
         
         current_title = None
         if user.current_title_id:
@@ -336,6 +401,16 @@ class UserService:
         }
 
     def update_user_for_admin(self, user_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        更新用户信息（管理员操作）
+        
+        Args:
+            user_id: 用户ID
+            updates: 要更新的字段字典
+            
+        Returns:
+            包含操作结果的字典
+        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
@@ -346,14 +421,41 @@ class UserService:
             'fish_pond_capacity', 'fishing_zone_id', 'auto_fishing_enabled'
         ]
         
+        # 定义关键字段的校验逻辑
+        def is_valid(field: str, value: Any) -> bool:
+            numeric_non_negative = {
+                'coins', 'premium_currency', 'total_fishing_count', 'total_weight_caught',
+                'total_coins_earned', 'consecutive_login_days', 'fish_pond_capacity'
+            }
+            if field in numeric_non_negative:
+                return isinstance(value, int) and value >= 0
+            if field == 'fishing_zone_id':
+                return isinstance(value, int) and (self.inventory_repo.get_zone_by_id(value) is not None)
+            if field == 'auto_fishing_enabled':
+                return isinstance(value, bool)
+            if field == 'nickname':
+                return (isinstance(value, str) and 0 < len(value) <= 32)
+            return True
+        
         for field, value in updates.items():
             if field in allowed_fields and hasattr(user, field):
+                if not is_valid(field, value):
+                    return {"success": False, "message": f"字段 {field} 的值无效: {value}"}
                 setattr(user, field, value)
         
         self.user_repo.update(user)
         return {"success": True, "message": "用户信息更新成功"}
 
     def delete_user_for_admin(self, user_id: str) -> Dict[str, Any]:
+        """
+        删除用户（管理员操作）
+        
+        Args:
+            user_id: 用户ID
+            
+        Returns:
+            包含操作结果的字典
+        """
         if not self.user_repo.check_exists(user_id):
             return {"success": False, "message": "用户不存在"}
         success = self.user_repo.delete_user(user_id)

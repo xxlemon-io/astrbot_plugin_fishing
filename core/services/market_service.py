@@ -222,8 +222,8 @@ class MarketService:
             # 智能扣除鱼类数量（优先从鱼塘，然后从水族箱）
             self.inventory_repo.deduct_fish_smart(user_id, item_instance_id, quantity)
         elif item_type == "commodity":
-            # 大宗商品已在前面处理，这里无需操作
-            pass
+            # 从交易所移除大宗商品
+            self.exchange_repo.delete_user_commodity(item_instance_id)
 
         # 2. 扣除税费
         seller.coins -= tax_cost
@@ -358,7 +358,12 @@ class MarketService:
             if listing.item_type == "commodity":
                 # 检查买家是否有交易所账户
                 if not buyer.exchange_account_status:
-                    raise Exception("您需要先开通交易所账户才能购买大宗商品")
+                    # 回滚交易
+                    buyer.coins += listing.price
+                    seller.coins -= listing.price
+                    self.user_repo.update(buyer)
+                    self.user_repo.update(seller)
+                    return {"success": False, "message": "您需要先开通交易所账户才能购买大宗商品"}
 
                 # 如果没有腐败时间，使用默认值（兼容旧数据）
                 expires_at = listing.expires_at or datetime.now() + timedelta(days=3)
@@ -493,7 +498,7 @@ class MarketService:
             refund_message = f"，并退还手续费 {tax_refund} 金币" if tax_refund > 0 else ""
             quantity_text = f" x{listing.quantity}" if listing.quantity > 1 else ""
 
-            return {"success": True, "message": f"✅ 成功下架【{listing.item_name}】{quantity_text}，物品已返还到背包{refund_message}"}
+            return {"success": True, "message": f"✅ 成功下架【{listing.item_name}】{quantity_text}，物品已返还到背包/水族箱{refund_message}"}
 
         except Exception as e:
             user.coins -= tax_refund # 回滚金币
@@ -563,7 +568,8 @@ class MarketService:
             # 获取统计信息
             all_listings, total_count = self.market_repo.get_all_listings()
             stats = {
-                "total_listings": total_count, "filtered_listings": total_items,
+                "total_listings": total_count, 
+                "filtered_listings": total_items,
                 "total_value": sum(item.price * item.quantity for item in listings),
                 "rod_count": len([i for i in all_listings if i.item_type == "rod"]),
                 "accessory_count": len([i for i in all_listings if i.item_type == "accessory"]),
@@ -573,10 +579,15 @@ class MarketService:
             }
             
             return {
-                "success": True, "listings": listings,
+                "success": True, 
+                "listings": listings,
                 "pagination": {
-                    "current_page": page, "total_pages": total_pages, "total_items": total_items,
-                    "per_page": per_page, "has_prev": page > 1, "has_next": page < total_pages
+                    "current_page": page, 
+                    "total_pages": total_pages, 
+                    "total_items": total_items,
+                    "per_page": per_page, 
+                    "has_prev": page > 1, 
+                    "has_next": page < total_pages
                 },
                 "stats": stats
             }

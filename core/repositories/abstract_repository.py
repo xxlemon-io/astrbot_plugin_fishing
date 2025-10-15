@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
 from datetime import date, datetime
+from __future__ import annotations
 
 # 从领域模型导入所有需要的实体
 from ..domain.models import (
@@ -401,7 +402,7 @@ class AbstractGachaRepository(ABC):
     def get_all_pools(self) -> List[GachaPool]: pass
     # 新增一个抽卡池
     @abstractmethod
-    def add_pool_template(self, data: Dict[str, Any]) -> None: pass
+    def add_pool_template(self, data: Dict[str, Any]) -> GachaPool: pass
     # 更新抽卡池信息
     @abstractmethod
     def update_pool_template(self, pool_id: int, data: Dict[str, Any]) -> None: pass
@@ -413,7 +414,7 @@ class AbstractGachaRepository(ABC):
     def copy_pool_template(self, pool_id: int) -> int: pass
     # 添加物品到抽卡池
     @abstractmethod
-    def add_item_to_pool(self, pool_id: int, data: Dict[str, Any]) -> None: pass
+    def add_item_to_pool(self, pool_id: int, data: Dict[str, Any]) -> GachaPoolItem: pass
     # 更新抽卡池物品
     @abstractmethod
     def update_pool_item(self, item_pool_id: int, data: Dict[str, Any]) -> None: pass
