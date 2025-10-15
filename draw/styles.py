@@ -42,7 +42,7 @@ COLOR_COINS = (218, 165, 32)         # 金币颜色
 
 # 精炼等级颜色
 COLOR_REFINE_RED = (255, 0, 0)     # 红色 - 10级
-COLOR_REFINE_ORANGE = (255, 165, 0)  # 橙色 - 6-9级
+COLOR_REFINE_ORANGE = (244, 50, 156)  # 粉色 - 6-9级
 
 # 稀有度颜色映射
 COLOR_RARITY_MAP = {

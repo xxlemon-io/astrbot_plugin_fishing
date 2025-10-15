@@ -1,11 +1,9 @@
---- START OF FILE fishing_service.py ---
-
 import json
 import random
 import threading
 import time
 from typing import Dict, Any, Optional
-from datetime import timedelta, datetime, timezone
+from datetime import timedelta
 from astrbot.api import logger
 
 # 导入仓储接口和领域模型
@@ -42,8 +40,7 @@ class FishingService:
         self.fishing_zone_service = fishing_zone_service
         self.config = config
 
-        self.beijing_tz = timezone(timedelta(hours=8))
-        self.last_daily_check_time = datetime.now(self.beijing_tz)
+        self.today = get_today()
         # 自动钓鱼线程相关属性
         self.auto_fishing_thread: Optional[threading.Thread] = None
         self.auto_fishing_running = False
@@ -296,13 +293,6 @@ class FishingService:
         weight = random.randint(fish_template.min_weight, fish_template.max_weight)
         value = fish_template.base_value
 
-        if fish_template.rarity >= 4:
-            # 如果是4星及以上稀有鱼，增加用户的稀有鱼捕获计数
-            zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
-            if zone:
-                zone.rare_fish_caught_today += 1
-                self.inventory_repo.update_fishing_zone(zone)
-
         # 4.2 按品质加成给予额外质量（重量/价值）奖励
         quality_bonus = False
         if quality_modifier > 1.0:
@@ -323,7 +313,6 @@ class FishingService:
             if fractional > 0 and random.random() < fractional:
                 total_catches += 1
 
-        # --- 修复开始：移动并修正鱼塘容量检查逻辑 ---
         # 5. 处理鱼塘容量（在确定总渔获量后）
         user_fish_inventory = self.inventory_repo.get_fish_inventory(user.user_id)
         current_fish_count = sum(item.quantity for item in user_fish_inventory)
@@ -347,10 +336,16 @@ class FishingService:
                     random_fish_stack.fish_id,
                     -1
                 )
-        # --- 修复结束 ---
+
+        if fish_template.rarity >= 4:
+            # 如果是4星及以上稀有鱼，增加用户的稀有鱼捕获计数
+            zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+            if zone:
+                zone.rare_fish_caught_today += 1
+                self.inventory_repo.update_fishing_zone(zone)
 
         # 6. 更新数据库
-        self.inventory_repo.add_fish_to_inventory(user.user_id, fish_template.fish_id, quantity=total_catches)
+        self.inventory_repo.add_fish_to_inventory(user.user_id, fish_template.fish_id, quantity= total_catches)
 
         # 更新用户统计数据
         user.total_fishing_count += total_catches
@@ -782,7 +777,7 @@ class FishingService:
         # 记录被传送用户信息（不发送通知，避免凌晨打扰玩家）
         if relocated_users:
             logger.info(f"被传送用户详情：{relocated_users}")
-            
+
 
     def start_auto_fishing_task(self):
         """启动自动钓鱼的后台线程。"""

@@ -37,7 +37,7 @@ class UserService:
         inventory_repo: AbstractInventoryRepository,
         item_template_repo: AbstractItemTemplateRepository,
         gacha_service: "GachaService",
-        config: Dict[str, Any]  # 注入游戏配置
+        config: Dict[str, Any]
     ):
         self.user_repo = user_repo
         self.log_repo = log_repo
@@ -47,16 +47,6 @@ class UserService:
         self.config = config
 
     def register(self, user_id: str, nickname: str) -> Dict[str, Any]:
-        """
-        注册新用户。
-
-        Args:
-            user_id: 用户ID
-            nickname: 用户昵称
-
-        Returns:
-            一个包含成功状态和消息的字典。
-        """
         if self.user_repo.check_exists(user_id):
             return {"success": False, "message": "用户已注册"}
 
@@ -74,7 +64,6 @@ class UserService:
         }
 
     def create_user_for_admin(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """管理员创建用户，支持设置初始字段。"""
         user_id = data.get("user_id")
         if not user_id:
             return {"success": False, "message": "缺少 user_id"}
@@ -83,20 +72,11 @@ class UserService:
             return {"success": False, "message": "用户已存在"}
 
         nickname = data.get("nickname")
-        initial_coins = data.get("coins")
-        if not isinstance(initial_coins, int):
-            initial_coins = self.config.get("user", {}).get("initial_coins", 200)
+        initial_coins = data.get("coins", self.config.get("user", {}).get("initial_coins", 200))
 
-        # 先最小化创建用户记录
-        new_user = User(
-            user_id=user_id,
-            nickname=nickname,
-            coins=initial_coins,
-            created_at=get_now()
-        )
+        new_user = User(user_id=user_id, nickname=nickname, coins=initial_coins, created_at=get_now())
         self.user_repo.add(new_user)
 
-        # 组装可更新字段并复用更新逻辑
         allowed_fields = {
             'nickname', 'coins', 'premium_currency', 'total_fishing_count',
             'total_weight_caught', 'total_coins_earned', 'consecutive_login_days',
@@ -107,26 +87,46 @@ class UserService:
             return self.update_user_for_admin(user_id, updates)
         return {"success": True, "message": "用户创建成功"}
 
-    def get_leaderboard_data(self, limit: int = 10) -> Dict[str, Any]:
+    def get_leaderboard_data(self, sort_by: str = "coins", limit: int = 10) -> Dict[str, Any]:
         """
-        获取排行榜数据。
+        获取排行榜数据，支持按不同标准排序。
 
         Args:
+            sort_by: 排序标准 ('coins', 'fish_count', 'total_weight_caught')
             limit: 返回的用户数量限制
 
         Returns:
             包含排行榜数据的字典。
         """
-        leaderboard_data = self.user_repo.get_leaderboard_data(limit)
+        top_users = []
+        if sort_by == "fish_count":
+            top_users = self.user_repo.get_top_users_by_fish_count(limit)
+        elif sort_by == "total_weight_caught":
+            top_users = self.user_repo.get_top_users_by_weight(limit)
+        else: # 默认按金币排序
+            top_users = self.user_repo.get_top_users_by_coins(limit)
+        
+        leaderboard = []
+        for user in top_users:
+            # --- [核心修复] ---
+            # 在组装字典时，必须包含 user_id 和 current_title_id
+            # 这样下游的 handler 才能根据这些ID去查询详细信息
+            leaderboard.append({
+                "user_id": user.user_id,  # <--- 添加 user_id
+                "nickname": user.nickname,
+                "coins": user.coins,
+                "fish_count": user.total_fishing_count,
+                "total_weight_caught": user.total_weight_caught,
+                "current_title_id": user.current_title_id, # <--- 添加 current_title_id
+            })
+        # --- [修复结束] ---
+        
         return {
             "success": True,
-            "leaderboard": leaderboard_data
+            "leaderboard": leaderboard
         }
 
     def daily_sign_in(self, user_id: str) -> Dict[str, Any]:
-        """
-        处理用户每日签到。
-        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "请先注册才能签到"}
@@ -135,37 +135,38 @@ class UserService:
         if self.log_repo.has_checked_in(user_id, today):
             return {"success": False, "message": "你今天已经签到过了，明天再来吧！"}
 
-        # 检查是否需要重置连续登录天数
         yesterday = today - timedelta(days=1)
         if not self.log_repo.has_checked_in(user_id, yesterday):
-            user.consecutive_login_days = 0 # 不是连续签到，重置
+            user.consecutive_login_days = 0
 
-        # 计算签到奖励
         signin_config = self.config.get("signin", {})
         min_reward = signin_config.get("min_reward", 100)
         max_reward = signin_config.get("max_reward", 300)
         coins_reward = random.randint(min_reward, max_reward)
 
+        # 1. 增加金币和高级货币
+        premium_currency_reward = 1
         user.coins += coins_reward
+        user.premium_currency += premium_currency_reward 
+
+        # 2. 更新连续签到和最后登录时间
         user.consecutive_login_days += 1
         user.last_login_time = get_now()
 
-        # 检查连续签到奖励
         bonus_coins = 0
         consecutive_bonuses = signin_config.get("consecutive_bonuses", {})
         if str(user.consecutive_login_days) in consecutive_bonuses:
             bonus_coins = consecutive_bonuses[str(user.consecutive_login_days)]
             user.coins += bonus_coins
 
-        # 更新数据库
         self.user_repo.update(user)
         self.log_repo.add_check_in(user_id, today)
 
-        message = f"签到成功！获得 {coins_reward} 金币。"
+        # 3. 构建包含两种奖励的消息
+        message = f"签到成功！获得 {coins_reward} 金币和 {premium_currency_reward} 高级货币。"
         if bonus_coins > 0:
             message += f" 连续签到 {user.consecutive_login_days} 天，额外奖励 {bonus_coins} 金币！"
 
-        # 尝试进行每日免费抽奖
         free_gacha_reward_msg = ""
         free_pool = self.gacha_service.get_daily_free_pool()
         if free_pool:
@@ -177,7 +178,6 @@ class UserService:
                     reward_name = f"{reward.get('quantity', 0)} 金币"
                 free_gacha_reward_msg = f"\n🎁 每日补给: 你获得了 {reward_name}！"
             else:
-                # 如果抽奖失败（例如已经抽过），也给出提示
                 fail_reason = gacha_result.get("message", "未能领取每日补给")
                 free_gacha_reward_msg = f"\nℹ️ {fail_reason}"
 
@@ -190,86 +190,59 @@ class UserService:
         }
 
     def get_user_current_accessory(self, user_id: str) -> Dict[str, Any]:
-        """
-        获取用户当前装备的配件信息。
-        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
-
         current_accessory = self.inventory_repo.get_user_equipped_accessory(user_id)
-
         if not current_accessory:
             return {"success": True, "accessory": None}
-
         accessory_template = self.item_template_repo.get_accessory_by_id(current_accessory.accessory_id)
         if not accessory_template:
             return {"success": False, "message": "配件不存在"}
-
         return {
             "success": True,
             "accessory": {
-                "id": current_accessory,
+                "id": current_accessory.accessory_id,
                 "name": accessory_template.name,
                 "description": accessory_template.description
             }
         }
 
     def get_user_titles(self, user_id: str) -> Dict[str, Any]:
-        """
-        获取用户拥有的称号列表。
-        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
-
         owned_titles = self.inventory_repo.get_user_titles(user_id)
         if not owned_titles:
             return {"success": True, "titles": []}
-
         titles_data = []
-        for title in owned_titles:
-            title_template = self.item_template_repo.get_title_by_id(title)
+        for title_id in owned_titles:
+            title_template = self.item_template_repo.get_title_by_id(title_id)
             if title_template:
                 titles_data.append({
-                    "title_id": title,
+                    "title_id": title_id,
                     "name": title_template.name,
                     "description": title_template.description,
-                    "is_current": (title == user.current_title_id)
+                    "is_current": (title_id == user.current_title_id)
                 })
-
-        return {
-            "success": True,
-            "titles": titles_data
-        }
+        return {"success": True, "titles": titles_data}
 
     def use_title(self, user_id: str, title_id: int) -> Dict[str, Any]:
-        """
-        装备一个称号。
-        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
-
         owned_titles = self.inventory_repo.get_user_titles(user_id)
-        if title_id not in list(owned_titles):
+        if title_id not in owned_titles:
             return {"success": False, "message": "你没有这个称号，无法使用"}
-
         user.current_title_id = title_id
         self.user_repo.update(user)
-
-        # 可以从ItemTemplateRepo获取称号名字来丰富返回信息
         title_template = self.item_template_repo.get_title_by_id(title_id)
         return {"success": True, "message": f"✅ 成功装备 {title_template.name}！"}
 
     def get_user_currency(self, user_id: str) -> Optional[Dict[str, Any]]:
-        """
-        获取用户的货币信息。
-        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在", "coins": 0, "premium_currency": 0}
-
         return {
             "success": True,
             "coins": user.coins,
@@ -277,63 +250,35 @@ class UserService:
         }
 
     def modify_user_coins(self, user_id: str, amount: int) -> Dict[str, Any]:
-        """
-        修改用户的金币数量。
-
-        Args:
-            user_id: 用户ID
-            amount: 修改的金币数量
-
-        Returns:
-            包含成功状态和消息的字典。
-        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
-
         user.coins = amount
         self.user_repo.update(user)
-
         return {
             "success": True,
             "message": f"金币数量已更新，当前金币：{user.coins}"
         }
 
     def get_tax_record(self, user_id: str) -> Dict[str, Any]:
-        """获取用户的税务记录。"""
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
-
         tax_records = self.log_repo.get_tax_records(user_id)
         if not tax_records:
             return {"success": True, "records": []}
-        records_data = []
-        for record in tax_records:
-            records_data.append({
+        records_data = [
+            {
                 "amount": record.tax_amount,
                 "timestamp": record.timestamp,
                 "tax_type": record.tax_type,
-            })
-        return {
-            "success": True,
-            "records": records_data
-        }
+            }
+            for record in tax_records
+        ]
+        return {"success": True, "records": records_data}
 
     def get_users_for_admin(self, page: int = 1, per_page: int = 20, search: str = None) -> Dict[str, Any]:
-        """
-        获取用户列表用于后台管理
-        
-        Args:
-            page: 页码（从1开始）
-            per_page: 每页数量
-            search: 搜索关键词
-            
-        Returns:
-            包含用户列表和分页信息的字典
-        """
         offset = (page - 1) * per_page
-        
         if search:
             users = self.user_repo.search_users(search, per_page, offset)
             total_count = self.user_repo.get_search_users_count(search)
@@ -341,9 +286,7 @@ class UserService:
             users = self.user_repo.get_all_users(per_page, offset)
             total_count = self.user_repo.get_users_count()
         
-        # 计算分页信息
         total_pages = (total_count + per_page - 1) // per_page
-        
         return {
             "success": True,
             "users": users,
@@ -358,30 +301,17 @@ class UserService:
         }
 
     def get_user_details_for_admin(self, user_id: str) -> Dict[str, Any]:
-        """
-        获取用户详细信息用于后台管理
-        
-        Args:
-            user_id: 用户ID
-            
-        Returns:
-            包含用户详细信息的字典
-        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
         
-        # 获取用户的装备信息
         equipped_rod = None
         if user.equipped_rod_instance_id:
             rod_instance = self.inventory_repo.get_user_rod_instance_by_id(user.user_id, user.equipped_rod_instance_id)
             if rod_instance:
                 rod_template = self.item_template_repo.get_rod_by_id(rod_instance.rod_id)
                 if rod_template:
-                    equipped_rod = {
-                        "name": rod_template.name,
-                        "refine_level": rod_instance.refine_level
-                    }
+                    equipped_rod = {"name": rod_template.name, "refine_level": rod_instance.refine_level}
         
         equipped_accessory = None
         if user.equipped_accessory_instance_id:
@@ -389,10 +319,7 @@ class UserService:
             if accessory_instance:
                 accessory_template = self.item_template_repo.get_accessory_by_id(accessory_instance.accessory_id)
                 if accessory_template:
-                    equipped_accessory = {
-                        "name": accessory_template.name,
-                        "refine_level": accessory_instance.refine_level
-                    }
+                    equipped_accessory = {"name": accessory_template.name, "refine_level": accessory_instance.refine_level}
         
         current_title = None
         if user.current_title_id:
@@ -409,71 +336,32 @@ class UserService:
         }
 
     def update_user_for_admin(self, user_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        更新用户信息（管理员操作）
-        
-        Args:
-            user_id: 用户ID
-            updates: 要更新的字段字典
-            
-        Returns:
-            包含操作结果的字典
-        """
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
         
-        # 更新允许修改的字段
         allowed_fields = [
             'nickname', 'coins', 'premium_currency', 'total_fishing_count',
             'total_weight_caught', 'total_coins_earned', 'consecutive_login_days',
             'fish_pond_capacity', 'fishing_zone_id', 'auto_fishing_enabled'
         ]
         
-        # 定义关键字段的校验逻辑
-        def is_valid(field: str, value: Any) -> bool:
-            numeric_non_negative = {
-                'coins', 'premium_currency', 'total_fishing_count', 'total_weight_caught',
-                'total_coins_earned', 'consecutive_login_days', 'fish_pond_capacity'
-            }
-            if field in numeric_non_negative:
-                return isinstance(value, int) and value >= 0
-            if field == 'fishing_zone_id':
-                return isinstance(value, int) and (self.inventory_repo.get_zone_by_id(value) is not None)
-            if field == 'auto_fishing_enabled':
-                return isinstance(value, bool)
-            if field == 'nickname':
-                return (isinstance(value, str) and 0 < len(value) <= 32)
-            return True
-
         for field, value in updates.items():
             if field in allowed_fields and hasattr(user, field):
-                if not is_valid(field, value):
-                    return {"success": False, "message": f"字段 {field} 的值无效: {value}"}
                 setattr(user, field, value)
         
         self.user_repo.update(user)
         return {"success": True, "message": "用户信息更新成功"}
 
     def delete_user_for_admin(self, user_id: str) -> Dict[str, Any]:
-        """
-        删除用户（管理员操作）
-        
-        Args:
-            user_id: 用户ID
-            
-        Returns:
-            包含操作结果的字典
-        """
         if not self.user_repo.check_exists(user_id):
             return {"success": False, "message": "用户不存在"}
-        
         success = self.user_repo.delete_user(user_id)
         if success:
             return {"success": True, "message": "用户删除成功"}
         else:
             return {"success": False, "message": "用户删除失败"}
-
+    
     def get_user_inventory_for_admin(self, user_id: str) -> Dict[str, Any]:
         """
         获取用户物品库存信息（管理员操作）
@@ -682,7 +570,7 @@ class UserService:
                 fish_template = self.item_template_repo.get_fish_by_id(item_id)
                 if not fish_template:
                     return {"success": False, "message": "鱼类不存在"}
-                # 检查库存数量
+                
                 fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
                 current_quantity = 0
                 for item in fish_inventory:
@@ -693,7 +581,6 @@ class UserService:
                 if current_quantity < quantity:
                     return {"success": False, "message": f"库存不足，当前只有 {current_quantity} 个"}
                 
-                # 减少数量
                 self.inventory_repo.update_fish_quantity(user_id, item_id, -quantity)
                 return {"success": True, "message": f"成功移除 {fish_template.name} x{quantity}"}
                 
@@ -702,23 +589,18 @@ class UserService:
                 if not rod_template:
                     return {"success": False, "message": "鱼竿不存在"}
                 
-                # 获取用户的所有该类型鱼竿实例
                 rod_instances = self.inventory_repo.get_user_rod_instances(user_id)
                 target_instances = [inst for inst in rod_instances if inst.rod_id == item_id]
                 
                 if len(target_instances) < quantity:
                     return {"success": False, "message": f"库存不足，当前只有 {len(target_instances)} 个"}
                 
-                # 删除指定数量的实例（优先删除未装备的）
                 removed_count = 0
                 for instance in target_instances:
-                    if removed_count >= quantity:
-                        break
-                    # 如果正在装备，先取消装备
+                    if removed_count >= quantity: break
                     if instance.rod_instance_id == user.equipped_rod_instance_id:
                         user.equipped_rod_instance_id = None
                         self.user_repo.update(user)
-                    # 删除实例
                     self.inventory_repo.delete_rod_instance(instance.rod_instance_id)
                     removed_count += 1
                 
@@ -729,23 +611,18 @@ class UserService:
                 if not accessory_template:
                     return {"success": False, "message": "饰品不存在"}
                 
-                # 获取用户的所有该类型饰品实例
                 accessory_instances = self.inventory_repo.get_user_accessory_instances(user_id)
                 target_instances = [inst for inst in accessory_instances if inst.accessory_id == item_id]
                 
                 if len(target_instances) < quantity:
                     return {"success": False, "message": f"库存不足，当前只有 {len(target_instances)} 个"}
                 
-                # 删除指定数量的实例（优先删除未装备的）
                 removed_count = 0
                 for instance in target_instances:
-                    if removed_count >= quantity:
-                        break
-                    # 如果正在装备，先取消装备
+                    if removed_count >= quantity: break
                     if instance.accessory_instance_id == user.equipped_accessory_instance_id:
                         user.equipped_accessory_instance_id = None
                         self.user_repo.update(user)
-                    # 删除实例
                     self.inventory_repo.delete_accessory_instance(instance.accessory_instance_id)
                     removed_count += 1
                 
@@ -753,27 +630,26 @@ class UserService:
                 
             elif item_type == "bait":
                 bait_template = self.item_template_repo.get_bait_by_id(item_id)
-                if not bait_template:
-                    return {"success": False, "message": "鱼饵不存在"}
-                # 检查库存数量
+                if not bait_template: return {"success": False, "message": "鱼饵不存在"}
+                
                 bait_inventory = self.inventory_repo.get_user_bait_inventory(user_id)
                 current_quantity = bait_inventory.get(item_id, 0)
                 
                 if current_quantity < quantity:
                     return {"success": False, "message": f"库存不足，当前只有 {current_quantity} 个"}
                 
-                # 减少数量
                 self.inventory_repo.update_bait_quantity(user_id, item_id, -quantity)
                 return {"success": True, "message": f"成功移除 {bait_template.name} x{quantity}"}
             
             elif item_type == "item":
                 item_template = self.item_template_repo.get_item_by_id(item_id)
-                if not item_template:
-                    return {"success": False, "message": "道具不存在"}
+                if not item_template: return {"success": False, "message": "道具不存在"}
+
                 item_inventory = self.inventory_repo.get_user_item_inventory(user_id)
                 current_quantity = item_inventory.get(item_id, 0)
                 if current_quantity < quantity:
                     return {"success": False, "message": f"库存不足，当前只有 {current_quantity} 个"}
+                
                 self.inventory_repo.update_item_quantity(user_id, item_id, -quantity)
                 return {"success": True, "message": f"成功移除 {item_template.name} x{quantity}"}
                 
@@ -799,42 +675,34 @@ class UserService:
         if not instance:
             return {"success": False, "message": "鱼竿实例不存在或不属于该用户"}
 
-        # 提取并校验字段
         if "refine_level" in updates:
             rl = updates.get("refine_level")
             if not isinstance(rl, int) or rl < 1 or rl > 10:
                 return {"success": False, "message": "精炼等级必须为 1-10 的整数"}
             instance.refine_level = rl
 
-        # 接受 durability 或 current_durability 字段名
         if "durability" in updates or "current_durability" in updates:
             dur_val = updates.get("durability") if "durability" in updates else updates.get("current_durability")
             if dur_val is None:
                 instance.current_durability = None
             else:
-                # 支持字符串数字
                 if isinstance(dur_val, str):
                     dur_val = dur_val.strip()
-                    if dur_val == "":
-                        instance.current_durability = None
+                    if dur_val == "": instance.current_durability = None
                     else:
-                        try:
-                            dur_val = int(dur_val)
-                        except ValueError:
-                            return {"success": False, "message": "耐久度必须为非负整数或留空表示无限"}
+                        try: dur_val = int(dur_val)
+                        except ValueError: return {"success": False, "message": "耐久度必须为非负整数或留空表示无限"}
+                
                 if isinstance(dur_val, int):
-                    if dur_val < 0:
-                        return {"success": False, "message": "耐久度不能为负数"}
+                    if dur_val < 0: return {"success": False, "message": "耐久度不能为负数"}
                     instance.current_durability = dur_val
                 elif dur_val is not None:
                     return {"success": False, "message": "耐久度必须为非负整数或留空表示无限"}
 
-        # 如果模板不支持耐久度，则强制为None
         rod_template = self.item_template_repo.get_rod_by_id(instance.rod_id)
         if rod_template and rod_template.durability is None:
             instance.current_durability = None
 
-        # 持久化
         self.inventory_repo.update_rod_instance(instance)
         return {"success": True, "message": "鱼竿实例已更新"}
 
@@ -854,12 +722,10 @@ class UserService:
 
         if "refine_level" in updates:
             rl = updates.get("refine_level")
-            if not isinstance(rl, int):
-                try:
-                    rl = int(rl)
-                except Exception:
-                    return {"success": False, "message": "精炼等级必须为 1-10 的整数"}
-            if rl < 1 or rl > 10:
+            try:
+                rl = int(rl)
+                if not (1 <= rl <= 10): raise ValueError()
+            except (ValueError, TypeError):
                 return {"success": False, "message": "精炼等级必须为 1-10 的整数"}
             instance.refine_level = rl
 

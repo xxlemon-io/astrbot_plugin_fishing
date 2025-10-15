@@ -37,20 +37,46 @@ async def sell_everything(plugin: "FishingPlugin", event: AstrMessageEvent):
 
 
 async def sell_by_rarity(plugin: "FishingPlugin", event: AstrMessageEvent):
-    """按稀有度出售鱼"""
+    """按一个或多个稀有度出售鱼"""
     user_id = plugin._get_effective_user_id(event)
-    args = event.message_str.split(" ")
+    args = event.message_str.split()  # 使用 split() 可以更好地处理多个空格
+
+    # 至少需要 "出售稀有度" + 1个数字
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要出售的稀有度，例如：/出售稀有度 3")
+        yield event.plain_result(
+            "❌ 用法：出售稀有度 <稀有度1> [稀有度2] ...\n例如：出售稀有度 3 4 5"
+        )
         return
-    rarity = args[1]
-    if not rarity.isdigit() or int(rarity) < 1 or int(rarity) > 5:
-        yield event.plain_result("❌ 稀有度必须是1到5之间的数字，请检查后重试。")
-        return
-    if result := plugin.inventory_service.sell_fish_by_rarity(user_id, int(rarity)):
-        yield event.plain_result(result["message"])
-    else:
-        yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    try:
+        # 从第二个参数开始，解析所有数字
+        rarities = [int(num) for num in args[1:]]
+
+        # 验证所有数字是否在1-10之间
+        if not all(1 <= r <= 10 for r in rarities):
+            yield event.plain_result("❌ 稀有度必须是1到10之间的数字，请检查后重试。")
+            return
+
+        # 根据解析出的稀有度数量，调用不同的服务
+        if len(rarities) == 1:
+            # 只有一个稀有度，调用单稀有度出售方法
+            result = plugin.inventory_service.sell_fish_by_rarity(
+                user_id, rarities[0]
+            )
+        else:
+            # 有多个稀有度，调用多稀有度出售方法
+            result = plugin.inventory_service.sell_fish_by_rarities(user_id, rarities)
+
+        # 统一处理返回结果
+        if result:
+            yield event.plain_result(result["message"])
+        else:
+            yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+    except ValueError:
+        yield event.plain_result("❌ 请确保输入的是有效的数字，并用空格隔开。")
+    except Exception as e:
+        yield event.plain_result(f"❌ 处理命令时发生未知错误: {e}")
 
 
 async def sell_all_rods(plugin: "FishingPlugin", event: AstrMessageEvent):
