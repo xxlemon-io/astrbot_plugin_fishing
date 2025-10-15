@@ -40,6 +40,7 @@ from .core.database.migration import run_migrations
 # 导入所有指令函数
 # ==========================================================
 from .handlers import admin_handlers, common_handlers, inventory_handlers, fishing_handlers, market_handlers, social_handlers, gacha_handlers, aquarium_handlers
+from .handlers.fishing_handlers import FishingHandlers
 from .handlers.exchange_handlers import ExchangeHandlers # 新增交易所Handlers
 
 
@@ -193,6 +194,9 @@ class FishingPlugin(Star):
         
         # 初始化交易所处理器
         self.exchange_handlers = ExchangeHandlers(self)
+        
+        #初始化钓鱼处理器
+        self.fishing_handlers = FishingHandlers(self)
 
 
         # 3.2 实例化效果管理器并自动注册所有效果（需要在fishing_service之后）
@@ -274,7 +278,7 @@ class FishingPlugin(Star):
 
     @filter.command("钓鱼")
     async def fish(self, event: AstrMessageEvent):
-        async for r in fishing_handlers.fish(self, event):
+        async for r in self.fishing_handlers.fish(event):
             yield r
 
     @filter.command("签到")
@@ -284,7 +288,7 @@ class FishingPlugin(Star):
 
     @filter.command("自动钓鱼")
     async def auto_fish(self, event: AstrMessageEvent):
-        async for r in fishing_handlers.auto_fish(self, event):
+        async for r in self.fishing_handlers.auto_fish(event): 
             yield r
 
     @filter.command("钓鱼记录", alias={"钓鱼日志", "钓鱼历史"})
@@ -414,12 +418,12 @@ class FishingPlugin(Star):
 
     @filter.command("钓鱼区域", alias={"区域"})
     async def fishing_area(self, event: AstrMessageEvent):
-        async for r in fishing_handlers.fishing_area(self, event):
+        async for r in self.fishing_handlers.fishing_area(event):
             yield r
 
     @filter.command("鱼类图鉴", alias={"图鉴"})
     async def fish_pokedex(self, event: AstrMessageEvent):
-        async for r in fishing_handlers.fish_pokedex(self, event):
+        async for r in self.fishing_handlers.fish_pokedex(event): 
             yield r
 
     # =========== 市场与商店 ==========
