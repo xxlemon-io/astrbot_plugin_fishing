@@ -281,136 +281,141 @@ class ExchangeHandlers:
 
     async def exchange_status(self, event: AstrMessageEvent):
         """查看交易所当前状态"""
-        user_id = self._get_effective_user_id(event)
-        user = self.user_repo.get_by_id(user_id)
+        try:
+            user_id = self._get_effective_user_id(event)
+            user = self.user_repo.get_by_id(user_id)
 
-        if not user or not user.exchange_account_status:
-            yield event.plain_result(
-                "您尚未开通交易所账户，请使用【交易所 开户】命令开户。"
-            )
-            return
-
-        result = self.exchange_service.get_market_status()
-        if not result["success"]:
-            yield event.plain_result(
-                f"❌ 查询失败: {result.get('message', '未知错误')}"
-            )
-            return
-
-        prices = result["prices"]
-        commodities = result["commodities"]
-
-        # 获取价格历史用于计算涨跌幅
-        price_history = self.exchange_service.get_price_history(days=2)
-        historical_prices = {}
-        if price_history["success"] and price_history["history"]:
-            # 获取昨天的价格
-            for comm_id, history in price_history["history"].items():
-                if len(history) >= 2:
-                    historical_prices[comm_id] = history[-2]  # 倒数第二个价格（昨天）
-
-        msg = "【📈 交易所行情】\n"
-        msg += f"更新时间: {result.get('date', 'N/A')}\n"
-        msg += "═" * 30 + "\n"
-
-        # 显示市场情绪和趋势（移到商品价格上面）
-        market_sentiment = result.get("market_sentiment", "neutral")
-        price_trend = result.get("price_trend", "stable")
-        supply_demand = result.get("supply_demand", "平衡")
-
-        msg += f"📊 市场情绪: {self._get_sentiment_emoji(market_sentiment)} {market_sentiment}\n"
-        msg += f"📈 价格趋势: {self._get_trend_emoji(price_trend)} {price_trend}\n"
-        msg += f"⚖️ 供需状态: {supply_demand}\n"
-        msg += "─" * 20 + "\n"
-
-        # 显示每个商品的详细信息
-        for comm_id, price in prices.items():
-            commodity = commodities.get(comm_id)
-            if commodity:
-                msg += f"商品: {commodity['name']}\n"
-                msg += f"价格: {price:,} 金币"
-
-                # 计算涨跌幅
-                if comm_id in historical_prices:
-                    prev_price = historical_prices[comm_id]
-                    change = price - prev_price
-                    change_percent = (
-                        (change / prev_price) * 100 if prev_price > 0 else 0
-                    )
-
-                    if change > 0:
-                        msg += f" 📈 +{change:,} (+{change_percent:.1f}%)"
-                    elif change < 0:
-                        msg += f" 📉 {change:,} ({change_percent:.1f}%)"
-                    else:
-                        msg += f" ➖ 0 (0.0%)"
-                else:
-                    msg += " 🆕 新价格"
-
-                msg += "\n"
-                msg += f"描述: {commodity['description']}\n"
-                msg += "─" * 20 + "\n"
-
-        # 显示持仓容量和盈亏分析
-        capacity = self.plugin.exchange_service.config.get("capacity", 1000)
-
-        inventory_result = self.plugin.exchange_service.get_user_inventory(user_id)
-        if inventory_result["success"]:
-            inventory = inventory_result["inventory"]
-            current_total_quantity = sum(
-                data.get("total_quantity", 0) for data in inventory.values()
-            )
-            capacity_percent = (
-                (current_total_quantity / capacity) * 100 if capacity > 0 else 0
-            )
-
-            msg += f"📦 当前持仓: {current_total_quantity} / {capacity} ({capacity_percent:.1f}%)\n"
-
-            if inventory:
-                analysis = self._calculate_inventory_profit_loss(inventory, prices)
-                profit_status = (
-                    "📈盈利"
-                    if analysis["is_profit"]
-                    else "📉亏损" if analysis["profit_loss"] < 0 else "➖持平"
+            if not user or not user.exchange_account_status:
+                yield event.plain_result(
+                    "您尚未开通交易所账户，请使用【交易所 开户】命令开户。"
                 )
-                msg += f"💰 持仓盈亏: {analysis['profit_loss']:+,} 金币 ({analysis['profit_rate']:+.1f}%) {profit_status}\n"
+                return
 
-                # 显示各商品持仓详情
-                if len(inventory) > 0:
-                    msg += "📋 持仓详情:\n"
-                    for comm_id, data in inventory.items():
-                        if data.get("total_quantity", 0) > 0:
-                            commodity = commodities.get(comm_id, {})
-                            current_price = prices.get(comm_id, 0)
-                            total_value = data.get("total_quantity", 0) * current_price
-                            msg += f"  • {commodity.get('name', comm_id)}: {data.get('total_quantity', 0)}个 (价值 {total_value:,} 金币)\n"
+            result = self.exchange_service.get_market_status()
+            if not result["success"]:
+                yield event.plain_result(
+                    f"❌ 查询失败: {result.get('message', '未知错误')}"
+                )
+                return
+
+            prices = result["prices"]
+            commodities = result["commodities"]
+
+            # 获取价格历史用于计算涨跌幅
+            price_history = self.exchange_service.get_price_history(days=2)
+            historical_prices = {}
+            if price_history["success"] and price_history["history"]:
+                # 获取昨天的价格
+                for comm_id, history in price_history["history"].items():
+                    if len(history) >= 2:
+                        historical_prices[comm_id] = history[-2]  # 倒数第二个价格（昨天）
+
+            msg = "【📈 交易所行情】\n"
+            msg += f"更新时间: {result.get('date', 'N/A')}\n"
+            msg += "═" * 30 + "\n"
+
+            # 显示市场情绪和趋势（移到商品价格上面）
+            market_sentiment = result.get("market_sentiment", "neutral")
+            price_trend = result.get("price_trend", "stable")
+            supply_demand = result.get("supply_demand", "平衡")
+
+            msg += f"📊 市场情绪: {self._get_sentiment_emoji(market_sentiment)} {market_sentiment}\n"
+            msg += f"📈 价格趋势: {self._get_trend_emoji(price_trend)} {price_trend}\n"
+            msg += f"⚖️ 供需状态: {supply_demand}\n"
+            msg += "─" * 20 + "\n"
+
+            # 显示每个商品的详细信息
+            for comm_id, price in prices.items():
+                commodity = commodities.get(comm_id)
+                if commodity:
+                    msg += f"商品: {commodity['name']}\n"
+                    msg += f"价格: {price:,} 金币"
+
+                    # 计算涨跌幅
+                    if comm_id in historical_prices:
+                        prev_price = historical_prices[comm_id]
+                        change = price - prev_price
+                        change_percent = (
+                            (change / prev_price) * 100 if prev_price > 0 else 0
+                        )
+
+                        if change > 0:
+                            msg += f" 📈 +{change:,} (+{change_percent:.1f}%)"
+                        elif change < 0:
+                            msg += f" 📉 {change:,} ({change_percent:.1f}%)"
+                        else:
+                            msg += f" ➖ 0 (0.0%)"
+                    else:
+                        msg += " 🆕 新价格"
+
+                    msg += "\n"
+                    msg += f"描述: {commodity['description']}\n"
+                    msg += "─" * 20 + "\n"
+
+            # 显示持仓容量和盈亏分析
+            capacity = self.plugin.exchange_service.config.get("capacity", 1000)
+
+            inventory_result = self.plugin.exchange_service.get_user_inventory(user_id)
+            if inventory_result["success"]:
+                inventory = inventory_result["inventory"]
+                current_total_quantity = sum(
+                    data.get("total_quantity", 0) for data in inventory.values()
+                )
+                capacity_percent = (
+                    (current_total_quantity / capacity) * 100 if capacity > 0 else 0
+                )
+
+                msg += f"📦 当前持仓: {current_total_quantity} / {capacity} ({capacity_percent:.1f}%)\n"
+
+                if inventory:
+                    analysis = self._calculate_inventory_profit_loss(inventory, prices)
+                    profit_status = (
+                        "📈盈利"
+                        if analysis["is_profit"]
+                        else "📉亏损" if analysis["profit_loss"] < 0 else "➖持平"
+                    )
+                    msg += f"💰 持仓盈亏: {analysis['profit_loss']:+,} 金币 ({analysis['profit_rate']:+.1f}%) {profit_status}\n"
+
+                    # 显示各商品持仓详情
+                    if len(inventory) > 0:
+                        msg += "📋 持仓详情:\n"
+                        for comm_id, data in inventory.items():
+                            if data.get("total_quantity", 0) > 0:
+                                commodity = commodities.get(comm_id, {})
+                                current_price = prices.get(comm_id, 0)
+                                total_value = data.get("total_quantity", 0) * current_price
+                                msg += f"  • {commodity.get('name', comm_id)}: {data.get('total_quantity', 0)}个 (价值 {total_value:,} 金币)\n"
+                else:
+                    msg += "📋 持仓详情: 暂无持仓\n"
             else:
-                msg += "📋 持仓详情: 暂无持仓\n"
-        else:
-            msg += f"📦 当前持仓: 无法获取 / {capacity}\n"
+                msg += f"📦 当前持仓: 无法获取 / {capacity}\n"
 
-        # 显示下次更新时间
-        next_update_times = [9, 15, 21]  # 9点、15点、21点
-        now = datetime.now()
-        next_update = None
-        for hour in next_update_times:
-            update_time = now.replace(hour=hour, minute=0, second=0, microsecond=0)
-            if update_time > now:
-                next_update = update_time
-                break
+            # 显示下次更新时间
+            next_update_times = [9, 15, 21]  # 9点、15点、21点
+            now = datetime.now()
+            next_update = None
+            for hour in next_update_times:
+                update_time = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+                if update_time > now:
+                    next_update = update_time
+                    break
 
-        if next_update:
-            time_diff = next_update - now
-            hours = int(time_diff.total_seconds() // 3600)
-            minutes = int((time_diff.total_seconds() % 3600) // 60)
-            msg += f"⏰ 下次更新: {next_update.strftime('%H:%M')} (约{hours}小时{minutes}分钟后)\n"
-        else:
-            msg += "⏰ 下次更新: 明日 09:00\n"
+            if next_update:
+                time_diff = next_update - now
+                hours = int(time_diff.total_seconds() // 3600)
+                minutes = int((time_diff.total_seconds() % 3600) // 60)
+                msg += f"⏰ 下次更新: {next_update.strftime('%H:%M')} (约{hours}小时{minutes}分钟后)\n"
+            else:
+                msg += "⏰ 下次更新: 明日 09:00\n"
 
-        msg += "═" * 30 + "\n"
-        msg += "💡 使用【交易所 帮助】查看更多命令。"
+            msg += "═" * 30 + "\n"
+            msg += "💡 使用【交易所 帮助】查看更多命令。"
 
-        yield event.plain_result(msg)
+            yield event.plain_result(msg)
+        except Exception as e:
+            from astrbot.api import logger
+            logger.error(f"交易所状态查询失败: {e}")
+            yield event.plain_result(f"❌ 查询失败: {str(e)}")
 
     async def open_exchange_account(self, event: AstrMessageEvent):
         """开通交易所账户"""
@@ -601,95 +606,100 @@ class ExchangeHandlers:
 
     async def sell_commodity(self, event: AstrMessageEvent):
         """卖出大宗商品"""
-        user_id = self._get_effective_user_id(event)
-        args = event.message_str.split()
+        try:
+            user_id = self._get_effective_user_id(event)
+            args = event.message_str.split()
 
-        market_status = self.exchange_service.get_market_status()
-        if not market_status["success"]:
-            yield event.plain_result(
-                f"❌ 获取价格失败: {market_status.get('message', '未知错误')}"
-            )
-            return
-
-        if len(args) == 3:
-            commodity_name = args[2]
-
-            commodity_id = None
-            for cid, info in market_status["commodities"].items():
-                if info["name"] == commodity_name:
-                    commodity_id = cid
-                    break
-
-            if not commodity_id:
-                yield event.plain_result(f"❌ 找不到商品: {commodity_name}")
+            market_status = self.exchange_service.get_market_status()
+            if not market_status["success"]:
+                yield event.plain_result(
+                    f"❌ 获取价格失败: {market_status.get('message', '未知错误')}"
+                )
                 return
 
-            current_price = market_status["prices"].get(commodity_id, 0)
-            if current_price <= 0:
-                yield event.plain_result(f"❌ 商品 {commodity_name} 价格异常")
-                return
+            if len(args) == 3:
+                commodity_name = args[2]
 
-            inventory = self.exchange_service.get_user_commodities(user_id)
-            commodity_items = [
-                item for item in inventory if item.commodity_id == commodity_id
-            ]
+                commodity_id = None
+                for cid, info in market_status["commodities"].items():
+                    if info["name"] == commodity_name:
+                        commodity_id = cid
+                        break
 
-            if not commodity_items:
-                yield event.plain_result(f"❌ 您没有 {commodity_name}")
-                return
-
-            total_quantity = sum(item.quantity for item in commodity_items)
-
-            result = self.exchange_service.sell_commodity(
-                user_id, commodity_id, total_quantity, current_price
-            )
-            yield event.plain_result(
-                f"✅ {result['message']}"
-                if result["success"]
-                else f"❌ {result['message']}"
-            )
-
-        elif len(args) == 4:
-            inventory_id_str = args[2]
-
-            instance_id = self._parse_commodity_display_code(inventory_id_str)
-            if instance_id is None:
-                yield event.plain_result("❌ 库存ID格式错误，请使用C开头的ID")
-                return
-
-            try:
-                quantity = int(args[3])
-                if quantity <= 0:
-                    yield event.plain_result("❌ 数量必须是正整数")
+                if not commodity_id:
+                    yield event.plain_result(f"❌ 找不到商品: {commodity_name}")
                     return
-            except ValueError:
-                yield event.plain_result("❌ 数量必须是有效的数字")
-                return
 
-            inventory = self.exchange_service.get_user_commodities(user_id)
-            commodity_item = next(
-                (item for item in inventory if item.instance_id == instance_id), None
-            )
+                current_price = market_status["prices"].get(commodity_id, 0)
+                if current_price <= 0:
+                    yield event.plain_result(f"❌ 商品 {commodity_name} 价格异常")
+                    return
 
-            if not commodity_item:
-                yield event.plain_result("❌ 找不到指定的库存项目")
-                return
+                inventory = self.exchange_service.get_user_commodities(user_id)
+                commodity_items = [
+                    item for item in inventory if item.commodity_id == commodity_id
+                ]
 
-            current_price = market_status["prices"].get(commodity_item.commodity_id, 0)
-            if current_price <= 0:
-                yield event.plain_result(f"❌ 商品价格异常")
-                return
+                if not commodity_items:
+                    yield event.plain_result(f"❌ 您没有 {commodity_name}")
+                    return
 
-            result = self.exchange_service.sell_commodity_by_instance(
-                user_id, instance_id, quantity, current_price
-            )
-            yield event.plain_result(
-                f"✅ {result['message']}"
-                if result["success"]
-                else f"❌ {result['message']}"
-            )
-        else:
-            yield event.plain_result("❌ 命令格式错误，请使用帮助查看。")
+                total_quantity = sum(item.quantity for item in commodity_items)
+
+                result = self.exchange_service.sell_commodity(
+                    user_id, commodity_id, total_quantity, current_price
+                )
+                yield event.plain_result(
+                    f"✅ {result['message']}"
+                    if result["success"]
+                    else f"❌ {result['message']}"
+                )
+
+            elif len(args) == 4:
+                inventory_id_str = args[2]
+
+                instance_id = self._parse_commodity_display_code(inventory_id_str)
+                if instance_id is None:
+                    yield event.plain_result("❌ 库存ID格式错误，请使用C开头的ID")
+                    return
+
+                try:
+                    quantity = int(args[3])
+                    if quantity <= 0:
+                        yield event.plain_result("❌ 数量必须是正整数")
+                        return
+                except ValueError:
+                    yield event.plain_result("❌ 数量必须是有效的数字")
+                    return
+
+                inventory = self.exchange_service.get_user_commodities(user_id)
+                commodity_item = next(
+                    (item for item in inventory if item.instance_id == instance_id), None
+                )
+
+                if not commodity_item:
+                    yield event.plain_result("❌ 找不到指定的库存项目")
+                    return
+
+                current_price = market_status["prices"].get(commodity_item.commodity_id, 0)
+                if current_price <= 0:
+                    yield event.plain_result(f"❌ 商品价格异常")
+                    return
+
+                result = self.exchange_service.sell_commodity_by_instance(
+                    user_id, instance_id, quantity, current_price
+                )
+                yield event.plain_result(
+                    f"✅ {result['message']}"
+                    if result["success"]
+                    else f"❌ {result['message']}"
+                )
+            else:
+                yield event.plain_result("❌ 命令格式错误，请使用帮助查看。")
+        except Exception as e:
+            from astrbot.api import logger
+            logger.error(f"卖出大宗商品失败: {e}")
+            yield event.plain_result(f"❌ 卖出失败: {str(e)}")
 
     async def clear_inventory(self, event: AstrMessageEvent):
         """清仓功能"""
