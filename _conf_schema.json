@@ -65,6 +65,18 @@
     "hint": "每次偷鱼后的冷却时间，单位为秒",
     "default": 14400
   },
+  "electric_fish_enabled": {
+    "description": "是否启用电鱼功能",
+    "type": "bool",
+    "hint": "电鱼功能的开关，关闭后用户无法使用电鱼命令",
+    "default": true
+  },
+  "electric_fish_cooldown_seconds": {
+    "description": "电鱼的冷却时间",
+    "type": "int",
+    "hint": "每次电鱼后的冷却时间，单位为秒",
+    "default": 7200
+  },
   "user_initial_coins": {
     "description": "用户初始金币",
     "type": "int",

@@ -125,6 +125,12 @@ async def steal_fish(plugin: "FishingPlugin", event: AstrMessageEvent):
 
 async def electric_fish(plugin: "FishingPlugin", event: AstrMessageEvent):
     """电鱼功能"""
+    # 检查电鱼功能是否启用
+    electric_fish_config = plugin.game_config.get("electric_fish", {})
+    if not electric_fish_config.get("enabled", True):
+        yield event.plain_result("❌ 电鱼功能已被管理员禁用！")
+        return
+    
     user_id = plugin._get_effective_user_id(event)
     message_obj = event.message_obj
     target_id = None

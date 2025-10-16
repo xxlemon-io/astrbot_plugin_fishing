@@ -80,7 +80,10 @@ class FishingPlugin(Star):
         self.game_config = {
             "fishing": {"cost": config.get("fish_cost", 10), "cooldown_seconds": config.get("fish_cooldown_seconds", 180)},
             "steal": {"cooldown_seconds": config.get("steal_cooldown", 1800)},
-            "electric_fish": {"cooldown_seconds": config.get("electric_fish_cooldown", 7200)}, # 合并的功能：“电鱼”
+            "electric_fish": {
+                "enabled": config.get("electric_fish_enabled", True),
+                "cooldown_seconds": config.get("electric_fish_cooldown_seconds", 7200)
+            }, # 合并的功能："电鱼"
             "wipe_bomb": {"max_attempts_per_day": config.get("wipe_bomb_attempts", 3)},
             "pond_upgrades": [
                 { "from": 480, "to": 999, "cost": 50000 },
