@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
 from datetime import date, datetime
-from __future__ import annotations
 
 # 从领域模型导入所有需要的实体
 from ..domain.models import (
