@@ -298,6 +298,70 @@ class InventoryService:
 
         return {"success": True, "message": f"💰 成功卖出稀有度 {rarity} 的鱼，获得 {total_value} 金币"}
 
+    def sell_fish_by_rarities(self, user_id: str, rarities: list[int]) -> Dict[str, Any]:
+        """
+        向系统出售指定稀有度列表的鱼。
+
+        Args:
+            user_id: 用户ID
+            rarities: 鱼的稀有度列表, e.g., [3, 4, 5]
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+
+        # 1. 验证并去重稀有度列表
+        if not rarities:
+            return {"success": False, "message": "❌ 请指定要出售的稀有度"}
+        
+        unique_rarities = set(r for r in rarities if 1 <= r <= 10)
+        if not unique_rarities:
+            return {"success": False, "message": "❌ 请提供有效的稀有度（1-10之间）"}
+
+        # 2. 获取用户全部鱼类库存
+        fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
+        if not fish_inventory:
+            return {"success": False, "message": "❌ 你的鱼塘是空的，没有任何鱼可以卖"}
+
+        # 3. 计算总价值并记录详情
+        total_value = 0
+        sold_fish_details = {}  # 用于记录每个稀有度卖出的数量和价值
+
+        for item in fish_inventory:
+            fish_template = self.item_template_repo.get_fish_by_id(item.fish_id)
+            if fish_template and fish_template.rarity in unique_rarities:
+                value = fish_template.base_value * item.quantity
+                total_value += value
+                
+                # 累加售出详情
+                if fish_template.rarity not in sold_fish_details:
+                    sold_fish_details[fish_template.rarity] = {'count': 0, 'value': 0}
+                sold_fish_details[fish_template.rarity]['count'] += item.quantity
+                sold_fish_details[fish_template.rarity]['value'] += value
+
+        # 4. 如果没有符合条件的鱼，提前返回
+        if total_value == 0:
+            rarity_str = ", ".join(map(str, sorted(list(unique_rarities))))
+            return {"success": False, "message": f"❌ 你没有任何稀有度为【{rarity_str}】的鱼可以出售"}
+
+        # 5. 执行数据库删除操作
+        for rarity in unique_rarities:
+            self.inventory_repo.clear_fish_inventory(user_id, rarity=rarity)
+
+        # 6. 更新用户金币
+        user.coins += total_value
+        self.user_repo.update(user)
+
+        # 7. 构建并返回成功的消息
+        rarity_str_sold = ", ".join(map(str, sorted(sold_fish_details.keys())))
+        message = f"💰 成功卖出稀有度为【{rarity_str_sold}】的鱼，共获得 {total_value} 金币。\n\n"
+        message += "📊 出售详情：\n"
+        for r in sorted(sold_fish_details.keys()):
+            details = sold_fish_details[r]
+            message += f" - 稀有度 {r}: {details['count']} 条，价值 {details['value']} 金币\n"
+
+        return {"success": True, "message": message, "gained_coins": total_value}
+
     def sell_everything_except_locked(self, user_id: str) -> Dict[str, Any]:
         """
         砸锅卖铁：出售所有未锁定且未装备的鱼竿、饰品和全部鱼类

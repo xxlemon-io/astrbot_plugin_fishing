@@ -12,35 +12,6 @@ from .styles import (
     COLOR_FISH_COUNT, COLOR_COINS, load_font
 )
 
-# 图片基本设置
-# IMG_WIDTH = 800 # 移除本地定义
-# IMG_HEIGHT = 1500  # 动态调整 # 移除本地定义
-# PADDING = 30  # 减小内边距 # 移除本地定义
-# CORNER_RADIUS = 15  # 稍微减小圆角 # 移除本地定义
-
-# 颜色定义
-# COLOR_BACKGROUND = (245, 245, 245)  # 浅灰色背景 # 移除本地定义
-# COLOR_HEADER_BG = (51, 153, 255)  # 蓝色标题背景 # 移除本地定义
-# COLOR_HEADER_TEXT = (255, 255, 255)  # 白色标题文字 # 移除本地定义
-# COLOR_CARD_BG = (255, 255, 255)  # 白色卡片背景 # 移除本地定义
-# COLOR_CARD_BORDER = (230, 230, 230)  # 灰色卡片边框 # 移除本地定义
-# COLOR_TEXT_DARK = (50, 50, 50)  # 深灰文字 # 移除本地定义
-# COLOR_TEXT_GOLD = (255, 215, 0)  # 金色（用于第一名） # 移除本地定义
-# COLOR_TEXT_SILVER = (192, 192, 192)  # 银色（用于第二名） # 移除本地定义
-# COLOR_TEXT_BRONZE = (205, 127, 50)  # 铜色（用于第三名） # 移除本地定义
-# COLOR_ACCENT = (51, 153, 255)  # 强调色 # 移除本地定义
-# COLOR_FISH_COUNT = (46, 139, 87)  # 鱼数量颜色 # 移除本地定义
-# COLOR_COINS = (218, 165, 32)  # 更改为更深的金币颜色，提高对比度 # 移除本地定义
-
-# 布局设置
-# HEADER_HEIGHT = 100  # 减小标题高度 # 移除本地定义
-# USER_CARD_HEIGHT = 90  # 减小卡片高度 # 移除本地定义
-# USER_CARD_MARGIN = 12  # 减小卡片间距 # 移除本地定义
-
-# 字体路径 - 请确保这些字体文件存在或使用你系统中的字体 # 移除本地定义
-# FONT_PATH_REGULAR = os.path.join(os.path.dirname(__file__),"resource", "DouyinSansBold.otf") # 移除本地定义
-# FONT_PATH_BOLD = os.path.join(os.path.dirname(__file__),"resource", "DouyinSansBold.otf") # 移除本地定义
-
 def draw_rounded_rectangle(draw, xy, radius=10, fill=None, outline=None, width=1):
     """绘制圆角矩形"""
     x1, y1, x2, y2 = xy
@@ -79,31 +50,39 @@ def format_large_number(number):
     else:
         return f"{number/1000000000:.1f}B".replace(".0B", "B")
 
+# --- 新增：格式化重量的函数 ---
+def format_weight(grams):
+    """将克(g)格式化为公斤(kg)字符串"""
+    if grams < 1000:
+        return f"{grams}g"
+    kg = grams / 1000
+    return f"{kg:.1f}kg".replace(".0kg", "kg")
+# --- 新增结束 ---
+
+
 def draw_fishing_ranking(user_data: List[Dict], output_path: str):
     """
     绘制钓鱼排行榜图片
 
     参数:
-    user_data: 用户数据列表，每个用户是一个字典，包含昵称、称号、金币、钓鱼数量、鱼竿、饰品等信息
+    user_data: 用户数据列表，每个用户是一个字典，包含昵称、称号、金币、钓鱼数量、总重量、鱼竿、饰品等信息
     output_path: 输出图片路径
     """
     # 准备字体
     try:
-        font_title = load_font(42)  # 减小字体尺寸
+        font_title = load_font(42)
         font_rank = load_font(32)
         font_name = load_font(22)
         font_regular = load_font(18)
         font_small = load_font(16)
     except IOError:
-        # 如果找不到指定字体，
         logger.warning("指定的字体文件未找到，使用默认字体。")
         font_title = ImageFont.load_default()
-        ImageFont.load_default()
         font_rank = ImageFont.load_default()
-        ImageFont.load_default()
         font_name = ImageFont.load_default()
         font_regular = ImageFont.load_default()
         font_small = ImageFont.load_default()
+
     # 取前10名用户
     top_users = user_data[:10] if len(user_data) > 10 else user_data
 
@@ -131,7 +110,7 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str):
     # 奖杯符号
     trophy_symbols = []
     try:
-        gold_trophy = Image.open(os.path.join(os.path.dirname(__file__),"resource", "gold.png") ).resize((40, 40))  # 减小奖杯尺寸
+        gold_trophy = Image.open(os.path.join(os.path.dirname(__file__),"resource", "gold.png") ).resize((40, 40))
         silver_trophy = Image.open(os.path.join(os.path.dirname(__file__),"resource", "silver.png")).resize((35, 35))
         bronze_trophy = Image.open(os.path.join(os.path.dirname(__file__),"resource", "bronze.png")).resize((35, 35))
         trophy_symbols = [gold_trophy, silver_trophy, bronze_trophy]
@@ -147,8 +126,8 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str):
         fish_count = user.get("fish_count", 0)
         fishing_rod = user.get("fishing_rod", "普通鱼竿")
         accessory = user.get("accessory", "无饰品")
-
-        logger.debug(f"绘制用户: {nickname}, 称号: {title}, 金币: {coins}, 钓鱼数量: {fish_count}, 鱼竿: {fishing_rod}, 饰品: {accessory}")
+        # --- 新增：获取总重量数据 ---
+        total_weight = user.get("total_weight_caught", 0)
 
         # 排名颜色
         rank_color = COLOR_TEXT_GOLD if idx == 0 else COLOR_TEXT_SILVER if idx == 1 else COLOR_TEXT_BRONZE if idx == 2 else COLOR_TEXT_DARK
@@ -163,74 +142,80 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str):
                               outline=COLOR_CARD_BORDER,
                               width=2)
 
-        # 绘制排名 - 前三名使用奖杯图标
-        rank_x = PADDING + 15  # 减小左侧留白
-        rank_y = card_y1 + (USER_CARD_HEIGHT - 36) // 2  # 对所有排名使用相同的垂直中心点
-
+        # 绘制排名
+        rank_x = PADDING + 15
         if idx < 3 and isinstance(trophy_symbols[0], Image.Image):
-            # 使用图片奖杯
             trophy_img = trophy_symbols[idx]
-            int(rank_y - trophy_img.height/2)
             trophy_x = PADDING + 15
             trophy_y = card_y1 + (USER_CARD_HEIGHT - trophy_img.height) // 2
-            # 使用paste方法放置图片
             img.paste(trophy_img, (trophy_x, trophy_y), trophy_img if trophy_img.mode == "RGBA" else None)
         else:
-            # 使用数字排名
             rank_text = f"#{idx+1}"
-            _, (rank_width, rank_height) = get_text_metrics(rank_text, font_rank, draw)
+            rank_y = card_y1 + (USER_CARD_HEIGHT - get_text_metrics(rank_text, font_rank, draw)[1][1]) // 2
             draw.text((rank_x, rank_y), rank_text, font=font_rank, fill=rank_color)
 
         # 绘制用户名和称号
-        name_x = PADDING + 70  # 调整用户名位置
+        name_x = PADDING + 70
         name_y = card_y1 + 15
-        # 确保用户名不会太长
+        
         if len(nickname) > 12:
             nickname = nickname[:10] + "..."
         draw.text((name_x, name_y), nickname, font=font_name, fill=COLOR_TEXT_DARK)
 
-        # 称号与用户名同一行，但需要确保不会重叠或超出边界
         _, (name_width, _) = get_text_metrics(nickname, font_name, draw)
         title_x = name_x + name_width + 10
         title_y = name_y + 2
-        # 称号长度限制
         title_display = title if len(title) <= 8 else title[:6] + ".."
         draw.text((title_x, title_y), f"【{title_display}】", font=font_small, fill=COLOR_ACCENT)
 
-        # 绘制钓鱼数据
-        fish_y = name_y + get_text_metrics(nickname, font_name, draw)[1][1] + 8
-        draw.text((name_x, fish_y), f"钓获: {format_large_number(fish_count)}条", font=font_regular, fill=COLOR_FISH_COUNT)
+        # --- 修改：重新布局底部信息行 ---
+        bottom_line_y = name_y + get_text_metrics(nickname, font_name, draw)[1][1] + 10
+        current_x = name_x
+        margin = 25 # 各个信息块之间的间距
 
-        # 绘制金币（使用更深的金色） - 调整间距
-        coins_x = name_x + 140  # 减小间距
-        draw.text((coins_x, fish_y), f"金币: {format_large_number(coins)}", font=font_regular, fill=COLOR_COINS)
+        # 1. 钓获信息 (数量和总重)
+        weight_str = format_weight(total_weight)
+        fish_text = f"🎣 钓获: {format_large_number(fish_count)}条 ({weight_str})"
+        draw.text((current_x, bottom_line_y), fish_text, font=font_regular, fill=COLOR_FISH_COUNT)
+        _, (fish_text_width, _) = get_text_metrics(fish_text, font_regular, draw)
+        current_x += fish_text_width + margin
 
-        # 绘制装备 - 鱼竿放左侧固定位置
-        equip_x = coins_x + 140  # 从金币位置算起
-        rod_display = fishing_rod if len(fishing_rod) <= 6 else fishing_rod[:5] + ".."
-        draw.text((equip_x, fish_y), f"鱼竿: {rod_display}", font=font_regular, fill=COLOR_TEXT_DARK)
+        # 2. 金币信息
+        coins_text = f"💰 金币: {format_large_number(coins)}"
+        draw.text((current_x, bottom_line_y), coins_text, font=font_regular, fill=COLOR_COINS)
+        _, (coins_text_width, _) = get_text_metrics(coins_text, font_regular, draw)
+        current_x += coins_text_width + margin
 
-        # 饰品标签固定在右侧，保证"饰品:"标签左对齐
-        acc_label = "饰品: "
-        acc_content = accessory if len(accessory) <= 8 else accessory[:6] + ".."
-        _, (acc_label_width, _) = get_text_metrics(acc_label, font_regular, draw)
-        _, (acc_content_width, _) = get_text_metrics(acc_content, font_regular, draw)
+        # 3. 装备信息 (自适应字体大小和截断)
+        rod_display = fishing_rod if len(fishing_rod) <= 8 else fishing_rod[:7] + ".."
+        acc_display = accessory if len(accessory) <= 8 else accessory[:7] + ".."
+        equip_text = f"🛠️ 装备: {rod_display} / {acc_display}"
 
-        # 饰品标签固定在右侧，保证"饰品:"标签左对齐
-        acc_label_x = IMG_WIDTH - PADDING - 180  # 固定的"饰品:"标签左对齐位置
-        acc_label = "饰品: "
-        acc_content = accessory if len(accessory) <= 8 else accessory[:6] + ".."
+        # 计算剩余可用宽度
+        available_width = IMG_WIDTH - PADDING - 10 - current_x
 
-        # 确保不会与鱼竿重叠，设置最小距离
-        rod_text = f"鱼竿: {rod_display}"
-        _, (rod_width, _) = get_text_metrics(rod_text, font_regular, draw)
-        min_acc_label_x = equip_x + rod_width + 60  # 至少保持60像素的间距
-
-        # 如果计算出的位置太靠左，会与鱼竿重叠，则使用最小位置
-        acc_label_x = max(acc_label_x, min_acc_label_x)
-
-        # 绘制标签和内容
-        draw.text((acc_label_x, fish_y), f"饰品: {acc_content}", font=font_regular, fill=COLOR_TEXT_DARK)
+        # 方案A: 尝试使用常规字体
+        _, (equip_text_width, _) = get_text_metrics(equip_text, font_regular, draw)
+        if equip_text_width <= available_width:
+            draw.text((current_x, bottom_line_y), equip_text, font=font_regular, fill=COLOR_TEXT_DARK)
+        else:
+            # 方案B: 常规字体太宽，尝试使用小号字体
+            _, (small_equip_text_width, _) = get_text_metrics(equip_text, font_small, draw)
+            if small_equip_text_width <= available_width:
+                # 小号字体能放下，视觉上“变挤了”
+                draw.text((current_x, bottom_line_y), equip_text, font=font_small, fill=COLOR_TEXT_DARK)
+            else:
+                # 方案C: 小号字体也放不下，进行动态截断
+                # 从末尾开始逐字减少，直到能放下为止
+                temp_text = equip_text
+                while len(temp_text) > 0:
+                    display_text = temp_text + "..."
+                    _, (w, _) = get_text_metrics(display_text, font_small, draw)
+                    if w <= available_width:
+                        draw.text((current_x, bottom_line_y), display_text, font=font_small, fill=COLOR_TEXT_DARK)
+                        break
+                    temp_text = temp_text[:-1]
+        # --- 修改结束 ---
 
         # 更新Y坐标
         current_y = card_y2 + USER_CARD_MARGIN

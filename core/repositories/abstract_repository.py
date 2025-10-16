@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
 from datetime import date, datetime
+from __future__ import annotations
 
 # 从领域模型导入所有需要的实体
 from ..domain.models import (
@@ -8,7 +9,8 @@ from ..domain.models import (
     UserRodInstance, UserAccessoryInstance, UserFishInventoryItem, UserAquariumItem,
     FishingRecord, GachaRecord, WipeBombLog, MarketListing, TaxRecord,
     GachaPool, GachaPoolItem, FishingZone, UserBuff, AquariumUpgrade,
-    ShopOffer, ShopOfferCost, ShopOfferReward
+    ShopOffer, ShopOfferCost, ShopOfferReward,
+    Commodity, Exchange, UserCommodity  # 新增交易所模型导入
 )
 
 # 定义用户成就进度的数据结构
@@ -31,9 +33,23 @@ class AbstractUserRepository(ABC):
     # 获取所有用户ID
     @abstractmethod
     def get_all_user_ids(self, auto_fishing_only: bool = False) -> List[str]: pass
-    # 获取排行榜所需的核心数据
+
+    # 修改：用三个更具体的方法替换旧的 get_leaderboard_data
     @abstractmethod
-    def get_leaderboard_data(self, limit: int) -> List[Dict[str, Any]]: pass
+    def get_top_users_by_fish_count(self, limit: int) -> List[User]:
+        """按总钓鱼数获取排行榜用户列表。"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_top_users_by_coins(self, limit: int) -> List[User]:
+        """按金币数获取排行榜用户列表。"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_top_users_by_weight(self, limit: int) -> List[User]:
+        """按总重量获取排行榜用户列表。"""
+        raise NotImplementedError
+
     # 获取资产超过阈值的用户列表
     @abstractmethod
     def get_high_value_users(self, threshold: int) -> List[User]: pass
@@ -318,22 +334,22 @@ class AbstractExchangeRepository(ABC):
     """大宗商品交易所的数据仓储抽象基类"""
 
     @abstractmethod
-    def get_all_commodities(self) -> List['Commodity']:
+    def get_all_commodities(self) -> List[Commodity]:
         """获取所有大宗商品的模板信息"""
         pass
 
     @abstractmethod
-    def get_commodity_by_id(self, commodity_id: str) -> Optional['Commodity']:
+    def get_commodity_by_id(self, commodity_id: str) -> Optional[Commodity]:
         """通过ID获取单个大宗商品信息"""
         pass
 
     @abstractmethod
-    def get_prices_for_date(self, date: str) -> List['Exchange']:
+    def get_prices_for_date(self, date: str) -> List[Exchange]:
         """获取指定日期的所有商品价格"""
         pass
 
     @abstractmethod
-    def add_exchange_price(self, price: 'Exchange') -> None:
+    def add_exchange_price(self, price: Exchange) -> None:
         """新增一条交易所价格记录"""
         pass
 
@@ -343,12 +359,12 @@ class AbstractExchangeRepository(ABC):
         pass
 
     @abstractmethod
-    def get_user_commodities(self, user_id: str) -> List['UserCommodity']:
+    def get_user_commodities(self, user_id: str) -> List[UserCommodity]:
         """获取用户持有的所有大宗商品"""
         pass
 
     @abstractmethod
-    def add_user_commodity(self, user_commodity: 'UserCommodity') -> 'UserCommodity':
+    def add_user_commodity(self, user_commodity: UserCommodity) -> UserCommodity:
         """为用户新增大宗商品库存"""
         pass
 
@@ -363,7 +379,7 @@ class AbstractExchangeRepository(ABC):
         pass
 
     @abstractmethod
-    def get_user_commodity_by_instance_id(self, instance_id: int) -> Optional['UserCommodity']:
+    def get_user_commodity_by_instance_id(self, instance_id: int) -> Optional[UserCommodity]:
         """通过实例ID获取用户商品"""
         pass
 
@@ -472,6 +488,8 @@ class AbstractLogRepository(ABC):
     # 获取用户历史上最大的擦弹倍数
     @abstractmethod
     def get_max_wipe_bomb_multiplier(self, user_id: str) -> float: pass
+    @abstractmethod
+    def get_min_wipe_bomb_multiplier(self, user_id: str) -> Optional[float]: pass
 
     @abstractmethod
     def get_gacha_records_count_today(

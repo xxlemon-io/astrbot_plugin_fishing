@@ -52,6 +52,9 @@ async def draw_state_image(user_data: Dict[str, Any], data_dir: str) -> Image.Im
             - steal_total_value: 偷鱼总价值 TODO
             - signed_in_today: 今日是否签到
             - wipe_bomb_remaining: 擦弹剩余次数
+            - electric_fish_cooldown_remaining: 电鱼剩余CD时间（秒）
+            - wof_remaining_plays: 命运之轮剩余次数
+            - pond_info: 鱼塘信息
     Returns:
         PIL.Image.Image: 生成的状态图像
     """
@@ -365,12 +368,13 @@ async def draw_state_image(user_data: Dict[str, Any], data_dir: str) -> Image.Im
                          (card_margin, current_y, width - card_margin, current_y + status_card_height), 
                          8, fill=card_bg)
 
-    # 定义状态信息的网格位置 - 两列布局
+    # 定义状态信息的网格位置 - 多行两列布局
     status_col1_x = card_margin + 15    # 左列
     status_col2_x = card_margin + 315   # 右列
     status_row1_y = current_y + 12      # 第一行
     status_row2_y = current_y + 35      # 第二行
-    status_row3_y = current_y + 81      # 鱼塘信息 
+    status_row3_y = current_y + 58      # 第三行
+    status_row4_y = current_y + 81      # 第四行 (鱼塘信息)
 
     # 左列第一行：签到状态
     signed_today = user_data.get('signed_in_today', False)
@@ -417,16 +421,37 @@ async def draw_state_image(user_data: Dict[str, Any], data_dir: str) -> Image.Im
         cd_color = error_color
     draw.text((status_col2_x, status_row2_y), cd_text, font=content_font, fill=cd_color)
 
-    # 第三行：鱼塘信息
+    # 第三行左列: 电鱼CD
+    ef_cd = user_data.get('electric_fish_cooldown_remaining', 0)
+    if ef_cd > 0:
+        h, m = ef_cd // 3600, (ef_cd % 3600) // 60
+        ef_cd_text = f"电鱼冷却: {h}小时{m}分钟" if h > 0 else f"电鱼冷却: {m}分钟"
+        ef_cd_color = text_muted
+    else: 
+        ef_cd_text = "准备好电鱼了！"
+        ef_cd_color = error_color
+    draw.text((status_col1_x, status_row3_y), ef_cd_text, font=content_font, fill=ef_cd_color)
+
+    # 第三行右列: 命运之轮
+    wof_rem = user_data.get('wof_remaining_plays', 0)
+    if wof_rem > 0:
+        wof_text = f"命运之轮: 剩余 {wof_rem} 次"
+        wof_color = error_color
+    else:
+        wof_text = "命运之轮: 已用完"
+        wof_color = text_muted
+    draw.text((status_col2_x, status_row3_y), wof_text, font=content_font, fill=wof_color)
+
+    # 第四行：鱼塘信息
     pond_info = user_data.get('pond_info', {})
     if pond_info and pond_info.get('total_count', 0) > 0:
         # 左列：鱼塘鱼数
         pond_count_text = f"鱼塘数量: {pond_info['total_count']} 条， 价值: {pond_info['total_value']:,} 金币"
-        draw.text((status_col1_x, status_row3_y), pond_count_text, font=content_font, fill=text_primary)
+        draw.text((status_col1_x, status_row4_y), pond_count_text, font=content_font, fill=text_primary)
     else:
         # 鱼塘为空时显示
         pond_empty_text = "鱼塘里什么都没有..."
-        draw.text((status_col1_x, status_row3_y), pond_empty_text, font=content_font, fill=text_muted)
+        draw.text((status_col1_x, status_row4_y), pond_empty_text, font=content_font, fill=text_muted)
 
 
     # 10. 底部信息 - 调整位置
@@ -465,7 +490,7 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
     Returns:
         包含用户状态信息的字典，如果用户不存在则返回None
     """
-    from ..core.utils import get_now
+    from ..core.utils import get_now, get_today
     
     # 获取用户基本信息
     user = user_repo.get_by_id(user_id)
@@ -548,6 +573,20 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
         elapsed = (now - user.last_steal_time).total_seconds()
         if elapsed < cooldown_seconds:
             steal_cooldown_remaining = int(cooldown_seconds - elapsed)
+
+    # 计算电鱼CD时间
+    electric_fish_cooldown_remaining = 0
+    if hasattr(user, 'last_electric_fish_time') and user.last_electric_fish_time:
+        cooldown_seconds = game_config.get("electric_fish", {}).get("cooldown_seconds", 7200)
+        now = get_now()
+        if user.last_electric_fish_time.tzinfo is None and now.tzinfo is not None:
+            now = now.replace(tzinfo=None)
+        elif user.last_electric_fish_time.tzinfo is not None and now.tzinfo is None:
+            now = now.replace(tzinfo=user.last_electric_fish_time.tzinfo)
+        
+        elapsed = (now - user.last_electric_fish_time).total_seconds()
+        if elapsed < cooldown_seconds:
+            electric_fish_cooldown_remaining = int(cooldown_seconds - elapsed)
     
     # 获取当前称号
     current_title = None
@@ -589,29 +628,41 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
     
     # 计算擦弹剩余次数
     wipe_bomb_remaining = 0
-    try:
+    # 确保 user 对象有新添加的字段，做向后兼容
+    if hasattr(user, 'last_wipe_bomb_date') and hasattr(user, 'wipe_bomb_attempts_today'):
         base_max_attempts = game_config.get("wipe_bomb", {}).get("max_attempts_per_day", 3)
-        
-        # 检查是否有增加次数的 buff
         extra_attempts = 0
-        boost_buff = buff_repo.get_active_by_user_and_type(
-            user_id, "WIPE_BOMB_ATTEMPTS_BOOST"
-        )
+        boost_buff = buff_repo.get_active_by_user_and_type(user_id, "WIPE_BOMB_ATTEMPTS_BOOST")
         if boost_buff and boost_buff.payload:
             try:
-                payload = json.loads(boost_buff.payload)
-                extra_attempts = payload.get("amount", 0)
-            except json.JSONDecodeError:
-                pass  # 在这里忽略解析错误
-
+                extra_attempts = json.loads(boost_buff.payload).get("amount", 0)
+            except json.JSONDecodeError: pass
+        
         total_max_attempts = base_max_attempts + extra_attempts
         
-        # 使用与game_mechanics_service相同的方法获取今日已使用次数
-        used_attempts_today = log_repo.get_wipe_bomb_log_count_today(user_id)
+        today_str = get_today().strftime('%Y-%m-%d')
+        used_attempts_today = 0
+        # 如果记录的日期是今天，就使用记录的次数；否则次数为0
+        if user.last_wipe_bomb_date == today_str:
+            used_attempts_today = user.wipe_bomb_attempts_today
+
         wipe_bomb_remaining = max(0, total_max_attempts - used_attempts_today)
-    except Exception as e:
-        # 如果计算失败，默认为最大次数
-        wipe_bomb_remaining = base_max_attempts
+    else:
+        # 如果数据库中的用户数据还没有新字段（例如，尚未迁移），提供一个默认值
+        wipe_bomb_remaining = game_config.get("wipe_bomb", {}).get("max_attempts_per_day", 3)
+
+    # 计算命运之轮剩余次数
+    WHEEL_OF_FATE_DAILY_LIMIT = 5
+    wof_remaining_plays = 0
+    if hasattr(user, 'last_wof_date') and hasattr(user, 'wof_plays_today'):
+        today_str = get_today().strftime('%Y-%m-%d')
+        if user.last_wof_date == today_str:
+            wof_remaining_plays = max(0, WHEEL_OF_FATE_DAILY_LIMIT - user.wof_plays_today)
+        else:
+            wof_remaining_plays = WHEEL_OF_FATE_DAILY_LIMIT
+    else:
+        # 兼容旧数据，给予最大次数
+        wof_remaining_plays = WHEEL_OF_FATE_DAILY_LIMIT
     
     # 获取鱼塘信息
     pond_info = None
@@ -645,11 +696,13 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
         'current_bait': current_bait,
         'auto_fishing_enabled': user.auto_fishing_enabled,
         'steal_cooldown_remaining': steal_cooldown_remaining,
+        'electric_fish_cooldown_remaining': electric_fish_cooldown_remaining,
         'fishing_zone': fishing_zone,
         'current_title': current_title,
         'total_fishing_count': total_fishing_count,
         'steal_total_value': steal_total_value,
         'signed_in_today': signed_in_today,
         'wipe_bomb_remaining': wipe_bomb_remaining,
-        'pond_info': pond_info
+        'pond_info': pond_info,
+        'wof_remaining_plays': wof_remaining_plays,
     }

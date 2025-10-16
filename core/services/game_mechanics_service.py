@@ -13,7 +13,7 @@ from ..repositories.abstract_repository import (
     AbstractItemTemplateRepository,
     AbstractUserBuffRepository,
 )
-from ..domain.models import WipeBombLog
+from ..domain.models import WipeBombLog, User
 from ...core.utils import get_now, get_today
 
 if TYPE_CHECKING:
@@ -53,7 +53,27 @@ class GameMechanicsService:
         "kyo": {"min": 0.0, "max": 1.0, "label": "凶", "message": "🔮 沙漏中泛起一丝阴霾，预示着运势不佳，行事务必三思。"},
         "daikyo": {"min": 0.0, "max": 0.8, "label": "大凶", "message": "🔮 暗色的流沙汇成不祥之兆，警示着灾祸将至，请务必谨慎避让！"},
     }
-    
+
+    # --- 新增：命运之轮游戏内置配置 ---
+    WHEEL_OF_FATE_CONFIG = {
+        "min_entry_fee": 500,
+        "max_entry_fee": 50000,
+        "cooldown_seconds": 60,
+        "timeout_seconds": 60,
+        "levels": [
+            { "level": 1, "success_rate": 0.75, "multiplier": 1.15 },
+            { "level": 2, "success_rate": 0.70, "multiplier": 1.2 },
+            { "level": 3, "success_rate": 0.65, "multiplier": 1.3 },
+            { "level": 4, "success_rate": 0.60, "multiplier": 1.4 },
+            { "level": 5, "success_rate": 0.55, "multiplier": 1.5 },
+            { "level": 6, "success_rate": 0.50, "multiplier": 1.8 },
+            { "level": 7, "success_rate": 0.45, "multiplier": 2.3 },
+            { "level": 8, "success_rate": 0.40, "multiplier": 3.0 },
+            { "level": 9, "success_rate": 0.35, "multiplier": 4.0 },
+            { "level": 10, "success_rate": 0.30, "multiplier": 2.6 }
+        ]
+    }
+    # ------------------------------------
 
     def __init__(
         self,
@@ -239,7 +259,7 @@ class GameMechanicsService:
         if not user.can_afford(contribution_amount):
             return {"success": False, "message": f"金币不足，当前拥有 {user.coins} 金币"}
 
-        # 2. 检查每日次数限制
+        # 2. 检查每日次数限制 (性能优化)
         wipe_bomb_config = self.config.get("wipe_bomb", {})
         base_max_attempts = wipe_bomb_config.get("max_attempts_per_day", 3)
 
@@ -256,10 +276,22 @@ class GameMechanicsService:
                 logger.warning(f"解析擦弹buff载荷失败: user_id={user_id}")
 
         total_max_attempts = base_max_attempts + extra_attempts
-        attempts_today = self.log_repo.get_wipe_bomb_log_count_today(user_id)
-        if attempts_today >= total_max_attempts:
-            return {"success": False, "message": f"你今天的擦弹次数已用完({attempts_today}/{total_max_attempts})，明天再来吧！"}
+        
+        # 获取今天的日期字符串
+        today_str = get_today().strftime('%Y-%m-%d')
+        
+        # 检查是否是新的一天，如果是，则重置用户的每日擦弹计数
+        if user.last_wipe_bomb_date != today_str:
+            user.wipe_bomb_attempts_today = 0
+            user.last_wipe_bomb_date = today_str
 
+        # 使用用户对象中的计数值进行判断，不再查询日志
+        if user.wipe_bomb_attempts_today >= total_max_attempts:
+            return {
+                "success": False, 
+                "message": f"你今天的擦弹次数已用完({user.wipe_bomb_attempts_today}/{total_max_attempts})，明天再来吧！"
+            }
+        
         # 3. 计算随机奖励倍数 (使用加权随机)
         # 默认奖励范围和权重: (min_multiplier, max_multiplier, weight)
         # 专家建议配置：根据计算结果重新调整的权重分布
@@ -277,7 +309,7 @@ class GameMechanicsService:
             (50.0, 200.0, 7),      # 传说级奖励（维持）
             (200.0, 1500.0, 1),    # 神话级奖励（维持）
         ]
-        
+
         # 抑制模式：当一天内已开出≥15x高倍率后，禁用高倍率区间
         suppressed_ranges = [
             (0.0, 0.2, 10000),     # 严重亏损
@@ -292,15 +324,17 @@ class GameMechanicsService:
             (50.0, 200.0, 0),      # 传说级奖励（禁用）
             (200.0, 1500.0, 0),    # 神话级奖励（禁用）
         ]
+
         # 检查服务器级别的抑制状态
         suppressed = self._check_server_suppression()
-        
+
         # 根据抑制状态选择权重表
         if suppressed:
             ranges = wipe_bomb_config.get("suppressed_ranges", suppressed_ranges)
         else:
             ranges = wipe_bomb_config.get("normal_ranges", normal_ranges)
 
+        # 4. 处理预知结果 (使用详细逻辑)
         forecast_info = self._parse_wipe_bomb_forecast(user.wipe_bomb_forecast)
         predetermined_multiplier: Optional[float] = None
 
@@ -319,7 +353,7 @@ class GameMechanicsService:
             # 使用后清空预测
             user.wipe_bomb_forecast = None
 
-        # 3. 计算随机奖励倍数 (使用加权随机)
+        # 5. 计算随机奖励倍数 (使用加权随机)
         try:
             if predetermined_multiplier is not None:
                 reward_multiplier = predetermined_multiplier
@@ -327,10 +361,10 @@ class GameMechanicsService:
                 chosen_range = weighted_random_choice(ranges)
                 reward_multiplier = random.uniform(chosen_range[0], chosen_range[1])
         except (ValueError, IndexError) as e:
-            logger.error(f"擦弹预测时随机选择出错: {e}", exc_info=True)
-            return {"success": False, "message": "占卜失败，似乎天机不可泄露..."}
+            logger.error(f"擦弹时随机选择出错: {e}", exc_info=True)
+            return {"success": False, "message": "擦弹失败，似乎时空发生了扭曲..."}
 
-        # 4. 计算最终金额并执行事务
+        # 6. 计算最终金额并执行事务
         reward_amount = int(contribution_amount * reward_multiplier)
         profit = reward_amount - contribution_amount
 
@@ -340,10 +374,20 @@ class GameMechanicsService:
             self._trigger_server_suppression()
             suppression_triggered = True
 
+        # 7. 在同一个 user 对象上更新所有需要修改的属性
         user.coins += profit
+        user.wipe_bomb_attempts_today += 1 # 增加当日计数
+
+        if reward_multiplier > user.max_wipe_bomb_multiplier:
+            user.max_wipe_bomb_multiplier = reward_multiplier
+    
+        if user.min_wipe_bomb_multiplier is None or reward_multiplier < user.min_wipe_bomb_multiplier:
+            user.min_wipe_bomb_multiplier = reward_multiplier
+        
+        # 8. 一次性将所有用户数据的变更保存到数据库
         self.user_repo.update(user)
 
-        # 5. 记录日志
+        # 9. 记录日志
         log_entry = WipeBombLog(
             log_id=0, # DB自增
             user_id=user_id,
@@ -355,7 +399,6 @@ class GameMechanicsService:
         self.log_repo.add_wipe_bomb_log(log_entry)
 
         # 上传非敏感数据到服务器
-        # 在单独线程中异步上传数据
         def upload_data_async():
             upload_data = {
                 "user_id": user_id,
@@ -376,22 +419,192 @@ class GameMechanicsService:
         # 启动异步线程进行数据上传，不阻塞主流程
         self.thread_pool.submit(upload_data_async)
 
-
-        # 构建返回结果
+        # 10. 构建返回结果
         result = {
             "success": True,
             "contribution": contribution_amount,
             "multiplier": reward_multiplier,
             "reward": reward_amount,
             "profit": profit,
-            "remaining_today": total_max_attempts - (attempts_today + 1),
+            # 使用 user 对象中的新计数值来计算剩余次数
+            "remaining_today": total_max_attempts - user.wipe_bomb_attempts_today,
         }
         
-        # 如果触发了抑制模式，添加通知信息
         if suppression_triggered:
             result["suppression_notice"] = "✨ 天界之力降临！你的惊人运气触发了时空沙漏的平衡法则！为了避免时空扭曲，命运女神暂时调整了概率之流，但宝藏之门依然为你敞开！"
         
         return result
+
+    # ============================================================
+    # ================= 新增功能：命运之轮 (交互版) 开始 ===========
+    # ============================================================
+    
+    def _reset_wof_state(self, user: User, cash_out_prize: int = 0) -> None:
+        """内部辅助函数，用于重置用户的游戏状态并保存。"""
+        if cash_out_prize > 0:
+            user.coins += cash_out_prize
+        user.in_wheel_of_fate = False
+        user.last_wof_play_time = get_now()
+        user.wof_last_action_time = None
+        self.user_repo.update(user)
+
+    def handle_wof_timeout(self, user_id: str) -> Dict[str, Any] | None:
+        """检查并处理指定用户的游戏超时。如果处理了超时，返回一个结果字典。"""
+        user = self.user_repo.get_by_id(user_id)
+        if not hasattr(user, 'in_wheel_of_fate') or not user.in_wheel_of_fate or not user.wof_last_action_time:
+            return None
+
+        config = self.WHEEL_OF_FATE_CONFIG
+        timeout_seconds = config.get("timeout_seconds", 60)
+        now = get_now()
+        
+        if (now - user.wof_last_action_time).total_seconds() > timeout_seconds:
+            prize = user.wof_current_prize
+            self._reset_wof_state(user, cash_out_prize=prize)
+            
+            message = f"[CQ:at,qq={user_id}] 你的操作已超时，系统已自动为你结算当前奖金 **{prize}** 金币。"
+            logger.info(f"用户 {user_id} 命运之轮超时，自动结算 {prize} 金币。")
+            
+            return {"success": True, "status": "timed_out", "message": message}
+        return None
+
+    def start_wheel_of_fate(self, user_id: str, entry_fee: int) -> Dict[str, Any]:
+        """开始一局“命运之轮”游戏。"""
+        user = self.user_repo.get_by_id(user_id)
+        if not user: return {"success": False, "message": "用户不存在"}
+        
+        # 检查 User 对象是否具有所需属性，提供向后兼容性
+        if not all(hasattr(user, attr) for attr in ['in_wheel_of_fate', 'wof_last_action_time', 'last_wof_play_time', 'wof_plays_today', 'last_wof_date']):
+             return {"success": False, "message": "错误：用户数据结构不完整，请联系管理员更新数据库。"}
+
+        timeout_result = self.handle_wof_timeout(user_id)
+        if timeout_result:
+            user = self.user_repo.get_by_id(user_id)
+
+        if user.in_wheel_of_fate:
+            return {"success": False, "message": f"[CQ:at,qq={user_id}] 你已经在游戏中了，请回复【继续】或【放弃】。"}
+
+        # --- [新功能] 每日次数限制逻辑 ---
+        WHEEL_OF_FATE_DAILY_LIMIT = 5
+        today_str = get_today().strftime('%Y-%m-%d')
+
+        # 如果记录的日期不是今天，重置计数器
+        if user.last_wof_date != today_str:
+            user.wof_plays_today = 0
+            user.last_wof_date = today_str
+
+        # 检查次数是否已达上限
+        if user.wof_plays_today >= WHEEL_OF_FATE_DAILY_LIMIT:
+            return {"success": False, "message": f"今天的运气已经用光啦！你今天已经玩了 {user.wof_plays_today}/{WHEEL_OF_FATE_DAILY_LIMIT} 次命运之轮，请明天再来吧。"}
+        # --- 限制逻辑结束 ---
+
+        config = self.WHEEL_OF_FATE_CONFIG
+        min_fee = config.get("min_entry_fee", 500)
+        max_fee = config.get("max_entry_fee", 50000)
+        cooldown = config.get("cooldown_seconds", 60)
+        now = get_now()
+
+        if user.last_wof_play_time and (now - user.last_wof_play_time).total_seconds() < cooldown:
+            remaining = int(cooldown - (now - user.last_wof_play_time).total_seconds())
+            return {"success": False, "message": f"[CQ:at,qq={user_id}] 命运之轮冷却中，请等待 {remaining} 秒后再试。"}
+
+        if not min_fee <= entry_fee <= max_fee:
+            return {"success": False, "message": f"[CQ:at,qq={user_id}] 入场费必须在 {min_fee} 到 {max_fee} 金币之间。"}
+        if not user.can_afford(entry_fee):
+            return {"success": False, "message": f"[CQ:at,qq={user_id}] 金币不足，当前拥有 {user.coins} 金币。"}
+
+        user.coins -= entry_fee
+        user.in_wheel_of_fate = True
+        user.wof_current_level = 0
+        user.wof_current_prize = entry_fee
+        user.wof_entry_fee = entry_fee
+        user.wof_last_action_time = now
+        
+        # [新功能] 游戏次数加一
+        user.wof_plays_today += 1
+        
+        self.user_repo.update(user) # 保存所有更新
+
+        return self.continue_wheel_of_fate(user_id, user_obj=user)
+
+    def continue_wheel_of_fate(self, user_id: str, user_obj: User | None = None) -> Dict[str, Any]:
+        """在命运之轮中继续挑战下一层。"""
+
+        if timeout_result := self.handle_wof_timeout(user_id):
+            return timeout_result
+
+        user = user_obj if user_obj else self.user_repo.get_by_id(user_id)
+        if not hasattr(user, 'in_wheel_of_fate') or not user.in_wheel_of_fate:
+            return {"success": False, "status": "not_in_game", "message": "⚠️ 你当前不在命运之轮游戏中，无法继续。"}
+
+        config = self.WHEEL_OF_FATE_CONFIG
+        levels = config.get("levels", [])
+        
+        next_level_index = user.wof_current_level
+        if next_level_index >= len(levels):
+            return self.cash_out_wheel_of_fate(user_id, is_final_win=True)
+
+        level_data = levels[next_level_index]
+        success_rate = level_data.get("success_rate", 0.5)
+        multiplier = level_data.get("multiplier", 1.0)
+        
+        if random.random() < success_rate:
+            # 成功
+            user.wof_current_level += 1
+            user.wof_current_prize = round(user.wof_current_prize * multiplier)
+            user.wof_last_action_time = get_now()
+            
+            if user.wof_current_level == len(levels):
+                self.user_repo.update(user)
+                return self.cash_out_wheel_of_fate(user_id, is_final_win=True)
+            
+            self.user_repo.update(user)
+            
+            next_level_data = levels[user.wof_current_level]
+            next_success_rate = int(next_level_data.get("success_rate", 0.5) * 100)
+            
+            return {
+                "success": True, "status": "ongoing",
+                "message": (f"[CQ:at,qq={user_id}] **第 {user.wof_current_level} 层幸存！** (下一层成功率: {next_success_rate}%)\n"
+                            f"当前累积奖金 **{user.wof_current_prize}** 金币。\n"
+                            f"请在{config.get('timeout_seconds', 60)}秒内回复【继续】或【放弃】！")
+            }
+        else:
+            # 失败
+            lost_amount = user.wof_entry_fee
+            self._reset_wof_state(user)
+            return {
+                "success": True, "status": "lost",
+                "message": (f"[CQ:at,qq={user_id}] **湮灭！** "
+                            f"你在通往第 {user.wof_current_level + 1} 层的路上失败了，失去了入场的 {lost_amount} 金币..."),
+            }
+
+    def cash_out_wheel_of_fate(self, user_id: str, is_final_win: bool = False) -> Dict[str, Any]:
+        """从命运之轮中提现并结束游戏。"""
+
+        if timeout_result := self.handle_wof_timeout(user_id):
+            return timeout_result
+
+        user = self.user_repo.get_by_id(user_id)
+        if not hasattr(user, 'in_wheel_of_fate') or not user.in_wheel_of_fate:
+            return {"success": False, "status": "not_in_game", "message": "⚠️ 你当前不在命运之轮游戏中，无法继续。"}
+
+        prize = user.wof_current_prize
+        entry = user.wof_entry_fee
+        self._reset_wof_state(user, cash_out_prize=prize)
+
+        if is_final_win:
+            message = (f"✨ **[CQ:at,qq={user_id}] 命运的宠儿诞生了！** "
+                       f"你成功征服了命运之轮的10层，最终赢得了 **{prize}** 金币的神话级奖励！")
+        else:
+            message = (f"✅ **[CQ:at,qq={user_id}] 明智的选择！** "
+                       f"你成功将 **{prize}** 金币带回了家，本次游戏净赚 {prize - entry} 金币。")
+        
+        return {"success": True, "status": "cashed_out", "message": message}
+
+    # ============================================================
+    # ================== 新增功能：命运之轮 结束 ==================
+    # ============================================================
 
     def get_wipe_bomb_history(self, user_id: str, limit: int = 10) -> Dict[str, Any]:
         """
@@ -425,7 +638,7 @@ class GameMechanicsService:
         if not victim:
             return {"success": False, "message": "目标用户不存在"}
 
-        # 0. 首先检查偷窃CD（避免在CD中浪费暗影斗篷等道具）
+        # 0. 首先检查偷窃CD
         cooldown_seconds = self.config.get("steal", {}).get("cooldown_seconds", 14400) # 默认4小时
         now = get_now()
 
@@ -445,7 +658,6 @@ class GameMechanicsService:
             victim_id, "STEAL_PROTECTION_BUFF"
         )
         
-        # 检查偷窃者的反制能力
         penetration_buff = self.buff_repo.get_active_by_user_and_type(
             thief_id, "STEAL_PENETRATION_BUFF"
         )
@@ -454,16 +666,10 @@ class GameMechanicsService:
         )
         
         if protection_buff:
-            # 如果受害者有海灵守护，检查偷窃者是否有反制能力
             if not penetration_buff and not shadow_cloak_buff:
                 return {"success": False, "message": f"❌ 无法偷窃，【{victim.nickname}】的鱼塘似乎被神秘力量守护着！"}
             else:
-                # 有反制能力，继续偷窃
-                if penetration_buff:
-                    # 破灵符效果：可以穿透海灵守护
-                    pass
-                elif shadow_cloak_buff:
-                    # 暗影斗篷效果：使用后立即失效
+                if shadow_cloak_buff:
                     self.buff_repo.delete(shadow_cloak_buff.id)
 
         # 2. 检查受害者是否有鱼可偷
@@ -479,16 +685,14 @@ class GameMechanicsService:
             return {"success": False, "message": "发生内部错误，无法识别被偷的鱼"}
 
         # 4. 执行偷窃事务
-        # 从受害者库存中移除一条鱼
         self.inventory_repo.update_fish_quantity(victim_id, stolen_fish_item.fish_id, delta=-1)
-        # 向偷窃者库存中添加一条鱼
         self.inventory_repo.add_fish_to_inventory(thief_id, stolen_fish_item.fish_id, quantity=1)
 
         # 5. 更新偷窃者的CD时间
         thief.last_steal_time = now
         self.user_repo.update(thief)
 
-        # 6. 生成成功消息，包含反制道具信息
+        # 6. 生成成功消息
         counter_message = ""
         if protection_buff:
             if penetration_buff:
@@ -501,16 +705,178 @@ class GameMechanicsService:
             "message": f"{counter_message}✅ 成功从【{victim.nickname}】的鱼塘里偷到了一条{stolen_fish_template.rarity}★【{stolen_fish_template.name}】！基础价值 {stolen_fish_template.base_value} 金币",
         }
 
+    # ============================================================
+    # ==================== 新增功能：电鱼 开始 ====================
+    # ============================================================
+    def electric_fish(self, thief_id: str, victim_id: str) -> Dict[str, Any]:
+        """
+        处理"电鱼"的逻辑。
+        对鱼塘内鱼数>=100的目标随机偷取。
+        如果目标鱼数 > 400，则偷取其总数的15%-25%。
+        否则，偷取10-25条。
+        其中最多只能包含一条5星及以上的鱼。
+        """
+        if thief_id == victim_id:
+            return {"success": False, "message": "不能电自己的鱼！"}
+    
+        thief = self.user_repo.get_by_id(thief_id)
+        if not thief:
+            return {"success": False, "message": "使用者用户不存在"}
+    
+        victim = self.user_repo.get_by_id(victim_id)
+        if not victim:
+            return {"success": False, "message": "目标用户不存在"}
+    
+        # 0. 检查电鱼CD
+        cooldown_seconds = self.config.get("electric_fish", {}).get("cooldown_seconds", 10800) # 默认3小时
+        now = get_now()
+    
+        last_electric_fish_time = thief.last_electric_fish_time
+        if last_electric_fish_time and last_electric_fish_time.tzinfo is None and now.tzinfo is not None:
+            now = now.replace(tzinfo=None)
+        elif last_electric_fish_time and last_electric_fish_time.tzinfo is not None and now.tzinfo is None:
+            now = now.replace(tzinfo=last_electric_fish_time.tzinfo)
+    
+        if last_electric_fish_time and (now - last_electric_fish_time).total_seconds() < cooldown_seconds:
+            remaining = int(cooldown_seconds - (now - last_electric_fish_time).total_seconds())
+            return {"success": False, "message": f"电鱼冷却中，请等待 {remaining // 60} 分钟后再试"}
+    
+        # 1. 检查受害者是否受保护，逻辑同偷鱼
+        protection_buff = self.buff_repo.get_active_by_user_and_type(
+            victim_id, "STEAL_PROTECTION_BUFF"
+        )
+        
+        penetration_buff = self.buff_repo.get_active_by_user_and_type(
+            thief_id, "STEAL_PENETRATION_BUFF"
+        )
+        shadow_cloak_buff = self.buff_repo.get_active_by_user_and_type(
+            thief_id, "SHADOW_CLOAK_BUFF"
+        )
+        
+        if protection_buff:
+            if not penetration_buff and not shadow_cloak_buff:
+                return {"success": False, "message": f"❌ 无法电鱼，【{victim.nickname}】的鱼塘似乎被神秘力量守护着！"}
+            else:
+                if shadow_cloak_buff:
+                    self.buff_repo.delete(shadow_cloak_buff.id)
+    
+        # 2. 检查受害者鱼塘数量是否达标
+        victim_inventory = self.inventory_repo.get_fish_inventory(victim_id)
+        if not victim_inventory:
+            return {"success": False, "message": f"目标用户【{victim.nickname}】的鱼塘是空的！"}
+        
+        total_fish_count = sum(item.quantity for item in victim_inventory)
+        if total_fish_count < 100:
+            return {"success": False, "message": f"目标用户【{victim.nickname}】的鱼塘里鱼太少了（{total_fish_count}/100），电不到什么好东西，还是放过他吧。"}
+
+        # 3. 准备数据：获取鱼模板并将鱼塘扁平化
+        fish_templates = {
+            item.fish_id: self.item_template_repo.get_fish_by_id(item.fish_id)
+            for item in victim_inventory
+        }
+        all_fish_in_pond = []
+        for item in victim_inventory:
+            all_fish_in_pond.extend([item.fish_id] * item.quantity)
+
+        # 4. 决定偷取数量并进行初次完全随机抽样
+        num_to_steal = 0
+        if total_fish_count > 400:
+            # 如果鱼数大于400，按总数的10%-15%计算
+            lower_bound = int(total_fish_count * 0.1)
+            upper_bound = int(total_fish_count * 0.15)
+            num_to_steal = random.randint(lower_bound, upper_bound)
+        else:
+            # 否则，按原逻辑10-25条
+            num_to_steal = random.randint(10, 25)
+
+        actual_num_to_steal = min(num_to_steal, len(all_fish_in_pond))
+        initial_catch = random.sample(all_fish_in_pond, actual_num_to_steal)
+
+        # 5. 检查并修正高星鱼数量
+        high_rarity_caught = []
+        low_rarity_caught = []
+        for fish_id in initial_catch:
+            template = fish_templates.get(fish_id)
+            if template and template.rarity >= 5:
+                high_rarity_caught.append(fish_id)
+            else:
+                low_rarity_caught.append(fish_id)
+        
+        final_stolen_fish_ids = []
+        if len(high_rarity_caught) <= 1:
+            final_stolen_fish_ids = initial_catch
+        else:
+            random.shuffle(high_rarity_caught)
+            final_stolen_fish_ids.append(high_rarity_caught.pop(0))
+            final_stolen_fish_ids.extend(low_rarity_caught)
+            
+            num_to_replace = len(high_rarity_caught)
+
+            from collections import Counter
+            pond_counts = Counter(all_fish_in_pond)
+            initial_catch_counts = Counter(initial_catch)
+            pond_counts.subtract(initial_catch_counts)
+
+            replacement_pool = []
+            for fish_id, count in pond_counts.items():
+                if count > 0:
+                    template = fish_templates.get(fish_id)
+                    if template and template.rarity < 5:
+                        replacement_pool.extend([fish_id] * count)
+            
+            if replacement_pool:
+                num_can_replace = min(num_to_replace, len(replacement_pool))
+                replacements = random.sample(replacement_pool, num_can_replace)
+                final_stolen_fish_ids.extend(replacements)
+
+        # 6. 统计最终偷到的鱼
+        stolen_fish_counts = {}
+        for fish_id in final_stolen_fish_ids:
+            stolen_fish_counts[fish_id] = stolen_fish_counts.get(fish_id, 0) + 1
+    
+        # 7. 执行电鱼事务并计算总价值
+        stolen_summary = []
+        total_value_stolen = 0
+    
+        for fish_id, count in stolen_fish_counts.items():
+            self.inventory_repo.update_fish_quantity(victim_id, fish_id, delta=-count)
+            self.inventory_repo.add_fish_to_inventory(thief_id, fish_id, quantity=count)
+            
+            template = fish_templates.get(fish_id)
+            if template:
+                stolen_summary.append(f"【{template.name}】x{count}")
+                total_value_stolen += template.base_value * count
+    
+        # 8. 更新电鱼的CD时间并保存
+        thief.last_electric_fish_time = now
+        self.user_repo.update(thief)
+    
+        # 9. 生成成功消息
+        counter_message = ""
+        if protection_buff:
+            if penetration_buff:
+                counter_message = "⚡ 破灵符的力量穿透了海灵守护！"
+            elif shadow_cloak_buff:
+                counter_message = "🌑 暗影斗篷让你在阴影中行动！"
+    
+        stolen_details = "、".join(stolen_summary)
+        actual_stolen_count = len(final_stolen_fish_ids)
+        return {
+            "success": True,
+            "message": f"{counter_message}✅ 成功对【{victim.nickname}】的鱼塘进行了一次电疗，捕获了{actual_stolen_count}条鱼，总价值 {total_value_stolen} 金币！分别是：{stolen_details}。",
+        }
+    # ============================================================
+    # ===================== 新增功能：电鱼 结束 =====================
+    # ============================================================
+
     def dispel_steal_protection(self, target_id: str) -> Dict[str, Any]:
         """
         驱散目标的海灵守护效果
         """
-        # 检查目标是否存在
         target = self.user_repo.get_by_id(target_id)
         if not target:
             return {"success": False, "message": "目标用户不存在"}
 
-        # 检查是否有海灵守护效果
         protection_buff = self.buff_repo.get_active_by_user_and_type(
             target_id, "STEAL_PROTECTION_BUFF"
         )
@@ -518,7 +884,6 @@ class GameMechanicsService:
         if not protection_buff:
             return {"success": False, "message": f"【{target.nickname}】没有海灵守护效果"}
         
-        # 移除海灵守护效果
         self.buff_repo.delete(protection_buff.id)
         
         return {
@@ -530,12 +895,10 @@ class GameMechanicsService:
         """
         检查目标是否有海灵守护效果
         """
-        # 检查目标是否存在
         target = self.user_repo.get_by_id(target_id)
         if not target:
             return {"has_protection": False, "target_name": "未知用户", "message": "目标用户不存在"}
 
-        # 检查是否有海灵守护效果
         protection_buff = self.buff_repo.get_active_by_user_and_type(
             target_id, "STEAL_PROTECTION_BUFF"
         )
@@ -558,25 +921,90 @@ class GameMechanicsService:
         Returns:
             计算出的售价。
         """
-        # 1. 从配置中获取售价信息
         sell_price_config = self.config.get("sell_prices", {})
         
-        # 2. 获取该物品类型的基础售价
         base_prices = sell_price_config.get(item_type, {})
         base_price = base_prices.get(str(rarity), 0)
 
-        # 3. 获取精炼等级的售价乘数
         refine_multipliers = sell_price_config.get("refine_multiplier", {})
-        
-        # 确保乘数存在，如果不存在则默认为1
         refine_multiplier = refine_multipliers.get(str(refine_level), 1.0)
 
-        # 4. 计算最终价格
-        # 最终价格 = 基础价格 * 精炼乘数
         final_price = int(base_price * refine_multiplier)
 
-        # 5. 如果没有找到任何配置，则提供一个最低默认价
         if final_price <= 0:
             return 30  # 默认最低价格
 
         return final_price
+
+    # ============================================================
+    # ==================== 新增功能：骰宝 (大小) 开始 ====================
+    # ============================================================
+    def play_sicbo(self, user_id: str, bet_type: str, amount: int) -> Dict[str, Any]:
+        """处理骰宝（押大小）游戏的核心逻辑"""
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "❌ 用户不存在。"}
+
+        # 1. 冷却时间检查 (例如：5秒)
+        cooldown_seconds = 5
+        now = get_now()
+        if user.last_sicbo_time and (now - user.last_sicbo_time).total_seconds() < cooldown_seconds:
+            remaining = int(cooldown_seconds - (now - user.last_sicbo_time).total_seconds())
+            return {"success": False, "message": f"⏳ 操作太快了，请等待 {remaining} 秒后再试。"}
+
+        # 2. 验证下注
+        valid_bets = ['大', '小']
+        if bet_type not in valid_bets:
+            return {"success": False, "message": "❌ 押注类型错误！只能押 `大` 或 `小`。"}
+        if amount <= 0:
+            return {"success": False, "message": "❌ 押注金额必须大于0！"}
+        if not user.can_afford(amount):
+            return {"success": False, "message": f"💰 你的金币不足！当前拥有 {user.coins:,} 金币。"}
+
+        # 3. 扣除押金并开始游戏
+        user.coins -= amount
+        
+        # 4. 投掷三个骰子
+        dice = [random.randint(1, 6) for _ in range(3)]
+        total = sum(dice)
+        
+        # 5. 判断结果
+        is_triple = (dice[0] == dice[1] == dice[2])
+        
+        if 4 <= total <= 10:
+            result_type = '小'
+        elif 11 <= total <= 17:
+            result_type = '大'
+        else: # 只有豹子会落到这个区间外
+            result_type = '豹子'
+
+        # 6. 判断输赢
+        # 规则：如果开出豹子，庄家通吃
+        win = False
+        if not is_triple and bet_type == result_type:
+            win = True
+
+        # 7. 结算
+        profit = 0
+        if win:
+            winnings = amount * 2 # 1:1赔率，返还本金+1倍奖金
+            profit = amount
+            user.coins += winnings
+        else:
+            profit = -amount # 输了，损失本金
+
+        # 8. 更新用户状态并保存
+        user.last_sicbo_time = now
+        self.user_repo.update(user)
+
+        # 9. 返回详细的游戏结果
+        return {
+            "success": True,
+            "win": win,
+            "dice": dice,
+            "total": total,
+            "result_type": result_type,
+            "is_triple": is_triple,
+            "profit": profit,
+            "new_balance": user.coins
+        }
