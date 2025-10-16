@@ -16,7 +16,7 @@ from ..repositories.abstract_repository import (
 )
 from ..domain.models import FishingRecord, TaxRecord, FishingZone
 from ..services.fishing_zone_service import FishingZoneService
-from ..utils import get_now, get_fish_template, get_today, calculate_after_refine
+from ..utils import get_now, get_fish_template, get_today, get_last_reset_time, calculate_after_refine
 
 
 class FishingService:
@@ -40,7 +40,9 @@ class FishingService:
         self.fishing_zone_service = fishing_zone_service
         self.config = config
 
-        self.today = get_today()
+        # 获取每日刷新时间配置
+        self.daily_reset_hour = self.config.get("daily_reset_hour", 0)
+        self.last_reset_time = get_last_reset_time(self.daily_reset_hour)
         # 自动钓鱼线程相关属性
         self.auto_fishing_thread: Optional[threading.Thread] = None
         self.auto_fishing_running = False
@@ -805,11 +807,12 @@ class FishingService:
 
         while self.auto_fishing_running:
             try:
-                today = get_today()
-                if today != self.today:
-                    # 如果今天日期变了，重置今日稀有鱼捕获数量
-                    self.today = today
-                    logger.info(f"检测到日期变更，从 {self.today} 到 {today}，开始执行每日任务...")
+                # 检查是否到达刷新时间点
+                current_reset_time = get_last_reset_time(self.daily_reset_hour)
+                if current_reset_time != self.last_reset_time:
+                    # 如果刷新时间点变了，执行每日重置任务
+                    logger.info(f"检测到刷新时间点变更（每日{self.daily_reset_hour}点刷新），从 {self.last_reset_time} 到 {current_reset_time}，开始执行每日任务...")
+                    self.last_reset_time = current_reset_time
                     
                     # 重置所有受配额限制区域的稀有鱼计数（4星及以上）
                     all_zones = self.inventory_repo.get_all_zones()

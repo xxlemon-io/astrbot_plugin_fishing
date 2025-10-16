@@ -11,6 +11,31 @@ def get_now() -> datetime:
 def get_today() -> date:
     return get_now().date()
 
+def get_last_reset_time(reset_hour: int = 0) -> datetime:
+    """
+    获取最近一次刷新时间点
+    
+    Args:
+        reset_hour: 每日刷新的小时数（0-23），默认为0表示0点刷新
+    
+    Returns:
+        最近一次刷新的时间点（datetime对象）
+    
+    Example:
+        如果 reset_hour=6，当前时间是今天8点，返回今天6点
+        如果 reset_hour=6，当前时间是今天5点，返回昨天6点
+    """
+    now = get_now()
+    # 创建今天的刷新时间点
+    today_reset = now.replace(hour=reset_hour, minute=0, second=0, microsecond=0)
+    
+    # 如果当前时间已经过了今天的刷新时间点，返回今天的刷新时间点
+    if now >= today_reset:
+        return today_reset
+    else:
+        # 否则返回昨天的刷新时间点
+        return today_reset - timedelta(days=1)
+
 def get_fish_template(new_fish_list, coins_chance):
     sorted_fish_list = sorted(new_fish_list, key=lambda x: x.base_value, reverse=True)
     random_index = random.randint(0, len(sorted_fish_list) - 1)

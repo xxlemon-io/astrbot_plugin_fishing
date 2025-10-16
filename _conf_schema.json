@@ -53,6 +53,12 @@
     "hint": "每次钓鱼后的冷却时间，单位为秒",
     "default": 180
   },
+  "daily_reset_hour": {
+    "description": "每日刷新时间点",
+    "type": "int",
+    "hint": "每日重置鱼塘配额、税收等的时间点（小时，0-23），默认为0表示0点刷新",
+    "default": 0
+  },
   "steal_cooldown_seconds": {
     "description": "偷鱼的冷却时间",
     "type": "int",
