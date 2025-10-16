@@ -293,24 +293,6 @@ class FishingService:
         weight = random.randint(fish_template.min_weight, fish_template.max_weight)
         value = fish_template.base_value
 
-        # 计算一下是否超过用户鱼塘容量
-        user_fish_inventory = self.inventory_repo.get_fish_inventory(user.user_id)
-        if user.fish_pond_capacity == sum(item.quantity for item in user_fish_inventory):
-            # 随机删除用户的一条鱼
-            random_fish = random.choice(user_fish_inventory)
-            self.inventory_repo.update_fish_quantity(
-                user.user_id,
-                random_fish.fish_id,
-                -1
-            )
-
-        if fish_template.rarity >= 4:
-            # 如果是4星及以上稀有鱼，增加用户的稀有鱼捕获计数
-            zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
-            if zone:
-                zone.rare_fish_caught_today += 1
-                self.inventory_repo.update_fishing_zone(zone)
-
         # 4.2 按品质加成给予额外质量（重量/价值）奖励
         quality_bonus = False
         if quality_modifier > 1.0:
@@ -331,7 +313,38 @@ class FishingService:
             if fractional > 0 and random.random() < fractional:
                 total_catches += 1
 
-        # 5. 更新数据库
+        # 5. 处理鱼塘容量（在确定总渔获量后）
+        user_fish_inventory = self.inventory_repo.get_fish_inventory(user.user_id)
+        current_fish_count = sum(item.quantity for item in user_fish_inventory)
+        
+        # 计算放入新鱼后是否会溢出，以及溢出多少
+        overflow_amount = (current_fish_count + total_catches) - user.fish_pond_capacity
+
+        if overflow_amount > 0:
+            # 鱼塘空间不足，需要移除 `overflow_amount` 条鱼
+            # 采用循环随机移除的策略，确保腾出足够空间
+            for _ in range(overflow_amount):
+                # 每次循环都重新获取一次库存，防止某个种类的鱼被移除完
+                current_inventory_for_removal = self.inventory_repo.get_fish_inventory(user.user_id)
+                if not current_inventory_for_removal:
+                    break # 如果鱼塘已经空了，就停止移除
+                
+                # 随机选择一个鱼种（堆叠）来移除
+                random_fish_stack = random.choice(current_inventory_for_removal)
+                self.inventory_repo.update_fish_quantity(
+                    user.user_id,
+                    random_fish_stack.fish_id,
+                    -1
+                )
+
+        if fish_template.rarity >= 4:
+            # 如果是4星及以上稀有鱼，增加用户的稀有鱼捕获计数
+            zone = self.inventory_repo.get_zone_by_id(user.fishing_zone_id)
+            if zone:
+                zone.rare_fish_caught_today += 1
+                self.inventory_repo.update_fishing_zone(zone)
+
+        # 6. 更新数据库
         self.inventory_repo.add_fish_to_inventory(user.user_id, fish_template.fish_id, quantity= total_catches)
 
         # 更新用户统计数据
@@ -391,7 +404,7 @@ class FishingService:
         )
         self.log_repo.add_fishing_record(record)
 
-        # 6. 构建成功返回结果
+        # 7. 构建成功返回结果
         result = {
             "success": True,
             "fish": {

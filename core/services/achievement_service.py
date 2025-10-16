@@ -75,32 +75,82 @@ class AchievementService:
             user=user,
             unique_fish_count=self.achievement_repo.get_user_unique_fish_count(user_id),
             garbage_count=self.achievement_repo.get_user_garbage_count(user_id),
-            max_wipe_bomb_multiplier=self.log_repo.get_max_wipe_bomb_multiplier(user_id),
+            max_wipe_bomb_multiplier=user.max_wipe_bomb_multiplier, # <--- 采用优化后的实现
+            min_wipe_bomb_multiplier=user.min_wipe_bomb_multiplier, # <--- 采用优化后的实现
             owned_rod_rarities=owned_rod_rarities,
             owned_accessory_rarities=owned_accessory_rarities,
             has_heavy_fish=self.achievement_repo.has_caught_heavy_fish(user_id, 100000)
         )
 
     def _grant_reward(self, user: User, achievement: BaseAchievement):
-        """根据成就定义，为用户发放奖励。"""
-        reward_type, reward_value, reward_quantity = achievement.reward
-        if not reward_value:
+        """
+        根据成就定义，为用户发放奖励。
+        (修正版，适配从 achievement.reward 元组中解析奖励信息)
+        """
+        # 1. 防御性检查：确保 reward 属性存在且不为 None
+        if not hasattr(achievement, 'reward') or achievement.reward is None:
+            logger.info(f"成就 '{achievement.name}' (ID: {achievement.id}) 没有定义奖励，仅解锁成就本身。")
+            # 注意：解锁成就的逻辑应该在调用此函数之前或之后统一处理，这里只负责发奖
             return
 
+        # 2. 安全地解析 reward 元组
+        try:
+            reward_tuple = achievement.reward
+            if len(reward_tuple) == 3:
+                reward_type, reward_value, reward_quantity = reward_tuple
+            elif len(reward_tuple) == 2:
+                reward_type, reward_value = reward_tuple
+                reward_quantity = 1  # 如果元组只有2个元素，数量默认为1
+            else:
+                logger.error(f"成就 '{achievement.name}' 的 reward 属性格式不正确（需要2或3个元素）: {reward_tuple}")
+                return
+                
+        except (TypeError, ValueError) as e:
+            logger.error(f"解析成就 '{achievement.name}' 的 reward 属性时失败: {achievement.reward}。错误: {e}")
+            return
+
+        # 打印日志，方便调试
+        logger.info(f"正在为用户 {user.user_id} 发放成就 '{achievement.name}' 的奖励: "
+                    f"类型='{reward_type}', 值='{reward_value}', 数量={reward_quantity}")
+
+        # 3. 根据解析出的 reward_type 分发奖励
         if reward_type == "coins":
-            user.coins += (reward_value * reward_quantity)
-            self.user_repo.update(user)
+            # 确保 reward_value 和 reward_quantity 是数字
+            if isinstance(reward_value, int) and isinstance(reward_quantity, int):
+                amount_to_add = reward_value * reward_quantity
+                # 假设 user 对象可以直接修改，并且 user_repo.update() 会保存更改
+                # 如果您的框架不是这样工作，请使用 self.user_repo.update_coins(user.user_id, amount_to_add)
+                user.coins += amount_to_add
+                self.user_repo.update(user)
+                logger.info(f"已为用户 {user.user_id} 添加 {amount_to_add} 金币。")
+            else:
+                logger.error(f"成就 '{achievement.name}' 的金币奖励值或数量不是整数。")
+                
         elif reward_type == "title":
+            # 称号奖励的数量通常是1，但我们仍然可以按逻辑处理
+            # 假设 grant_title_to_user 只需要 title_id
             self.achievement_repo.grant_title_to_user(user.user_id, reward_value)
+            
         elif reward_type == "bait":
             self.inventory_repo.update_bait_quantity(user.user_id, reward_value, delta=reward_quantity)
+            
         elif reward_type == "rod":
             rod_template = self.item_template_repo.get_rod_by_id(reward_value)
             if rod_template:
-                self.inventory_repo.add_rod_instance(user.user_id, reward_value, rod_template.durability)
+                # 循环添加指定数量的鱼竿
+                for _ in range(reward_quantity):
+                    self.inventory_repo.add_rod_instance(user.user_id, reward_value, rod_template.durability)
+            else:
+                logger.error(f"尝试奖励鱼竿失败：找不到ID为 {reward_value} 的鱼竿模板。")
+                
         elif reward_type == "accessory":
-            self.inventory_repo.add_accessory_instance(user.user_id, reward_value)
-
+            # 循环添加指定数量的饰品
+            for _ in range(reward_quantity):
+                self.inventory_repo.add_accessory_instance(user.user_id, reward_value)
+                
+        else:
+            logger.warning(f"未知的成就奖励类型: '{reward_type}'，无法发放。")
+            
     # --- 后台任务与核心逻辑 ---
 
     def start_achievement_check_task(self):
@@ -147,6 +197,7 @@ class AchievementService:
                 # 如果成就完成，发放奖励并更新进度
                 self._grant_reward(user_context.user, ach)
                 self.achievement_repo.update_user_progress(user_id, ach.id, ach.get_progress(user_context), completed_at=datetime.now())
+                
     # --- 成就相关的API接口 ---
 
     def get_user_achievements(self, user_id: str) -> Dict[str, Any]:

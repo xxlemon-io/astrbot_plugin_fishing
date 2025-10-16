@@ -151,6 +151,7 @@ class SqliteLogRepository(AbstractLogRepository):
             """, (user_id,))
             rows = cursor.fetchall()
             return {row["fish_id"]: row["first_caught_time"] for row in rows}
+            
     def get_fishing_records(self, user_id: str, limit: int) -> List[FishingRecord]:
         with self._get_connection() as conn:
             # 为了简化返回，这里不连接获取名称，表现层可以按需从ItemTemplateRepository获取
@@ -418,6 +419,16 @@ class SqliteLogRepository(AbstractLogRepository):
             """, (user_id,))
             result = cursor.fetchone()
             return result[0] if result and result[0] is not None else 0.0
+
+    def get_min_wipe_bomb_multiplier(self, user_id: str) -> Optional[float]:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT MIN(reward_multiplier) FROM wipe_bomb_log
+                WHERE user_id = ?
+            """, (user_id,))
+            result = cursor.fetchone()
+            return result[0] if result and result[0] is not None else None
 
     def get_gacha_records_count_today(
         self, user_id: str, gacha_pool_id: int

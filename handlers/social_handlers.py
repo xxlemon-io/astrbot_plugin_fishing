@@ -1,4 +1,5 @@
 import os
+import time
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.core.message.components import At
 from astrbot.api import logger
@@ -12,20 +13,80 @@ if TYPE_CHECKING:
 
 
 async def ranking(plugin: "FishingPlugin", event: AstrMessageEvent):
-    """查看排行榜"""
-    user_data = plugin.user_service.get_leaderboard_data().get("leaderboard", [])
+    """
+    查看排行榜。
+    支持按不同标准排序，例如：/排行榜 数量 或 /排行榜 重量
+    默认按金币排名。
+    """
+    args = event.message_str.split()
+    ranking_type = "coins"
+
+    if len(args) > 1:
+        sort_key = args[1]
+        if sort_key in ["数量", "钓获", "fish"]:
+            ranking_type = "fish_count"
+        elif sort_key in ["重量", "weight"]:
+            ranking_type = "total_weight_caught"
+
+    # 1. 从服务层获取基础排行榜数据（现在已包含 user_id 和 current_title_id）
+    user_data = plugin.user_service.get_leaderboard_data(sort_by=ranking_type).get(
+        "leaderboard", []
+    )
+
     if not user_data:
         yield event.plain_result("❌ 当前没有排行榜数据。")
         return
-    for user in user_data:
-        if user["title"] is None:
-            user["title"] = "无称号"
-        if user["accessory"] is None:
-            user["accessory"] = "无饰品"
-        if user["fishing_rod"] is None:
-            user["fishing_rod"] = "无鱼竿"
-    logger.info(f"用户数据: {user_data}")
-    output_path = os.path.join(plugin.tmp_dir, "fishing_ranking.png")
+
+    # 2. 遍历列表，为每个用户查询并填充装备和称号的【名称】
+    for user_dict in user_data:
+        user_id = user_dict.get("user_id")
+
+        # 如果（因为某些意外）没有 user_id，则跳过查询，使用默认值
+        if not user_id:
+            user_dict["title"] = "无称号"
+            user_dict["fishing_rod"] = "无鱼竿"
+            user_dict["accessory"] = "无饰品"
+            user_dict["total_weight_caught"] = user_dict.get("total_weight_caught", 0)
+            continue
+
+        # 获取鱼竿名称
+        rod_name = "无鱼竿"
+        rod_instance = plugin.inventory_repo.get_user_equipped_rod(user_id)
+        if rod_instance:
+            rod_template = plugin.item_template_repo.get_rod_by_id(rod_instance.rod_id)
+            if rod_template:
+                rod_name = rod_template.name
+        user_dict["fishing_rod"] = rod_name
+
+        # 获取饰品名称
+        accessory_name = "无饰品"
+        accessory_instance = plugin.inventory_repo.get_user_equipped_accessory(user_id)
+        if accessory_instance:
+            accessory_template = plugin.item_template_repo.get_accessory_by_id(
+                accessory_instance.accessory_id
+            )
+            if accessory_template:
+                accessory_name = accessory_template.name
+        user_dict["accessory"] = accessory_name
+
+        # 获取称号名称
+        title_name = "无称号"
+        if current_title_id := user_dict.get("current_title_id"):
+            title_info = plugin.item_template_repo.get_title_by_id(current_title_id)
+            if title_info:
+                title_name = title_info.name
+        user_dict["title"] = title_name
+
+        # 确保重量字段存在，以防万一
+        user_dict["total_weight_caught"] = user_dict.get("total_weight_caught", 0)
+
+    # 3. 绘制并发送图片
+    user_id_for_filename = plugin._get_effective_user_id(event)
+    unique_id = getattr(
+        event, "message_id", f"{user_id_for_filename}_{int(time.time())}"
+    )
+    output_path = os.path.join(plugin.tmp_dir, f"fishing_ranking_{unique_id}.png")
+
     draw_fishing_ranking(user_data, output_path=output_path)
     yield event.image_result(output_path)
 
@@ -36,36 +97,58 @@ async def steal_fish(plugin: "FishingPlugin", event: AstrMessageEvent):
     message_obj = event.message_obj
     target_id = None
     if hasattr(message_obj, "message"):
-        # 检查消息中是否有At对象
         for comp in message_obj.message:
             if isinstance(comp, At):
                 target_id = comp.qq
                 break
 
-    # 如果没有@，尝试从消息文本中解析
     if target_id is None:
-        message_text = event.message_str.strip()
-        if len(message_text.split()) > 1:
-            # 支持 "偷鱼 用户ID" 格式
-            parts = message_text.split()
-            if len(parts) >= 2:
-                target_id = parts[1].strip()
+        parts = event.message_str.strip().split()
+        if len(parts) >= 2:
+            target_id = parts[1].strip()
 
     if not target_id:
         yield event.plain_result(
             "❌ 请指定偷鱼的用户！\n用法：/偷鱼 @用户 或 /偷鱼 用户ID"
         )
         return
-    if int(target_id) == int(user_id):
+    if str(target_id) == str(user_id):
         yield event.plain_result("不能偷自己的鱼哦！")
         return
 
     result = plugin.game_mechanics_service.steal_fish(user_id, target_id)
     if result:
-        if result["success"]:
-            yield event.plain_result(result["message"])
-        else:
-            yield event.plain_result(f"❌ 偷鱼失败：{result['message']}")
+        yield event.plain_result(result["message"])
+    else:
+        yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+
+async def electric_fish(plugin: "FishingPlugin", event: AstrMessageEvent):
+    """电鱼功能"""
+    user_id = plugin._get_effective_user_id(event)
+    message_obj = event.message_obj
+    target_id = None
+    if hasattr(message_obj, "message"):
+        for comp in message_obj.message:
+            if isinstance(comp, At):
+                target_id = comp.qq
+                break
+
+    if target_id is None:
+        parts = event.message_str.strip().split()
+        if len(parts) >= 2:
+            target_id = parts[1].strip()
+
+    if not target_id:
+        yield event.plain_result("❌ 请指定电鱼的用户！\n用法：/电鱼 @用户 或 /电鱼 用户ID")
+        return
+    if str(target_id) == str(user_id):
+        yield event.plain_result("不能电自己的鱼哦！")
+        return
+
+    result = plugin.game_mechanics_service.electric_fish(user_id, target_id)
+    if result:
+        yield event.plain_result(result["message"])
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
@@ -73,62 +156,17 @@ async def steal_fish(plugin: "FishingPlugin", event: AstrMessageEvent):
 async def dispel_protection(plugin: "FishingPlugin", event: AstrMessageEvent):
     """使用驱灵香驱散目标的海灵守护"""
     user_id = plugin._get_effective_user_id(event)
-    message_obj = event.message_obj
-    target_id = None
-    if hasattr(message_obj, "message"):
-        # 检查消息中是否有At对象
-        for comp in message_obj.message:
-            if isinstance(comp, At):
-                target_id = comp.qq
-                break
-    if target_id is None:
+    target_id = parse_target_user_id(event)
+
+    if not target_id:
         yield event.plain_result("请在消息中@要驱散守护的用户")
         return
-    if int(target_id) == int(user_id):
+    if str(target_id) == str(user_id):
         yield event.plain_result("不能对自己使用驱灵香哦！")
         return
 
-    # 检查是否有驱灵香
-    user_inventory = plugin.inventory_service.get_user_item_inventory(user_id)
-    dispel_items = [
-        item
-        for item in user_inventory.get("items", [])
-        if item.get("effect_type") == "STEAL_PROTECTION_REMOVAL"
-    ]
-
-    if not dispel_items:
-        yield event.plain_result("❌ 你没有驱灵香，无法使用此功能！")
-        return
-
-    # 先检查目标是否有海灵守护效果
-    dispel_result = plugin.game_mechanics_service.check_steal_protection(target_id)
-    if not dispel_result.get("has_protection"):
-        yield event.plain_result(
-            f"❌ 【{dispel_result.get('target_name', '目标')}】没有海灵守护效果，无需驱散！"
-        )
-        return
-
-    # 直接扣除驱灵香
-    dispel_item = dispel_items[0]
-    result = plugin.user_service.remove_item_from_user_inventory(
-        user_id, "item", dispel_item["item_id"], 1
-    )
-    if not result.get("success"):
-        yield event.plain_result(
-            f"❌ 扣除驱灵香失败：{result.get('message', '未知错误')}"
-        )
-        return
-
-    # 驱散目标的海灵守护buff
-    dispel_result = plugin.game_mechanics_service.dispel_steal_protection(target_id)
-    if dispel_result.get("success"):
-        yield event.plain_result(
-            f"🔥 驱灵香的力量驱散了【{dispel_result.get('target_name', '目标')}】的海灵守护！"
-        )
-    else:
-        yield event.plain_result(
-            f"❌ 驱散失败：{dispel_result.get('message', '未知错误')}"
-        )
+    result = plugin.game_mechanics_service.dispel_protection(user_id, target_id)
+    yield event.plain_result(result["message"])
 
 
 async def view_titles(plugin: "FishingPlugin", event: AstrMessageEvent):
@@ -138,7 +176,8 @@ async def view_titles(plugin: "FishingPlugin", event: AstrMessageEvent):
     if titles:
         message = "【🏅 您的称号】\n"
         for title in titles:
-            message += f"- {title['name']} (ID: {title['title_id']})\n- 描述: {title['description']}\n\n"
+            status = " (当前装备)" if title["is_current"] else ""
+            message += f"- {title['name']} (ID: {title['title_id']}){status}\n- 描述: {title['description']}\n\n"
         yield event.plain_result(message)
     else:
         yield event.plain_result("❌ 您还没有任何称号，快去完成成就或参与活动获取吧！")
@@ -151,18 +190,12 @@ async def use_title(plugin: "FishingPlugin", event: AstrMessageEvent):
     if len(args) < 2:
         yield event.plain_result("❌ 请指定要使用的称号 ID，例如：/使用称号 1")
         return
-    title_id = args[1]
-    if not title_id.isdigit():
+    title_id_str = args[1]
+    if not title_id_str.isdigit():
         yield event.plain_result("❌ 称号 ID 必须是数字，请检查后重试。")
         return
-    result = plugin.user_service.use_title(user_id, int(title_id))
-    if result:
-        if result["success"]:
-            yield event.plain_result(result["message"])
-        else:
-            yield event.plain_result(f"❌ 使用称号失败：{result['message']}")
-    else:
-        yield event.plain_result("❌ 出错啦！请稍后再试。")
+    result = plugin.user_service.use_title(user_id, int(title_id_str))
+    yield event.plain_result(result["message"])
 
 
 async def view_achievements(plugin: "FishingPlugin", event: AstrMessageEvent):
@@ -175,14 +208,14 @@ async def view_achievements(plugin: "FishingPlugin", event: AstrMessageEvent):
     )
     if achievements:
         message = "【🏆 您的成就】\n"
-        for achievement in achievements:
-            message += f"- {achievement['name']} (ID: {achievement['id']})\n"
-            message += f"  描述: {achievement['description']}\n"
-            if achievement.get("completed_at"):
-                message += f"  完成时间: {safe_datetime_handler(achievement['completed_at'])}\n"
+        for ach in achievements:
+            message += f"- {ach['name']} (ID: {ach['id']})\n"
+            message += f"  描述: {ach['description']}\n"
+            if ach.get("completed_at"):
+                message += f"  完成时间: {safe_datetime_handler(ach['completed_at'])}\n"
             else:
                 message += "  进度: {}/{}\n".format(
-                    achievement["progress"], achievement["target"]
+                    ach.get("progress", 0), ach.get("target", 1)
                 )
         message += "请继续努力完成更多成就！"
         yield event.plain_result(message)
@@ -196,19 +229,16 @@ async def tax_record(plugin: "FishingPlugin", event: AstrMessageEvent):
 
     user_id = plugin._get_effective_user_id(event)
     result = plugin.user_service.get_tax_record(user_id)
-    if result:
-        if result["success"]:
-            records = result.get("records", [])
-            if not records:
-                yield event.plain_result("📜 您还没有税收记录。")
-                return
-            message = "【📜 税收记录】\n\n"
-            for record in records:
-                message += f"⏱️ 时间: {safe_datetime_handler(record['timestamp'])}\n"
-                message += f"💰 金额: {record['amount']} 金币\n"
-                message += f"📊 描述: {record['tax_type']}\n\n"
-            yield event.plain_result(message)
-        else:
-            yield event.plain_result(f"❌ 查看税收记录失败：{result['message']}")
+    if result and result["success"]:
+        records = result.get("records", [])
+        if not records:
+            yield event.plain_result("📜 您还没有税收记录。")
+            return
+        message = "【📜 税收记录】\n\n"
+        for record in records:
+            message += f"⏱️ 时间: {safe_datetime_handler(record['timestamp'])}\n"
+            message += f"💰 金额: {record['amount']} 金币\n"
+            message += f"📊 描述: {record['tax_type']}\n\n"
+        yield event.plain_result(message)
     else:
-        yield event.plain_result("❌ 出错啦！请稍后再试。")
+        yield event.plain_result(f"❌ 查看税收记录失败：{result.get('message', '未知错误')}")

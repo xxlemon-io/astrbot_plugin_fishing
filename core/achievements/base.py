@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Tuple, Any, Set
+from typing import Optional
 
 from ..domain.models import User
 
@@ -14,6 +15,7 @@ class UserContext:
     unique_fish_count: int
     garbage_count: int
     max_wipe_bomb_multiplier: float
+    min_wipe_bomb_multiplier: Optional[float]
     owned_rod_rarities: Set[int]
     owned_accessory_rarities: Set[int]
     has_heavy_fish: bool

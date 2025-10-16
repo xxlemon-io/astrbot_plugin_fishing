@@ -406,11 +406,12 @@ class MarketService:
 
             quantity_text = f" x{listing.quantity}" if listing.quantity > 1 else ""
             
+            message = f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！"
             # 如果是鱼类，提示用户去水族箱查收
             if listing.item_type == "fish":
-                return {"success": True, "message": f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！\n🐠 请前往水族箱查收您的鱼类！"}
-            else:
-                return {"success": True, "message": f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！"}
+                message += "\n🐠 请前往水族箱查收您的鱼类！"
+            
+            return {"success": True, "message": message}
 
         except Exception as e:
             # 回滚交易
@@ -444,7 +445,7 @@ class MarketService:
         elif listing.item_type == "item":
             self.inventory_repo.update_item_quantity(listing.user_id, listing.item_id, listing.quantity)
         elif listing.item_type == "fish":
-            self.inventory_repo.add_fish_to_inventory(listing.user_id, listing.item_id, listing.quantity)
+            self.inventory_repo.add_fish_to_aquarium(listing.user_id, listing.item_id, listing.quantity)
         elif listing.item_type == "commodity":
             from ..domain.models import UserCommodity
             # 检查卖家交易所容量
@@ -469,31 +470,41 @@ class MarketService:
 
     def delist_item(self, user_id: str, market_id: int) -> Dict[str, Any]:
         """
-        用户下架自己的商品
+        用户下架自己的商品，并返还上架手续费。
         """
-        # 检查用户是否存在
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
 
-        # 获取商品信息
         listing = self.market_repo.get_listing_by_id(market_id)
         if not listing:
             return {"success": False, "message": "该商品不存在或已被下架"}
 
-        # 检查是否为物品所有者
         if listing.user_id != user_id:
             return {"success": False, "message": "你只能下架自己的商品"}
 
-        # 将物品返还给用户
+        # 1. 计算并返还上架手续费
+        tax_rate = self.config.get("market", {}).get("listing_tax_rate", 0.02)
+        tax_refund = int(listing.price * tax_rate)
+        
+        user.coins += tax_refund
+        self.user_repo.update(user)
+
+        # 2. 将物品返还给用户
         try:
             self._return_listing_to_seller(listing)
-            # 从市场移除商品
             self.market_repo.remove_listing(market_id)
-            return {"success": True, "message": f"✅ 成功下架 {listing.item_name}，物品已返还到背包"}
+
+            refund_message = f"，并退还手续费 {tax_refund} 金币" if tax_refund > 0 else ""
+            quantity_text = f" x{listing.quantity}" if listing.quantity > 1 else ""
+
+            return {"success": True, "message": f"✅ 成功下架【{listing.item_name}】{quantity_text}，物品已返还到背包/水族箱{refund_message}"}
+
         except Exception as e:
+            user.coins -= tax_refund # 回滚金币
+            self.user_repo.update(user)
             logger.error(f"下架物品时发生错误: {e}")
-            return {"success": False, "message": f"下架失败: {str(e)}"}
+            return {"success": False, "message": f"下架失败，已回滚操作: {str(e)}"}
 
     def get_user_listings(self, user_id: str) -> Dict[str, Any]:
         """
@@ -557,25 +568,25 @@ class MarketService:
             # 获取统计信息
             all_listings, total_count = self.market_repo.get_all_listings()
             stats = {
-                "total_listings": total_count,
+                "total_listings": total_count, 
                 "filtered_listings": total_items,
-                "total_value": sum(item.price for item in listings),
-                "rod_count": len([item for item in all_listings if item.item_type == "rod"]),
-                "accessory_count": len([item for item in all_listings if item.item_type == "accessory"]),
-                "item_count": len([item for item in all_listings if item.item_type == "item"]),
-                "fish_count": len([item for item in all_listings if item.item_type == "fish"]),
-                "commodity_count": len([item for item in all_listings if item.item_type == "commodity"])
+                "total_value": sum(item.price * item.quantity for item in listings),
+                "rod_count": len([i for i in all_listings if i.item_type == "rod"]),
+                "accessory_count": len([i for i in all_listings if i.item_type == "accessory"]),
+                "item_count": sum(i.quantity for i in all_listings if i.item_type == "item"),
+                "fish_count": sum(i.quantity for i in all_listings if i.item_type == "fish"),
+                "commodity_count": sum(i.quantity for i in all_listings if i.item_type == "commodity")
             }
             
             return {
-                "success": True,
+                "success": True, 
                 "listings": listings,
                 "pagination": {
-                    "current_page": page,
-                    "total_pages": total_pages,
+                    "current_page": page, 
+                    "total_pages": total_pages, 
                     "total_items": total_items,
-                    "per_page": per_page,
-                    "has_prev": page > 1,
+                    "per_page": per_page, 
+                    "has_prev": page > 1, 
                     "has_next": page < total_pages
                 },
                 "stats": stats
