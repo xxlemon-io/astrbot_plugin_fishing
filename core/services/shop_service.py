@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Set
 from datetime import datetime, timedelta, timezone
 import copy
 
@@ -216,7 +216,12 @@ class ShopService:
         or_choices = cost_structure["or_choices"]
 
         # 2. 获取用户可用资源的快照
-        user_resources_copy = self._get_user_resources_copy(user)
+        relevant_fish_ids: Set[int] = set()
+        for cost in costs_db:
+            if cost.get("cost_type") == "fish" and cost.get("cost_item_id"):
+                relevant_fish_ids.add(cost["cost_item_id"])
+
+        user_resources_copy = self._get_user_resources_copy(user, relevant_fish_ids)
         
         # 3. 检查并从快照中扣除必须的 AND 成本
         can_pay_and, resources_after_and = self._check_and_get_remaining_resources(user_resources_copy, and_costs)
@@ -288,7 +293,7 @@ class ShopService:
                 return {plural_map[cost_type]: {item_id: amount}}
             return {}
 
-        # 确保OR选项按某种稳定顺序处理，例如cost_id
+        # 确保OR选项按某种稳定顺序处理，例如group_id
         sorted_groups = sorted(groups.items(), key=lambda item: item[0])
 
         for group_id, group_costs in sorted_groups:
@@ -304,7 +309,7 @@ class ShopService:
 
         return {"and_costs": and_costs, "or_choices": or_choices}
     
-    def _get_user_resources_copy(self, user: Any) -> Dict[str, Any]:
+    def _get_user_resources_copy(self, user: Any, relevant_fish_ids: Set[int]) -> Dict[str, Any]:
         """获取用户当前可用资源的快照字典"""
         resources = {
             "coins": user.coins,
@@ -314,9 +319,11 @@ class ShopService:
             "rods": {},
             "accessories": {}
         }
-        # 鱼类需要汇总
-        all_fish = self.inventory_repo.get_user_all_fish_counts(user.user_id)
-        resources["fish"] = {f['fish_id']: f['total_count'] for f in all_fish}
+        
+        # 使用新的高效批量方法
+        if relevant_fish_ids:
+            fish_counts = self.inventory_repo.get_user_fish_counts_in_bulk(user.user_id, relevant_fish_ids)
+            resources["fish"] = fish_counts
         
         # 鱼竿和饰品只计入未锁定且未装备的
         for rod in self.inventory_repo.get_user_rod_instances(user.user_id):

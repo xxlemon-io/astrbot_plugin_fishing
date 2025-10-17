@@ -1,6 +1,6 @@
 import sqlite3
 import threading
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Set
 from datetime import datetime
 import json
 
@@ -117,7 +117,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             conn.commit()
 
     def update_fish_quantity(self, user_id: str, fish_id: int, delta: int) -> None:
-        """更新用户鱼类库存数量"""
+        """更新用户鱼类库存(鱼塘)数量"""
         with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("BEGIN TRANSACTION")
@@ -434,18 +434,6 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor.execute("DELETE FROM user_accessories WHERE accessory_instance_id = ?", (accessory_instance_id,))
             conn.commit()
 
-    def update_fish_quantity(self, user_id: str, fish_id: int, delta: int) -> None:
-        """更新用户鱼类库存中特定鱼的数量（可增可减），并确保数量不小于0。"""
-        with self._connection_manager.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO user_fish_inventory (user_id, fish_id, quantity)
-                VALUES (?, ?, MAX(0, ?))
-                ON CONFLICT(user_id, fish_id) DO UPDATE SET quantity = MAX(0, quantity + ?)
-            """, (user_id, fish_id, delta, delta))
-            # 删除数量为0的行，保持数据整洁
-            cursor.execute("DELETE FROM user_fish_inventory WHERE user_id = ? AND quantity <= 0", (user_id,))
-            conn.commit()
     def get_zone_by_id(self, zone_id: int) -> FishingZone:
         """根据ID获取钓鱼区域信息"""
         with self._connection_manager.get_connection() as conn:
@@ -762,6 +750,40 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             aquarium_count = cursor.fetchone()[0]
             
             return pond_count + aquarium_count
+
+    def get_user_fish_counts_in_bulk(self, user_id: str, fish_ids: Set[int]) -> Dict[int, int]:
+        """
+        一次性批量获取用户多种鱼类的总数（鱼塘+水族箱）。
+        返回一个 {fish_id: total_count} 的字典。
+        """
+        if not fish_ids:
+            return {}
+
+        with self._connection_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            placeholders = ','.join('?' for _ in fish_ids)
+            # 使用 UNION ALL + GROUP BY 一次性查询两个表
+            query = f"""
+                SELECT fish_id, SUM(quantity) as total_count
+                FROM (
+                    SELECT fish_id, quantity FROM user_fish_inventory 
+                    WHERE user_id = ? AND fish_id IN ({placeholders})
+                    UNION ALL
+                    SELECT fish_id, quantity FROM user_aquarium 
+                    WHERE user_id = ? AND fish_id IN ({placeholders})
+                )
+                GROUP BY fish_id
+            """
+            
+            params = [user_id] + list(fish_ids) + [user_id] + list(fish_ids)
+            cursor.execute(query, params)
+            
+            # 将结果转换为字典，并为没有查到的鱼类ID补0
+            results = {row['fish_id']: row['total_count'] for row in cursor.fetchall()}
+            for fish_id in fish_ids:
+                if fish_id not in results:
+                    results[fish_id] = 0
+            return results
 
     def deduct_fish_smart(self, user_id: str, fish_id: int, quantity: int) -> None:
         """智能扣除鱼类：优先从鱼塘扣除，不足时从水族箱扣除"""
