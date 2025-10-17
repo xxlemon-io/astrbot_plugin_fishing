@@ -433,6 +433,19 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor = conn.cursor()
             cursor.execute("DELETE FROM user_accessories WHERE accessory_instance_id = ?", (accessory_instance_id,))
             conn.commit()
+            
+    def update_fish_quantity(self, user_id: str, fish_id: int, delta: int) -> None:
+        """更新用户鱼类库存中特定鱼的数量（可增可减），并确保数量不小于0。"""
+        with self._connection_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO user_fish_inventory (user_id, fish_id, quantity)
+                VALUES (?, ?, MAX(0, ?))
+                ON CONFLICT(user_id, fish_id) DO UPDATE SET quantity = MAX(0, quantity + ?)
+            """, (user_id, fish_id, delta, delta))
+            # 删除数量为0的行，保持数据整洁
+            cursor.execute("DELETE FROM user_fish_inventory WHERE user_id = ? AND quantity <= 0", (user_id,))
+            conn.commit()
 
     def get_zone_by_id(self, zone_id: int) -> FishingZone:
         """根据ID获取钓鱼区域信息"""
