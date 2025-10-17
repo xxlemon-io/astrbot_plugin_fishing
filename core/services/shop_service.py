@@ -1,5 +1,6 @@
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime, timedelta, timezone
+import copy
 
 # 导入仓储接口
 from ..repositories.abstract_repository import (
@@ -144,25 +145,23 @@ class ShopService:
         }
 
     # ---- 商品购买 ----
+
     def purchase_item(self, user_id: str, item_id: int, quantity: int = 1) -> Dict[str, Any]:
-        """购买商店商品"""
+        """购买商店商品（已使用递归回溯算法优化OR逻辑）"""
         if not self.shop_repo:
             return {"success": False, "message": "商店系统未初始化"}
         
         if quantity <= 0:
             return {"success": False, "message": "数量必须大于0"}
         
-        # 获取商品信息
         item = self.shop_repo.get_shop_item_by_id(item_id)
         if not item:
             return {"success": False, "message": "商品不存在"}
         
-        # 检查商品可用性
         item_error = self._check_item_availability(item)
         if item_error:
             return {"success": False, "message": item_error}
         
-        # 获取商店信息并检查可用性
         shop = self.shop_repo.get_shop_by_id(item["shop_id"])
         if not shop:
             return {"success": False, "message": "商店不存在"}
@@ -171,18 +170,16 @@ class ShopService:
         if shop_error:
             return {"success": False, "message": shop_error}
         
-        # 获取用户信息
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在"}
         
-        # 库存检查
+        # 库存与限购检查 (保持不变)
         if item.get("stock_total") is not None:
             available_stock = item["stock_total"] - item.get("stock_sold", 0)
             if available_stock < quantity:
                 return {"success": False, "message": f"库存不足，剩余 {available_stock} 个"}
         
-        # 限购检查
         if item.get("per_user_limit") is not None:
             purchased_total = self.shop_repo.get_user_purchased_count(user_id, item_id)
             if purchased_total + quantity > item["per_user_limit"]:
@@ -193,7 +190,6 @@ class ShopService:
                     return {"success": False, "message": f"超过个人限购，还可购买 {remaining} 个"}
         
         if item.get("per_user_daily_limit") is not None and item["per_user_daily_limit"] > 0:
-            # 处理每日限购：数据库记录时间为UTC（SQLite CURRENT_TIMESTAMP），需将本地零点换算为UTC
             now_utc = datetime.now(timezone.utc)
             now_local = now_utc.astimezone(timezone(timedelta(hours=8)))
             local_midnight = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -205,30 +201,44 @@ class ShopService:
                     return {"success": False, "message": f"该商品每日限购 {item['per_user_daily_limit']} 个，您今日已购买完毕"}
                 else:
                     return {"success": False, "message": f"超过今日限购，今日还可购买 {remaining} 个"}
+
+        # --- 核心购买逻辑重构 ---
         
-        # 计算成本
-        costs = self.shop_repo.get_item_costs(item_id)
-        cost_result = self._calculate_costs(costs, quantity)
-        if not cost_result["success"]:
-            return cost_result
+        # 1. 解析成本结构
+        costs_db = self.shop_repo.get_item_costs(item_id)
+        cost_structure = self._get_cost_structure(costs_db, quantity)
+        and_costs = cost_structure["and_costs"]
+        or_choices = cost_structure["or_choices"]
+
+        # 2. 获取用户可用资源的快照
+        user_resources_copy = self._get_user_resources_copy(user)
         
-        # 检查用户资源
-        cost_check = self._check_user_resources(user, cost_result["costs"])
-        if not cost_check["success"]:
-            return cost_check
+        # 3. 检查并从快照中扣除必须的 AND 成本
+        can_pay_and, resources_after_and = self._check_and_get_remaining_resources(user_resources_copy, and_costs)
+        if not can_pay_and:
+            # 使用旧的检查方法来生成具体的错误消息
+            final_check = self._check_user_resources(user, and_costs)
+            return {"success": False, "message": f"核心资源不足: {final_check.get('message', '未知错误')}"}
+
+        # 4. 使用回溯算法为 OR 部分寻找一个可行的支付组合
+        or_solution = self._find_payable_combination(or_choices, resources_after_and)
+
+        if or_solution is None:
+            return {"success": False, "message": "支付条件不足，无法找到满足所有选项的物品组合"}
+
+        # 5. 合并最终成本
+        final_total_costs = and_costs.copy()
+        for cost_part in or_solution:
+            self._merge_costs(final_total_costs, cost_part)
         
-        # 扣除成本
-        self._deduct_costs(user, cost_result["costs"])
-        
-        # 发放奖励
+        # 6. 执行真实的交易
+        self._deduct_costs(user, final_total_costs)
         rewards = self.shop_repo.get_item_rewards(item_id)
         obtained_items = self._give_rewards(user_id, rewards, quantity)
         
-        # 更新销量和记录
         self.shop_repo.increase_item_sold(item_id, quantity)
         self.shop_repo.add_purchase_record(user_id, item_id, quantity)
         
-        # 构建成功消息
         success_message = f"✅ 购买成功：{item['name']} x{quantity}"
         if obtained_items:
             unique_items = list(set(obtained_items))
@@ -236,125 +246,129 @@ class ShopService:
         
         return {"success": True, "message": success_message}
 
-    def _calculate_costs(self, costs: List[Dict[str, Any]], quantity: int) -> Dict[str, Any]:
-        """计算总成本，支持AND/OR关系"""
+    def _merge_costs(self, base_costs: Dict, new_costs: Dict) -> None:
+        """辅助函数：将 new_costs 合并到 base_costs 中"""
+        base_costs["coins"] = base_costs.get("coins", 0) + new_costs.get("coins", 0)
+        base_costs["premium"] = base_costs.get("premium", 0) + new_costs.get("premium", 0)
+        for category in ["items", "fish", "rods", "accessories"]:
+            if category in new_costs:
+                if category not in base_costs:
+                    base_costs[category] = {}
+                for item_id, qty in new_costs[category].items():
+                    base_costs[category][item_id] = base_costs[category].get(item_id, 0) + qty
+
+    def _get_cost_structure(self, costs: List[Dict[str, Any]], quantity: int) -> Dict[str, Any]:
+        """解析数据库成本，返回包含必须成本(and_costs)和可选成本组(or_choices)的结构"""
         if not costs:
-            return {"success": True, "costs": {}}
-        
-        # 按组分组成本
+            return {"and_costs": {}, "or_choices": []}
+
         groups = {}
         for cost in costs:
             group_id = cost.get("group_id", 0)
             if group_id not in groups:
                 groups[group_id] = []
             groups[group_id].append(cost)
-        
-        total_costs = {
-            "coins": 0,
-            "premium": 0,
-            "items": {},
+
+        and_costs = {"coins": 0, "premium": 0, "items": {}, "fish": {}, "rods": {}, "accessories": {}}
+        or_choices = []
+
+        def _get_cost_dict(cost_item: Dict, qty: int) -> Dict:
+            cost_type = cost_item["cost_type"]
+            amount = cost_item["cost_amount"] * qty
+            item_id = cost_item.get("cost_item_id")
+            plural_map = {"item": "items", "fish": "fish", "rod": "rods", "accessory": "accessories"}
+            if cost_type in ["coins", "premium"]:
+                return {cost_type: amount}
+            elif cost_type in plural_map and item_id:
+                return {plural_map[cost_type]: {item_id: amount}}
+            return {}
+
+        # 按照group_id排序，保证处理顺序的稳定性
+        for group_id in sorted(groups.keys()):
+            group_costs = groups[group_id]
+            relation = group_costs[0].get("cost_relation", "and") if len(group_costs) > 1 else "and"
+
+            if relation == "and":
+                for cost in group_costs:
+                    self._merge_costs(and_costs, _get_cost_dict(cost, quantity))
+            elif relation == "or":
+                current_or_group = [_get_cost_dict(c, quantity) for c in group_costs if _get_cost_dict(c, quantity)]
+                if current_or_group:
+                    or_choices.append(current_or_group)
+
+        return {"and_costs": and_costs, "or_choices": or_choices}
+    
+    def _get_user_resources_copy(self, user: Any) -> Dict[str, Any]:
+        """获取用户当前可用资源的快照字典"""
+        resources = {
+            "coins": user.coins,
+            "premium": user.premium_currency,
+            "items": self.inventory_repo.get_user_item_inventory(user.user_id),
             "fish": {},
             "rods": {},
             "accessories": {}
         }
+        # 鱼类需要汇总
+        all_fish = self.inventory_repo.get_user_all_fish_counts(user.user_id)
+        if all_fish:
+            resources["fish"] = {f['fish_id']: f['total_count'] for f in all_fish}
         
-        # 处理每个组
-        for group_id, group_costs in groups.items():
-            if len(group_costs) == 1:
-                # 单个成本，直接添加
-                cost = group_costs[0]
-                cost_type = cost["cost_type"]
-                amount = cost["cost_amount"] * quantity
-                
-                if cost_type == "coins":
-                    total_costs["coins"] += amount
-                elif cost_type == "premium":
-                    total_costs["premium"] += amount
-                elif cost_type == "item":
-                    item_id = cost.get("cost_item_id")
-                    if item_id:
-                        total_costs["items"][item_id] = total_costs["items"].get(item_id, 0) + amount
-                elif cost_type == "fish":
-                    fish_id = cost.get("cost_item_id")
-                    if fish_id:
-                        total_costs["fish"][fish_id] = total_costs["fish"].get(fish_id, 0) + amount
-                elif cost_type == "rod":
-                    rod_id = cost.get("cost_item_id")
-                    if rod_id:
-                        total_costs["rods"][rod_id] = total_costs["rods"].get(rod_id, 0) + amount
-                elif cost_type == "accessory":
-                    accessory_id = cost.get("cost_item_id")
-                    if accessory_id:
-                        total_costs["accessories"][accessory_id] = total_costs["accessories"].get(accessory_id, 0) + amount
-            else:
-                # 多个成本，检查关系
-                relation = group_costs[0].get("cost_relation", "and")
-                if relation == "and":
-                    # AND关系：所有成本都需要
-                    for cost in group_costs:
-                        cost_type = cost["cost_type"]
-                        amount = cost["cost_amount"] * quantity
-                        
-                        if cost_type == "coins":
-                            total_costs["coins"] += amount
-                        elif cost_type == "premium":
-                            total_costs["premium"] += amount
-                        elif cost_type == "item":
-                            item_id = cost.get("cost_item_id")
-                            if item_id:
-                                total_costs["items"][item_id] = total_costs["items"].get(item_id, 0) + amount
-                        elif cost_type == "fish":
-                            fish_id = cost.get("cost_item_id")
-                            if fish_id:
-                                total_costs["fish"][fish_id] = total_costs["fish"].get(fish_id, 0) + amount
-                        elif cost_type == "rod":
-                            rod_id = cost.get("cost_item_id")
-                            if rod_id:
-                                total_costs["rods"][rod_id] = total_costs["rods"].get(rod_id, 0) + amount
-                        elif cost_type == "accessory":
-                            accessory_id = cost.get("cost_item_id")
-                            if accessory_id:
-                                total_costs["accessories"][accessory_id] = total_costs["accessories"].get(accessory_id, 0) + amount
-                elif relation == "or":
-                    # OR关系：选择最便宜的成本（这里简化处理，选择第一个）
-                    cost = group_costs[0]
-                    cost_type = cost["cost_type"]
-                    amount = cost["cost_amount"] * quantity
-                    
-                    if cost_type == "coins":
-                        total_costs["coins"] += amount
-                    elif cost_type == "premium":
-                        total_costs["premium"] += amount
-                    elif cost_type == "item":
-                        item_id = cost.get("cost_item_id")
-                        if item_id:
-                            total_costs["items"][item_id] = total_costs["items"].get(item_id, 0) + amount
-                    elif cost_type == "fish":
-                        fish_id = cost.get("cost_item_id")
-                        if fish_id:
-                            total_costs["fish"][fish_id] = total_costs["fish"].get(fish_id, 0) + amount
-                    elif cost_type == "rod":
-                        rod_id = cost.get("cost_item_id")
-                        if rod_id:
-                            total_costs["rods"][rod_id] = total_costs["rods"].get(rod_id, 0) + amount
-                    elif cost_type == "accessory":
-                        accessory_id = cost.get("cost_item_id")
-                        if accessory_id:
-                            total_costs["accessories"][accessory_id] = total_costs["accessories"].get(accessory_id, 0) + amount
+        # 鱼竿和饰品只计入未锁定且未装备的
+        for rod in self.inventory_repo.get_user_rod_instances(user.user_id):
+            if not rod.is_locked and not rod.is_equipped:
+                resources["rods"][rod.rod_id] = resources["rods"].get(rod.rod_id, 0) + 1
+        for acc in self.inventory_repo.get_user_accessory_instances(user.user_id):
+            if not acc.is_locked and not acc.is_equipped:
+                resources["accessories"][acc.accessory_id] = resources["accessories"].get(acc.accessory_id, 0) + 1
         
-        return {"success": True, "costs": total_costs}
+        return resources
+
+    def _check_and_get_remaining_resources(self, resources: Dict, cost: Dict) -> Tuple[bool, Dict]:
+        """在资源副本上检查并模拟扣除，返回是否成功和扣除后的新副本"""
+        res_copy = copy.deepcopy(resources)
+        
+        if res_copy.get("coins", 0) < cost.get("coins", 0): return (False, resources)
+        res_copy["coins"] -= cost.get("coins", 0)
+
+        if res_copy.get("premium", 0) < cost.get("premium", 0): return (False, resources)
+        res_copy["premium"] -= cost.get("premium", 0)
+
+        for category in ["items", "fish", "rods", "accessories"]:
+            if category in cost:
+                for item_id, qty in cost[category].items():
+                    if res_copy.get(category, {}).get(item_id, 0) < qty:
+                        return (False, resources)
+                    res_copy[category][item_id] -= qty
+        
+        return (True, res_copy)
+
+    def _find_payable_combination(
+        self, or_choices: List[List[Dict]], resources: Dict
+    ) -> Optional[List[Dict]]:
+        """使用递归回溯寻找一个可行的支付组合"""
+        if not or_choices:
+            return []
+
+        first_group = or_choices[0]
+        remaining_groups = or_choices[1:]
+
+        for option_cost in first_group:
+            can_pay, resources_after_pay = self._check_and_get_remaining_resources(resources, option_cost)
+            if can_pay:
+                result = self._find_payable_combination(remaining_groups, resources_after_pay)
+                if result is not None:
+                    return [option_cost] + result
+        
+        return None
 
     def _check_user_resources(self, user: Any, costs: Dict[str, Any]) -> Dict[str, Any]:
-        """检查用户是否有足够资源"""
-        # 检查金币
+        """检查用户是否有足够资源(用于生成最终的错误消息)"""
         if costs.get("coins", 0) > 0 and user.coins < costs["coins"]:
             return {"success": False, "message": f"金币不足，需要 {costs['coins']} 金币"}
         
-        # 检查高级货币
         if costs.get("premium", 0) > 0 and user.premium_currency < costs["premium"]:
             return {"success": False, "message": f"高级货币不足，需要 {costs['premium']}"}
         
-        # 检查道具
         if costs.get("items"):
             inv_items = self.inventory_repo.get_user_item_inventory(user.user_id)
             for item_id, need_qty in costs["items"].items():
@@ -363,7 +377,6 @@ class ShopService:
                     name = tpl.name if tpl else str(item_id)
                     return {"success": False, "message": f"道具不足：{name} x{need_qty}"}
         
-        # 检查鱼类（包括鱼塘和水族箱）
         if costs.get("fish"):
             for fish_id, need_qty in costs["fish"].items():
                 total_count = self.inventory_repo.get_user_total_fish_count(user.user_id, fish_id)
@@ -371,33 +384,19 @@ class ShopService:
                     fish_tpl = self.item_template_repo.get_fish_by_id(fish_id)
                     name = fish_tpl.name if fish_tpl else str(fish_id)
                     return {"success": False, "message": f"鱼类不足：{name} x{need_qty}"}
-        
-        # 检查鱼竿（排除上锁和装备中的）
+
+        # 从资源快照获取可用的鱼竿/饰品数量
+        available_resources = self._get_user_resources_copy(user)
+        available_rods = available_resources.get("rods", {})
         if costs.get("rods"):
-            user_rods = self.inventory_repo.get_user_rod_instances(user.user_id)
-            available_rods = {}
-            
-            for rod in user_rods:
-                if not rod.is_locked and not rod.is_equipped:  # 排除上锁和装备中的鱼竿
-                    rod_id = rod.rod_id
-                    available_rods[rod_id] = available_rods.get(rod_id, 0) + 1
-            
             for rod_id, need_qty in costs["rods"].items():
                 if available_rods.get(rod_id, 0) < need_qty:
                     rod_tpl = self.item_template_repo.get_rod_by_id(rod_id)
                     name = rod_tpl.name if rod_tpl else str(rod_id)
                     return {"success": False, "message": f"可用鱼竿不足：{name} x{need_qty}（已排除上锁和装备中的鱼竿）"}
-        
-        # 检查饰品（排除上锁和装备中的）
+
+        available_accessories = available_resources.get("accessories", {})
         if costs.get("accessories"):
-            user_accessories = self.inventory_repo.get_user_accessory_instances(user.user_id)
-            available_accessories = {}
-            
-            for accessory in user_accessories:
-                if not accessory.is_locked and not accessory.is_equipped:  # 排除上锁和装备中的饰品
-                    accessory_id = accessory.accessory_id
-                    available_accessories[accessory_id] = available_accessories.get(accessory_id, 0) + 1
-            
             for accessory_id, need_qty in costs["accessories"].items():
                 if available_accessories.get(accessory_id, 0) < need_qty:
                     accessory_tpl = self.item_template_repo.get_accessory_by_id(accessory_id)
@@ -408,54 +407,41 @@ class ShopService:
 
     def _deduct_costs(self, user: Any, costs: Dict[str, Any]) -> None:
         """扣除用户资源"""
-        # 扣除金币
         if costs.get("coins", 0) > 0:
             user.coins -= costs["coins"]
         
-        # 扣除高级货币
         if costs.get("premium", 0) > 0:
             user.premium_currency -= costs["premium"]
         
-        # 更新用户
         self.user_repo.update(user)
         
-        # 扣除道具
         if costs.get("items"):
             for item_id, need_qty in costs["items"].items():
                 self.inventory_repo.decrease_item_quantity(user.user_id, item_id, need_qty)
         
-        # 扣除鱼类（智能扣除：优先从鱼塘，不足时从水族箱）
         if costs.get("fish"):
             for fish_id, need_qty in costs["fish"].items():
                 self.inventory_repo.deduct_fish_smart(user.user_id, fish_id, need_qty)
         
-        # 扣除鱼竿（排除上锁和装备中的）
         if costs.get("rods"):
             user_rods = self.inventory_repo.get_user_rod_instances(user.user_id)
             for rod_id, need_qty in costs["rods"].items():
                 remaining_qty = need_qty
-                for rod in user_rods:
-                    if remaining_qty <= 0:
-                        break
-                    if (rod.rod_id == rod_id and 
-                        not rod.is_locked and 
-                        not rod.is_equipped):
-                        # 删除这个鱼竿实例
+                # 倒序遍历，优先删除新获得的鱼竿
+                for rod in sorted(user_rods, key=lambda r: r.rod_instance_id, reverse=True):
+                    if remaining_qty <= 0: break
+                    if (rod.rod_id == rod_id and not rod.is_locked and not rod.is_equipped):
                         self.inventory_repo.delete_rod_instance(rod.rod_instance_id)
                         remaining_qty -= 1
         
-        # 扣除饰品（排除上锁和装备中的）
         if costs.get("accessories"):
             user_accessories = self.inventory_repo.get_user_accessory_instances(user.user_id)
             for accessory_id, need_qty in costs["accessories"].items():
                 remaining_qty = need_qty
-                for accessory in user_accessories:
-                    if remaining_qty <= 0:
-                        break
-                    if (accessory.accessory_id == accessory_id and 
-                        not accessory.is_locked and 
-                        not accessory.is_equipped):
-                        # 删除这个饰品实例
+                # 倒序遍历，优先删除新获得的饰品
+                for accessory in sorted(user_accessories, key=lambda a: a.accessory_instance_id, reverse=True):
+                    if remaining_qty <= 0: break
+                    if (accessory.accessory_id == accessory_id and not accessory.is_locked and not accessory.is_equipped):
                         self.inventory_repo.delete_accessory_instance(accessory.accessory_instance_id)
                         remaining_qty -= 1
 
@@ -508,7 +494,6 @@ class ShopService:
                         obtained_items.append(f"🐟 {fish_tpl.name} x{reward_quantity}")
                 
                 elif reward_type == "coins":
-                    # 直接给用户加金币
                     user = self.user_repo.get_by_id(user_id)
                     if user:
                         user.coins += reward_quantity
