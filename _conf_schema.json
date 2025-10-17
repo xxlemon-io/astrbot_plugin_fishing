@@ -77,6 +77,12 @@
     "hint": "每次电鱼后的冷却时间，单位为秒",
     "default": 7200
   },
+  "wheel_of_fate_daily_limit": {
+    "description": "命运轮盘每日次数限制",
+    "type": "int",
+    "hint": "每个用户每天可以玩命运轮盘的最大次数",
+    "default": 3
+  },
   "user_initial_coins": {
     "description": "用户初始金币",
     "type": "int",

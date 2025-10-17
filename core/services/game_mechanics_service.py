@@ -61,16 +61,16 @@ class GameMechanicsService:
         "cooldown_seconds": 60,
         "timeout_seconds": 60,
         "levels": [
-            { "level": 1, "success_rate": 0.75, "multiplier": 1.15 },
-            { "level": 2, "success_rate": 0.70, "multiplier": 1.2 },
-            { "level": 3, "success_rate": 0.65, "multiplier": 1.3 },
-            { "level": 4, "success_rate": 0.60, "multiplier": 1.4 },
-            { "level": 5, "success_rate": 0.55, "multiplier": 1.5 },
-            { "level": 6, "success_rate": 0.50, "multiplier": 1.8 },
-            { "level": 7, "success_rate": 0.45, "multiplier": 2.3 },
-            { "level": 8, "success_rate": 0.40, "multiplier": 3.0 },
-            { "level": 9, "success_rate": 0.35, "multiplier": 4.0 },
-            { "level": 10, "success_rate": 0.30, "multiplier": 2.6 }
+            { "level": 1, "success_rate": 0.65, "multiplier": 1.55 },  # 高风险起点，期望微盈利0.75%
+            { "level": 2, "success_rate": 0.60, "multiplier": 1.45 },  # 开始亏损，防止稳赚
+            { "level": 3, "success_rate": 0.55, "multiplier": 1.55 },  # 风险递增
+            { "level": 4, "success_rate": 0.50, "multiplier": 1.70 },  # 中等风险
+            { "level": 5, "success_rate": 0.45, "multiplier": 1.90 },  # 较高风险
+            { "level": 6, "success_rate": 0.40, "multiplier": 2.15 },  # 高风险
+            { "level": 7, "success_rate": 0.35, "multiplier": 2.50 },  # 极高风险
+            { "level": 8, "success_rate": 0.30, "multiplier": 3.00 },  # 冒险者区域
+            { "level": 9, "success_rate": 0.25, "multiplier": 3.70 },  # 追梦者区域
+            { "level": 10, "success_rate": 0.20, "multiplier": 4.80 }  # 通关巨奖
         ]
     }
     # ------------------------------------
@@ -485,7 +485,7 @@ class GameMechanicsService:
             return {"success": False, "message": f"[CQ:at,qq={user_id}] 你已经在游戏中了，请回复【继续】或【放弃】。"}
 
         # --- [新功能] 每日次数限制逻辑 ---
-        WHEEL_OF_FATE_DAILY_LIMIT = 5
+        wheel_of_fate_daily_limit = self.config.get("wheel_of_fate_daily_limit", 3)
         today_str = get_today().strftime('%Y-%m-%d')
 
         # 如果记录的日期不是今天，重置计数器
@@ -494,8 +494,8 @@ class GameMechanicsService:
             user.last_wof_date = today_str
 
         # 检查次数是否已达上限
-        if user.wof_plays_today >= WHEEL_OF_FATE_DAILY_LIMIT:
-            return {"success": False, "message": f"今天的运气已经用光啦！你今天已经玩了 {user.wof_plays_today}/{WHEEL_OF_FATE_DAILY_LIMIT} 次命运之轮，请明天再来吧。"}
+        if user.wof_plays_today >= wheel_of_fate_daily_limit:
+            return {"success": False, "message": f"今天的运气已经用光啦！你今天已经玩了 {user.wof_plays_today}/{wheel_of_fate_daily_limit} 次命运之轮，请明天再来吧。"}
         # --- 限制逻辑结束 ---
 
         config = self.WHEEL_OF_FATE_CONFIG

@@ -31,7 +31,7 @@
 [![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
-[![Version](https://img.shields.io/badge/Version-2.2.0-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.2.0)
+[![Version](https://img.shields.io/badge/Version-2.2.1-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.2.1)
 [![Major Update](https://img.shields.io/badge/Major-Update-red.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
 
 ## ✨ 功能特点
@@ -102,6 +102,12 @@
 如果您有功能建议或发现问题，欢迎在 [Issues](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues) 中提出！
  
 ## 📦 更新记录
+
+#### v2.2.1 (命运轮盘平衡调整)
+
+- **⚖️ 命运轮盘平衡调整**：每日次数限制从5次调整为3次，重新设计为高风险高回报模型
+- **🔧 命运轮盘可配置**：每日次数限制现在可通过配置文件调整，默认值为3次
+- **🎯 庄家优势保证**：整体House Edge约67%
 
 #### v2.2.0 (新游戏玩法与功能优化)
 
@@ -552,10 +558,14 @@
 
 #### 🎰 命运之轮
 
-- **轮盘游戏**：高风险高回报的轮盘游戏
-- **多轮挑战**：支持多轮游戏，可以继续或放弃
-- **策略选择**：玩家需要在适当时机选择继续或放弃
-- **奖励递增**：每轮奖励递增，但风险也增加
+- **轮盘游戏**：高风险高回报的策略性轮盘游戏
+- **多轮挑战**：支持10层挑战，可以随时继续或放弃
+- **高风险定位**：起始成功率65%，符合轮盘游戏的刺激特性
+- **第1层诱惑**：第1层期望微盈利（0.75%），吸引玩家尝试
+- **风险递增**：第2层开始期望亏损，成功率从60%递减至20%
+- **高倍率奖励**：通关倍率高达数百倍，刺激冒险玩家挑战
+- **每日限制**：每天最多可玩3次（可配置），平衡游戏经济
+- **庄家优势**：整体House Edge约67%，确保长期回收货币
 
 #### 📦 批量稀有度出售
 
