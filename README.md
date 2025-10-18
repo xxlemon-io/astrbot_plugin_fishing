@@ -127,6 +127,7 @@
 - **💣 擦弹炸弹系统优化**：优化擦弹炸弹功能，增加更多策略性和趣味性
 - **🔧 系统优化**：改进错误处理、代码可读性和用户体验
 - **📊 数据统计增强**：优化总价值计算和显示功能
+
 *感谢 [@WWWA7](https://github.com/WWWA7) 的贡献 ([#47](https://github.com/xxlemon-io/astrbot_plugin_fishing/pull/47))*
 
 #### v2.1.0 (交易所系统)
