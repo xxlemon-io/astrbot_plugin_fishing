@@ -31,7 +31,7 @@
 [![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
-[![Version](https://img.shields.io/badge/Version-2.2.1-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.2.1)
+[![Version](https://img.shields.io/badge/Version-2.2.2-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.2.2)
 [![Major Update](https://img.shields.io/badge/Major-Update-red.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
 
 ## ✨ 功能特点
@@ -103,6 +103,14 @@
  
 ## 📦 更新记录
 
+#### v2.2.2 (商店/兑换系统优化)
+
+- **🔧 优化商店OR条件兑换逻辑**：使用递归回溯算法智能选择支付组合
+- **⚡ 批量查询性能优化**：新增批量鱼类库存查询方法，提升性能
+- **🐛 修复OR条件资源检查问题**：确保多条件支付的准确性和原子性
+
+*感谢 [@WWWA7](https://github.com/WWWA7) 的贡献 ([#57](https://github.com/xxlemon-io/astrbot_plugin_fishing/pull/57))*
+
 #### v2.2.1 (命运轮盘平衡调整)
 
 - **⚖️ 命运轮盘平衡调整**：每日次数限制从5次调整为3次，重新设计为高风险高回报模型
@@ -119,6 +127,7 @@
 - **💣 擦弹炸弹系统优化**：优化擦弹炸弹功能，增加更多策略性和趣味性
 - **🔧 系统优化**：改进错误处理、代码可读性和用户体验
 - **📊 数据统计增强**：优化总价值计算和显示功能
+*感谢 [@WWWA7](https://github.com/WWWA7) 的贡献 ([#47](https://github.com/xxlemon-io/astrbot_plugin_fishing/pull/47))*
 
 #### v2.1.0 (交易所系统)
 
