@@ -809,10 +809,11 @@ class FishingService:
             logger.info("税收线程已在运行中")
             return
 
+        logger.info("正在启动每日税收线程...")
         self.tax_running = True
         self.tax_thread = threading.Thread(target=self._daily_tax_loop, daemon=True)
         self.tax_thread.start()
-        logger.info("税收线程已启动")
+        logger.info(f"税收线程已启动，每日重置时间点：{self.daily_reset_hour}点")
 
     def stop_daily_tax_task(self):
         """停止每日税收的后台线程。"""
@@ -823,28 +824,34 @@ class FishingService:
 
     def _daily_tax_loop(self):
         """每日税收独立循环任务，由后台线程执行。"""
-        logger.info(f"税收线程开始运行，每日重置时间点：{self.daily_reset_hour}点")
+        try:
+            logger.info(f"[税收线程] 线程已进入运行循环，每日重置时间点：{self.daily_reset_hour}点")
+            logger.info(f"[税收线程] 上次税收重置时间：{self.last_tax_reset_time}")
+        except Exception as e:
+            logger.error(f"[税收线程] 初始化日志输出失败: {e}")
         
         while self.tax_running:
             try:
                 # 检查是否到达每日重置时间点
                 current_reset_time = get_last_reset_time(self.daily_reset_hour)
                 if current_reset_time != self.last_tax_reset_time:
-                    logger.info(f"税收线程检测到刷新时间点变更（每日{self.daily_reset_hour}点刷新），从 {self.last_tax_reset_time} 到 {current_reset_time}，开始执行每日税收...")
+                    logger.info(f"[税收线程] 检测到刷新时间点变更（每日{self.daily_reset_hour}点刷新），从 {self.last_tax_reset_time} 到 {current_reset_time}，开始执行每日税收...")
                     self.last_tax_reset_time = current_reset_time
                     
                     # 执行每日税收
                     self.apply_daily_taxes()
-                    logger.info("每日税收执行完成")
+                    logger.info("[税收线程] 每日税收执行完成")
                 
                 # 每小时检查一次（3600秒）
                 time.sleep(3600)
                 
             except Exception as e:
-                logger.error(f"税收线程出错: {e}")
+                logger.error(f"[税收线程] 出错: {e}")
                 import traceback
                 logger.error(traceback.format_exc())
                 time.sleep(600)  # 出错后等待10分钟再重试
+        
+        logger.info("[税收线程] 线程循环已退出")
 
     def _auto_fishing_loop(self):
         """自动钓鱼循环任务，由后台线程执行。"""
