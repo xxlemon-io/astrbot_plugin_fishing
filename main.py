@@ -85,6 +85,7 @@ class FishingPlugin(Star):
                 "cooldown_seconds": config.get("electric_fish_cooldown_seconds", 7200)
             }, # 合并的功能："电鱼"
             "wipe_bomb": {"max_attempts_per_day": config.get("wipe_bomb_attempts", 3)},
+            "wheel_of_fate_daily_limit": config.get("wheel_of_fate_daily_limit", 3),
             "pond_upgrades": [
                 { "from": 480, "to": 999, "cost": 50000 },
                 { "from": 999, "to": 9999, "cost": 500000 },
