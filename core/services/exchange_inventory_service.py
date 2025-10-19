@@ -211,7 +211,7 @@ class ExchangeInventoryService:
                     user_id=user_id,
                     tax_amount=tax_amount,
                     tax_rate=tax_rate,
-                    original_amount=total_value,
+                    original_amount=total_income,
                     balance_after=user.coins,
                     tax_type=f"卖出 {self.commodities[commodity_id]['name']} x{quantity}",
                     timestamp=datetime.now()

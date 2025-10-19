@@ -31,7 +31,7 @@
 [![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
-[![Version](https://img.shields.io/badge/Version-2.2.3-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.2.3)
+[![Version](https://img.shields.io/badge/Version-2.2.4-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.2.4)
 [![Major Update](https://img.shields.io/badge/Major-Update-red.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
 
 ## ✨ 功能特点
@@ -102,6 +102,10 @@
 如果您有功能建议或发现问题，欢迎在 [Issues](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues) 中提出！
  
 ## 📦 更新记录
+
+#### v2.2.4 (交易所卖出Bug修复)
+
+- **🐛 修复交易所卖出命令错误**：修复了 `/交易所 卖出` 命令出现 `name 'total_value' is not defined` 错误的问题
 
 #### v2.2.3 (命运轮盘配置修复 + 帮助图像更新 + 税收系统重构)
 
