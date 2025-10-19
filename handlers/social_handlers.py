@@ -175,8 +175,33 @@ async def dispel_protection(plugin: "FishingPlugin", event: AstrMessageEvent):
         yield event.plain_result("不能对自己使用驱灵香哦！")
         return
 
-    result = plugin.game_mechanics_service.dispel_protection(user_id, target_id)
-    yield event.plain_result(result["message"])
+    # 查找驱灵香道具
+    all_items = plugin.item_template_repo.get_all_items()
+    dispel_item = None
+    for item in all_items:
+        if item.effect_type == "STEAL_PROTECTION_REMOVAL":
+            dispel_item = item
+            break
+    
+    if not dispel_item:
+        yield event.plain_result("❌ 系统错误：找不到驱灵香道具")
+        return
+    
+    # 检查用户是否持有驱灵香
+    item_inventory = plugin.inventory_repo.get_user_item_inventory(user_id)
+    if item_inventory.get(dispel_item.item_id, 0) < 1:
+        yield event.plain_result(f"❌ 你没有【{dispel_item.name}】道具！")
+        return
+    
+    # 尝试驱散
+    result = plugin.game_mechanics_service.dispel_steal_protection(target_id)
+    
+    if result.get("success"):
+        # 成功驱散，消耗道具
+        plugin.inventory_repo.decrease_item_quantity(user_id, dispel_item.item_id, 1)
+        yield event.plain_result(f"✅ 使用了【{dispel_item.name}】！{result['message']}")
+    else:
+        yield event.plain_result(result["message"])
 
 
 async def view_titles(plugin: "FishingPlugin", event: AstrMessageEvent):
