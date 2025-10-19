@@ -31,7 +31,7 @@
 [![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
-[![Version](https://img.shields.io/badge/Version-2.2.2-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.2.2)
+[![Version](https://img.shields.io/badge/Version-2.2.3-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.2.3)
 [![Major Update](https://img.shields.io/badge/Major-Update-red.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
 
 ## ✨ 功能特点
@@ -103,12 +103,21 @@
  
 ## 📦 更新记录
 
+#### v2.2.3 (命运轮盘配置修复 + 帮助图像更新)
+
+- **🐛 修复命运轮盘次数显示不匹配**：修复/状态命令中命运轮盘次数与配置不同步的问题
+- **🔧 配置同步优化**：确保所有命运轮盘次数相关显示都从配置文件读取
+- **🖼️ 补全钓鱼帮助图像**：更新 `/钓鱼帮助` 命令的图像输出，补充了自2.2.0版本以来的新增命令
+- **🎰 新增抽卡玩法展示**：添加命运之轮、骰子游戏等新玩法到帮助图像
+- **⚡ 新增电鱼功能展示**：在社交功能区显示电鱼命令说明
+- **📈 新增交易所功能展示**：添加完整的大宗商品交易所命令说明
+- **🎨 优化帮助布局**：自动计算高度以适应新增命令，保持视觉美观
+
 #### v2.2.2 (商店/兑换系统优化)
 
 - **🔧 优化商店OR条件兑换逻辑**：使用递归回溯算法智能选择支付组合
 - **⚡ 批量查询性能优化**：新增批量鱼类库存查询方法，提升性能
 - **🐛 修复OR条件资源检查问题**：确保多条件支付的准确性和原子性
-- **🐛 修复命运轮盘次数显示不匹配**：修复/状态命令中命运轮盘次数与配置不同步的问题
 
 *感谢 [@WWWA7](https://github.com/WWWA7) 的贡献 ([#57](https://github.com/xxlemon-io/astrbot_plugin_fishing/pull/57))*
 
