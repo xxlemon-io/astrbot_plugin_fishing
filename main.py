@@ -241,6 +241,7 @@ class FishingPlugin(Star):
 
         # --- 4. 启动后台任务 ---
         self.fishing_service.start_auto_fishing_task()
+        self.fishing_service.start_daily_tax_task()  # 启动独立的税收线程
         self.achievement_service.start_achievement_check_task()
         self.exchange_service.start_daily_price_update_task() # 启动交易所后台任务
 

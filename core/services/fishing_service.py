@@ -46,6 +46,10 @@ class FishingService:
         # 自动钓鱼线程相关属性
         self.auto_fishing_thread: Optional[threading.Thread] = None
         self.auto_fishing_running = False
+        # 税收线程相关属性
+        self.tax_thread: Optional[threading.Thread] = None
+        self.tax_running = False
+        self.last_tax_reset_time = get_last_reset_time(self.daily_reset_hour)
         # 可选的消息通知回调：签名 (target: str, message: str) -> None，用于消息通知
         self._notifier = None
         # 通知目标可配置，默认群聊。可由 config['notifications']['relocation_target'] 覆盖
@@ -799,6 +803,49 @@ class FishingService:
             self.auto_fishing_thread.join(timeout=1.0)
             logger.info("自动钓鱼线程已停止")
 
+    def start_daily_tax_task(self):
+        """启动每日税收的独立后台线程。"""
+        if self.tax_thread and self.tax_thread.is_alive():
+            logger.info("税收线程已在运行中")
+            return
+
+        self.tax_running = True
+        self.tax_thread = threading.Thread(target=self._daily_tax_loop, daemon=True)
+        self.tax_thread.start()
+        logger.info("税收线程已启动")
+
+    def stop_daily_tax_task(self):
+        """停止每日税收的后台线程。"""
+        self.tax_running = False
+        if self.tax_thread:
+            self.tax_thread.join(timeout=1.0)
+            logger.info("税收线程已停止")
+
+    def _daily_tax_loop(self):
+        """每日税收独立循环任务，由后台线程执行。"""
+        logger.info(f"税收线程开始运行，每日重置时间点：{self.daily_reset_hour}点")
+        
+        while self.tax_running:
+            try:
+                # 检查是否到达每日重置时间点
+                current_reset_time = get_last_reset_time(self.daily_reset_hour)
+                if current_reset_time != self.last_tax_reset_time:
+                    logger.info(f"税收线程检测到刷新时间点变更（每日{self.daily_reset_hour}点刷新），从 {self.last_tax_reset_time} 到 {current_reset_time}，开始执行每日税收...")
+                    self.last_tax_reset_time = current_reset_time
+                    
+                    # 执行每日税收
+                    self.apply_daily_taxes()
+                    logger.info("每日税收执行完成")
+                
+                # 每小时检查一次（3600秒）
+                time.sleep(3600)
+                
+            except Exception as e:
+                logger.error(f"税收线程出错: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                time.sleep(600)  # 出错后等待10分钟再重试
+
     def _auto_fishing_loop(self):
         """自动钓鱼循环任务，由后台线程执行。"""
         fishing_config = self.config.get("fishing", {})
@@ -811,7 +858,7 @@ class FishingService:
                 current_reset_time = get_last_reset_time(self.daily_reset_hour)
                 if current_reset_time != self.last_reset_time:
                     # 如果刷新时间点变了，执行每日重置任务
-                    logger.info(f"检测到刷新时间点变更（每日{self.daily_reset_hour}点刷新），从 {self.last_reset_time} 到 {current_reset_time}，开始执行每日任务...")
+                    logger.info(f"自动钓鱼线程检测到刷新时间点变更（每日{self.daily_reset_hour}点刷新），从 {self.last_reset_time} 到 {current_reset_time}，开始执行每日任务...")
                     self.last_reset_time = current_reset_time
                     
                     # 重置所有受配额限制区域的稀有鱼计数（4星及以上）
@@ -821,8 +868,7 @@ class FishingService:
                             zone.rare_fish_caught_today = 0
                             self.inventory_repo.update_fishing_zone(zone)
                     
-                    # 每次循环开始时检查是否需要应用每日税收
-                    self.apply_daily_taxes()
+                    # 注意：每日税收已由独立的税收线程处理，不再在此执行
                     
                     # 每日检查：需要通行证的区域玩家是否仍持有通行证
                     self.enforce_zone_pass_requirements_for_all_users()
