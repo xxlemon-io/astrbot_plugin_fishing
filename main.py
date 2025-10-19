@@ -77,15 +77,32 @@ class FishingPlugin(Star):
         db_path = os.path.join(self.data_dir, "fish.db")
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         
+        # --- 1.2. 配置数据完整性检查注释 ---
+        # 以下配置项必须在此处从 AstrBotConfig 中提取并放入 game_config，
+        # 以确保所有服务在接收 game_config 时能够正确读取配置值
+        # 
+        # 配置数据流：_conf_schema.json → AstrBotConfig (config) → game_config → 各个服务
+        # 
         self.game_config = {
             "fishing": {"cost": config.get("fish_cost", 10), "cooldown_seconds": config.get("fish_cooldown_seconds", 180)},
-            "steal": {"cooldown_seconds": config.get("steal_cooldown", 1800)},
+            "steal": {"cooldown_seconds": config.get("steal_cooldown_seconds", 14400)},
             "electric_fish": {
                 "enabled": config.get("electric_fish_enabled", True),
                 "cooldown_seconds": config.get("electric_fish_cooldown_seconds", 7200)
             }, # 合并的功能："电鱼"
             "wipe_bomb": {"max_attempts_per_day": config.get("wipe_bomb_attempts", 3)},
             "wheel_of_fate_daily_limit": config.get("wheel_of_fate_daily_limit", 3),
+            "daily_reset_hour": config.get("daily_reset_hour", 0),
+            "user": {"initial_coins": config.get("user_initial_coins", 200)},
+            "market": {"listing_tax_rate": config.get("market_listing_tax_rate", 0.05)},
+            "tax": {
+                "is_tax": self.is_tax,
+                "threshold": self.threshold,
+                "step_coins": self.step_coins,
+                "step_rate": self.step_rate,
+                "min_rate": self.min_rate,
+                "max_rate": self.max_rate
+            },
             "pond_upgrades": [
                 { "from": 480, "to": 999, "cost": 50000 },
                 { "from": 999, "to": 9999, "cost": 500000 },
