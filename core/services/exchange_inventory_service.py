@@ -171,10 +171,31 @@ class ExchangeInventoryService:
             if not commodity_items:
                 return {"success": False, "message": f"您没有 {self.commodities[commodity_id]['name']}"}
             
-            # 计算可卖出数量
+            # 检查商品是否已腐败
+            now = datetime.now()
+            expired_count = 0
+            valid_items = []
+            
+            for item in commodity_items:
+                if item.expires_at and isinstance(item.expires_at, datetime):
+                    if item.expires_at <= now:
+                        expired_count += item.quantity
+                    else:
+                        valid_items.append(item)
+                else:
+                    valid_items.append(item)
+            
+            if expired_count > 0 and not valid_items:
+                return {"success": False, "message": f"❌ 您的 {self.commodities[commodity_id]['name']} 已全部腐败，无法出售！腐败商品价值为0"}
+            
+            if expired_count > 0:
+                return {"success": False, "message": f"❌ 您有 {expired_count} 个 {self.commodities[commodity_id]['name']} 已腐败，请先清理腐败商品（使用/清仓命令），只能出售新鲜商品"}
+            
+            # 使用有效商品计算可卖出数量
+            commodity_items = valid_items
             available_quantity = sum(item.quantity for item in commodity_items)
             if available_quantity < quantity:
-                return {"success": False, "message": f"库存不足，只有 {available_quantity} 个"}
+                return {"success": False, "message": f"库存不足，只有 {available_quantity} 个未腐败的商品"}
             
             # 计算总收益
             total_income = current_price * quantity
