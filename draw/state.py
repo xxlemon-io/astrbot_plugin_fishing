@@ -652,17 +652,17 @@ def get_user_state_data(user_repo, inventory_repo, item_template_repo, log_repo,
         wipe_bomb_remaining = game_config.get("wipe_bomb", {}).get("max_attempts_per_day", 3)
 
     # 计算命运之轮剩余次数
-    WHEEL_OF_FATE_DAILY_LIMIT = 5
+    wheel_of_fate_daily_limit = game_config.get("wheel_of_fate_daily_limit", 3)
     wof_remaining_plays = 0
     if hasattr(user, 'last_wof_date') and hasattr(user, 'wof_plays_today'):
         today_str = get_today().strftime('%Y-%m-%d')
         if user.last_wof_date == today_str:
-            wof_remaining_plays = max(0, WHEEL_OF_FATE_DAILY_LIMIT - user.wof_plays_today)
+            wof_remaining_plays = max(0, wheel_of_fate_daily_limit - user.wof_plays_today)
         else:
-            wof_remaining_plays = WHEEL_OF_FATE_DAILY_LIMIT
+            wof_remaining_plays = wheel_of_fate_daily_limit
     else:
         # 兼容旧数据，给予最大次数
-        wof_remaining_plays = WHEEL_OF_FATE_DAILY_LIMIT
+        wof_remaining_plays = wheel_of_fate_daily_limit
     
     # 获取鱼塘信息
     pond_info = None
