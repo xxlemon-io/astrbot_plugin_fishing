@@ -162,8 +162,12 @@ async def electric_fish(plugin: "FishingPlugin", event: AstrMessageEvent):
 async def dispel_protection(plugin: "FishingPlugin", event: AstrMessageEvent):
     """使用驱灵香驱散目标的海灵守护"""
     user_id = plugin._get_effective_user_id(event)
-    target_id = parse_target_user_id(event)
+    args = event.message_str.split()
+    target_id, error_msg = parse_target_user_id(event, args, 1)
 
+    if error_msg:
+        yield event.plain_result(error_msg)
+        return
     if not target_id:
         yield event.plain_result("请在消息中@要驱散守护的用户")
         return
