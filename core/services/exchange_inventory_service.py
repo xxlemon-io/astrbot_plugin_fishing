@@ -171,43 +171,60 @@ class ExchangeInventoryService:
             if not commodity_items:
                 return {"success": False, "message": f"您没有 {self.commodities[commodity_id]['name']}"}
             
-            # 检查商品是否已腐败
+            # 检查商品是否已腐败，并分别计算价值
             now = datetime.now()
-            expired_count = 0
+            expired_items = []
             valid_items = []
             
             for item in commodity_items:
                 if item.expires_at and isinstance(item.expires_at, datetime):
                     if item.expires_at <= now:
-                        expired_count += item.quantity
+                        expired_items.append(item)
                     else:
                         valid_items.append(item)
                 else:
                     valid_items.append(item)
             
-            if expired_count > 0 and not valid_items:
-                return {"success": False, "message": f"❌ 您的 {self.commodities[commodity_id]['name']} 已全部腐败，无法出售！腐败商品价值为0"}
-            
-            if expired_count > 0:
-                return {"success": False, "message": f"❌ 您有 {expired_count} 个 {self.commodities[commodity_id]['name']} 已腐败，请先清理腐败商品（使用/清仓命令），只能出售新鲜商品"}
-            
-            # 使用有效商品计算可卖出数量
-            commodity_items = valid_items
+            # 计算可卖出数量（包括腐败商品）
             available_quantity = sum(item.quantity for item in commodity_items)
             if available_quantity < quantity:
-                return {"success": False, "message": f"库存不足，只有 {available_quantity} 个未腐败的商品"}
+                return {"success": False, "message": f"库存不足，只有 {available_quantity} 个"}
             
-            # 计算总收益
-            total_income = current_price * quantity
+            # 计算需要卖出的腐败和有效商品数量
+            remaining_quantity = quantity
+            expired_sold = 0
+            valid_sold = 0
+            
+            # 优先卖出腐败商品
+            for item in expired_items:
+                if remaining_quantity <= 0:
+                    break
+                sold = min(item.quantity, remaining_quantity)
+                expired_sold += sold
+                remaining_quantity -= sold
+            
+            # 然后卖出有效商品
+            for item in valid_items:
+                if remaining_quantity <= 0:
+                    break
+                sold = min(item.quantity, remaining_quantity)
+                valid_sold += sold
+                remaining_quantity -= sold
+            
+            # 计算总收益（只有有效商品有价值）
+            total_income = current_price * valid_sold
+            is_all_expired = (expired_sold == quantity)
             
             # 计算税费
             tax_rate = self.config.get("tax_rate", 0.05)
             tax_amount = int(total_income * tax_rate)
             net_income = total_income - tax_amount
             
-            # 扣除库存
+            # 扣除库存（优先扣除腐败商品）
             remaining_quantity = quantity
-            for item in commodity_items:
+            items_to_process = expired_items + valid_items  # 优先处理腐败商品
+            
+            for item in items_to_process:
                 if remaining_quantity <= 0:
                     break
                 
@@ -240,16 +257,26 @@ class ExchangeInventoryService:
                 self.log_repo.add_tax_record(tax_record)
             
             # 计算盈亏分析
-            profit_loss = self._calculate_profit_loss_analysis(commodity_items, quantity, current_price)
+            profit_loss = self._calculate_profit_loss_analysis(items_to_process, quantity, current_price)
+            
+            # 构造返回消息
+            if is_all_expired:
+                message = f"💀 清理腐败商品成功！处理了 {expired_sold} 个腐败的{self.commodities[commodity_id]['name']}，获得 0 金币（腐败商品无价值）"
+            elif expired_sold > 0:
+                message = f"✅ 卖出成功！处理了 {quantity} 个商品（其中 {expired_sold} 个已腐败），获得 {net_income:,} 金币（含税费 {tax_amount:,} 金币）\n💀 提示：腐败商品价值为0"
+            else:
+                message = f"✅ 卖出成功！获得 {net_income:,} 金币（含税费 {tax_amount:,} 金币）"
             
             return {
                 "success": True,
-                "message": f"卖出成功！获得 {net_income:,} 金币（含税费 {tax_amount:,} 金币）",
+                "message": message,
                 "total_income": total_income,
                 "tax_amount": tax_amount,
                 "net_income": net_income,
                 "current_price": current_price,
-                "profit_loss": profit_loss
+                "profit_loss": profit_loss,
+                "expired_sold": expired_sold,
+                "valid_sold": valid_sold
             }
         except Exception as e:
             logger.error(f"卖出大宗商品失败: {e}")
