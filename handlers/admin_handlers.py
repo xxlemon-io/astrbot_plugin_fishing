@@ -394,6 +394,91 @@ async def refund_taxes(plugin: "FishingPlugin", event: AstrMessageEvent):
         yield event.plain_result(message)
 
 
+async def rollback_refund_taxes(plugin: "FishingPlugin", event: AstrMessageEvent):
+    """撤回退税操作（先模拟，再执行）"""
+    args = event.message_str.split(" ")
+    
+    # 检查参数：/撤回退税 开始日期 结束日期 [确认]
+    if len(args) < 3:
+        yield event.plain_result(
+            "❌ 参数不足！\n"
+            "用法：\n"
+            "  /撤回退税 2025-10-19 2025-10-22 - 模拟运行（查看影响）\n"
+            "  /撤回退税 2025-10-19 2025-10-22 确认 - 实际执行撤回"
+        )
+        return
+    
+    start_date = args[1]
+    end_date = args[2]
+    confirm = len(args) >= 4 and args[3] == "确认"
+    
+    # 验证日期格式
+    import re
+    date_pattern = r'^\d{4}-\d{2}-\d{2}$'
+    if not re.match(date_pattern, start_date) or not re.match(date_pattern, end_date):
+        yield event.plain_result("❌ 日期格式错误！请使用 YYYY-MM-DD 格式，例如：2025-10-19")
+        return
+    
+    # 执行撤回（模拟或实际）
+    dry_run = not confirm
+    result = plugin.user_service.rollback_refund_taxes(
+        start_date=start_date,
+        end_date=end_date,
+        dry_run=dry_run
+    )
+    
+    if not result.get("success"):
+        yield event.plain_result(f"❌ {result.get('message')}")
+        return
+    
+    if dry_run:
+        # 模拟运行结果
+        message = f"【🔍 撤回退税模拟运行】\n"
+        message += f"=" * 40 + "\n"
+        message += f"📅 日期范围: {start_date} 至 {end_date}\n"
+        message += f"👥 影响用户: {result['total_users']} 人\n"
+        message += f"💰 总撤回额: {result['total_rollback_amount']:,} 金币\n\n"
+        message += f"【前20位用户预览】\n"
+        message += f"-" * 40 + "\n"
+        
+        for item in result['preview']:
+            status = "✓" if item['current_coins'] >= item['rollback_amount'] else "✗金币不足"
+            message += f"  {item['nickname'] or item['user_id']:12s} | "
+            message += f"撤回{item['rollback_amount']:,}币 | "
+            message += f"{status}\n"
+        
+        message += f"\n⚠️ 这只是模拟运行！\n"
+        message += f"若确认无误，请执行：\n"
+        message += f"/撤回退税 {start_date} {end_date} 确认"
+        
+        yield event.plain_result(message)
+    else:
+        # 实际执行结果
+        message = f"【✅ 撤回退税执行完成】\n"
+        message += f"=" * 40 + "\n"
+        message += f"{result['message']}\n\n"
+        message += f"📅 日期范围: {start_date} 至 {end_date}\n"
+        message += f"✓ 成功: {result['total_users']} 人\n"
+        if result['failed_users'] > 0:
+            message += f"✗ 失败: {result['failed_users']} 人\n"
+        if result['insufficient_coins_users'] > 0:
+            message += f"⚠️ 金币不足: {result['insufficient_coins_users']} 人\n"
+        message += f"💰 总撤回额: {result['total_rollback_amount']:,} 金币\n\n"
+        
+        if result.get('details'):
+            message += f"【部分撤回详情（前10位）】\n"
+            message += f"-" * 40 + "\n"
+            for item in result['details'][:10]:
+                if item['status'] == '成功':
+                    message += f"  {item['nickname'] or item['user_id']:12s} | "
+                    message += f"{item['old_coins']:,} → {item['new_coins']:,}\n"
+                else:
+                    message += f"  {item['nickname'] or item['user_id']:12s} | "
+                    message += f"{item['status']} (需{item['rollback_amount']:,}, 仅{item['current_coins']:,})\n"
+        
+        yield event.plain_result(message)
+
+
 async def deduct_coins(plugin: "FishingPlugin", event: AstrMessageEvent):
     """扣除用户金币"""
     args = event.message_str.split(" ")

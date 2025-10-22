@@ -699,6 +699,12 @@ class FishingPlugin(Star):
             yield r
 
     @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("撤回退税")
+    async def rollback_refund_taxes(self, event: AstrMessageEvent):
+        async for r in admin_handlers.rollback_refund_taxes(self, event):
+            yield r
+
+    @filter.permission_type(PermissionType.ADMIN)
     @filter.command("开启钓鱼后台管理")
     async def start_admin(self, event: AstrMessageEvent):
         async for r in admin_handlers.start_admin(self, event):

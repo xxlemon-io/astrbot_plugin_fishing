@@ -433,6 +433,155 @@ class UserService:
                 "details": refund_details[:50]  # 只返回前50条详细记录
             }
 
+    def rollback_refund_taxes(self, start_date: str, end_date: str, dry_run: bool = False) -> Dict[str, Any]:
+        """
+        撤回退税操作（查找并撤回指定日期范围内的退税记录）
+        
+        Args:
+            start_date: 开始日期 (格式: YYYY-MM-DD)
+            end_date: 结束日期 (格式: YYYY-MM-DD)
+            dry_run: 是否为模拟运行（只查询不执行）
+            
+        Returns:
+            包含操作结果的字典
+        """
+        from ..utils import get_now
+        from datetime import datetime
+        
+        # 获取数据库连接并查询需要撤回的退税记录
+        with self.user_repo._get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 查询退税记录（tax_amount为负数且tax_type包含"退税"）
+            cursor.execute("""
+                SELECT user_id, SUM(tax_amount) as total_refunded, COUNT(*) as count
+                FROM taxes
+                WHERE tax_amount < 0 
+                  AND tax_type LIKE '退税:%'
+                  AND DATE(timestamp) >= ? 
+                  AND DATE(timestamp) <= ?
+                GROUP BY user_id
+                ORDER BY total_refunded ASC
+            """, (start_date, end_date))
+            
+            rollback_records = cursor.fetchall()
+            
+            if not rollback_records:
+                return {
+                    "success": False,
+                    "message": f"没有找到{start_date}至{end_date}期间的退税记录"
+                }
+            
+            # 统计信息
+            total_users = len(rollback_records)
+            total_rollback_amount = abs(sum(r[1] for r in rollback_records))  # 取绝对值
+            
+            if dry_run:
+                # 模拟运行，只返回统计信息
+                preview = []
+                for user_id, refunded_amount, count in rollback_records[:20]:
+                    user = self.user_repo.get_by_id(user_id)
+                    preview.append({
+                        "user_id": user_id,
+                        "nickname": user.nickname if user else "未知",
+                        "refund_count": count,
+                        "rollback_amount": abs(refunded_amount),
+                        "current_coins": user.coins if user else 0
+                    })
+                
+                return {
+                    "success": True,
+                    "dry_run": True,
+                    "message": f"模拟运行：将从{total_users}位用户撤回总计{total_rollback_amount:,}金币",
+                    "total_users": total_users,
+                    "total_rollback_amount": total_rollback_amount,
+                    "preview": preview
+                }
+            
+            # 执行撤回
+            successful = 0
+            failed = 0
+            insufficient_coins = 0
+            rollback_details = []
+            
+            for user_id, refunded_amount, count in rollback_records:
+                user = self.user_repo.get_by_id(user_id)
+                if not user:
+                    failed += 1
+                    continue
+                
+                rollback_amount = abs(refunded_amount)  # 要扣除的金额（正数）
+                
+                # 检查用户金币是否足够
+                if user.coins < rollback_amount:
+                    insufficient_coins += 1
+                    rollback_details.append({
+                        "user_id": user_id,
+                        "nickname": user.nickname,
+                        "status": "金币不足",
+                        "rollback_amount": rollback_amount,
+                        "current_coins": user.coins
+                    })
+                    continue
+                
+                # 扣除用户金币
+                old_coins = user.coins
+                user.coins -= rollback_amount
+                self.user_repo.update(user)
+                
+                # 删除对应的退税记录
+                cursor.execute("""
+                    DELETE FROM taxes
+                    WHERE user_id = ?
+                      AND tax_amount < 0
+                      AND tax_type LIKE '退税:%'
+                      AND DATE(timestamp) >= ?
+                      AND DATE(timestamp) <= ?
+                """, (user_id, start_date, end_date))
+                
+                # 记录撤回操作日志
+                from ..domain.models import TaxRecord
+                rollback_log = TaxRecord(
+                    tax_id=0,
+                    user_id=user_id,
+                    tax_amount=rollback_amount,  # 正数表示扣除
+                    tax_rate=0.0,
+                    original_amount=rollback_amount,
+                    balance_after=user.coins,
+                    timestamp=get_now(),
+                    tax_type=f"撤回退税({start_date}至{end_date})"
+                )
+                self.log_repo.add_tax_record(rollback_log)
+                
+                successful += 1
+                rollback_details.append({
+                    "user_id": user_id,
+                    "nickname": user.nickname,
+                    "status": "成功",
+                    "rollback_amount": rollback_amount,
+                    "old_coins": old_coins,
+                    "new_coins": user.coins
+                })
+            
+            conn.commit()
+            
+            from astrbot.api import logger as log
+            log.info(f"[撤回退税] 完成撤回操作: {successful}人成功, {failed}人失败, {insufficient_coins}人金币不足, 总撤回额{total_rollback_amount:,}")
+            
+            message = f"✅ 撤回完成！从{successful}位用户撤回了总计{total_rollback_amount:,}金币"
+            if insufficient_coins > 0:
+                message += f"\n⚠️ {insufficient_coins}位用户金币不足，无法完全撤回"
+            
+            return {
+                "success": True,
+                "message": message,
+                "total_users": successful,
+                "failed_users": failed,
+                "insufficient_coins_users": insufficient_coins,
+                "total_rollback_amount": total_rollback_amount,
+                "details": rollback_details[:50]
+            }
+
     def get_users_for_admin(self, page: int = 1, per_page: int = 20, search: str = None) -> Dict[str, Any]:
         """
         获取用户列表用于后台管理
