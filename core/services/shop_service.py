@@ -532,7 +532,7 @@ class ShopService:
                 
                 elif reward_type == "fish" and reward_item_id:
                     fish_tpl = self.item_template_repo.get_fish_by_id(reward_item_id)
-                    self.inventory_repo.update_fish_quantity(user_id, reward_item_id, reward_quantity)
+                    self.inventory_repo.update_fish_quantity(user_id, reward_item_id, reward_quantity, 0)
                     if fish_tpl:
                         obtained_items.append(f"🐟 {fish_tpl.name} x{reward_quantity}")
                 

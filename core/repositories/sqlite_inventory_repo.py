@@ -129,38 +129,6 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                 """, (user_id, rarity))
             conn.commit()
 
-    def update_fish_quantity(self, user_id: str, fish_id: int, delta: int, quality_level: int = 0) -> None:
-        """更新用户鱼类库存(鱼塘)数量"""
-        with self._connection_manager.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("BEGIN TRANSACTION")
-            try:
-                if delta > 0:
-                    cursor.execute("""
-                        INSERT INTO user_fish_inventory (user_id, fish_id, quality_level, quantity)
-                        VALUES (?, ?, ?, ?)
-                        ON CONFLICT(user_id, fish_id, quality_level) DO UPDATE SET quantity = quantity + excluded.quantity
-                    """, (user_id, fish_id, quality_level, delta))
-                elif delta < 0:
-                    # 使用原子操作确保数量不会变为负数
-                    cursor.execute("""
-                        UPDATE user_fish_inventory 
-                        SET quantity = quantity - ?
-                        WHERE user_id = ? AND fish_id = ? AND quality_level = ? AND quantity >= ?
-                    """, (-delta, user_id, fish_id, quality_level, -delta))
-                    
-                    if cursor.rowcount == 0:
-                        raise ValueError(f"用户 {user_id} 的鱼类 {fish_id} (品质{quality_level}) 数量不足，无法减少 {abs(delta)} 个")
-                    
-                    # 如果数量为0或负数，删除记录
-                    cursor.execute("""
-                        DELETE FROM user_fish_inventory 
-                        WHERE user_id = ? AND fish_id = ? AND quality_level = ? AND quantity <= 0
-                    """, (user_id, fish_id, quality_level))
-                conn.commit()
-            except Exception:
-                conn.rollback()
-                raise
 
     def sell_fish_keep_one(self, user_id: str) -> int:
         """
@@ -447,15 +415,15 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor.execute("DELETE FROM user_accessories WHERE accessory_instance_id = ?", (accessory_instance_id,))
             conn.commit()
             
-    def update_fish_quantity(self, user_id: str, fish_id: int, delta: int) -> None:
+    def update_fish_quantity(self, user_id: str, fish_id: int, delta: int, quality_level: int = 0) -> None:
         """更新用户鱼类库存中特定鱼的数量（可增可减），并确保数量不小于0。"""
         with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO user_fish_inventory (user_id, fish_id, quantity)
-                VALUES (?, ?, MAX(0, ?))
-                ON CONFLICT(user_id, fish_id) DO UPDATE SET quantity = MAX(0, quantity + ?)
-            """, (user_id, fish_id, delta, delta))
+                INSERT INTO user_fish_inventory (user_id, fish_id, quality_level, quantity)
+                VALUES (?, ?, ?, MAX(0, ?))
+                ON CONFLICT(user_id, fish_id, quality_level) DO UPDATE SET quantity = MAX(0, quantity + ?)
+            """, (user_id, fish_id, quality_level, delta, delta))
             # 删除数量为0的行，保持数据整洁
             cursor.execute("DELETE FROM user_fish_inventory WHERE user_id = ? AND quantity <= 0", (user_id,))
             conn.commit()

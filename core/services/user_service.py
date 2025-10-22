@@ -690,7 +690,7 @@ class UserService:
                 if current_quantity < quantity:
                     return {"success": False, "message": f"库存不足，当前只有 {current_quantity} 个"}
                 
-                self.inventory_repo.update_fish_quantity(user_id, item_id, -quantity)
+                self.inventory_repo.update_fish_quantity(user_id, item_id, -quantity, 0)
                 return {"success": True, "message": f"成功移除 {fish_template.name} x{quantity}"}
                 
             elif item_type == "rod":

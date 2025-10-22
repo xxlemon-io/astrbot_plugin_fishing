@@ -846,7 +846,7 @@ class GameMechanicsService:
         total_value_stolen = 0
     
         for fish_id, count in stolen_fish_counts.items():
-            self.inventory_repo.update_fish_quantity(victim_id, fish_id, delta=-count)
+            self.inventory_repo.update_fish_quantity(victim_id, fish_id, delta=-count, quality_level=0)
             self.inventory_repo.add_fish_to_inventory(thief_id, fish_id, quantity=count)
             
             template = fish_templates.get(fish_id)

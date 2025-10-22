@@ -179,7 +179,7 @@ class AbstractInventoryRepository(ABC):
     def clear_fish_inventory(self, user_id: str, rarity: Optional[int] = None) -> None: pass
     # 更新用户鱼类库存数量
     @abstractmethod
-    def update_fish_quantity(self, user_id: str, fish_id: int, delta: int) -> None: pass
+    def update_fish_quantity(self, user_id: str, fish_id: int, delta: int, quality_level: int = 0) -> None: pass
     
     # --- 水族箱相关方法 ---
     # 获取用户水族箱中的鱼
@@ -280,7 +280,7 @@ class AbstractInventoryRepository(ABC):
     def delete_accessory_instance(self, accessory_instance_id: int) -> None: pass
     # 更新用户鱼类数量(增减)
     @abstractmethod
-    def update_fish_quantity(self, user_id: str, fish_id: int, delta: int) -> None: pass
+    def update_fish_quantity(self, user_id: str, fish_id: int, delta: int, quality_level: int = 0) -> None: pass
     # 获取钓鱼区域信息
     @abstractmethod
     def get_zone_by_id(self, zone_id: int) -> FishingZone: pass
