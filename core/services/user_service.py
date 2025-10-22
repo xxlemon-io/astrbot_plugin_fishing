@@ -316,6 +316,122 @@ class UserService:
         ]
         return {"success": True, "records": records_data}
 
+    def refund_taxes_by_date_range(self, start_date: str, end_date: str, tax_type: str = "每日资产税", dry_run: bool = False) -> Dict[str, Any]:
+        """
+        退还特定日期范围内的税收
+        
+        Args:
+            start_date: 开始日期 (格式: YYYY-MM-DD)
+            end_date: 结束日期 (格式: YYYY-MM-DD)
+            tax_type: 税收类型 (默认: 每日资产税)
+            dry_run: 是否为模拟运行（只查询不执行）
+            
+        Returns:
+            包含操作结果的字典
+        """
+        from ..utils import get_now
+        from datetime import datetime
+        
+        # 获取数据库连接并查询需要退税的记录
+        with self.user_repo._get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 查询符合条件的税收记录
+            cursor.execute("""
+                SELECT user_id, SUM(tax_amount) as total_refund, COUNT(*) as count
+                FROM taxes
+                WHERE tax_type = ? 
+                  AND DATE(timestamp) >= ? 
+                  AND DATE(timestamp) <= ?
+                GROUP BY user_id
+                ORDER BY total_refund DESC
+            """, (tax_type, start_date, end_date))
+            
+            refund_records = cursor.fetchall()
+            
+            if not refund_records:
+                return {
+                    "success": False,
+                    "message": f"没有找到{start_date}至{end_date}期间的{tax_type}记录"
+                }
+            
+            # 统计信息
+            total_users = len(refund_records)
+            total_refund_amount = sum(r[1] for r in refund_records)
+            
+            if dry_run:
+                # 模拟运行，只返回统计信息
+                preview = []
+                for user_id, refund_amount, count in refund_records[:20]:  # 只显示前20个
+                    user = self.user_repo.get_by_id(user_id)
+                    preview.append({
+                        "user_id": user_id,
+                        "nickname": user.nickname if user else "未知",
+                        "tax_count": count,
+                        "refund_amount": refund_amount,
+                        "current_coins": user.coins if user else 0
+                    })
+                
+                return {
+                    "success": True,
+                    "dry_run": True,
+                    "message": f"模拟运行：将为{total_users}位用户退还总计{total_refund_amount:,}金币",
+                    "total_users": total_users,
+                    "total_refund_amount": total_refund_amount,
+                    "preview": preview
+                }
+            
+            # 执行退税
+            successful = 0
+            failed = 0
+            refund_details = []
+            
+            for user_id, refund_amount, count in refund_records:
+                user = self.user_repo.get_by_id(user_id)
+                if not user:
+                    failed += 1
+                    continue
+                
+                # 增加用户金币
+                old_coins = user.coins
+                user.coins += refund_amount
+                self.user_repo.update(user)
+                
+                # 记录退税日志（作为负税额）
+                from ..domain.models import TaxRecord
+                refund_log = TaxRecord(
+                    tax_id=0,  # 数据库自增
+                    user_id=user_id,
+                    tax_amount=-refund_amount,  # 负数表示退税
+                    tax_rate=0.0,
+                    original_amount=refund_amount,
+                    balance_after=user.coins,
+                    timestamp=get_now(),
+                    tax_type=f"退税:{tax_type}({start_date}至{end_date})"
+                )
+                self.log_repo.add_tax_record(refund_log)
+                
+                successful += 1
+                refund_details.append({
+                    "user_id": user_id,
+                    "nickname": user.nickname,
+                    "refund_amount": refund_amount,
+                    "tax_count": count,
+                    "old_coins": old_coins,
+                    "new_coins": user.coins
+                })
+            
+            logger.info(f"[退税] 完成退税操作: {successful}人成功, {failed}人失败, 总退税额{total_refund_amount:,}")
+            
+            return {
+                "success": True,
+                "message": f"✅ 退税完成！为{successful}位用户退还了总计{total_refund_amount:,}金币",
+                "total_users": successful,
+                "failed_users": failed,
+                "total_refund_amount": total_refund_amount,
+                "details": refund_details[:50]  # 只返回前50条详细记录
+            }
+
     def get_users_for_admin(self, page: int = 1, per_page: int = 20, search: str = None) -> Dict[str, Any]:
         """
         获取用户列表用于后台管理

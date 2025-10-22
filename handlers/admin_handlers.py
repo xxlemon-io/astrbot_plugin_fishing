@@ -300,6 +300,101 @@ async def reward_coins(plugin: "FishingPlugin", event: AstrMessageEvent):
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
 
+@filter.on_command(cmd="退税", permission=PermissionType.PLUGIN_ADMIN)
+async def refund_taxes(plugin: "FishingPlugin", event: AstrMessageEvent):
+    """退还特定日期范围内的税收（先模拟，再执行）"""
+    args = event.message_str.split(" ")
+    
+    # 检查参数：/退税 开始日期 结束日期 [税收类型] [确认]
+    if len(args) < 3:
+        yield event.plain_result(
+            "❌ 参数不足！\n"
+            "用法：\n"
+            "  /退税 2024-10-19 2024-10-22 - 模拟运行（查看影响）\n"
+            "  /退税 2024-10-19 2024-10-22 确认 - 实际执行退税\n"
+            "  /退税 2024-10-19 2024-10-22 每日资产税 确认 - 指定税收类型"
+        )
+        return
+    
+    start_date = args[1]
+    end_date = args[2]
+    
+    # 解析可选参数
+    tax_type = "每日资产税"  # 默认值
+    confirm = False
+    
+    if len(args) >= 4:
+        if args[3] == "确认":
+            confirm = True
+        elif len(args) >= 5 and args[4] == "确认":
+            tax_type = args[3]
+            confirm = True
+        else:
+            tax_type = args[3]
+    
+    # 验证日期格式
+    import re
+    date_pattern = r'^\d{4}-\d{2}-\d{2}$'
+    if not re.match(date_pattern, start_date) or not re.match(date_pattern, end_date):
+        yield event.plain_result("❌ 日期格式错误！请使用 YYYY-MM-DD 格式，例如：2024-10-19")
+        return
+    
+    # 执行退税（模拟或实际）
+    dry_run = not confirm
+    result = plugin.user_service.refund_taxes_by_date_range(
+        start_date=start_date,
+        end_date=end_date,
+        tax_type=tax_type,
+        dry_run=dry_run
+    )
+    
+    if not result.get("success"):
+        yield event.plain_result(f"❌ {result.get('message')}")
+        return
+    
+    if dry_run:
+        # 模拟运行结果
+        message = f"【🔍 退税模拟运行】\n"
+        message += f"=" * 40 + "\n"
+        message += f"📅 日期范围: {start_date} 至 {end_date}\n"
+        message += f"📋 税收类型: {tax_type}\n"
+        message += f"👥 影响用户: {result['total_users']} 人\n"
+        message += f"💰 总退税额: {result['total_refund_amount']:,} 金币\n\n"
+        message += f"【前20位用户预览】\n"
+        message += f"-" * 40 + "\n"
+        
+        for item in result['preview']:
+            message += f"  {item['nickname'] or item['user_id']:12s} | "
+            message += f"被收税{item['tax_count']:2d}次 | "
+            message += f"退还{item['refund_amount']:,}币\n"
+        
+        message += f"\n⚠️ 这只是模拟运行！\n"
+        message += f"若确认无误，请执行：\n"
+        message += f"/退税 {start_date} {end_date} {tax_type} 确认"
+        
+        yield event.plain_result(message)
+    else:
+        # 实际执行结果
+        message = f"【✅ 退税执行完成】\n"
+        message += f"=" * 40 + "\n"
+        message += f"{result['message']}\n\n"
+        message += f"📅 日期范围: {start_date} 至 {end_date}\n"
+        message += f"📋 税收类型: {tax_type}\n"
+        message += f"✓ 成功: {result['total_users']} 人\n"
+        if result['failed_users'] > 0:
+            message += f"✗ 失败: {result['failed_users']} 人\n"
+        message += f"💰 总退税额: {result['total_refund_amount']:,} 金币\n\n"
+        
+        if result.get('details'):
+            message += f"【部分退税详情（前10位）】\n"
+            message += f"-" * 40 + "\n"
+            for item in result['details'][:10]:
+                message += f"  {item['nickname'] or item['user_id']:12s} | "
+                message += f"{item['old_coins']:,} → {item['new_coins']:,}\n"
+        
+        yield event.plain_result(message)
+
+
 async def deduct_coins(plugin: "FishingPlugin", event: AstrMessageEvent):
     """扣除用户金币"""
     args = event.message_str.split(" ")
