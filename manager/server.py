@@ -1485,6 +1485,7 @@ async def add_shop_item(shop_id):
     cost_amounts = data.getlist("cost_amount") if hasattr(data, 'getlist') else []
     cost_relations = data.getlist("cost_relation") if hasattr(data, 'getlist') else []
     cost_groups = data.getlist("cost_group") if hasattr(data, 'getlist') else []
+    cost_quality_levels = data.getlist("cost_quality_level") if hasattr(data, 'getlist') else []
     
     for idx, full_id in enumerate(cost_full_ids):
         if not full_id:
@@ -1503,6 +1504,7 @@ async def add_shop_item(shop_id):
             "cost_amount": amount_val,
             "cost_relation": cost_relations[idx] if idx < len(cost_relations) else "and",
             "group_id": int(cost_groups[idx]) if idx < len(cost_groups) and cost_groups[idx] else None,
+            "quality_level": int(cost_quality_levels[idx]) if idx < len(cost_quality_levels) and cost_quality_levels[idx] else 0,
         }
         
         if t in ("fish", "item", "rod", "accessory"):
@@ -1517,6 +1519,7 @@ async def add_shop_item(shop_id):
     reward_full_ids = data.getlist("reward_item_full_id") if hasattr(data, 'getlist') else []
     reward_quantities = data.getlist("reward_quantity") if hasattr(data, 'getlist') else []
     reward_refine_levels = data.getlist("reward_refine_level") if hasattr(data, 'getlist') else []
+    reward_quality_levels = data.getlist("reward_quality_level") if hasattr(data, 'getlist') else []
     
     for idx, full_id in enumerate(reward_full_ids):
         if not full_id:

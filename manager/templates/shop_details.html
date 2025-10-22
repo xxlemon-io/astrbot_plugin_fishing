@@ -48,7 +48,7 @@
                                     {% elif cost.cost_type == 'premium' %}
                                         💎 高级货币 x{{ cost.cost_amount }}
                                     {% elif cost.cost_type == 'fish' %}
-                                        🐟 {{ cost.fish_name or ('鱼类#' + cost.cost_item_id|string) }} x{{ cost.cost_amount }}
+                                        🐟 {{ cost.fish_name or ('鱼类#' + cost.cost_item_id|string) }}{% if cost.quality_level == 1 %} 🌟高品质{% endif %} x{{ cost.cost_amount }}
                                     {% elif cost.cost_type == 'item' %}
                                         🎁 {{ cost.item_name or ('道具#' + cost.cost_item_id|string) }} x{{ cost.cost_amount }}
                                     {% elif cost.cost_type == 'rod' %}
@@ -73,7 +73,7 @@
                                     {% elif reward.reward_type == 'item' %}
                                         🎁 {{ reward.item_name or ('道具#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
                                     {% elif reward.reward_type == 'fish' %}
-                                        🐟 {{ reward.fish_name or ('鱼类#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
+                                        🐟 {{ reward.fish_name or ('鱼类#' + reward.reward_item_id|string) }}{% if reward.quality_level == 1 %} 🌟高品质{% endif %} x{{ reward.reward_quantity }}
                                     {% elif reward.reward_type == 'coins' %}
                                         💰 金币 x{{ reward.reward_quantity }}
                                     {% else %}
@@ -173,8 +173,14 @@
                                         </optgroup>
                                     </select>
                                 </div>
-                                <div class="col-6 col-md-3">
+                                <div class="col-6 col-md-2">
                                     <input name="reward_quantity" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
+                                </div>
+                                <div class="col-6 col-md-2" id="rewardQualityDiv" style="display: none;">
+                                    <select name="reward_quality_level" class="form-select">
+                                        <option value="0">普通品质</option>
+                                        <option value="1">高品质</option>
+                                    </select>
                                 </div>
                                 <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
                                     <button type="button" class="btn btn-outline-danger btn-sm remove-reward">
@@ -214,6 +220,12 @@
                                 </div>
                                 <div class="col-6 col-md-2">
                                     <input name="cost_amount" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
+                                </div>
+                                <div class="col-6 col-md-2" id="costQualityDiv" style="display: none;">
+                                    <select name="cost_quality_level" class="form-select">
+                                        <option value="0">普通品质</option>
+                                        <option value="1">高品质</option>
+                                    </select>
                                 </div>
                                 <div class="col-3 col-md-2">
                                     <select name="cost_relation" class="form-select">
@@ -568,6 +580,12 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="col-6 col-md-2">
                 <input name="cost_amount" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
             </div>
+            <div class="col-6 col-md-2" id="costQualityDiv" style="display: none;">
+                <select name="cost_quality_level" class="form-select">
+                    <option value="0">普通品质</option>
+                    <option value="1">高品质</option>
+                </select>
+            </div>
             <div class="col-3 col-md-2">
                 <select name="cost_relation" class="form-select">
                     <option value="and">AND</option>
@@ -609,6 +627,16 @@ document.addEventListener('DOMContentLoaded', function () {
             row.remove();
         });
         
+        // 添加品质选择显示/隐藏逻辑
+        const select = row.querySelector('select[name="cost_item_full_id"]');
+        const qualityDiv = row.querySelector('#costQualityDiv');
+        if (qualityDiv) {
+            select.addEventListener('change', function() {
+                const isFish = this.value.startsWith('fish-');
+                qualityDiv.style.display = isFish ? 'block' : 'none';
+            });
+        }
+        
     }
 
     function addRewardRow() {
@@ -633,8 +661,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     </optgroup>
                 </select>
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-6 col-md-2">
                 <input name="reward_quantity" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
+            </div>
+            <div class="col-6 col-md-2" id="rewardQualityDiv" style="display: none;">
+                <select name="reward_quality_level" class="form-select">
+                    <option value="0">普通品质</option>
+                    <option value="1">高品质</option>
+                </select>
             </div>
             <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
                 <button type="button" class="btn btn-outline-danger btn-sm remove-reward">
@@ -648,7 +682,15 @@ document.addEventListener('DOMContentLoaded', function () {
             row.remove();
         });
         
-        
+        // 添加品质选择显示/隐藏逻辑
+        const select = row.querySelector('select[name="reward_item_full_id"]');
+        const qualityDiv = row.querySelector('#rewardQualityDiv');
+        if (qualityDiv) {
+            select.addEventListener('change', function() {
+                const isFish = this.value.startsWith('fish-');
+                qualityDiv.style.display = isFish ? 'block' : 'none';
+            });
+        }
     }
 });
 </script>

@@ -327,6 +327,10 @@ async def shop(plugin: "FishingPlugin", event: AstrMessageEvent):
                         if fish_template
                         else f"鱼类#{c.get('cost_item_id')}"
                     )
+                    # 显示品质信息
+                    quality_level = c.get("quality_level", 0)
+                    if quality_level == 1:
+                        fish_name += " 🌟高品质"
                     cost_text = f"🐟 {fish_name} x{c['cost_amount']}"
                 elif c["cost_type"] == "rod":
                     # 获取鱼竿名称
@@ -476,6 +480,10 @@ async def shop(plugin: "FishingPlugin", event: AstrMessageEvent):
                     )
                     if fish_template:
                         item_name = fish_template.name
+                        # 显示品质信息
+                        quality_level = reward.get("quality_level", 0)
+                        if quality_level == 1:
+                            item_name += " 🌟高品质"
                         item_emoji = "🐟"
                 elif reward["reward_type"] == "coins":
                     item_name = "金币"
