@@ -52,11 +52,22 @@ def format_large_number(number):
 
 # --- 新增：格式化重量的函数 ---
 def format_weight(grams):
-    """将克(g)格式化为公斤(kg)字符串"""
+    """将克(g)格式化为公斤(kg)字符串，大数值使用K、M等单位"""
     if grams < 1000:
         return f"{grams}g"
+    
     kg = grams / 1000
-    return f"{kg:.1f}kg".replace(".0kg", "kg")
+    
+    # 小于1000kg时，直接显示kg
+    if kg < 1000:
+        return f"{kg:.1f}kg".replace(".0kg", "kg")
+    # 大于等于1000kg时，使用K、M、B等单位
+    elif kg < 1000000:
+        return f"{kg/1000:.1f}Kkg".replace(".0Kkg", "Kkg")
+    elif kg < 1000000000:
+        return f"{kg/1000000:.1f}Mkg".replace(".0Mkg", "Mkg")
+    else:
+        return f"{kg/1000000000:.1f}Bkg".replace(".0Bkg", "Bkg")
 # --- 新增结束 ---
 
 
@@ -185,7 +196,7 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str):
         # 2. 金币信息 - 固定在中间位置
         coins_text = f"金币: {format_large_number(coins)}"
         # 固定"金币:"标签的起始位置在卡片中间偏左一点
-        coins_x = card_center - 80
+        coins_x = card_center - 50
         draw.text((coins_x, bottom_line_y), coins_text, font=font_regular, fill=COLOR_COINS)
 
         # 3. 装备信息 - 固定在右侧位置
