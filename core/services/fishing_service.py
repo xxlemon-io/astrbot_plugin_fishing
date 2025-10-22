@@ -269,8 +269,18 @@ class FishingService:
             if total > 0:
                 rarity_distribution = [x / total for x in rarity_distribution]
         
-        # 根据分布抽取稀有度
-        rarity_index = random.choices(range(len(rarity_distribution)), weights=rarity_distribution, k=1)[0]
+        # 应用稀有度加成（rare_chance）调整分布权重
+        # 如果玩家有装备/Buff/鱼饵提供的稀有度加成，会提升 4-5 星鱼的概率
+        # 6+ 星鱼的概率不受影响，保持其作为"运气时刻"的设计
+        if rare_chance > 0:
+            adjusted_distribution = self._apply_rare_chance_to_distribution(
+                rarity_distribution, rare_chance
+            )
+        else:
+            adjusted_distribution = rarity_distribution
+        
+        # 根据调整后的分布加权随机抽取稀有度
+        rarity_index = random.choices(range(len(adjusted_distribution)), weights=adjusted_distribution, k=1)[0]
         
         if rarity_index == 5:  # 抽中6+星组合
             # 从6星及以上的鱼中随机选择，兼容区域限定鱼
@@ -547,6 +557,86 @@ class FishingService:
             "success": True,
             "zones": zones_info
         }
+
+    def _apply_rare_chance_to_distribution(self, distribution: list, rare_chance: float) -> list:
+        """
+        应用稀有度加成，调整鱼类稀有度分布权重。
+        
+        设计理念：
+        - 装备/Buff/鱼饵的稀有度加成影响 4-5 星鱼（稀有鱼）的概率
+        - 6+ 星鱼（超稀有/传说鱼）保持纯运气机制，不受装备影响
+        - 通过从低星转移权重到中高星，确保概率总和始终为 1
+        
+        实现原理：
+        1. 从 1-3 星的总权重中，按 rare_chance 比例转移部分权重
+        2. 将转移的权重分配给 4-5 星，按其原始比例分配
+        3. 6+ 星的概率保持不变，保证超稀有鱼的珍贵性
+        
+        示例效果（rare_chance = 0.46）：
+        - 原始: 1-3星 60%, 4-5星 38%, 6+星 2%
+        - 调整后: 1-3星 32%, 4-5星 66%, 6+星 2%（不变）
+        
+        Args:
+            distribution: 原始稀有度分布列表 [1星, 2星, 3星, 4星, 5星, 6+星]
+            rare_chance: 稀有度加成值，通常在 0.0-0.8 之间
+        
+        Returns:
+            调整后的稀有度分布列表，概率总和为 1
+        """
+        if len(distribution) < 6:
+            # 安全检查：如果分布数组长度不足，直接返回副本
+            return distribution.copy()
+        
+        # 转换系数：1.0 表示 rare_chance 直接作为权重转移比例
+        # 例如 rare_chance=0.46 → 从低星转移 46% 的权重到中高星
+        REDUCTION_FACTOR = 1.0
+        
+        actual_boost = rare_chance * REDUCTION_FACTOR
+        
+        # 限制上限为 0.8，防止低星概率被转移到接近 0 导致游戏体验失衡
+        actual_boost = min(actual_boost, 0.8)
+        
+        new_distribution = distribution.copy()
+        
+        # 分组计算：
+        # - 低星（1-3星，索引 0-2）：普通鱼，作为权重来源
+        # - 中高星（4-5星，索引 3-4）：稀有鱼，接收权重转移
+        # - 超稀有（6+星，索引 5）：传说鱼，不参与计算以保持稀有性
+        low_star_total = sum(new_distribution[0:3])
+        mid_high_star_total = sum(new_distribution[3:5])
+        
+        # 边界情况：如果某一组概率为 0，则无法进行权重转移
+        if mid_high_star_total <= 0 or low_star_total <= 0:
+            return new_distribution
+        
+        # 计算转移量：从低星总权重中按比例转移
+        # 例如：低星总权重 60%，rare_chance 46% → 转移 27.6% 的绝对权重
+        transfer_amount = low_star_total * actual_boost
+        
+        # 步骤 1：从低星（1-3星）按原始比例扣减权重
+        # 保持各低星之间的相对比例不变，整体权重减少
+        for i in range(3):
+            if low_star_total > 0:
+                ratio = new_distribution[i] / low_star_total
+                new_distribution[i] = max(0, new_distribution[i] - transfer_amount * ratio)
+        
+        # 步骤 2：向中高星（4-5星）按原始比例分配转移的权重
+        # 保持 4星和 5星之间的相对比例不变，整体权重增加
+        for i in range(3, 5):
+            if mid_high_star_total > 0:
+                ratio = new_distribution[i] / mid_high_star_total
+                new_distribution[i] = new_distribution[i] + transfer_amount * ratio
+        
+        # 步骤 3：6+星（索引 5）完全不参与上述计算，保持原值
+        # 这确保了超稀有鱼的概率不受装备影响，维持其珍贵性和神秘感
+        
+        # 归一化处理：确保所有概率之和精确为 1.0
+        # 这是必要的，因为浮点运算可能产生微小误差
+        total = sum(new_distribution)
+        if total > 0:
+            new_distribution = [x / total for x in new_distribution]
+        
+        return new_distribution
 
     def _get_fish_template(self, rarity: int, zone: FishingZone, coins_chance: float):
         """根据稀有度和区域配置获取鱼类模板"""
