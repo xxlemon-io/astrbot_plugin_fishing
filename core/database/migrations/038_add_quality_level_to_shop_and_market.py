@@ -29,58 +29,58 @@ def up(cursor: sqlite3.Cursor):
             ADD COLUMN quality_level INTEGER DEFAULT 0
         """)
         
-        # 3. 为 MarketListing 表添加 quality_level 字段
+        # 3. 为 market 表添加 quality_level 字段
         cursor.execute("""
-            ALTER TABLE market_listings 
+            ALTER TABLE market 
             ADD COLUMN quality_level INTEGER DEFAULT 0
         """)
         
-        # 4. 更新 MarketListing 表的主键，包含 quality_level
+        # 4. 更新 market 表的主键，包含 quality_level
         # 注意：SQLite 不支持直接修改主键，需要重建表
         cursor.execute("""
-            CREATE TABLE market_listings_new (
+            CREATE TABLE market_new (
                 market_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
-                seller_nickname TEXT NOT NULL,
                 item_type TEXT NOT NULL,
                 item_id INTEGER NOT NULL,
-                item_name TEXT NOT NULL,
-                item_description TEXT,
                 quantity INTEGER NOT NULL,
                 price INTEGER NOT NULL,
                 listed_at TEXT NOT NULL,
-                item_instance_id INTEGER,
-                refine_level INTEGER DEFAULT 1,
-                quality_level INTEGER DEFAULT 0,
                 expires_at TEXT,
-                is_anonymous BOOLEAN DEFAULT FALSE,
+                refine_level INTEGER DEFAULT 1,
+                seller_nickname TEXT,
+                item_name TEXT,
+                item_description TEXT,
+                item_instance_id INTEGER,
+                is_anonymous INTEGER DEFAULT 0,
+                quality_level INTEGER DEFAULT 0,
                 UNIQUE(user_id, item_type, item_id, quality_level, item_instance_id)
             )
         """)
         
         # 5. 复制数据到新表
         cursor.execute("""
-            INSERT INTO market_listings_new 
-            SELECT market_id, user_id, seller_nickname, item_type, item_id, 
-                   item_name, item_description, quantity, price, listed_at,
-                   item_instance_id, refine_level, 0 as quality_level,
-                   expires_at, is_anonymous
-            FROM market_listings
+            INSERT INTO market_new 
+            SELECT market_id, user_id, item_type, item_id, quantity, price, 
+                   listed_at, expires_at, refine_level, seller_nickname, 
+                   item_name, item_description, item_instance_id, is_anonymous,
+                   0 as quality_level
+            FROM market
         """)
         
         # 6. 删除旧表，重命名新表
-        cursor.execute("DROP TABLE market_listings")
-        cursor.execute("ALTER TABLE market_listings_new RENAME TO market_listings")
+        cursor.execute("DROP TABLE market")
+        cursor.execute("ALTER TABLE market_new RENAME TO market")
         
         # 7. 创建索引
         cursor.execute("""
-            CREATE INDEX idx_market_listings_user_item_quality 
-            ON market_listings(user_id, item_type, item_id, quality_level)
+            CREATE INDEX idx_market_user_item_quality 
+            ON market(user_id, item_type, item_id, quality_level)
         """)
         
         cursor.execute("""
-            CREATE INDEX idx_market_listings_item_quality 
-            ON market_listings(item_type, item_id, quality_level)
+            CREATE INDEX idx_market_item_quality 
+            ON market(item_type, item_id, quality_level)
         """)
         
         # 8. 为 ShopItemCost 创建品质相关索引
@@ -106,15 +106,15 @@ def down(cursor: sqlite3.Cursor):
     try:
         # 1. 删除 quality_level 字段（SQLite 不支持直接删除列，需要重建表）
         cursor.execute("""
-            CREATE TABLE market_listings_old AS 
-            SELECT market_id, user_id, seller_nickname, item_type, item_id, 
-                   item_name, item_description, quantity, price, listed_at,
-                   item_instance_id, refine_level, expires_at, is_anonymous
-            FROM market_listings
+            CREATE TABLE market_old AS 
+            SELECT market_id, user_id, item_type, item_id, quantity, price, 
+                   listed_at, expires_at, refine_level, seller_nickname, 
+                   item_name, item_description, item_instance_id, is_anonymous
+            FROM market
         """)
         
-        cursor.execute("DROP TABLE market_listings")
-        cursor.execute("ALTER TABLE market_listings_old RENAME TO market_listings")
+        cursor.execute("DROP TABLE market")
+        cursor.execute("ALTER TABLE market_old RENAME TO market")
         
         # 2. 删除 ShopItemReward 的 quality_level 字段
         cursor.execute("""
