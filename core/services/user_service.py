@@ -485,13 +485,18 @@ class UserService:
             for item in fish_inventory:
                 fish_template = self.item_template_repo.get_fish_by_id(item.fish_id)
                 if fish_template:
+                    # 计算实际价值（高品质鱼双倍价值）
+                    actual_value = fish_template.base_value * (1 + item.quality_level)
                     fish_data.append({
                         "fish_id": item.fish_id,
                         "name": fish_template.name,
                         "rarity": fish_template.rarity,
                         "base_value": fish_template.base_value,
                         "quantity": item.quantity,
-                        "total_value": fish_template.base_value * item.quantity
+                        "quality_level": item.quality_level,  # 添加品质等级
+                        "actual_value": actual_value,  # 添加实际价值
+                        "quality_label": "高品质" if item.quality_level == 1 else "普通",  # 添加品质标签
+                        "total_value": actual_value * item.quantity  # 使用实际价值计算总价值
                     })
             
             # 获取鱼竿库存
@@ -589,7 +594,7 @@ class UserService:
         except Exception as e:
             return {"success": False, "message": f"获取库存信息时发生错误: {str(e)}"}
 
-    def add_item_to_user_inventory(self, user_id: str, item_type: str, item_id: int, quantity: int = 1) -> Dict[str, Any]:
+    def add_item_to_user_inventory(self, user_id: str, item_type: str, item_id: int, quantity: int = 1, quality_level: int = 0) -> Dict[str, Any]:
         """
         向用户库存添加物品（管理员操作）
         
@@ -598,6 +603,7 @@ class UserService:
             item_type: 物品类型 (fish, rod, accessory, bait, item)
             item_id: 物品ID
             quantity: 数量
+            quality_level: 品质等级（仅对鱼类有效，0=普通，1=高品质）
             
         Returns:
             包含操作结果的字典
@@ -611,8 +617,9 @@ class UserService:
                 fish_template = self.item_template_repo.get_fish_by_id(item_id)
                 if not fish_template:
                     return {"success": False, "message": "鱼类不存在"}
-                self.inventory_repo.add_fish_to_inventory(user_id, item_id, quantity)
-                return {"success": True, "message": f"成功添加 {fish_template.name} x{quantity}"}
+                self.inventory_repo.add_fish_to_inventory(user_id, item_id, quantity, quality_level)
+                quality_label = "高品质" if quality_level == 1 else "普通"
+                return {"success": True, "message": f"成功添加 {quality_label}{fish_template.name} x{quantity}"}
                 
             elif item_type == "rod":
                 rod_template = self.item_template_repo.get_rod_by_id(item_id)

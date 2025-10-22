@@ -1065,11 +1065,12 @@ async def add_item_to_user_inventory(user_id):
         item_type = data.get("item_type")
         item_id = data.get("item_id")
         quantity = data.get("quantity", 1)
+        quality_level = data.get("quality_level", 0)  # 添加品质等级参数
         
         if not item_type or not item_id:
             return {"success": False, "message": "缺少必要参数"}, 400
         
-        result = user_service.add_item_to_user_inventory(user_id, item_type, item_id, quantity)
+        result = user_service.add_item_to_user_inventory(user_id, item_type, item_id, quantity, quality_level)
         return result
     except Exception as e:
         return {"success": False, "message": f"添加物品时发生错误: {str(e)}"}, 500
