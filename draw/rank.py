@@ -193,8 +193,8 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str):
         acc_display = accessory if len(accessory) <= 8 else accessory[:7] + ".."
         equip_text = f"装备: {rod_display} / {acc_display}"
         
-        # 装备信息固定从右侧往左320像素开始
-        equip_x = card_right - 320
+        # 装备信息固定从右侧往左260像素开始
+        equip_x = card_right - 260
         equip_max_width = card_right - equip_x - 15  # 右侧留15像素边距
         
         # 尝试使用常规字体
