@@ -1,5 +1,5 @@
 ﻿name: Fishing Another!
 version: 2.3.0
 author: "xxlemon"
-description: "重大更新！修复稀有度加成BUG，重构品质系统，引入二元品质机制，高品质鱼按双倍价值出售，装备搭配更有意义，管理员可配置品质触发概率，游戏平衡性大幅提升"
+description: "全新架构钓鱼插件！更多交互，多商店系统、交易所、品质系统、水族箱和Web管理（支持原版fishing存档继续游玩）"
 repo: https://github.com/xxlemon-io/astrbot_plugin_fishing
