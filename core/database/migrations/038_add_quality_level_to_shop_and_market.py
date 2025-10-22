@@ -7,10 +7,10 @@
 - 更新相关的主键和索引
 """
 
-from ..connection_manager import ConnectionManager
+from ..connection_manager import DatabaseConnectionManager
 
 
-def upgrade(connection_manager: ConnectionManager):
+def upgrade(connection_manager: DatabaseConnectionManager):
     """执行迁移"""
     conn = connection_manager.get_connection()
     cursor = conn.cursor()
@@ -98,7 +98,7 @@ def upgrade(connection_manager: ConnectionManager):
         raise
 
 
-def downgrade(connection_manager: ConnectionManager):
+def downgrade(connection_manager: DatabaseConnectionManager):
     """回滚迁移"""
     conn = connection_manager.get_connection()
     cursor = conn.cursor()
