@@ -409,6 +409,21 @@ class SqliteLogRepository(AbstractLogRepository):
                 WHERE user_id = ? ORDER BY timestamp DESC LIMIT ?
             """, (user_id, limit))
             return [self._row_to_tax_record(row) for row in cursor.fetchall()]
+    
+    def has_daily_tax_today(self, reset_hour: int = 0) -> bool:
+        """检查今天是否已经执行过每日资产税"""
+        from ..utils import get_last_reset_time
+        last_reset = get_last_reset_time(reset_hour)
+        
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COUNT(*) FROM taxes
+                WHERE tax_type = '每日资产税'
+                AND timestamp >= ?
+            """, (last_reset,))
+            result = cursor.fetchone()
+            return result[0] > 0 if result else False
 
     def get_max_wipe_bomb_multiplier(self, user_id: str) -> float:
         with self._get_connection() as conn:

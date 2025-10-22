@@ -668,6 +668,12 @@ class FishingService:
         tax_config = self.config.get("tax", {})
         if tax_config.get("is_tax", False) is False:
             return
+        
+        # 防止同一天内多次执行税收（例如插件重启）
+        if self.log_repo.has_daily_tax_today(self.daily_reset_hour):
+            logger.info("[税收] 今日已执行过每日资产税，跳过")
+            return
+        
         threshold = tax_config.get("threshold", 1000000)
         step_coins = tax_config.get("step_coins", 1000000)
         step_rate = tax_config.get("step_rate", 0.01)
@@ -675,6 +681,10 @@ class FishingService:
         max_rate = tax_config.get("max_rate", 0.35)
 
         high_value_users = self.user_repo.get_high_value_users(threshold)
+        logger.info(f"[税收] 开始执行每日资产税，共有 {len(high_value_users)} 个用户需要征税")
+        
+        total_tax_collected = 0
+        taxed_user_count = 0
 
         for user in high_value_users:
             tax_rate = 0.0
@@ -703,6 +713,11 @@ class FishingService:
                     tax_type="每日资产税"
                 )
                 self.log_repo.add_tax_record(tax_log)
+                
+                total_tax_collected += tax_amount
+                taxed_user_count += 1
+        
+        logger.info(f"[税收] 每日资产税执行完成，共对 {taxed_user_count} 个用户征税，总计 {total_tax_collected} 金币")
 
     def enforce_zone_pass_requirements_for_all_users(self) -> None:
         """
