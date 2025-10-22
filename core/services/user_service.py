@@ -421,7 +421,8 @@ class UserService:
                     "new_coins": user.coins
                 })
             
-            logger.info(f"[退税] 完成退税操作: {successful}人成功, {failed}人失败, 总退税额{total_refund_amount:,}")
+            from astrbot.api import logger as log
+            log.info(f"[退税] 完成退税操作: {successful}人成功, {failed}人失败, 总退税额{total_refund_amount:,}")
             
             return {
                 "success": True,
