@@ -127,7 +127,7 @@
 
 <!-- 添加商品到商店模态框 -->
 <div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <form id="item-form" method="post">
                 <input type="hidden" name="item_id" id="item_id">
@@ -156,7 +156,7 @@
                         <label class="form-label">奖励设置</label>
                         <div id="rewards-list">
                             <div class="row g-2 mb-2">
-                                <div class="col-12 col-md-8">
+                                <div class="col-12 col-lg-6">
                                     <select name="reward_item_full_id" class="form-select">
                                         <option value="">-- 请选择奖励 --</option>
                                         <optgroup label="鱼竿">
@@ -176,16 +176,16 @@
                                         </optgroup>
                                     </select>
                                 </div>
-                                <div class="col-6 col-md-2">
+                                <div class="col-6 col-lg-2">
                                     <input name="reward_quantity" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
                                 </div>
-                                <div class="col-6 col-md-2" id="rewardQualityDiv" style="display: none;">
+                                <div class="col-6 col-lg-2" id="rewardQualityDiv" style="display: none;">
                                     <select name="reward_quality_level" class="form-select">
                                         <option value="0">普通品质</option>
                                         <option value="1">高品质</option>
                                     </select>
                                 </div>
-                                <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
+                                <div class="col-6 col-lg-2 d-flex justify-content-center align-items-center">
                                     <button type="button" class="btn btn-outline-danger btn-sm remove-reward">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -200,7 +200,7 @@
                         <label class="form-label">消耗设置</label>
                         <div id="costs-list">
                             <div class="row g-2 mb-2">
-                                <div class="col-12 col-md-5">
+                                <div class="col-12 col-lg-4">
                                     <select name="cost_item_full_id" class="form-select">
                                         <option value="">-- 请选择消耗 --</option>
                                         <optgroup label="货币">
@@ -221,23 +221,23 @@
                                         </optgroup>
                                     </select>
                                 </div>
-                                <div class="col-6 col-md-2">
+                                <div class="col-6 col-lg-2">
                                     <input name="cost_amount" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
                                 </div>
-                                <div class="col-6 col-md-2" id="costQualityDiv" style="display: none;">
+                                <div class="col-6 col-lg-2" id="costQualityDiv" style="display: none;">
                                     <select name="cost_quality_level" class="form-select">
                                         <option value="0">普通品质</option>
                                         <option value="1">高品质</option>
                                     </select>
                                 </div>
-                                <div class="col-3 col-md-2">
+                                <div class="col-4 col-lg-1">
                                     <select name="cost_relation" class="form-select">
                                         <option value="and">AND</option>
                                         <option value="or">OR</option>
                                     </select>
                                 </div>
-            <div class="col-3 col-md-2">
-                <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组ID" title="分组ID使用说明：
+                                <div class="col-4 col-lg-2">
+                                    <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组ID" title="分组ID使用说明：
 
 基本规则：
 • 相同组ID + OR关系 = 多选一（用户只需满足其中任意一个）
@@ -259,7 +259,7 @@
    - 行3: 创世神鳞x1, OR, 组ID=2
    - 行4: 世界之鱼x1, OR, 组ID=2">
             </div>
-                                <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
+                                <div class="col-4 col-lg-1 d-flex justify-content-center align-items-center">
                                     <button type="button" class="btn btn-outline-danger btn-sm remove-cost">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -591,7 +591,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const row = document.createElement('div');
         row.className = 'row g-2 mb-2';
         row.innerHTML = `
-            <div class="col-12 col-md-5">
+            <div class="col-12 col-lg-4">
                 <select name="cost_item_full_id" class="form-select">
                     <option value="">-- 请选择消耗 --</option>
                     <optgroup label="货币">
@@ -612,22 +612,22 @@ document.addEventListener('DOMContentLoaded', function () {
                     </optgroup>
                 </select>
             </div>
-            <div class="col-6 col-md-2">
+            <div class="col-6 col-lg-2">
                 <input name="cost_amount" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
             </div>
-            <div class="col-6 col-md-2" id="costQualityDiv" style="display: none;">
+            <div class="col-6 col-lg-2" id="costQualityDiv" style="display: none;">
                 <select name="cost_quality_level" class="form-select">
                     <option value="0">普通品质</option>
                     <option value="1">高品质</option>
                 </select>
             </div>
-            <div class="col-3 col-md-2">
+            <div class="col-4 col-lg-1">
                 <select name="cost_relation" class="form-select">
                     <option value="and">AND</option>
                     <option value="or">OR</option>
                 </select>
             </div>
-            <div class="col-3 col-md-2">
+            <div class="col-4 col-lg-2">
                 <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组ID" title="分组ID使用说明：
 
 基本规则：
@@ -650,7 +650,7 @@ document.addEventListener('DOMContentLoaded', function () {
    - 行3: 创世神鳞x1, OR, 组ID=2
    - 行4: 世界之鱼x1, OR, 组ID=2">
             </div>
-            <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
+            <div class="col-4 col-lg-1 d-flex justify-content-center align-items-center">
                 <button type="button" class="btn btn-outline-danger btn-sm remove-cost">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -679,7 +679,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const row = document.createElement('div');
         row.className = 'row g-2 mb-2';
         row.innerHTML = `
-            <div class="col-12 col-md-8">
+            <div class="col-12 col-lg-6">
                 <select name="reward_item_full_id" class="form-select">
                     <option value="">-- 请选择奖励 --</option>
                     <optgroup label="鱼竿">
@@ -699,16 +699,16 @@ document.addEventListener('DOMContentLoaded', function () {
                     </optgroup>
                 </select>
             </div>
-            <div class="col-6 col-md-2">
+            <div class="col-6 col-lg-2">
                 <input name="reward_quantity" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
             </div>
-            <div class="col-6 col-md-2" id="rewardQualityDiv" style="display: none;">
+            <div class="col-6 col-lg-2" id="rewardQualityDiv" style="display: none;">
                 <select name="reward_quality_level" class="form-select">
                     <option value="0">普通品质</option>
                     <option value="1">高品质</option>
                 </select>
             </div>
-            <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
+            <div class="col-6 col-lg-2 d-flex justify-content-center align-items-center">
                 <button type="button" class="btn btn-outline-danger btn-sm remove-reward">
                     <i class="fas fa-trash"></i>
                 </button>
