@@ -7,13 +7,14 @@
 - 更新相关的主键和索引
 """
 
-from ..connection_manager import DatabaseConnectionManager
+import sqlite3
+
+from astrbot.api import logger
 
 
-def upgrade(connection_manager: DatabaseConnectionManager):
+def up(cursor: sqlite3.Cursor):
     """执行迁移"""
-    conn = connection_manager.get_connection()
-    cursor = conn.cursor()
+    logger.info("正在执行 038_add_quality_level_to_shop_and_market: 为商店和市场系统添加品质支持...")
     
     try:
         # 1. 为 ShopItemReward 表添加 quality_level 字段
@@ -89,19 +90,18 @@ def upgrade(connection_manager: DatabaseConnectionManager):
             WHERE cost_type = 'fish'
         """)
         
-        conn.commit()
-        print("✅ 迁移038完成：为商店和市场系统添加品质支持（包括奖励、成本和市场商品）")
+        cursor.connection.commit()
+        logger.info("✅ 迁移038完成：为商店和市场系统添加品质支持（包括奖励、成本和市场商品）")
         
     except Exception as e:
-        conn.rollback()
-        print(f"❌ 迁移038失败：{e}")
+        cursor.connection.rollback()
+        logger.error(f"❌ 迁移038失败：{e}")
         raise
 
 
-def downgrade(connection_manager: DatabaseConnectionManager):
+def down(cursor: sqlite3.Cursor):
     """回滚迁移"""
-    conn = connection_manager.get_connection()
-    cursor = conn.cursor()
+    logger.info("正在回滚 038_add_quality_level_to_shop_and_market: 移除商店和市场系统的品质支持...")
     
     try:
         # 1. 删除 quality_level 字段（SQLite 不支持直接删除列，需要重建表）
@@ -137,10 +137,10 @@ def downgrade(connection_manager: DatabaseConnectionManager):
         cursor.execute("DROP TABLE shop_item_costs")
         cursor.execute("ALTER TABLE shop_item_costs_old RENAME TO shop_item_costs")
         
-        conn.commit()
-        print("✅ 迁移038回滚完成")
+        cursor.connection.commit()
+        logger.info("✅ 迁移038回滚完成")
         
     except Exception as e:
-        conn.rollback()
-        print(f"❌ 迁移038回滚失败：{e}")
+        cursor.connection.rollback()
+        logger.error(f"❌ 迁移038回滚失败：{e}")
         raise
