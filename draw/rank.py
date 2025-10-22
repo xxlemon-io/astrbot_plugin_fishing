@@ -175,13 +175,13 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str):
 
         # 1. 钓获信息 (数量和总重)
         weight_str = format_weight(total_weight)
-        fish_text = f"🎣 钓获: {format_large_number(fish_count)}条 ({weight_str})"
+        fish_text = f"钓获: {format_large_number(fish_count)}条 ({weight_str})"
         draw.text((current_x, bottom_line_y), fish_text, font=font_regular, fill=COLOR_FISH_COUNT)
         _, (fish_text_width, _) = get_text_metrics(fish_text, font_regular, draw)
         current_x += fish_text_width + margin
 
         # 2. 金币信息
-        coins_text = f"💰 金币: {format_large_number(coins)}"
+        coins_text = f"金币: {format_large_number(coins)}"
         draw.text((current_x, bottom_line_y), coins_text, font=font_regular, fill=COLOR_COINS)
         _, (coins_text_width, _) = get_text_metrics(coins_text, font_regular, draw)
         current_x += coins_text_width + margin
@@ -189,7 +189,7 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str):
         # 3. 装备信息 (自适应字体大小和截断)
         rod_display = fishing_rod if len(fishing_rod) <= 8 else fishing_rod[:7] + ".."
         acc_display = accessory if len(accessory) <= 8 else accessory[:7] + ".."
-        equip_text = f"🛠️ 装备: {rod_display} / {acc_display}"
+        equip_text = f"装备: {rod_display} / {acc_display}"
 
         # 计算剩余可用宽度
         available_width = IMG_WIDTH - PADDING - 10 - current_x
