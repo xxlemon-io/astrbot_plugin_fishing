@@ -1535,6 +1535,7 @@ async def add_shop_item(shop_id):
             "reward_type": t,
             "reward_quantity": qty_val,
             "reward_refine_level": int(reward_refine_levels[idx]) if idx < len(reward_refine_levels) and reward_refine_levels[idx] else None,
+            "quality_level": int(reward_quality_levels[idx]) if idx < len(reward_quality_levels) and reward_quality_levels[idx] else 0,
         }
         
         try:
@@ -1632,6 +1633,7 @@ async def edit_shop_item(shop_id, item_id):
             "reward_type": t,
             "reward_quantity": qty_val,
             "reward_refine_level": int(reward_refine_levels[idx]) if idx < len(reward_refine_levels) and reward_refine_levels[idx] else None,
+            "quality_level": int(reward_quality_levels[idx]) if idx < len(reward_quality_levels) and reward_quality_levels[idx] else 0,
         }
         
         try:

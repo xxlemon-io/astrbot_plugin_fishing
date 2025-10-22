@@ -290,8 +290,8 @@ class SqliteShopRepository(AbstractShopRepository):
             """
             INSERT INTO shop_item_costs (
                 item_id, cost_type, cost_amount, cost_item_id,
-                cost_relation, group_id
-            ) VALUES (?, ?, ?, ?, ?, ?)
+                cost_relation, group_id, quality_level
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 item_id,
@@ -300,6 +300,7 @@ class SqliteShopRepository(AbstractShopRepository):
                 cost_data.get("cost_item_id"),
                 cost_data.get("cost_relation", "and"),
                 cost_data.get("group_id"),
+                cost_data.get("quality_level", 0),
             ),
         )
         conn.commit()
@@ -352,8 +353,8 @@ class SqliteShopRepository(AbstractShopRepository):
         cursor.execute(
             """
             INSERT INTO shop_item_rewards (
-                item_id, reward_type, reward_item_id, reward_quantity, reward_refine_level
-            ) VALUES (?, ?, ?, ?, ?)
+                item_id, reward_type, reward_item_id, reward_quantity, reward_refine_level, quality_level
+            ) VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 item_id,
@@ -361,6 +362,7 @@ class SqliteShopRepository(AbstractShopRepository):
                 reward_data.get("reward_item_id"),
                 reward_data.get("reward_quantity", 1),
                 reward_data.get("reward_refine_level"),
+                reward_data.get("quality_level", 0),
             ),
         )
         conn.commit()
