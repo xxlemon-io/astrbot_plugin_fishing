@@ -300,7 +300,6 @@ async def reward_coins(plugin: "FishingPlugin", event: AstrMessageEvent):
         yield event.plain_result("❌ 出错啦！请稍后再试。")
 
 
-@filter.on_command(cmd="退税", permission=PermissionType.PLUGIN_ADMIN)
 async def refund_taxes(plugin: "FishingPlugin", event: AstrMessageEvent):
     """退还特定日期范围内的税收（先模拟，再执行）"""
     args = event.message_str.split(" ")
