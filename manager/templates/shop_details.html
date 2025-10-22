@@ -440,6 +440,16 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (groupInput && cost.group_id) {
                             groupInput.value = cost.group_id;
                         }
+                        
+                        // 设置品质等级并触发显示/隐藏
+                        const qualitySelect = lastRow.querySelector('select[name="cost_quality_level"]');
+                        if (qualitySelect) {
+                            qualitySelect.value = cost.quality_level || 0;
+                        }
+                        const qualityDiv = lastRow.querySelector('#costQualityDiv');
+                        if (qualityDiv) {
+                            qualityDiv.style.display = cost.cost_type === 'fish' ? 'block' : 'none';
+                        }
                     });
                 }
                 
@@ -493,8 +503,22 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (refineInput && reward.reward_refine_level) {
                             refineInput.value = reward.reward_refine_level;
                         }
+                        
+                        // 设置品质等级并触发显示/隐藏
+                        const qualitySelect = lastRow.querySelector('select[name="reward_quality_level"]');
+                        if (qualitySelect) {
+                            qualitySelect.value = reward.quality_level || 0;
+                        }
+                        const qualityDiv = lastRow.querySelector('#rewardQualityDiv');
+                        if (qualityDiv) {
+                            qualityDiv.style.display = reward.reward_type === 'fish' ? 'block' : 'none';
+                        }
                     });
                 }
+                
+                // 重新设置品质选择功能（因为新添加的行需要重新绑定事件）
+                setupCostQualityToggle();
+                setupRewardQualityToggle();
                 
                 // 显示 Modal
                 try {
@@ -558,6 +582,12 @@ document.addEventListener('DOMContentLoaded', function () {
     function setupCostQualityToggle() {
         const costSelects = document.querySelectorAll('#costs-list select[name="cost_item_full_id"]');
         costSelects.forEach(select => {
+            // 避免重复绑定事件监听器
+            if (select.hasAttribute('data-quality-toggle-bound')) {
+                return;
+            }
+            select.setAttribute('data-quality-toggle-bound', 'true');
+            
             const qualityDiv = select.closest('.row').querySelector('#costQualityDiv');
             if (qualityDiv) {
                 select.addEventListener('change', function() {
@@ -572,6 +602,12 @@ document.addEventListener('DOMContentLoaded', function () {
     function setupRewardQualityToggle() {
         const rewardSelects = document.querySelectorAll('#rewards-list select[name="reward_item_full_id"]');
         rewardSelects.forEach(select => {
+            // 避免重复绑定事件监听器
+            if (select.hasAttribute('data-quality-toggle-bound')) {
+                return;
+            }
+            select.setAttribute('data-quality-toggle-bound', 'true');
+            
             const qualityDiv = select.closest('.row').querySelector('#rewardQualityDiv');
             if (qualityDiv) {
                 select.addEventListener('change', function() {
