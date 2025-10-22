@@ -171,6 +171,9 @@
                                         <optgroup label="道具">
                                             {% for item in all_items %}<option value="item-{{ item.item_id }}" data-cost="{{ item.cost or 0 }}" data-name="{{ item.name }}" data-desc="{{ item.description or '' }}">{{ item.name }} {{ '★' * item.rarity }}</option>{% endfor %}
                                         </optgroup>
+                                        <optgroup label="鱼类">
+                                            {% for fish in all_fish %}<option value="fish-{{ fish.fish_id }}" data-cost="{{ fish.base_value or 0 }}" data-name="{{ fish.name }}" data-desc="{{ fish.description or '' }}">{{ fish.name }} {{ '★' * fish.rarity }}</option>{% endfor %}
+                                        </optgroup>
                                     </select>
                                 </div>
                                 <div class="col-6 col-md-2">
@@ -550,6 +553,38 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 初始化自动填充
     setupAutoFill();
+    
+    // 为现有的成本选择框添加品质选择显示/隐藏功能
+    function setupCostQualityToggle() {
+        const costSelects = document.querySelectorAll('#costs-list select[name="cost_item_full_id"]');
+        costSelects.forEach(select => {
+            const qualityDiv = select.closest('.row').querySelector('#costQualityDiv');
+            if (qualityDiv) {
+                select.addEventListener('change', function() {
+                    const isFish = this.value.startsWith('fish-');
+                    qualityDiv.style.display = isFish ? 'block' : 'none';
+                });
+            }
+        });
+    }
+    
+    // 为现有的奖励选择框添加品质选择显示/隐藏功能
+    function setupRewardQualityToggle() {
+        const rewardSelects = document.querySelectorAll('#rewards-list select[name="reward_item_full_id"]');
+        rewardSelects.forEach(select => {
+            const qualityDiv = select.closest('.row').querySelector('#rewardQualityDiv');
+            if (qualityDiv) {
+                select.addEventListener('change', function() {
+                    const isFish = this.value.startsWith('fish-');
+                    qualityDiv.style.display = isFish ? 'block' : 'none';
+                });
+            }
+        });
+    }
+    
+    // 初始化品质选择功能
+    setupCostQualityToggle();
+    setupRewardQualityToggle();
 
     function addCostRow() {
         const container = document.getElementById('costs-list');
@@ -658,6 +693,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     </optgroup>
                     <optgroup label="道具">
                         {% for item in all_items %}<option value="item-{{ item.item_id }}" data-cost="{{ item.cost or 0 }}" data-name="{{ item.name }}" data-desc="{{ item.description or '' }}">{{ item.name }} {{ '★' * item.rarity }}</option>{% endfor %}
+                    </optgroup>
+                    <optgroup label="鱼类">
+                        {% for fish in all_fish %}<option value="fish-{{ fish.fish_id }}" data-cost="{{ fish.base_value or 0 }}" data-name="{{ fish.name }}" data-desc="{{ fish.description or '' }}">{{ fish.name }} {{ '★' * fish.rarity }}</option>{% endfor %}
                     </optgroup>
                 </select>
             </div>
