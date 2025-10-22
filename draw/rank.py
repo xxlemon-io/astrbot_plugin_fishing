@@ -168,51 +168,52 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str):
         title_display = title if len(title) <= 8 else title[:6] + ".."
         draw.text((title_x, title_y), f"【{title_display}】", font=font_small, fill=COLOR_ACCENT)
 
-        # --- 修改：重新布局底部信息行 ---
+        # --- 修改：重新布局底部信息行（三列固定布局）---
         bottom_line_y = name_y + get_text_metrics(nickname, font_name, draw)[1][1] + 10
-        current_x = name_x
-        margin = 25 # 各个信息块之间的间距
+        
+        # 卡片的可用宽度
+        card_left = PADDING
+        card_right = IMG_WIDTH - PADDING
+        card_center = (card_left + card_right) // 2
 
-        # 1. 钓获信息 (数量和总重)
+        # 1. 钓获信息 - 左对齐
         weight_str = format_weight(total_weight)
         fish_text = f"钓获: {format_large_number(fish_count)}条 ({weight_str})"
-        draw.text((current_x, bottom_line_y), fish_text, font=font_regular, fill=COLOR_FISH_COUNT)
-        _, (fish_text_width, _) = get_text_metrics(fish_text, font_regular, draw)
-        current_x += fish_text_width + margin
+        fish_x = name_x
+        draw.text((fish_x, bottom_line_y), fish_text, font=font_regular, fill=COLOR_FISH_COUNT)
 
-        # 2. 金币信息
+        # 2. 金币信息 - 居中对齐
         coins_text = f"金币: {format_large_number(coins)}"
-        draw.text((current_x, bottom_line_y), coins_text, font=font_regular, fill=COLOR_COINS)
         _, (coins_text_width, _) = get_text_metrics(coins_text, font_regular, draw)
-        current_x += coins_text_width + margin
+        coins_x = card_center - coins_text_width // 2
+        draw.text((coins_x, bottom_line_y), coins_text, font=font_regular, fill=COLOR_COINS)
 
-        # 3. 装备信息 (自适应字体大小和截断)
+        # 3. 装备信息 - 固定在右侧位置
         rod_display = fishing_rod if len(fishing_rod) <= 8 else fishing_rod[:7] + ".."
         acc_display = accessory if len(accessory) <= 8 else accessory[:7] + ".."
         equip_text = f"装备: {rod_display} / {acc_display}"
-
-        # 计算剩余可用宽度
-        available_width = IMG_WIDTH - PADDING - 10 - current_x
-
-        # 方案A: 尝试使用常规字体
+        
+        # 装备信息固定从右侧往左320像素开始
+        equip_x = card_right - 320
+        equip_max_width = card_right - equip_x - 15  # 右侧留15像素边距
+        
+        # 尝试使用常规字体
         _, (equip_text_width, _) = get_text_metrics(equip_text, font_regular, draw)
-        if equip_text_width <= available_width:
-            draw.text((current_x, bottom_line_y), equip_text, font=font_regular, fill=COLOR_TEXT_DARK)
+        if equip_text_width <= equip_max_width:
+            draw.text((equip_x, bottom_line_y), equip_text, font=font_regular, fill=COLOR_TEXT_DARK)
         else:
-            # 方案B: 常规字体太宽，尝试使用小号字体
+            # 尝试使用小号字体
             _, (small_equip_text_width, _) = get_text_metrics(equip_text, font_small, draw)
-            if small_equip_text_width <= available_width:
-                # 小号字体能放下，视觉上“变挤了”
-                draw.text((current_x, bottom_line_y), equip_text, font=font_small, fill=COLOR_TEXT_DARK)
+            if small_equip_text_width <= equip_max_width:
+                draw.text((equip_x, bottom_line_y), equip_text, font=font_small, fill=COLOR_TEXT_DARK)
             else:
-                # 方案C: 小号字体也放不下，进行动态截断
-                # 从末尾开始逐字减少，直到能放下为止
+                # 进行动态截断
                 temp_text = equip_text
                 while len(temp_text) > 0:
                     display_text = temp_text + "..."
                     _, (w, _) = get_text_metrics(display_text, font_small, draw)
-                    if w <= available_width:
-                        draw.text((current_x, bottom_line_y), display_text, font=font_small, fill=COLOR_TEXT_DARK)
+                    if w <= equip_max_width:
+                        draw.text((equip_x, bottom_line_y), display_text, font=font_small, fill=COLOR_TEXT_DARK)
                         break
                     temp_text = temp_text[:-1]
         # --- 修改结束 ---
