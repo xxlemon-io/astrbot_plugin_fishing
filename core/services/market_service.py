@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 import random
+import math
 
 from astrbot.api import logger
 # 导入仓储接口和领域模型
@@ -17,6 +18,7 @@ from ..domain.models import MarketListing, TaxRecord
 
 class MarketService:
     """封装与玩家交易市场相关的业务逻辑"""
+    
 
     def __init__(
         self,
@@ -92,7 +94,7 @@ class MarketService:
         except Exception as e:
             return {"success": False, "message": f"获取市场列表失败: {e}"}
 
-    def put_item_on_sale(self, user_id: str, item_type: str, item_instance_id: int, price: int, is_anonymous: bool = False, quantity: int = 1) -> Dict[str, Any]:
+    def put_item_on_sale(self, user_id: str, item_type: str, item_instance_id: int, price: int, is_anonymous: bool = False, quantity: int = 1, quality_level: int = 0) -> Dict[str, Any]:
         """
         处理上架物品到市场的逻辑。
         
@@ -171,10 +173,14 @@ class MarketService:
             item_description = item_template.description if item_template else None
             item_refine_level = 1  # 道具没有精炼等级
         elif item_type == "fish":
-            # 鱼类上架逻辑 - 检查鱼塘和水族箱的总数量
-            total_fish_quantity = self.inventory_repo.get_user_total_fish_count(user_id, item_instance_id)
-            if total_fish_quantity < quantity:
-                return {"success": False, "message": f"鱼类数量不足，当前有 {total_fish_quantity} 条，需要 {quantity} 条"}
+            # 鱼类上架逻辑 - 检查指定品质的鱼类数量
+            fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
+            fish_item = next((item for item in fish_inventory if item.fish_id == item_instance_id and item.quality_level == quality_level), None)
+            
+            if not fish_item or fish_item.quantity < quantity:
+                quality_label = "高品质" if quality_level == 1 else "普通"
+                available_quantity = fish_item.quantity if fish_item else 0
+                return {"success": False, "message": f"{quality_label}鱼类数量不足，当前有 {available_quantity} 条，需要 {quantity} 条"}
             
             item_template_id = item_instance_id  # 对于鱼类，instance_id就是template_id
             fish_template = self.item_template_repo.get_fish_by_id(item_template_id)
@@ -219,8 +225,8 @@ class MarketService:
             # 减少道具数量
             self.inventory_repo.update_item_quantity(user_id, item_instance_id, -quantity)
         elif item_type == "fish":
-            # 智能扣除鱼类数量（优先从鱼塘，然后从水族箱）
-            self.inventory_repo.deduct_fish_smart(user_id, item_instance_id, quantity)
+            # 扣除指定品质的鱼类数量
+            self.inventory_repo.update_fish_quantity(user_id, item_instance_id, -quantity, quality_level)
         elif item_type == "commodity":
             # 从交易所移除大宗商品
             self.exchange_repo.delete_user_commodity(item_instance_id)
@@ -251,6 +257,7 @@ class MarketService:
             listed_at=datetime.now(),
             expires_at=expires_at,  # 保存腐败时间
             refine_level=item_refine_level,
+            quality_level=quality_level if item_type == "fish" else 0,  # 只有鱼类需要品质等级
             is_anonymous=is_anonymous
         )
         self.market_repo.add_listing(new_listing)
@@ -399,7 +406,9 @@ class MarketService:
                 self.inventory_repo.update_item_quantity(buyer_id, listing.item_id, listing.quantity)
             elif listing.item_type == "fish":
                 # 给买家添加鱼类到水族箱（默认放入水族箱）
-                self.inventory_repo.add_fish_to_aquarium(buyer_id, listing.item_id, listing.quantity)
+                # 使用市场商品中设置的品质等级
+                quality_level = listing.quality_level
+                self.inventory_repo.add_fish_to_aquarium(buyer_id, listing.item_id, listing.quantity, quality_level)
 
             # 4. 从市场移除该商品
             self.market_repo.remove_listing(market_id)

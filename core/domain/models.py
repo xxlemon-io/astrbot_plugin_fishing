@@ -345,6 +345,7 @@ class MarketListing:
     listed_at: datetime
     item_instance_id: Optional[int] = None  # 实例ID，用于显示短码
     refine_level: int = 1
+    quality_level: int = 0  # 品质等级（仅对鱼类有效，0=普通，1=高品质）
     expires_at: Optional[datetime] = None  # 腐败日期，主要用于大宗商品
     is_anonymous: bool = False  # 是否为匿名上架
 
@@ -470,6 +471,7 @@ class ShopItemCost:
     cost_item_id: Optional[int] = None
     cost_relation: str = "and"  # 'and' | 'or'
     group_id: Optional[int] = None
+    quality_level: int = 0  # 品质等级（仅对鱼类有效，0=普通，1=高品质）
 
 
 @dataclass
@@ -481,6 +483,7 @@ class ShopItemReward:
     reward_item_id: Optional[int] = None
     reward_quantity: int = 1
     reward_refine_level: Optional[int] = None
+    quality_level: int = 0  # 品质等级（仅对鱼类有效，0=普通，1=高品质）
 
 
 @dataclass

@@ -63,10 +63,15 @@ async def pond(plugin: "FishingPlugin", event: AstrMessageEvent):
                 message += f"\n {format_rarity_display(rarity)}：\n"
                 for fish in fish_list:
                     fish_id = int(fish.get("fish_id", 0) or 0)
-                    fcode = f"F{fish_id}" if fish_id else "F0"
+                    quality_level = fish.get('quality_level', 0)
+                    # 生成带品质标识的FID
+                    if quality_level == 1:
+                        fcode = f"F{fish_id}H" if fish_id else "F0H"  # H代表高品质
+                    else:
+                        fcode = f"F{fish_id}" if fish_id else "F0"   # 普通品质
                     # 显示品质信息
                     quality_display = ""
-                    if fish.get('quality_level') == 1:
+                    if quality_level == 1:
                         quality_display = " 🌟高品质"
                     message += f"  - {fish['name']}{quality_display} x  {fish['quantity']} （{fish['actual_value']}金币 / 个） ID: {fcode}\n"
         message += f"\n🐟 总鱼数：{pond_fish['stats']['total_count']} 条\n"
@@ -131,8 +136,18 @@ async def peek_pond(plugin: "FishingPlugin", event: AstrMessageEvent):
                 message += f"\n {format_rarity_display(rarity)} 稀有度 {rarity}：\n"
                 for fish in fish_list:
                     fish_id = int(fish.get("fish_id", 0) or 0)
-                    fcode = f"F{fish_id}" if fish_id else "F0"
-                    message += f"  - {fish['name']} x  {fish['quantity']} （{fish['base_value']}金币 / 个） ID: {fcode}\n"
+                    quality_level = fish.get('quality_level', 0)
+                    # 生成带品质标识的FID
+                    if quality_level == 1:
+                        fcode = f"F{fish_id}H" if fish_id else "F0H"  # H代表高品质
+                    else:
+                        fcode = f"F{fish_id}" if fish_id else "F0"   # 普通品质
+                    # 显示品质信息
+                    quality_display = ""
+                    if quality_level == 1:
+                        quality_display = " 🌟高品质"
+                    actual_value = fish.get('actual_value', fish.get('base_value', 0))
+                    message += f"  - {fish['name']}{quality_display} x  {fish['quantity']} （{actual_value}金币 / 个） ID: {fcode}\n"
         message += f"\n🐟 总鱼数：{pond_fish['stats']['total_count']} 条\n"
         message += f"💰 总价值：{pond_fish['stats']['total_value']} 金币\n"
         yield event.plain_result(message)

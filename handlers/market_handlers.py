@@ -574,7 +574,12 @@ async def market(plugin: "FishingPlugin", event: AstrMessageEvent):
                 else ""
             )
 
-            msg += f" - {item.item_name}{refine_level_str}{quantity_text} (ID: {display_code}) - 价格: {item.price} 金币\n"
+            # 为鱼类添加品质显示
+            quality_str = ""
+            if item.item_type == "fish" and hasattr(item, "quality_level") and item.quality_level == 1:
+                quality_str = " 🌟高品质"
+            
+            msg += f" - {item.item_name}{quality_str}{refine_level_str}{quantity_text} (ID: {display_code}) - 价格: {item.price} 金币\n"
             msg += f" - 售卖人： {seller_display}"
 
             # 为大宗商品添加腐败时间显示
@@ -744,9 +749,15 @@ async def list_any(
         )
     elif token.startswith("F"):
         try:
-            fish_id = int(token[1:])
+            # 解析鱼类ID，支持品质标识（F3H = 高品质，F3 = 普通品质）
+            quality_level = 0  # 默认普通品质
+            if token.endswith("H"):
+                quality_level = 1  # 高品质
+                fish_id = int(token[1:-1])  # 去掉F前缀和H后缀
+            else:
+                fish_id = int(token[1:])  # 去掉F前缀
         except Exception:
-            yield event.plain_result("❌ 无效的鱼类ID，请检查后重试。")
+            yield event.plain_result("❌ 无效的鱼类ID，请检查后重试。\n💡 支持格式：F3（普通品质）、F3H（高品质）")
             return
         result = plugin.market_service.put_item_on_sale(
             user_id,
@@ -755,6 +766,7 @@ async def list_any(
             price,
             is_anonymous=is_anonymous,
             quantity=quantity,
+            quality_level=quality_level,
         )
     elif token.startswith("C"):
         try:
@@ -912,8 +924,9 @@ def _get_display_code_for_market_item(item) -> str:
         # 道具在市场中使用Base36编码的市场ID
         return f"M{_to_base36(item.market_id)}"
     elif item_type == "fish":
-        # 鱼类在市场中使用Base36编码的市场ID
-        return f"M{_to_base36(item.market_id)}"
+        # 鱼类在市场中使用Base36编码的市场ID，并显示品质
+        quality_suffix = "H" if getattr(item, 'quality_level', 0) == 1 else ""
+        return f"M{_to_base36(item.market_id)}{quality_suffix}"
     elif item_type == "commodity" and item_instance_id:
         return f"C{_to_base36(item_instance_id)}"
     else:
