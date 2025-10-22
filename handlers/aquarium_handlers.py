@@ -56,7 +56,7 @@ async def aquarium(self: "FishingPlugin", event: AstrMessageEvent):
                 # 显示品质信息
                 quality_display = ""
                 if quality_level == 1:
-                    quality_display = " 🌟高品质"
+                    quality_display = " ✨高品质"
                 message += f"  - {fish['name']}{quality_display} x  {fish['quantity']} （{fish['actual_value']}金币 / 个） ID: {fcode}\n"
 
     message += f"\n🐟 总鱼数：{stats['total_count']} / {stats['capacity']} 条\n"

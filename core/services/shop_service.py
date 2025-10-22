@@ -572,7 +572,7 @@ class ShopService:
                         quality_level = reward.get("quality_level", 0)
                         self.inventory_repo.update_fish_quantity(user_id, reward_item_id, reward_quantity, quality_level)
                         
-                        quality_label = " 🌟高品质" if quality_level == 1 else ""
+                        quality_label = " ✨高品质" if quality_level == 1 else ""
                         obtained_items.append(f"🐟 {fish_tpl.name}{quality_label} x{reward_quantity}")
                 
                 elif reward_type == "coins":

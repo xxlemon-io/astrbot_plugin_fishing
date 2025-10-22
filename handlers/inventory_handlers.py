@@ -72,7 +72,7 @@ async def pond(plugin: "FishingPlugin", event: AstrMessageEvent):
                     # 显示品质信息
                     quality_display = ""
                     if quality_level == 1:
-                        quality_display = " 🌟高品质"
+                        quality_display = " ✨高品质"
                     message += f"  - {fish['name']}{quality_display} x  {fish['quantity']} （{fish['actual_value']}金币 / 个） ID: {fcode}\n"
         message += f"\n🐟 总鱼数：{pond_fish['stats']['total_count']} 条\n"
         message += f"💰 总价值：{pond_fish['stats']['total_value']} 金币\n"
@@ -145,7 +145,7 @@ async def peek_pond(plugin: "FishingPlugin", event: AstrMessageEvent):
                     # 显示品质信息
                     quality_display = ""
                     if quality_level == 1:
-                        quality_display = " 🌟高品质"
+                        quality_display = " ✨高品质"
                     actual_value = fish.get('actual_value', fish.get('base_value', 0))
                     message += f"  - {fish['name']}{quality_display} x  {fish['quantity']} （{actual_value}金币 / 个） ID: {fcode}\n"
         message += f"\n🐟 总鱼数：{pond_fish['stats']['total_count']} 条\n"
@@ -357,7 +357,7 @@ async def refine_help(plugin: "FishingPlugin", event: AstrMessageEvent):
 • 毁坏失败（高等级概率触发）：消耗1件材料与对应金币，并摧毁本体装备
 
 ═══════════════════════════════════
-🌟 稀有度与费用/成功率
+✨ 稀有度与费用/成功率
 ═══════════════════════════════════
 
 🎲 成功率（关键档位）：

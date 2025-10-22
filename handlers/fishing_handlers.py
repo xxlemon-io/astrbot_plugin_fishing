@@ -33,7 +33,7 @@ def _build_fish_message(result, fishing_cost):
         # 构建品质显示
         quality_display = ""
         if fish.get('quality_level') == 1:
-            quality_display = " 🌟高品质"
+            quality_display = " ✨高品质"
         
         message = (
             f"🎣 恭喜你钓到了：{fish['name']}{quality_display}\n"

@@ -48,7 +48,7 @@
                                     {% elif cost.cost_type == 'premium' %}
                                         💎 高级货币 x{{ cost.cost_amount }}
                                     {% elif cost.cost_type == 'fish' %}
-                                        🐟 {{ cost.fish_name or ('鱼类#' + cost.cost_item_id|string) }}{% if cost.quality_level == 1 %} 🌟高品质{% endif %} x{{ cost.cost_amount }}
+                                        🐟 {{ cost.fish_name or ('鱼类#' + cost.cost_item_id|string) }}{% if cost.quality_level == 1 %} ✨高品质{% endif %} x{{ cost.cost_amount }}
                                     {% elif cost.cost_type == 'item' %}
                                         🎁 {{ cost.item_name or ('道具#' + cost.cost_item_id|string) }} x{{ cost.cost_amount }}
                                     {% elif cost.cost_type == 'rod' %}
@@ -73,7 +73,7 @@
                                     {% elif reward.reward_type == 'item' %}
                                         🎁 {{ reward.item_name or ('道具#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
                                     {% elif reward.reward_type == 'fish' %}
-                                        🐟 {{ reward.fish_name or ('鱼类#' + reward.reward_item_id|string) }}{% if reward.quality_level == 1 %} 🌟高品质{% endif %} x{{ reward.reward_quantity }}
+                                        🐟 {{ reward.fish_name or ('鱼类#' + reward.reward_item_id|string) }}{% if reward.quality_level == 1 %} ✨高品质{% endif %} x{{ reward.reward_quantity }}
                                     {% elif reward.reward_type == 'coins' %}
                                         💰 金币 x{{ reward.reward_quantity }}
                                     {% else %}

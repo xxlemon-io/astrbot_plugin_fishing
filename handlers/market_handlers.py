@@ -330,7 +330,7 @@ async def shop(plugin: "FishingPlugin", event: AstrMessageEvent):
                     # 显示品质信息
                     quality_level = c.get("quality_level", 0)
                     if quality_level == 1:
-                        fish_name += " 🌟高品质"
+                        fish_name += " ✨高品质"
                     cost_text = f"🐟 {fish_name} x{c['cost_amount']}"
                 elif c["cost_type"] == "rod":
                     # 获取鱼竿名称
@@ -483,7 +483,7 @@ async def shop(plugin: "FishingPlugin", event: AstrMessageEvent):
                         # 显示品质信息
                         quality_level = reward.get("quality_level", 0)
                         if quality_level == 1:
-                            item_name += " 🌟高品质"
+                            item_name += " ✨高品质"
                         item_emoji = "🐟"
                 elif reward["reward_type"] == "coins":
                     item_name = "金币"
@@ -585,7 +585,7 @@ async def market(plugin: "FishingPlugin", event: AstrMessageEvent):
             # 为鱼类添加品质显示
             quality_str = ""
             if item.item_type == "fish" and hasattr(item, "quality_level") and item.quality_level == 1:
-                quality_str = " 🌟高品质"
+                quality_str = " ✨高品质"
             
             msg += f" - {item.item_name}{quality_str}{refine_level_str}{quantity_text} (ID: {display_code}) - 价格: {item.price} 金币\n"
             msg += f" - 售卖人： {seller_display}"
