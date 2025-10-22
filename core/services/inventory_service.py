@@ -89,12 +89,17 @@ class InventoryService:
         for item in inventory_items:
             fish_template = self.item_template_repo.get_fish_by_id(item.fish_id)
             if fish_template:
+                # 计算实际价值（高品质鱼双倍价值）
+                actual_value = fish_template.base_value * (1 + item.quality_level)
                 enriched_items.append({
                     "fish_id": item.fish_id,  # 添加fish_id字段
                     "name": fish_template.name,
                     "rarity": fish_template.rarity,
                     "base_value": fish_template.base_value,
-                    "quantity": item.quantity
+                    "quantity": item.quantity,
+                    "quality_level": item.quality_level,  # 添加品质等级
+                    "actual_value": actual_value,  # 添加实际价值
+                    "quality_label": "高品质" if item.quality_level == 1 else "普通"  # 添加品质标签
                 })
 
         return {
@@ -252,18 +257,40 @@ class InventoryService:
         fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
         if not fish_inventory:
             return {"success": False, "message": "❌ 你没有可以卖出的鱼"}
+        
+        # 计算总价值（高品质鱼双倍价值）
+        total_value = 0
+        sold_details = {"普通": 0, "高品质": 0}
+        
+        for item in fish_inventory:
+            fish_template = self.item_template_repo.get_fish_by_id(item.fish_id)
+            if fish_template:
+                # 高品质鱼按双倍价值计算
+                item_value = fish_template.base_value * item.quantity * (1 + item.quality_level)
+                total_value += item_value
+                
+                if item.quality_level == 1:
+                    sold_details["高品质"] += item.quantity
+                else:
+                    sold_details["普通"] += item.quantity
+        
         if keep_one:
             # 调用仓储方法执行"保留一条"的数据库操作
             sold_value = self.inventory_repo.sell_fish_keep_one(user_id)
         else:
-            sold_value = self.inventory_repo.get_fish_inventory_value(user_id)
+            sold_value = total_value
             self.inventory_repo.clear_fish_inventory(user_id)
 
         # 更新用户金币
         user.coins += sold_value
         self.user_repo.update(user)
 
-        return {"success": True, "message": f"💰 成功卖出鱼，获得 {sold_value} 金币"}
+        # 构建详细消息
+        message = f"💰 成功卖出鱼，获得 {sold_value} 金币"
+        if sold_details["高品质"] > 0:
+            message += f"\n📊 出售详情：普通鱼 {sold_details['普通']} 条，高品质鱼 {sold_details['高品质']} 条"
+
+        return {"success": True, "message": message}
 
     def sell_fish_by_rarity(self, user_id: str, rarity: int) -> Dict[str, Any]:
         """
@@ -280,23 +307,38 @@ class InventoryService:
         # 获取用户的鱼库存
         fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
         total_value = 0
+        sold_details = {"普通": 0, "高品质": 0}
 
         for item in fish_inventory:
             fish_id = item.fish_id
             fish_info = self.item_template_repo.get_fish_by_id(fish_id)
             if fish_info and fish_info.rarity == rarity:
-                # 计算鱼的总价值
-                total_value += fish_info.base_value * item.quantity
-                # 删除该鱼的库存记录
-                self.inventory_repo.clear_fish_inventory(user_id, rarity=rarity)
+                # 计算鱼的总价值（高品质鱼双倍价值）
+                item_value = fish_info.base_value * item.quantity * (1 + item.quality_level)
+                total_value += item_value
+                
+                if item.quality_level == 1:
+                    sold_details["高品质"] += item.quantity
+                else:
+                    sold_details["普通"] += item.quantity
+                
         # 如果没有可卖出的鱼，返回提示
         if total_value == 0:
             return {"success": False, "message": "❌ 没有可卖出的鱼"}
+        
+        # 删除该稀有度的所有鱼（包括普通和高品质）
+        self.inventory_repo.clear_fish_inventory(user_id, rarity=rarity)
+        
         # 更新用户金币
         user.coins += total_value
         self.user_repo.update(user)
 
-        return {"success": True, "message": f"💰 成功卖出稀有度 {rarity} 的鱼，获得 {total_value} 金币"}
+        # 构建详细消息
+        message = f"💰 成功卖出稀有度 {rarity} 的鱼，获得 {total_value} 金币"
+        if sold_details["高品质"] > 0:
+            message += f"\n📊 出售详情：普通鱼 {sold_details['普通']} 条，高品质鱼 {sold_details['高品质']} 条"
+
+        return {"success": True, "message": message}
 
     def sell_fish_by_rarities(self, user_id: str, rarities: list[int]) -> Dict[str, Any]:
         """
@@ -330,14 +372,21 @@ class InventoryService:
         for item in fish_inventory:
             fish_template = self.item_template_repo.get_fish_by_id(item.fish_id)
             if fish_template and fish_template.rarity in unique_rarities:
-                value = fish_template.base_value * item.quantity
+                # 高品质鱼按双倍价值计算
+                value = fish_template.base_value * item.quantity * (1 + item.quality_level)
                 total_value += value
                 
                 # 累加售出详情
                 if fish_template.rarity not in sold_fish_details:
-                    sold_fish_details[fish_template.rarity] = {'count': 0, 'value': 0}
+                    sold_fish_details[fish_template.rarity] = {'count': 0, 'value': 0, 'normal': 0, 'high_quality': 0}
                 sold_fish_details[fish_template.rarity]['count'] += item.quantity
                 sold_fish_details[fish_template.rarity]['value'] += value
+                
+                # 分别统计普通和高品质数量
+                if item.quality_level == 1:
+                    sold_fish_details[fish_template.rarity]['high_quality'] += item.quantity
+                else:
+                    sold_fish_details[fish_template.rarity]['normal'] += item.quantity
 
         # 4. 如果没有符合条件的鱼，提前返回
         if total_value == 0:
@@ -358,7 +407,10 @@ class InventoryService:
         message += "📊 出售详情：\n"
         for r in sorted(sold_fish_details.keys()):
             details = sold_fish_details[r]
-            message += f" - 稀有度 {r}: {details['count']} 条，价值 {details['value']} 金币\n"
+            quality_info = ""
+            if details['high_quality'] > 0:
+                quality_info = f"（普通 {details['normal']} 条，高品质 {details['high_quality']} 条）"
+            message += f" - 稀有度 {r}: {details['count']} 条{quality_info}，价值 {details['value']} 金币\n"
 
         return {"success": True, "message": message, "gained_coins": total_value}
 
@@ -387,7 +439,8 @@ class InventoryService:
             fish_id = item.fish_id
             fish_info = self.item_template_repo.get_fish_by_id(fish_id)
             if fish_info:
-                fish_value = fish_info.base_value * item.quantity
+                # 高品质鱼按双倍价值计算
+                fish_value = fish_info.base_value * item.quantity * (1 + item.quality_level)
                 total_value += fish_value
                 sold_items["fish_count"] += item.quantity
                 sold_items["fish_value"] += fish_value

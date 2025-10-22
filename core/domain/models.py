@@ -265,6 +265,7 @@ class UserFishInventoryItem:
     """用户鱼塘中的一项"""
     user_id: str
     fish_id: int
+    quality_level: int  # 0=普通，1=高品质
     quantity: int
 
 @dataclass
@@ -272,6 +273,7 @@ class UserAquariumItem:
     """用户水族箱中的一项"""
     user_id: str
     fish_id: int
+    quality_level: int  # 0=普通，1=高品质
     quantity: int
     added_at: Optional[datetime] = None
 

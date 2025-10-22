@@ -684,9 +684,9 @@ class GameMechanicsService:
         if not stolen_fish_template:
             return {"success": False, "message": "发生内部错误，无法识别被偷的鱼"}
 
-        # 4. 执行偷窃事务
-        self.inventory_repo.update_fish_quantity(victim_id, stolen_fish_item.fish_id, delta=-1)
-        self.inventory_repo.add_fish_to_inventory(thief_id, stolen_fish_item.fish_id, quantity=1)
+        # 4. 执行偷窃事务（保持品质属性）
+        self.inventory_repo.update_fish_quantity(victim_id, stolen_fish_item.fish_id, delta=-1, quality_level=stolen_fish_item.quality_level)
+        self.inventory_repo.add_fish_to_inventory(thief_id, stolen_fish_item.fish_id, quantity=1, quality_level=stolen_fish_item.quality_level)
 
         # 5. 更新偷窃者的CD时间
         thief.last_steal_time = now
@@ -700,9 +700,16 @@ class GameMechanicsService:
             elif shadow_cloak_buff:
                 counter_message = "🌑 暗影斗篷让你在阴影中行动！"
 
+        # 构建品质信息
+        quality_info = ""
+        actual_value = stolen_fish_template.base_value
+        if stolen_fish_item.quality_level == 1:
+            quality_info = "（高品质）"
+            actual_value = stolen_fish_template.base_value * 2
+        
         return {
             "success": True,
-            "message": f"{counter_message}✅ 成功从【{victim.nickname}】的鱼塘里偷到了一条{stolen_fish_template.rarity}★【{stolen_fish_template.name}】！基础价值 {stolen_fish_template.base_value} 金币",
+            "message": f"{counter_message}✅ 成功从【{victim.nickname}】的鱼塘里偷到了一条{stolen_fish_template.rarity}★【{stolen_fish_template.name}】{quality_info}！价值 {actual_value} 金币",
         }
 
     # ============================================================

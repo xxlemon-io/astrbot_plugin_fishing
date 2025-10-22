@@ -1,4 +1,5 @@
 import json
+import math
 import random
 import threading
 import time
@@ -135,7 +136,7 @@ class FishingService:
 
         # 2. 计算各种加成和修正值
         base_success_rate = 0.7 # 基础成功率70%
-        quality_modifier = 1.0 # 质量加成
+        quality_modifier = 1.0 # 品质加成
         quantity_modifier = 1.0 # 数量加成
         rare_chance = 0.0 # 稀有鱼出现几率
         coins_chance = 0.0 # 增加同稀有度高金币出现几率
@@ -309,15 +310,34 @@ class FishingService:
         weight = random.randint(fish_template.min_weight, fish_template.max_weight)
         value = fish_template.base_value
 
-        # 4.2 按品质加成给予额外质量（重量/价值）奖励
+        # 4.2 按品质加成给予额外品质（重量/价值）奖励
+        # 品质加成来自：鱼竿 × 饰品 × 鱼饵（乘法累积）
+        # 使用对数压缩避免概率过高，保持高品质鱼的稀有性
         quality_bonus = False
+        quality_level = 0  # 默认普通品质
         if quality_modifier > 1.0:
-            quality_bonus = random.random() <= (quality_modifier - 1.0)
+            # 对数压缩公式：处理乘法累积的品质加成
+            # log2(x) 特性：log2(1)=0, log2(2)=1, log2(4)=2
+            # 天然适合处理乘法累积：log2(a×b) = log2(a) + log2(b)
+            log_value = math.log2(quality_modifier)
+            
+            # 从配置获取高品质鱼最大触发概率，默认35%
+            max_quality_chance = self.config.get("quality_bonus_max_chance", 0.35)
+            
+            # 缩放到配置的上限，让 quality_modifier=4.0 时达到上限
+            # 缩放系数 = max_chance / 2（因为 log2(4) = 2）
+            scale_factor = max_quality_chance / 2.0
+            adjusted_chance = log_value * scale_factor
+            
+            # 确保不超过配置的上限，避免高品质鱼过于常见
+            final_chance = min(adjusted_chance, max_quality_chance)
+            
+            quality_bonus = random.random() <= final_chance
         if quality_bonus:
             extra_weight = random.randint(fish_template.min_weight, fish_template.max_weight)
-            extra_value = fish_template.base_value
             weight += extra_weight
-            value += extra_value
+            # 标记为高品质鱼，价值在出售时按2倍计算
+            quality_level = 1
 
         # 4.3 按数量加成决定额外渔获数量
         total_catches = 1
@@ -361,12 +381,16 @@ class FishingService:
                 self.inventory_repo.update_fishing_zone(zone)
 
         # 6. 更新数据库
-        self.inventory_repo.add_fish_to_inventory(user.user_id, fish_template.fish_id, quantity= total_catches)
+        self.inventory_repo.add_fish_to_inventory(user.user_id, fish_template.fish_id, quantity=total_catches, quality_level=quality_level)
 
         # 更新用户统计数据
         user.total_fishing_count += total_catches
         user.total_weight_caught += weight
-        user.total_coins_earned += value
+        # 高品质鱼的统计价值按双倍计算
+        if quality_level == 1:
+            user.total_coins_earned += fish_template.base_value * total_catches * 2
+        else:
+            user.total_coins_earned += fish_template.base_value * total_catches
         user.last_fishing_time = get_now()
         
         # 处理装备耐久度消耗
@@ -427,7 +451,9 @@ class FishingService:
                 "name": fish_template.name,
                 "rarity": fish_template.rarity,
                 "weight": weight,
-                "value": value
+                "value": value,
+                "quality_level": quality_level,  # 添加品质等级
+                "quality_label": "高品质" if quality_level == 1 else "普通"  # 添加品质标签
             }
         }
         
@@ -589,9 +615,9 @@ class FishingService:
         
         # 转换系数：1.0 表示 rare_chance 直接作为权重转移比例
         # 例如 rare_chance=0.46 → 从低星转移 46% 的权重到中高星
-        REDUCTION_FACTOR = 1.0
+        TRANSFER_FACTOR = 1.0
         
-        actual_boost = rare_chance * REDUCTION_FACTOR
+        actual_boost = rare_chance * TRANSFER_FACTOR
         
         # 限制上限为 0.8，防止低星概率被转移到接近 0 导致游戏体验失衡
         actual_boost = min(actual_boost, 0.8)

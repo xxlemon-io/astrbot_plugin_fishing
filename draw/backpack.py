@@ -480,7 +480,7 @@ async def _draw_backpack_image_impl(user_data: Dict[str, Any], data_dir: str) ->
             
             # 属性加成 - 参考format_accessory_or_rod函数
             if rod.get('bonus_fish_quality_modifier', 1.0) != 1.0 and rod.get('bonus_fish_quality_modifier', 1) != 1 and rod.get('bonus_fish_quality_modifier', 1) > 0:
-                bonus_text = f"鱼类质量加成: {to_percentage(rod['bonus_fish_quality_modifier'])}"
+                bonus_text = f"鱼类品质加成: {to_percentage(rod['bonus_fish_quality_modifier'])}"
                 draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
                 bonus_y += 18
             if rod.get('bonus_fish_quantity_modifier', 1.0) != 1.0 and rod.get('bonus_fish_quantity_modifier', 1) != 1 and rod.get('bonus_fish_quantity_modifier', 1) > 0:
@@ -595,7 +595,7 @@ async def _draw_backpack_image_impl(user_data: Dict[str, Any], data_dir: str) ->
             # 属性加成 - 参考format_accessory_or_rod函数
             bonus_y = y + 85
             if accessory.get('bonus_fish_quality_modifier', 1.0) != 1.0 and accessory.get('bonus_fish_quality_modifier', 1) != 1 and accessory.get('bonus_fish_quality_modifier', 1) > 0:
-                bonus_text = f"鱼类质量加成: {to_percentage(accessory['bonus_fish_quality_modifier'])}"
+                bonus_text = f"鱼类品质加成: {to_percentage(accessory['bonus_fish_quality_modifier'])}"
                 draw.text((x + 15, bonus_y), bonus_text, font=tiny_font, fill=primary_light)
                 bonus_y += 18
             if accessory.get('bonus_fish_quantity_modifier', 1.0) != 1.0 and accessory.get('bonus_fish_quantity_modifier', 1) != 1 and accessory.get('bonus_fish_quantity_modifier', 1) > 0:
