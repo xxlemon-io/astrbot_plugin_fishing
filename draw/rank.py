@@ -182,10 +182,10 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str):
         fish_x = name_x
         draw.text((fish_x, bottom_line_y), fish_text, font=font_regular, fill=COLOR_FISH_COUNT)
 
-        # 2. 金币信息 - 居中对齐
+        # 2. 金币信息 - 固定在中间位置
         coins_text = f"金币: {format_large_number(coins)}"
-        _, (coins_text_width, _) = get_text_metrics(coins_text, font_regular, draw)
-        coins_x = card_center - coins_text_width // 2
+        # 固定"金币:"标签的起始位置在卡片中间偏左一点
+        coins_x = card_center - 80
         draw.text((coins_x, bottom_line_y), coins_text, font=font_regular, fill=COLOR_COINS)
 
         # 3. 装备信息 - 固定在右侧位置
