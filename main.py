@@ -93,6 +93,11 @@ class FishingPlugin(Star):
         user_config = config.get("user", {})
         market_config = config.get("market", {})
         
+        # 调试：检查exchange配置是否正确加载
+        exchange_config_raw = config.get("exchange", {})
+        logger.debug(f"[CONFIG DEBUG] Exchange config from framework: {exchange_config_raw}")
+        logger.debug(f"[CONFIG DEBUG] Exchange capacity: {exchange_config_raw.get('capacity', 'NOT FOUND')}")
+        
         self.game_config = {
             "fishing": {
                 "cost": config.get("fish_cost", 10), 
