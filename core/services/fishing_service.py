@@ -847,7 +847,6 @@ class FishingService:
             return
 
         relocated_users = []  # 存储被传送的用户信息
-        consumed_users = []  # 存储消耗道具的用户信息
 
         for user_id in all_user_ids:
             try:
@@ -883,31 +882,22 @@ class FishingService:
                         "item_name": item_name
                     })
                 else:
-                    # 用户有道具，扣除一个通行证
-                    self.inventory_repo.decrease_item_quantity(user_id, zone.required_item_id, 1)
-                    
-                    # 记录日志
+                    # 用户有道具，不需要重复扣除通行证
+                    # 通行证只在切换区域时扣除一次，这里只做检查
                     try:
                         item_template = self.item_template_repo.get_item_by_id(zone.required_item_id)
                         item_name = item_template.name if item_template else f"道具ID{zone.required_item_id}"
                     except Exception:
                         item_name = f"道具ID{zone.required_item_id}"
-                    self.log_repo.add_log(user_id, "daily_pass_consumption", f"每日消耗 {item_name} 继续留在 {zone.name}")
                     
-                    # 收集消耗道具用户信息
-                    consumed_users.append({
-                        "user_id": user_id,
-                        "nickname": user.nickname,
-                        "zone_name": zone.name,
-                        "item_name": item_name
-                    })
-                    logger.info(f"用户 {user.nickname} 消耗 {item_name} 继续留在 {zone.name}")
+                    # 记录日志（不扣除道具）
+                    self.log_repo.add_log(user_id, "zone_access_check", f"检查 {item_name} 剩余数量：{current_quantity}，继续留在 {zone.name}")
             except Exception:
                 # 单个用户异常不影响其他用户
                 continue
 
         # 记录检查结果
-        logger.info(f"每日检查完成：{len(relocated_users)} 个用户被传送，{len(consumed_users)} 个用户消耗道具")
+        logger.info(f"每日检查完成：{len(relocated_users)} 个用户被传送（缺少通行证）")
         
         # 记录被传送用户信息（不发送通知，避免凌晨打扰玩家）
         if relocated_users:
