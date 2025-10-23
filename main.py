@@ -85,18 +85,36 @@ class FishingPlugin(Star):
         # 
         # 配置数据流：_conf_schema.json → AstrBotConfig (config) → game_config → 各个服务
         # 
-        # 从新的嵌套结构中读取配置
+        # 从框架读取嵌套配置
+        # 注意：框架会自动解析 _conf_schema.json 中的嵌套对象
         fishing_config = config.get("fishing", {})
         steal_config = config.get("steal", {})
         electric_fish_config = config.get("electric_fish", {})
-        game_config = config.get("game", {})
+        game_global_config = config.get("game", {})
         user_config = config.get("user", {})
         market_config = config.get("market", {})
+        sell_prices_config = config.get("sell_prices", {})
         
-        # 调试：检查exchange配置是否正确加载
-        exchange_config_raw = config.get("exchange", {})
-        logger.debug(f"[CONFIG DEBUG] Exchange config from framework: {exchange_config_raw}")
-        logger.debug(f"[CONFIG DEBUG] Exchange capacity: {exchange_config_raw.get('capacity', 'NOT FOUND')}")
+        # 直接从框架获取 exchange 配置（不重建）
+        exchange_config = config.get("exchange", {})
+        if not exchange_config:
+            # 如果框架返回空字典，说明嵌套配置不被支持，手动构建默认值
+            logger.warning("[CONFIG] Exchange config is empty, using defaults")
+            exchange_config = {
+                "account_fee": 100000,
+                "capacity": 1000,
+                "tax_rate": 0.05,
+                "volatility": {"dried_fish": 0.08, "fish_roe": 0.12, "fish_oil": 0.10},
+                "event_chance": 0.1,
+                "max_change_rate": 0.2,
+                "min_price": 1,
+                "max_price": 1000000,
+                "sentiment_weights": {"panic": 0.1, "pessimistic": 0.2, "neutral": 0.4, "optimistic": 0.2, "euphoric": 0.1},
+                "merge_window_minutes": 30,
+                "initial_prices": {"dried_fish": 6000, "fish_roe": 12000, "fish_oil": 10000}
+            }
+        else:
+            logger.info(f"[CONFIG] Exchange capacity loaded: {exchange_config.get('capacity', 'NOT SET')}")
         
         self.game_config = {
             "fishing": {
@@ -114,10 +132,10 @@ class FishingPlugin(Star):
                 "failure_penalty_max_rate": electric_fish_config.get("failure_penalty_max_rate", 0.5)
             },
             "wipe_bomb": {
-                "max_attempts_per_day": game_config.get("wipe_bomb_attempts", 3)
+                "max_attempts_per_day": game_global_config.get("wipe_bomb_attempts", 3)
             },
-            "wheel_of_fate_daily_limit": game_config.get("wheel_of_fate_daily_limit", 3),
-            "daily_reset_hour": game_config.get("daily_reset_hour", 0),
+            "wheel_of_fate_daily_limit": game_global_config.get("wheel_of_fate_daily_limit", 3),
+            "daily_reset_hour": game_global_config.get("daily_reset_hour", 0),
             "user": {
                 "initial_coins": user_config.get("initial_coins", 200)
             },
@@ -140,55 +158,25 @@ class FishingPlugin(Star):
             ],
             "sell_prices": {
                 "rod": { 
-                    "1": config.get("sell_prices", {}).get("by_rarity_1", 100),
-                    "2": config.get("sell_prices", {}).get("by_rarity_2", 500),
-                    "3": config.get("sell_prices", {}).get("by_rarity_3", 2000),
-                    "4": config.get("sell_prices", {}).get("by_rarity_4", 5000),
-                    "5": config.get("sell_prices", {}).get("by_rarity_5", 10000)
+                    "1": sell_prices_config.get("by_rarity_1", 100),
+                    "2": sell_prices_config.get("by_rarity_2", 500),
+                    "3": sell_prices_config.get("by_rarity_3", 2000),
+                    "4": sell_prices_config.get("by_rarity_4", 5000),
+                    "5": sell_prices_config.get("by_rarity_5", 10000)
                 },
                 "accessory": { 
-                    "1": config.get("sell_prices", {}).get("by_rarity_1", 100),
-                    "2": config.get("sell_prices", {}).get("by_rarity_2", 500),
-                    "3": config.get("sell_prices", {}).get("by_rarity_3", 2000),
-                    "4": config.get("sell_prices", {}).get("by_rarity_4", 5000),
-                    "5": config.get("sell_prices", {}).get("by_rarity_5", 10000)
+                    "1": sell_prices_config.get("by_rarity_1", 100),
+                    "2": sell_prices_config.get("by_rarity_2", 500),
+                    "3": sell_prices_config.get("by_rarity_3", 2000),
+                    "4": sell_prices_config.get("by_rarity_4", 5000),
+                    "5": sell_prices_config.get("by_rarity_5", 10000)
                 },
                 "refine_multiplier": {
                     "1": 1.0, "2": 1.6, "3": 3.0, "4": 6.0, "5": 12.0,
                     "6": 25.0, "7": 55.0, "8": 125.0, "9": 280.0, "10": 660.0
                 }
             },
-            "exchange": {
-                "account_fee": config.get("exchange", {}).get("account_fee", 100000),
-                "capacity": config.get("exchange", {}).get("capacity", 1000),
-                "tax_rate": config.get("exchange", {}).get("tax_rate", 0.05),
-                "volatility": config.get("exchange", {}).get("volatility", {
-                    "dried_fish": 0.1,
-                    "fish_roe": 0.5,
-                    "fish_oil": 0.25
-                }),
-                "event_chance": config.get("exchange", {}).get("event_chance", 0.1),
-                "max_change_rate": config.get("exchange", {}).get("max_change_rate", 0.5),
-                "min_price": config.get("exchange", {}).get("min_price", 1),
-                "max_price": config.get("exchange", {}).get("max_price", 1000000),
-                "sentiment_weights": config.get("exchange", {}).get("sentiment_weights", {
-                    "panic": 0.1,
-                    "pessimistic": 0.2,
-                    "neutral": 0.4,
-                    "optimistic": 0.2,
-                    "euphoric": 0.1
-                }),
-                "supply_demand_thresholds": config.get("exchange", {}).get("supply_demand_thresholds", {
-                    "high_inventory": 0.8,
-                    "low_inventory": 0.2
-                }),
-                "merge_window_minutes": config.get("exchange", {}).get("merge_window_minutes", 30),
-                "initial_prices": config.get("exchange", {}).get("initial_prices", {
-                    "dried_fish": 6000,
-                    "fish_roe": 12000,
-                    "fish_oil": 10000
-                })
-            }
+            "exchange": exchange_config  # 直接使用框架的配置
         }
         
         # 初始化数据库模式
