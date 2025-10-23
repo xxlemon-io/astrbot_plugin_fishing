@@ -50,12 +50,14 @@ class FishingPlugin(Star):
         super().__init__(context)
 
         # --- 1. 加载配置 ---
-        self.is_tax = config.get("is_tax", True)  # 是否开启税收
-        self.threshold = config.get("threshold", 100000)  # 起征点
-        self.step_coins = config.get("step_coins", 100000)
-        self.step_rate = config.get("step_rate", 0.01)
-        self.max_rate = config.get("max_rate", 0.2)  # 最大税率
-        self.min_rate = config.get("min_rate", 0.05)  # 最小税率
+        # 从新的嵌套结构中读取配置
+        tax_config = config.get("tax", {})
+        self.is_tax = tax_config.get("is_tax", True)  # 是否开启税收
+        self.threshold = tax_config.get("threshold", 100000)  # 起征点
+        self.step_coins = tax_config.get("step_coins", 100000)
+        self.step_rate = tax_config.get("step_rate", 0.01)
+        self.max_rate = tax_config.get("max_rate", 0.2)  # 最大税率
+        self.min_rate = tax_config.get("min_rate", 0.001)  # 最小税率
         self.area2num = config.get("area2num", 2000)
         self.area3num = config.get("area3num", 500)
         
@@ -83,18 +85,40 @@ class FishingPlugin(Star):
         # 
         # 配置数据流：_conf_schema.json → AstrBotConfig (config) → game_config → 各个服务
         # 
+        # 从新的嵌套结构中读取配置
+        fishing_config = config.get("fishing", {})
+        steal_config = config.get("steal", {})
+        electric_fish_config = config.get("electric_fish", {})
+        game_config = config.get("game", {})
+        user_config = config.get("user", {})
+        market_config = config.get("market", {})
+        
         self.game_config = {
-            "fishing": {"cost": config.get("fish_cost", 10), "cooldown_seconds": config.get("fish_cooldown_seconds", 180)},
-            "steal": {"cooldown_seconds": config.get("steal_cooldown_seconds", 14400)},
+            "fishing": {
+                "cost": config.get("fish_cost", 10), 
+                "cooldown_seconds": fishing_config.get("cooldown_seconds", 180)
+            },
+            "quality_bonus_max_chance": fishing_config.get("quality_bonus_max_chance", 0.35),
+            "steal": {
+                "cooldown_seconds": steal_config.get("cooldown_seconds", 14400)
+            },
             "electric_fish": {
-                "enabled": config.get("electric_fish_enabled", True),
-                "cooldown_seconds": config.get("electric_fish_cooldown_seconds", 7200)
-            }, # 合并的功能："电鱼"
-            "wipe_bomb": {"max_attempts_per_day": config.get("wipe_bomb_attempts", 3)},
-            "wheel_of_fate_daily_limit": config.get("wheel_of_fate_daily_limit", 3),
-            "daily_reset_hour": config.get("daily_reset_hour", 0),
-            "user": {"initial_coins": config.get("user_initial_coins", 200)},
-            "market": {"listing_tax_rate": config.get("market_listing_tax_rate", 0.05)},
+                "enabled": electric_fish_config.get("enabled", True),
+                "cooldown_seconds": electric_fish_config.get("cooldown_seconds", 7200),
+                "base_success_rate": electric_fish_config.get("base_success_rate", 0.6),
+                "failure_penalty_max_rate": electric_fish_config.get("failure_penalty_max_rate", 0.5)
+            },
+            "wipe_bomb": {
+                "max_attempts_per_day": game_config.get("wipe_bomb_attempts", 3)
+            },
+            "wheel_of_fate_daily_limit": game_config.get("wheel_of_fate_daily_limit", 3),
+            "daily_reset_hour": game_config.get("daily_reset_hour", 0),
+            "user": {
+                "initial_coins": user_config.get("initial_coins", 200)
+            },
+            "market": {
+                "listing_tax_rate": market_config.get("listing_tax_rate", 0.05)
+            },
             "tax": {
                 "is_tax": self.is_tax,
                 "threshold": self.threshold,
@@ -110,8 +134,20 @@ class FishingPlugin(Star):
                 { "from": 99999, "to": 999999, "cost": 5000000000 },
             ],
             "sell_prices": {
-                "rod": { "1": 100, "2": 500, "3": 2000, "4": 5000, "5": 10000 },
-                "accessory": { "1": 100, "2": 500, "3": 2000, "4": 5000, "5": 10000 },
+                "rod": { 
+                    "1": config.get("sell_prices", {}).get("by_rarity_1", 100),
+                    "2": config.get("sell_prices", {}).get("by_rarity_2", 500),
+                    "3": config.get("sell_prices", {}).get("by_rarity_3", 2000),
+                    "4": config.get("sell_prices", {}).get("by_rarity_4", 5000),
+                    "5": config.get("sell_prices", {}).get("by_rarity_5", 10000)
+                },
+                "accessory": { 
+                    "1": config.get("sell_prices", {}).get("by_rarity_1", 100),
+                    "2": config.get("sell_prices", {}).get("by_rarity_2", 500),
+                    "3": config.get("sell_prices", {}).get("by_rarity_3", 2000),
+                    "4": config.get("sell_prices", {}).get("by_rarity_4", 5000),
+                    "5": config.get("sell_prices", {}).get("by_rarity_5", 10000)
+                },
                 "refine_multiplier": {
                     "1": 1.0, "2": 1.6, "3": 3.0, "4": 6.0, "5": 12.0,
                     "6": 25.0, "7": 55.0, "8": 125.0, "9": 280.0, "10": 660.0
@@ -264,11 +300,12 @@ class FishingPlugin(Star):
 
         # --- Web后台配置 ---
         self.web_admin_task = None
-        self.secret_key = config.get("secret_key")
+        webui_config = config.get("webui", {})
+        self.secret_key = webui_config.get("secret_key")
         if not self.secret_key:
             logger.error("安全警告：Web后台管理的'secret_key'未在配置中设置！强烈建议您设置一个长且随机的字符串以保证安全。")
             self.secret_key = None
-        self.port = config.get("port", 7777)
+        self.port = webui_config.get("port", 7777)
 
         # 管理员扮演功能
         self.impersonation_map = {}

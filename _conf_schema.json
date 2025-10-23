@@ -1,107 +1,177 @@
 {
-  "secret_key": {
-    "description": "webui的密钥",
-    "type": "string",
-    "hint": "登录管理界面的密钥，建议使用随机字符串",
-    "default": "SecretKey"
+  "webui": {
+    "description": "Web管理界面配置",
+    "type": "object",
+    "items": {
+      "secret_key": {
+        "description": "webui的密钥",
+        "type": "string",
+        "hint": "登录管理界面的密钥，建议使用随机字符串",
+        "default": "SecretKey"
+      },
+      "port": {
+        "description": "webui的端口",
+        "type": "int",
+        "hint": "请确保端口未被占用",
+        "default": 7777
+      }
+    }
   },
-  "port": {
-    "description": "webui的端口",
-    "type": "int",
-    "hint": "请确保端口未被占用",
-    "default": 7777
+  "tax": {
+    "description": "税收系统配置",
+    "type": "object",
+    "items": {
+      "is_tax": {
+        "description": "是否启用税收",
+        "type": "bool",
+        "hint": "税收的开关",
+        "default": true
+      },
+      "threshold": {
+        "description": "税收的起征点",
+        "type": "int",
+        "hint": "税收的起征点，低于此值不收税",
+        "default": 100000
+      },
+      "step_coins": {
+        "description": "税收的步长",
+        "type": "int",
+        "hint": "税收的步长，超过起征点后每增加此值税率增加",
+        "default": 100000
+      },
+      "step_rate": {
+        "description": "税收的步长税率",
+        "type": "float",
+        "hint": "税收的步长税率，超过起征点后每增加step_coins税率增加",
+        "default": 0.01
+      },
+      "min_rate": {
+        "description": "税收的起点税率",
+        "type": "float",
+        "hint": "税收的初始税率，达到起征点后开始收税的初始税率",
+        "default": 0.001
+      },
+      "max_rate": {
+        "description": "税收的最大税率",
+        "type": "float",
+        "hint": "税收的最大税率，超过此值不再增加",
+        "default": 0.2
+      }
+    }
   },
-  "is_tax": {
-    "description": "是否启用税收",
-    "type": "bool",
-    "hint": "税收的开关",
-    "default": true
+  "fishing": {
+    "description": "钓鱼系统配置",
+    "type": "object",
+    "items": {
+      "cooldown_seconds": {
+        "description": "钓鱼的冷却时间",
+        "type": "int",
+        "hint": "每次钓鱼后的冷却时间，单位为秒",
+        "default": 180
+      },
+      "quality_bonus_max_chance": {
+        "description": "高品质鱼最大触发概率",
+        "type": "float",
+        "hint": "装备品质加成触发高品质鱼的最大概率（0.0-1.0），默认0.35表示35%。使用对数压缩公式处理乘法累积的品质加成，避免概率过高",
+        "default": 0.35,
+        "min": 0.0,
+        "max": 1.0
+      }
+    }
   },
-  "threshold": {
-    "description": "税收的起征点",
-    "type": "int",
-    "hint": "税收的起征点，低于此值不收税",
-    "default": 100000
+  "steal": {
+    "description": "偷鱼功能配置",
+    "type": "object",
+    "items": {
+      "cooldown_seconds": {
+        "description": "偷鱼的冷却时间",
+        "type": "int",
+        "hint": "每次偷鱼后的冷却时间，单位为秒",
+        "default": 14400
+      }
+    }
   },
-  "step_coins": {
-    "description": "税收的步长",
-    "type": "int",
-    "hint": "税收的步长，超过起征点后每增加此值税率增加",
-    "default": 100000
+  "electric_fish": {
+    "description": "电鱼功能配置",
+    "type": "object",
+    "items": {
+      "enabled": {
+        "description": "是否启用电鱼功能",
+        "type": "bool",
+        "hint": "电鱼功能的开关，关闭后用户无法使用电鱼命令",
+        "default": true
+      },
+      "cooldown_seconds": {
+        "description": "电鱼的冷却时间",
+        "type": "int",
+        "hint": "每次电鱼后的冷却时间，单位为秒",
+        "default": 7200
+      },
+      "base_success_rate": {
+        "description": "电鱼的基础成功率",
+        "type": "float",
+        "hint": "电鱼的成功率，范围0.0-1.0，默认0.6表示60%。所有目标用户的成功率相同",
+        "default": 0.6,
+        "min": 0.0,
+        "max": 1.0
+      },
+      "failure_penalty_max_rate": {
+        "description": "电鱼失败天罚最大百分比",
+        "type": "float",
+        "hint": "电鱼失败时扣除玩家金币的最大百分比（0.0-1.0）。实际扣除比例在0%到此值之间呈正态分布，默认0.5表示最高扣除50%金币",
+        "default": 0.5,
+        "min": 0.0,
+        "max": 1.0
+      }
+    }
   },
-  "step_rate": {
-    "description": "税收的步长税率",
-    "type": "float",
-    "hint": "税收的步长税率，超过起征点后每增加step_coins税率增加",
-    "default": 0.01
+  "game": {
+    "description": "游戏全局配置",
+    "type": "object",
+    "items": {
+      "daily_reset_hour": {
+        "description": "每日刷新时间点",
+        "type": "int",
+        "hint": "每日重置鱼塘配额、税收等的时间点（小时，0-23），默认为0表示0点刷新",
+        "default": 0
+      },
+      "wheel_of_fate_daily_limit": {
+        "description": "命运轮盘每日次数限制",
+        "type": "int",
+        "hint": "每个用户每天可以玩命运轮盘的最大次数",
+        "default": 3
+      },
+      "wipe_bomb_attempts": {
+        "description": "擦弹炸弹每日次数",
+        "type": "int",
+        "hint": "每个用户每天可以使用擦弹炸弹的最大次数",
+        "default": 3
+      }
+    }
   },
-  "min_rate": {
-    "description": "税收的起点税率",
-    "type": "float",
-    "hint": "税收的初始税率，达到起征点后开始收税的初始税率",
-    "default": 0.001
+  "user": {
+    "description": "用户系统配置",
+    "type": "object",
+    "items": {
+      "initial_coins": {
+        "description": "用户初始金币",
+        "type": "int",
+        "hint": "新用户注册时的初始金币数量",
+        "default": 200
+      }
+    }
   },
-  "max_rate": {
-    "description": "税收的最大税率",
-    "type": "float",
-    "hint": "税收的最大税率，超过此值不再增加",
-    "default": 0.2
-  },
-  "fish_cooldown_seconds": {
-    "description": "钓鱼的冷却时间",
-    "type": "int",
-    "hint": "每次钓鱼后的冷却时间，单位为秒",
-    "default": 180
-  },
-  "quality_bonus_max_chance": {
-    "description": "高品质鱼最大触发概率",
-    "type": "float",
-    "hint": "装备品质加成触发高品质鱼的最大概率（0.0-1.0），默认0.35表示35%。使用对数压缩公式处理乘法累积的品质加成，避免概率过高",
-    "default": 0.35,
-    "min": 0.0,
-    "max": 1.0
-  },
-  "daily_reset_hour": {
-    "description": "每日刷新时间点",
-    "type": "int",
-    "hint": "每日重置鱼塘配额、税收等的时间点（小时，0-23），默认为0表示0点刷新",
-    "default": 0
-  },
-  "steal_cooldown_seconds": {
-    "description": "偷鱼的冷却时间",
-    "type": "int",
-    "hint": "每次偷鱼后的冷却时间，单位为秒",
-    "default": 14400
-  },
-  "electric_fish_enabled": {
-    "description": "是否启用电鱼功能",
-    "type": "bool",
-    "hint": "电鱼功能的开关，关闭后用户无法使用电鱼命令",
-    "default": true
-  },
-  "electric_fish_cooldown_seconds": {
-    "description": "电鱼的冷却时间",
-    "type": "int",
-    "hint": "每次电鱼后的冷却时间，单位为秒",
-    "default": 7200
-  },
-  "wheel_of_fate_daily_limit": {
-    "description": "命运轮盘每日次数限制",
-    "type": "int",
-    "hint": "每个用户每天可以玩命运轮盘的最大次数",
-    "default": 3
-  },
-  "user_initial_coins": {
-    "description": "用户初始金币",
-    "type": "int",
-    "hint": "新用户注册时的初始金币数量",
-    "default": 200
-  },
-  "market_listing_tax_rate": {
-    "description": "市场上架税率",
-    "type": "float",
-    "hint": "在市场上架物品时收取的税率",
-    "default": 0.05
+  "market": {
+    "description": "市场系统配置",
+    "type": "object",
+    "items": {
+      "listing_tax_rate": {
+        "description": "市场上架税率",
+        "type": "float",
+        "hint": "在市场上架物品时收取的税率",
+        "default": 0.05
+      }
+    }
   },
   "sell_prices": {
     "description": "物品(鱼竿和饰品)的出售价格",
@@ -153,26 +223,26 @@
         "default": 0.05,
         "description": "交易所交易税率"
       },
-          "volatility": {
-            "type": "object",
-            "items": {
-              "dried_fish": {
-                "type": "float",
-                "default": 0.08,
-                "description": "鱼干基础波动率（±8%）"
-              },
-              "fish_roe": {
-                "type": "float",
-                "default": 0.12,
-                "description": "鱼卵基础波动率（±12%）"
-              },
-              "fish_oil": {
-                "type": "float",
-                "default": 0.10,
-                "description": "鱼油基础波动率（±10%）"
-              }
-            }
+      "volatility": {
+        "type": "object",
+        "items": {
+          "dried_fish": {
+            "type": "float",
+            "default": 0.08,
+            "description": "鱼干基础波动率（±8%）"
           },
+          "fish_roe": {
+            "type": "float",
+            "default": 0.12,
+            "description": "鱼卵基础波动率（±12%）"
+          },
+          "fish_oil": {
+            "type": "float",
+            "default": 0.10,
+            "description": "鱼油基础波动率（±10%）"
+          }
+        }
+      },
       "event_chance": {
         "type": "float",
         "default": 0.1,

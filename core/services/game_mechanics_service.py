@@ -718,10 +718,11 @@ class GameMechanicsService:
     def electric_fish(self, thief_id: str, victim_id: str) -> Dict[str, Any]:
         """
         处理"电鱼"的逻辑。
-        对鱼塘内鱼数>=100的目标随机偷取。
-        如果目标鱼数 > 400，则偷取其总数的15%-25%。
-        否则，偷取10-25条。
-        其中最多只能包含一条5星及以上的鱼。
+        - 基础成功率，受多种因素影响
+        - 失败会扣除金币作为设备损坏费
+        - 成功有三个档次：大成功、普通成功、小成功
+        - 对鱼塘内鱼数>=100的目标随机偷取
+        - 其中最多只能包含一条5星及以上的鱼
         """
         if thief_id == victim_id:
             return {"success": False, "message": "不能电自己的鱼！"}
@@ -775,8 +776,71 @@ class GameMechanicsService:
         total_fish_count = sum(item.quantity for item in victim_inventory)
         if total_fish_count < 100:
             return {"success": False, "message": f"目标用户【{victim.nickname}】的鱼塘里鱼太少了（{total_fish_count}/100），电不到什么好东西，还是放过他吧。"}
+        
+        # 3. 计算成功率并进行判定
+        # 所有目标用户的成功率相同，只使用基础成功率
+        final_success_rate = self.config.get("electric_fish", {}).get("base_success_rate", 0.6)
+        
+        # 进行随机判定
+        roll = random.random()
+        
+        # 失败处理
+        if roll > final_success_rate:
+            # 使用正态分布计算天罚百分比（0-max_rate之间）
+            max_penalty_rate = self.config.get("electric_fish", {}).get("failure_penalty_max_rate", 0.5)
+            
+            # 正态分布，均值在中间（max_rate/2），标准差使得95%的值在0到max_rate之间
+            mean = max_penalty_rate / 2
+            std_dev = max_penalty_rate / 4  # 约95%的值在[0, max_rate]之间
+            
+            # 使用random.gauss生成正态分布的惩罚比例，并限制在[0, max_rate]范围内
+            penalty_rate = random.gauss(mean, std_dev)
+            penalty_rate = max(0.0, min(max_penalty_rate, penalty_rate))
+            
+            # 计算实际扣除的金币
+            penalty_coins = int(thief.coins * penalty_rate)
+            
+            thief.coins -= penalty_coins
+            thief.last_electric_fish_time = now  # 失败也要更新CD
+            self.user_repo.update(thief)
+            
+            # 根据惩罚程度显示不同的消息
+            if penalty_rate < 0.1:
+                severity = "⚡ 轻微天罚"
+            elif penalty_rate < 0.25:
+                severity = "⚡⚡ 中度天罚"
+            elif penalty_rate < 0.4:
+                severity = "⚡⚡⚡ 严重天罚"
+            else:
+                severity = "⚡⚡⚡⚡ 毁灭性天罚"
+            
+            return {
+                "success": False,
+                "message": f"❌ 电鱼失败！{severity}降临，雷电击中了你，损失了 {penalty_coins} 金币（{penalty_rate*100:.1f}%）！\n💡 本次成功率为 {final_success_rate*100:.1f}%"
+            }
 
-        # 3. 准备数据：获取鱼模板并将鱼塘扁平化
+        # 4. 成功了！根据成功度（roll值）决定收益档次
+        # roll越接近0表示越幸运，获得的收益越高
+        success_quality = roll / final_success_rate  # 归一化到0-1之间
+        
+        # 分段式收益：
+        # - 大成功（0-0.3）：15%-20%的鱼
+        # - 普通成功（0.3-0.7）：10%-15%的鱼
+        # - 小成功（0.7-1.0）：5%-10%的鱼
+        success_type = ""
+        multiplier_range = (0, 0)
+        
+        if success_quality <= 0.3:
+            success_type = "⭐大成功"
+            multiplier_range = (0.15, 0.20)
+        elif success_quality <= 0.7:
+            success_type = "✅普通成功"
+            multiplier_range = (0.10, 0.15)
+        else:
+            success_type = "🔹小成功"
+            multiplier_range = (0.05, 0.10)
+        
+        # 5. 准备数据：获取鱼模板并将鱼塘扁平化
         fish_templates = {
             item.fish_id: self.item_template_repo.get_fish_by_id(item.fish_id)
             for item in victim_inventory
@@ -785,21 +849,26 @@ class GameMechanicsService:
         for item in victim_inventory:
             all_fish_in_pond.extend([item.fish_id] * item.quantity)
 
-        # 4. 决定偷取数量并进行初次完全随机抽样
+        # 6. 决定偷取数量并进行初次完全随机抽样
         num_to_steal = 0
         if total_fish_count > 400:
-            # 如果鱼数大于400，按总数的10%-15%计算
-            lower_bound = int(total_fish_count * 0.1)
-            upper_bound = int(total_fish_count * 0.15)
+            # 如果鱼数大于400，按成功档次的百分比计算
+            lower_bound = max(1, int(total_fish_count * multiplier_range[0]))
+            upper_bound = max(lower_bound, int(total_fish_count * multiplier_range[1]))
             num_to_steal = random.randint(lower_bound, upper_bound)
         else:
-            # 否则，按原逻辑10-25条
-            num_to_steal = random.randint(10, 25)
+            # 鱼数较少时，使用固定数量区间
+            if success_quality <= 0.3:
+                num_to_steal = random.randint(20, 30)  # 大成功
+            elif success_quality <= 0.7:
+                num_to_steal = random.randint(10, 20)  # 普通成功
+            else:
+                num_to_steal = random.randint(5, 10)   # 小成功
 
         actual_num_to_steal = min(num_to_steal, len(all_fish_in_pond))
         initial_catch = random.sample(all_fish_in_pond, actual_num_to_steal)
 
-        # 5. 检查并修正高星鱼数量
+        # 7. 检查并修正高星鱼数量
         high_rarity_caught = []
         low_rarity_caught = []
         for fish_id in initial_catch:
@@ -836,12 +905,12 @@ class GameMechanicsService:
                 replacements = random.sample(replacement_pool, num_can_replace)
                 final_stolen_fish_ids.extend(replacements)
 
-        # 6. 统计最终偷到的鱼
+        # 8. 统计最终偷到的鱼
         stolen_fish_counts = {}
         for fish_id in final_stolen_fish_ids:
             stolen_fish_counts[fish_id] = stolen_fish_counts.get(fish_id, 0) + 1
     
-        # 7. 执行电鱼事务并计算总价值
+        # 9. 执行电鱼事务并计算总价值
         stolen_summary = []
         total_value_stolen = 0
     
@@ -854,23 +923,27 @@ class GameMechanicsService:
                 stolen_summary.append(f"【{template.name}】x{count}")
                 total_value_stolen += template.base_value * count
     
-        # 8. 更新电鱼的CD时间并保存
+        # 10. 更新电鱼的CD时间并保存
         thief.last_electric_fish_time = now
         self.user_repo.update(thief)
     
-        # 9. 生成成功消息
+        # 11. 生成成功消息
         counter_message = ""
         if protection_buff:
             if penetration_buff:
-                counter_message = "⚡ 破灵符的力量穿透了海灵守护！"
+                counter_message = "⚡ 破灵符的力量穿透了海灵守护！\n"
             elif shadow_cloak_buff:
-                counter_message = "🌑 暗影斗篷让你在阴影中行动！"
+                counter_message = "🌑 暗影斗篷让你在阴影中行动！\n"
     
         stolen_details = "、".join(stolen_summary)
         actual_stolen_count = len(final_stolen_fish_ids)
+        
+        # 计算收益占比
+        steal_percentage = (actual_stolen_count / total_fish_count) * 100
+        
         return {
             "success": True,
-            "message": f"{counter_message}✅ 成功对【{victim.nickname}】的鱼塘进行了一次电疗，捕获了{actual_stolen_count}条鱼，总价值 {total_value_stolen} 金币！分别是：{stolen_details}。",
+            "message": f"{counter_message}{success_type}！成功对【{victim.nickname}】的鱼塘进行了电击，捕获了{actual_stolen_count}条鱼（占其总数的{steal_percentage:.1f}%），总价值 {total_value_stolen} 金币！\n分别是：{stolen_details}。\n💡 本次成功率为 {final_success_rate*100:.1f}%",
         }
     # ============================================================
     # ===================== 新增功能：电鱼 结束 =====================
