@@ -152,7 +152,9 @@
                                 <th>ID</th>
                                 <th>名称</th>
                                 <th>稀有度</th>
+                                <th>品质</th>
                                 <th>基础价值</th>
+                                <th>实际价值</th>
                                 <th>数量</th>
                                 <th>总价值</th>
                                 <th class="text-end">操作</th>
@@ -164,11 +166,31 @@
                                 <td>{{ item.fish_id }}</td>
                                 <td>{{ item.name }}</td>
                                 <td>{{ '★' * item.rarity }}</td>
+                                <td>
+                                    {% if item.quality_level == 1 %}
+                                        <span class="badge bg-warning text-dark">✨ 高品质</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">普通</span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ item.base_value }}</td>
+                                <td>
+                                    {% if item.quality_level == 1 %}
+                                        <span class="text-warning fw-bold">{{ item.actual_value }}</span>
+                                    {% else %}
+                                        {{ item.actual_value }}
+                                    {% endif %}
+                                </td>
                                 <td>{{ item.quantity }}</td>
-                                <td>{{ item.total_value }}</td>
+                                <td>
+                                    {% if item.quality_level == 1 %}
+                                        <span class="text-warning fw-bold">{{ item.total_value }}</span>
+                                    {% else %}
+                                        {{ item.total_value }}
+                                    {% endif %}
+                                </td>
                                 <td class="text-end">
-                                    <button class="btn btn-sm btn-danger" onclick="removeItem('fish', {{ item.fish_id }}, {{ item.quantity }})">
+                                    <button class="btn btn-sm btn-danger" onclick="removeItem('fish', {{ item.fish_id }}, {{ item.quantity }}, {{ item.quality_level }})">
                                         <i class="fas fa-trash"></i> 移除
                                     </button>
                                 </td>
@@ -450,6 +472,13 @@
                         <div class="col-md-6">
                             <label for="quantity" class="form-label">数量</label>
                             <input type="number" class="form-control" id="quantity" value="1" min="1" required>
+                        </div>
+                        <div class="col-md-6" id="qualityLevelDiv" style="display: none;">
+                            <label for="qualityLevel" class="form-label">品质等级</label>
+                            <select class="form-select" id="qualityLevel">
+                                <option value="0">普通品质</option>
+                                <option value="1">高品质</option>
+                            </select>
                         </div>
                     </div>
                 </form>

@@ -29,11 +29,17 @@ def _compute_cooldown_seconds(base_seconds, equipped_accessory):
 
 def _build_fish_message(result, fishing_cost):
     if result["success"]:
+        fish = result['fish']
+        # 构建品质显示
+        quality_display = ""
+        if fish.get('quality_level') == 1:
+            quality_display = " ✨高品质"
+        
         message = (
-            f"🎣 恭喜你钓到了：{result['fish']['name']}\n"
-            f"✨品质：{'★' * result['fish']['rarity']} \n"
-            f"⚖️重量：{result['fish']['weight']} 克\n"
-            f"💰价值：{result['fish']['value']} 金币\n"
+            f"🎣 恭喜你钓到了：{fish['name']}{quality_display}\n"
+            f"✨稀有度：{'★' * fish['rarity']} \n"
+            f"⚖️重量：{fish['weight']} 克\n"
+            f"💰价值：{fish['value']} 金币\n"
             f"💸消耗：{fishing_cost} 金币/次"
         )
         if "equipment_broken_messages" in result:

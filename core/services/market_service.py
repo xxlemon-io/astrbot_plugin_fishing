@@ -1,6 +1,7 @@
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 import random
+import math
 
 from astrbot.api import logger
 # 导入仓储接口和领域模型
@@ -17,6 +18,7 @@ from ..domain.models import MarketListing, TaxRecord
 
 class MarketService:
     """封装与玩家交易市场相关的业务逻辑"""
+    
 
     def __init__(
         self,
@@ -92,7 +94,135 @@ class MarketService:
         except Exception as e:
             return {"success": False, "message": f"获取市场列表失败: {e}"}
 
-    def put_item_on_sale(self, user_id: str, item_type: str, item_instance_id: int, price: int, is_anonymous: bool = False, quantity: int = 1) -> Dict[str, Any]:
+    def _validate_rod_listing(self, user_id: str, item_instance_id: int) -> Dict[str, Any]:
+        """验证鱼竿上架"""
+        user_items = self.inventory_repo.get_user_rod_instances(user_id)
+        item_to_list = next((i for i in user_items if i.rod_instance_id == item_instance_id), None)
+        if not item_to_list:
+            return {"success": False, "message": "鱼竿不存在或不属于你"}
+        if item_to_list.is_equipped:
+            return {"success": False, "message": "不能上架正在装备的鱼竿"}
+        if item_to_list.is_locked:
+            return {"success": False, "message": "该鱼竿已锁定，无法上架"}
+        
+        item_template_id = item_to_list.rod_id
+        rod_template = self.item_template_repo.get_rod_by_id(item_template_id)
+        return {
+            "success": True,
+            "item_template_id": item_template_id,
+            "item_name": rod_template.name if rod_template else None,
+            "item_description": rod_template.description if rod_template else None,
+            "item_refine_level": item_to_list.refine_level,
+            "expires_at": None
+        }
+
+    def _validate_accessory_listing(self, user_id: str, item_instance_id: int) -> Dict[str, Any]:
+        """验证饰品上架"""
+        user_items = self.inventory_repo.get_user_accessory_instances(user_id)
+        item_to_list = next((i for i in user_items if i.accessory_instance_id == item_instance_id), None)
+        if not item_to_list:
+            return {"success": False, "message": "饰品不存在或不属于你"}
+        if item_to_list.is_equipped:
+            return {"success": False, "message": "不能上架正在装备的饰品"}
+        if item_to_list.is_locked:
+            return {"success": False, "message": "该饰品已锁定，无法上架"}
+        
+        item_template_id = item_to_list.accessory_id
+        accessory_template = self.item_template_repo.get_accessory_by_id(item_template_id)
+        return {
+            "success": True,
+            "item_template_id": item_template_id,
+            "item_name": accessory_template.name if accessory_template else None,
+            "item_description": accessory_template.description if accessory_template else None,
+            "item_refine_level": item_to_list.refine_level,
+            "expires_at": None
+        }
+
+    def _validate_item_listing(self, user_id: str, item_instance_id: int, quantity: int) -> Dict[str, Any]:
+        """验证道具上架"""
+        user_item_inventory = self.inventory_repo.get_user_item_inventory(user_id)
+        if item_instance_id not in user_item_inventory or user_item_inventory[item_instance_id] <= 0:
+            return {"success": False, "message": "道具不存在或数量不足"}
+        
+        current_quantity = user_item_inventory[item_instance_id]
+        if current_quantity < quantity:
+            return {"success": False, "message": f"道具数量不足，当前有 {current_quantity} 个，需要 {quantity} 个"}
+        
+        item_template_id = item_instance_id
+        item_template = self.item_template_repo.get_item_by_id(item_template_id)
+        return {
+            "success": True,
+            "item_template_id": item_template_id,
+            "item_name": item_template.name if item_template else None,
+            "item_description": item_template.description if item_template else None,
+            "item_refine_level": 1,
+            "expires_at": None
+        }
+
+    def _validate_fish_listing(self, user_id: str, item_instance_id: int, quantity: int, quality_level: int) -> Dict[str, Any]:
+        """验证鱼类上架"""
+        fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
+        fish_item = next((item for item in fish_inventory if item.fish_id == item_instance_id and item.quality_level == quality_level), None)
+        
+        if not fish_item or fish_item.quantity < quantity:
+            quality_label = "高品质" if quality_level == 1 else "普通"
+            available_quantity = fish_item.quantity if fish_item else 0
+            return {"success": False, "message": f"{quality_label}鱼类数量不足，当前有 {available_quantity} 条，需要 {quantity} 条"}
+        
+        item_template_id = item_instance_id
+        fish_template = self.item_template_repo.get_fish_by_id(item_template_id)
+        return {
+            "success": True,
+            "item_template_id": item_template_id,
+            "item_name": fish_template.name if fish_template else None,
+            "item_description": fish_template.description if fish_template else None,
+            "item_refine_level": 1,
+            "expires_at": None
+        }
+
+    def _validate_commodity_listing(self, user_id: str, item_instance_id: int, quantity: int) -> Dict[str, Any]:
+        """验证大宗商品上架"""
+        user_commodity = self.exchange_repo.get_user_commodity_by_instance_id(item_instance_id)
+        if not user_commodity or user_commodity.user_id != user_id:
+            return {"success": False, "message": "大宗商品不存在或不属于你"}
+        if user_commodity.quantity < quantity:
+            return {"success": False, "message": f"数量不足，您只有 {user_commodity.quantity} 份"}
+        
+        commodity_template = self.exchange_repo.get_commodity_by_id(user_commodity.commodity_id)
+        item_template_id = user_commodity.commodity_id
+        
+        # 计算剩余数量
+        remaining_quantity = user_commodity.quantity - quantity
+        
+        # 从用户库存中扣除
+        if remaining_quantity > 0:
+            self.exchange_repo.update_user_commodity_quantity(item_instance_id, remaining_quantity)
+        else:
+            self.exchange_repo.delete_user_commodity(item_instance_id)
+        
+        return {
+            "success": True,
+            "item_template_id": item_template_id,
+            "item_name": commodity_template.name,
+            "item_description": commodity_template.description,
+            "item_refine_level": 1,
+            "expires_at": user_commodity.expires_at
+        }
+
+    def _execute_listing_transaction(self, user_id: str, item_type: str, item_instance_id: int, quantity: int, quality_level: int) -> None:
+        """执行上架事务"""
+        if item_type == "rod":
+            self.inventory_repo.delete_rod_instance(item_instance_id)
+        elif item_type == "accessory":
+            self.inventory_repo.delete_accessory_instance(item_instance_id)
+        elif item_type == "item":
+            self.inventory_repo.update_item_quantity(user_id, item_instance_id, -quantity)
+        elif item_type == "fish":
+            self.inventory_repo.update_fish_quantity(user_id, item_instance_id, -quantity, quality_level)
+        elif item_type == "commodity":
+            self.exchange_repo.delete_user_commodity(item_instance_id)
+
+    def put_item_on_sale(self, user_id: str, item_type: str, item_instance_id: int, price: int, is_anonymous: bool = False, quantity: int = 1, quality_level: int = 0) -> Dict[str, Any]:
         """
         处理上架物品到市场的逻辑。
         
@@ -103,10 +233,11 @@ class MarketService:
             price: 单价
             is_anonymous: 是否匿名上架
             quantity: 上架数量（默认1）
+            quality_level: 品质等级（仅鱼类使用）
         """
+        # 基础验证
         if price <= 0:
             return {"success": False, "message": "上架价格必须大于0"}
-        
         if quantity <= 0:
             return {"success": False, "message": "上架数量必须大于0"}
 
@@ -115,146 +246,64 @@ class MarketService:
             return {"success": False, "message": "用户不存在"}
 
         # 计算并检查上架税
-        tax_rate = self.config.get("market", {}).get("listing_tax_rate", 0.02) # 默认2%
+        tax_rate = self.config.get("market", {}).get("listing_tax_rate", 0.02)
         tax_cost = int(price * tax_rate)
         if not seller.can_afford(tax_cost):
             return {"success": False, "message": f"金币不足以支付上架手续费: {tax_cost} 金币"}
 
-        # 验证物品所有权并获取模板ID
-        item_template_id = None
-        item_name = None
-        item_description = None
-        item_refine_level = 1
-        expires_at = None  # 为大宗商品设置
-        if item_type == "rod":
-            user_items = self.inventory_repo.get_user_rod_instances(user_id)
-            item_to_list = next((i for i in user_items if i.rod_instance_id == item_instance_id), None)
-            if not item_to_list:
-                return {"success": False, "message": "鱼竿不存在或不属于你"}
-            if item_to_list.is_equipped:
-                return {"success": False, "message": "不能上架正在装备的鱼竿"}
-            if item_to_list.is_locked:
-                return {"success": False, "message": "该鱼竿已锁定，无法上架"}
-            item_template_id = item_to_list.rod_id
-            rod_template = self.item_template_repo.get_rod_by_id(item_template_id)
-            item_name = rod_template.name if rod_template else None
-            item_description = rod_template.description if rod_template else None
-            item_refine_level = item_to_list.refine_level
-        elif item_type == "accessory":
-            user_items = self.inventory_repo.get_user_accessory_instances(user_id)
-            item_to_list = next((i for i in user_items if i.accessory_instance_id == item_instance_id), None)
-            if not item_to_list:
-                return {"success": False, "message": "饰品不存在或不属于你"}
-            if item_to_list.is_equipped:
-                 return {"success": False, "message": "不能上架正在装备的饰品"}
-            if item_to_list.is_locked:
-                return {"success": False, "message": "该饰品已锁定，无法上架"}
-            item_template_id = item_to_list.accessory_id
-            accessory_template = self.item_template_repo.get_accessory_by_id(item_template_id)
-            item_name = accessory_template.name if accessory_template else None
-            item_description = accessory_template.description if accessory_template else None
-            item_refine_level = item_to_list.refine_level
-        elif item_type == "item":
-            # 道具上架逻辑
-            user_item_inventory = self.inventory_repo.get_user_item_inventory(user_id)
-            if item_instance_id not in user_item_inventory or user_item_inventory[item_instance_id] <= 0:
-                return {"success": False, "message": "道具不存在或数量不足"}
-            
-            # 检查道具数量
-            current_quantity = user_item_inventory[item_instance_id]
-            if current_quantity < quantity:
-                return {"success": False, "message": f"道具数量不足，当前有 {current_quantity} 个，需要 {quantity} 个"}
-            
-            item_template_id = item_instance_id  # 对于道具，instance_id就是template_id
-            item_template = self.item_template_repo.get_item_by_id(item_template_id)
-            item_name = item_template.name if item_template else None
-            item_description = item_template.description if item_template else None
-            item_refine_level = 1  # 道具没有精炼等级
-        elif item_type == "fish":
-            # 鱼类上架逻辑 - 检查鱼塘和水族箱的总数量
-            total_fish_quantity = self.inventory_repo.get_user_total_fish_count(user_id, item_instance_id)
-            if total_fish_quantity < quantity:
-                return {"success": False, "message": f"鱼类数量不足，当前有 {total_fish_quantity} 条，需要 {quantity} 条"}
-            
-            item_template_id = item_instance_id  # 对于鱼类，instance_id就是template_id
-            fish_template = self.item_template_repo.get_fish_by_id(item_template_id)
-            item_name = fish_template.name if fish_template else None
-            item_description = fish_template.description if fish_template else None
-            item_refine_level = 1  # 鱼类没有精炼等级
-        elif item_type == "commodity":
-            user_commodity = self.exchange_repo.get_user_commodity_by_instance_id(item_instance_id)
-            if not user_commodity or user_commodity.user_id != user_id:
-                return {"success": False, "message": "大宗商品不存在或不属于你"}
-            if user_commodity.quantity < quantity:
-                return {"success": False, "message": f"数量不足，您只有 {user_commodity.quantity} 份"}
-            
-            # 上架的大宗商品仍然占用交易所容量，无需额外检查
-            # 只有在被其他玩家购买后才会释放容量
-            
-            commodity_template = self.exchange_repo.get_commodity_by_id(user_commodity.commodity_id)
-            item_template_id = user_commodity.commodity_id
-            item_name = commodity_template.name
-            item_description = commodity_template.description
-            item_refine_level = 1
-            expires_at = user_commodity.expires_at  # 传递腐败时间
+        # 验证物品所有权并获取模板信息
+        validation_methods = {
+            "rod": lambda: self._validate_rod_listing(user_id, item_instance_id),
+            "accessory": lambda: self._validate_accessory_listing(user_id, item_instance_id),
+            "item": lambda: self._validate_item_listing(user_id, item_instance_id, quantity),
+            "fish": lambda: self._validate_fish_listing(user_id, item_instance_id, quantity, quality_level),
+            "commodity": lambda: self._validate_commodity_listing(user_id, item_instance_id, quantity)
+        }
 
-            # 计算剩余数量
-            remaining_quantity = user_commodity.quantity - quantity
-
-            # 从用户库存中扣除
-            if remaining_quantity > 0:
-                self.exchange_repo.update_user_commodity_quantity(item_instance_id, remaining_quantity)
-            else:
-                self.exchange_repo.delete_user_commodity(item_instance_id)
-        else:
+        if item_type not in validation_methods:
             return {"success": False, "message": "该类型的物品无法上架"}
 
-        # 执行上架事务
-        # 1. 从玩家背包移除物品
-        if item_type == "rod":
-            self.inventory_repo.delete_rod_instance(item_instance_id)
-        elif item_type == "accessory":
-            self.inventory_repo.delete_accessory_instance(item_instance_id)
-        elif item_type == "item":
-            # 减少道具数量
-            self.inventory_repo.update_item_quantity(user_id, item_instance_id, -quantity)
-        elif item_type == "fish":
-            # 智能扣除鱼类数量（优先从鱼塘，然后从水族箱）
-            self.inventory_repo.deduct_fish_smart(user_id, item_instance_id, quantity)
-        elif item_type == "commodity":
-            # 从交易所移除大宗商品
-            self.exchange_repo.delete_user_commodity(item_instance_id)
+        validation_result = validation_methods[item_type]()
+        if not validation_result["success"]:
+            return validation_result
 
-        # 2. 扣除税费
+        # 执行上架事务
+        self._execute_listing_transaction(user_id, item_type, item_instance_id, quantity, quality_level)
+
+        # 扣除税费
         seller.coins -= tax_cost
         self.user_repo.update(seller)
 
-        # 3. 记录税收日志
-        tax_log = TaxRecord(tax_id=0, user_id=user_id, tax_amount=tax_cost, tax_rate=tax_rate,
-                            original_amount=price, balance_after=seller.coins, tax_type="市场交易税",
-                            timestamp=datetime.now())
+        # 记录税收日志
+        tax_log = TaxRecord(
+            tax_id=0, user_id=user_id, tax_amount=tax_cost, tax_rate=tax_rate,
+            original_amount=price, balance_after=seller.coins, tax_type="市场交易税",
+            timestamp=datetime.now()
+        )
         self.log_repo.add_tax_record(tax_log)
 
-
-        # 4. 创建市场条目
+        # 创建市场条目
         new_listing = MarketListing(
-            market_id=0, # DB自增
+            market_id=0,
             user_id=user_id,
             seller_nickname=seller.nickname,
             item_type=item_type,
-            item_id=item_template_id,
+            item_id=validation_result["item_template_id"],
             item_instance_id=item_instance_id if item_type not in ["item", "fish"] else None,
             quantity=quantity,
-            item_name=item_name,
-            item_description=item_description,
+            item_name=validation_result["item_name"],
+            item_description=validation_result["item_description"],
             price=price,
             listed_at=datetime.now(),
-            expires_at=expires_at,  # 保存腐败时间
-            refine_level=item_refine_level,
+            expires_at=validation_result["expires_at"],
+            refine_level=validation_result["item_refine_level"],
+            quality_level=quality_level if item_type == "fish" else 0,
             is_anonymous=is_anonymous
         )
         self.market_repo.add_listing(new_listing)
 
+        # 返回成功消息
+        item_name = validation_result["item_name"]
         if quantity > 1:
             total_price = price * quantity
             return {"success": True, "message": f"成功将【{item_name}】上架市场 x{quantity}，总价 {total_price} 金币 (手续费: {tax_cost} 金币)"}
@@ -399,7 +448,9 @@ class MarketService:
                 self.inventory_repo.update_item_quantity(buyer_id, listing.item_id, listing.quantity)
             elif listing.item_type == "fish":
                 # 给买家添加鱼类到水族箱（默认放入水族箱）
-                self.inventory_repo.add_fish_to_aquarium(buyer_id, listing.item_id, listing.quantity)
+                # 使用市场商品中设置的品质等级
+                quality_level = listing.quality_level
+                self.inventory_repo.add_fish_to_aquarium(buyer_id, listing.item_id, listing.quantity, quality_level)
 
             # 4. 从市场移除该商品
             self.market_repo.remove_listing(market_id)
@@ -445,7 +496,7 @@ class MarketService:
         elif listing.item_type == "item":
             self.inventory_repo.update_item_quantity(listing.user_id, listing.item_id, listing.quantity)
         elif listing.item_type == "fish":
-            self.inventory_repo.add_fish_to_aquarium(listing.user_id, listing.item_id, listing.quantity)
+            self.inventory_repo.add_fish_to_aquarium(listing.user_id, listing.item_id, listing.quantity, listing.quality_level)
         elif listing.item_type == "commodity":
             from ..domain.models import UserCommodity
             # 检查卖家交易所容量

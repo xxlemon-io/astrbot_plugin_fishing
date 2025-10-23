@@ -48,7 +48,7 @@
                                     {% elif cost.cost_type == 'premium' %}
                                         💎 高级货币 x{{ cost.cost_amount }}
                                     {% elif cost.cost_type == 'fish' %}
-                                        🐟 {{ cost.fish_name or ('鱼类#' + cost.cost_item_id|string) }} x{{ cost.cost_amount }}
+                                        🐟 {{ cost.fish_name or ('鱼类#' + cost.cost_item_id|string) }}{% if cost.quality_level == 1 %} ✨高品质{% endif %} x{{ cost.cost_amount }}
                                     {% elif cost.cost_type == 'item' %}
                                         🎁 {{ cost.item_name or ('道具#' + cost.cost_item_id|string) }} x{{ cost.cost_amount }}
                                     {% elif cost.cost_type == 'rod' %}
@@ -73,7 +73,7 @@
                                     {% elif reward.reward_type == 'item' %}
                                         🎁 {{ reward.item_name or ('道具#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
                                     {% elif reward.reward_type == 'fish' %}
-                                        🐟 {{ reward.fish_name or ('鱼类#' + reward.reward_item_id|string) }} x{{ reward.reward_quantity }}
+                                        🐟 {{ reward.fish_name or ('鱼类#' + reward.reward_item_id|string) }}{% if reward.quality_level == 1 %} ✨高品质{% endif %} x{{ reward.reward_quantity }}
                                     {% elif reward.reward_type == 'coins' %}
                                         💰 金币 x{{ reward.reward_quantity }}
                                     {% else %}
@@ -127,7 +127,7 @@
 
 <!-- 添加商品到商店模态框 -->
 <div class="modal fade" id="addItemModal" tabindex="-1" aria-labelledby="addItemModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <form id="item-form" method="post">
                 <input type="hidden" name="item_id" id="item_id">
@@ -156,7 +156,7 @@
                         <label class="form-label">奖励设置</label>
                         <div id="rewards-list">
                             <div class="row g-2 mb-2">
-                                <div class="col-12 col-md-8">
+                                <div class="col-12 col-lg-6">
                                     <select name="reward_item_full_id" class="form-select">
                                         <option value="">-- 请选择奖励 --</option>
                                         <optgroup label="鱼竿">
@@ -171,12 +171,21 @@
                                         <optgroup label="道具">
                                             {% for item in all_items %}<option value="item-{{ item.item_id }}" data-cost="{{ item.cost or 0 }}" data-name="{{ item.name }}" data-desc="{{ item.description or '' }}">{{ item.name }} {{ '★' * item.rarity }}</option>{% endfor %}
                                         </optgroup>
+                                        <optgroup label="鱼类">
+                                            {% for fish in all_fish %}<option value="fish-{{ fish.fish_id }}" data-cost="{{ fish.base_value or 0 }}" data-name="{{ fish.name }}" data-desc="{{ fish.description or '' }}">{{ fish.name }} {{ '★' * fish.rarity }}</option>{% endfor %}
+                                        </optgroup>
                                     </select>
                                 </div>
-                                <div class="col-6 col-md-3">
+                                <div class="col-6 col-lg-2">
                                     <input name="reward_quantity" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
                                 </div>
-                                <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
+                                <div class="col-6 col-lg-2" id="rewardQualityDiv" style="display: none;">
+                                    <select name="reward_quality_level" class="form-select">
+                                        <option value="0">普通品质</option>
+                                        <option value="1">高品质</option>
+                                    </select>
+                                </div>
+                                <div class="col-6 col-lg-2 d-flex justify-content-center align-items-center">
                                     <button type="button" class="btn btn-outline-danger btn-sm remove-reward">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -191,7 +200,7 @@
                         <label class="form-label">消耗设置</label>
                         <div id="costs-list">
                             <div class="row g-2 mb-2">
-                                <div class="col-12 col-md-5">
+                                <div class="col-12 col-lg-4">
                                     <select name="cost_item_full_id" class="form-select">
                                         <option value="">-- 请选择消耗 --</option>
                                         <optgroup label="货币">
@@ -212,17 +221,23 @@
                                         </optgroup>
                                     </select>
                                 </div>
-                                <div class="col-6 col-md-2">
+                                <div class="col-6 col-lg-2">
                                     <input name="cost_amount" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
                                 </div>
-                                <div class="col-3 col-md-2">
+                                <div class="col-6 col-lg-2" id="costQualityDiv" style="display: none;">
+                                    <select name="cost_quality_level" class="form-select">
+                                        <option value="0">普通品质</option>
+                                        <option value="1">高品质</option>
+                                    </select>
+                                </div>
+                                <div class="col-4 col-lg-1">
                                     <select name="cost_relation" class="form-select">
                                         <option value="and">AND</option>
                                         <option value="or">OR</option>
                                     </select>
                                 </div>
-            <div class="col-3 col-md-2">
-                <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组ID" title="分组ID使用说明：
+                                <div class="col-4 col-lg-2">
+                                    <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组ID" title="分组ID使用说明：
 
 基本规则：
 • 相同组ID + OR关系 = 多选一（用户只需满足其中任意一个）
@@ -244,7 +259,7 @@
    - 行3: 创世神鳞x1, OR, 组ID=2
    - 行4: 世界之鱼x1, OR, 组ID=2">
             </div>
-                                <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
+                                <div class="col-4 col-lg-1 d-flex justify-content-center align-items-center">
                                     <button type="button" class="btn btn-outline-danger btn-sm remove-cost">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -425,6 +440,16 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (groupInput && cost.group_id) {
                             groupInput.value = cost.group_id;
                         }
+                        
+                        // 设置品质等级并触发显示/隐藏
+                        const qualitySelect = lastRow.querySelector('select[name="cost_quality_level"]');
+                        if (qualitySelect) {
+                            qualitySelect.value = cost.quality_level || 0;
+                        }
+                        const qualityDiv = lastRow.querySelector('#costQualityDiv');
+                        if (qualityDiv) {
+                            qualityDiv.style.display = cost.cost_type === 'fish' ? 'block' : 'none';
+                        }
                     });
                 }
                 
@@ -478,8 +503,22 @@ document.addEventListener('DOMContentLoaded', function () {
                         if (refineInput && reward.reward_refine_level) {
                             refineInput.value = reward.reward_refine_level;
                         }
+                        
+                        // 设置品质等级并触发显示/隐藏
+                        const qualitySelect = lastRow.querySelector('select[name="reward_quality_level"]');
+                        if (qualitySelect) {
+                            qualitySelect.value = reward.quality_level || 0;
+                        }
+                        const qualityDiv = lastRow.querySelector('#rewardQualityDiv');
+                        if (qualityDiv) {
+                            qualityDiv.style.display = reward.reward_type === 'fish' ? 'block' : 'none';
+                        }
                     });
                 }
+                
+                // 重新设置品质选择功能（因为新添加的行需要重新绑定事件）
+                setupCostQualityToggle();
+                setupRewardQualityToggle();
                 
                 // 显示 Modal
                 try {
@@ -538,13 +577,47 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 初始化自动填充
     setupAutoFill();
+    
+    // 通用的品质选择显示/隐藏功能
+    function setupQualityToggle(containerSelector, itemSelector) {
+        const selects = document.querySelectorAll(`${containerSelector} select[name="${itemSelector}"]`);
+        selects.forEach(select => {
+            // 避免重复绑定事件监听器
+            if (select.hasAttribute('data-quality-toggle-bound')) {
+                return;
+            }
+            select.setAttribute('data-quality-toggle-bound', 'true');
+            
+            const qualityDiv = select.closest('.row').querySelector('[id$="QualityDiv"]');
+            if (qualityDiv) {
+                select.addEventListener('change', function() {
+                    const isFish = this.value.startsWith('fish-');
+                    qualityDiv.style.display = isFish ? 'block' : 'none';
+                });
+            }
+        });
+    }
+    
+    // 为现有的成本选择框添加品质选择显示/隐藏功能
+    function setupCostQualityToggle() {
+        setupQualityToggle('#costs-list', 'cost_item_full_id');
+    }
+    
+    // 为现有的奖励选择框添加品质选择显示/隐藏功能
+    function setupRewardQualityToggle() {
+        setupQualityToggle('#rewards-list', 'reward_item_full_id');
+    }
+    
+    // 初始化品质选择功能
+    setupCostQualityToggle();
+    setupRewardQualityToggle();
 
     function addCostRow() {
         const container = document.getElementById('costs-list');
         const row = document.createElement('div');
         row.className = 'row g-2 mb-2';
         row.innerHTML = `
-            <div class="col-12 col-md-5">
+            <div class="col-12 col-lg-4">
                 <select name="cost_item_full_id" class="form-select">
                     <option value="">-- 请选择消耗 --</option>
                     <optgroup label="货币">
@@ -565,16 +638,22 @@ document.addEventListener('DOMContentLoaded', function () {
                     </optgroup>
                 </select>
             </div>
-            <div class="col-6 col-md-2">
+            <div class="col-6 col-lg-2">
                 <input name="cost_amount" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
             </div>
-            <div class="col-3 col-md-2">
+            <div class="col-6 col-lg-2" id="costQualityDiv" style="display: none;">
+                <select name="cost_quality_level" class="form-select">
+                    <option value="0">普通品质</option>
+                    <option value="1">高品质</option>
+                </select>
+            </div>
+            <div class="col-4 col-lg-1">
                 <select name="cost_relation" class="form-select">
                     <option value="and">AND</option>
                     <option value="or">OR</option>
                 </select>
             </div>
-            <div class="col-3 col-md-2">
+            <div class="col-4 col-lg-2">
                 <input name="cost_group" type="number" min="1" step="1" class="form-control" placeholder="组ID" title="分组ID使用说明：
 
 基本规则：
@@ -597,7 +676,7 @@ document.addEventListener('DOMContentLoaded', function () {
    - 行3: 创世神鳞x1, OR, 组ID=2
    - 行4: 世界之鱼x1, OR, 组ID=2">
             </div>
-            <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
+            <div class="col-4 col-lg-1 d-flex justify-content-center align-items-center">
                 <button type="button" class="btn btn-outline-danger btn-sm remove-cost">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -609,6 +688,9 @@ document.addEventListener('DOMContentLoaded', function () {
             row.remove();
         });
         
+        // 添加品质选择显示/隐藏逻辑
+        setupQualityToggle('', 'cost_item_full_id');
+        
     }
 
     function addRewardRow() {
@@ -616,7 +698,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const row = document.createElement('div');
         row.className = 'row g-2 mb-2';
         row.innerHTML = `
-            <div class="col-12 col-md-8">
+            <div class="col-12 col-lg-6">
                 <select name="reward_item_full_id" class="form-select">
                     <option value="">-- 请选择奖励 --</option>
                     <optgroup label="鱼竿">
@@ -631,12 +713,21 @@ document.addEventListener('DOMContentLoaded', function () {
                     <optgroup label="道具">
                         {% for item in all_items %}<option value="item-{{ item.item_id }}" data-cost="{{ item.cost or 0 }}" data-name="{{ item.name }}" data-desc="{{ item.description or '' }}">{{ item.name }} {{ '★' * item.rarity }}</option>{% endfor %}
                     </optgroup>
+                    <optgroup label="鱼类">
+                        {% for fish in all_fish %}<option value="fish-{{ fish.fish_id }}" data-cost="{{ fish.base_value or 0 }}" data-name="{{ fish.name }}" data-desc="{{ fish.description or '' }}">{{ fish.name }} {{ '★' * fish.rarity }}</option>{% endfor %}
+                    </optgroup>
                 </select>
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-6 col-lg-2">
                 <input name="reward_quantity" type="number" min="1" step="1" class="form-control" placeholder="数量" value="1">
             </div>
-            <div class="col-6 col-md-1 d-flex justify-content-center align-items-center">
+            <div class="col-6 col-lg-2" id="rewardQualityDiv" style="display: none;">
+                <select name="reward_quality_level" class="form-select">
+                    <option value="0">普通品质</option>
+                    <option value="1">高品质</option>
+                </select>
+            </div>
+            <div class="col-6 col-lg-2 d-flex justify-content-center align-items-center">
                 <button type="button" class="btn btn-outline-danger btn-sm remove-reward">
                     <i class="fas fa-trash"></i>
                 </button>
@@ -648,7 +739,8 @@ document.addEventListener('DOMContentLoaded', function () {
             row.remove();
         });
         
-        
+        // 添加品质选择显示/隐藏逻辑
+        setupQualityToggle('', 'reward_item_full_id');
     }
 });
 </script>

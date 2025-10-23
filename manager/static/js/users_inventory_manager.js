@@ -25,10 +25,21 @@ function initializeItemTypeSelector() {
 
 function updateItemOptions(itemType) {
     const itemIdSelect = document.getElementById('itemId');
+    const qualityLevelDiv = document.getElementById('qualityLevelDiv');
+    
     if (!itemIdSelect) return;
     
     // 清空现有选项
     itemIdSelect.innerHTML = '<option value="">请选择物品</option>';
+    
+    // 显示/隐藏品质选择器
+    if (qualityLevelDiv) {
+        if (itemType === 'fish') {
+            qualityLevelDiv.style.display = 'block';
+        } else {
+            qualityLevelDiv.style.display = 'none';
+        }
+    }
     
     let templates = [];
     switch (itemType) {
@@ -220,6 +231,7 @@ async function addItem() {
     const itemType = document.getElementById('itemType').value;
     const itemId = document.getElementById('itemId').value;
     const quantity = parseInt(document.getElementById('quantity').value);
+    const qualityLevel = document.getElementById('qualityLevel') ? parseInt(document.getElementById('qualityLevel').value) : 0;
     
     if (!itemType || !itemId || !quantity) {
         alert('请填写完整信息');
@@ -227,16 +239,23 @@ async function addItem() {
     }
     
     try {
+        const requestData = {
+            item_type: itemType,
+            item_id: parseInt(itemId),
+            quantity: quantity
+        };
+        
+        // 如果是鱼类，添加品质等级
+        if (itemType === 'fish') {
+            requestData.quality_level = qualityLevel;
+        }
+        
         const response = await fetch(addItemUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                item_type: itemType,
-                item_id: parseInt(itemId),
-                quantity: quantity
-            })
+            body: JSON.stringify(requestData)
         });
         
         const data = await response.json();

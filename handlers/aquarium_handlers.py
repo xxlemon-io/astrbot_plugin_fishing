@@ -47,8 +47,17 @@ async def aquarium(self: "FishingPlugin", event: AstrMessageEvent):
             message += f"\n {format_rarity_display(rarity)}：\n"
             for fish in fish_list:
                 fish_id = int(fish.get('fish_id', 0) or 0)
-                fcode = f"F{fish_id}" if fish_id else "F0"
-                message += f"  - {fish['name']} x  {fish['quantity']} （{fish['base_value']}金币 / 个） ID: {fcode}\n"
+                quality_level = fish.get('quality_level', 0)
+                # 生成带品质标识的FID
+                if quality_level == 1:
+                    fcode = f"F{fish_id}H" if fish_id else "F0H"  # H代表高品质
+                else:
+                    fcode = f"F{fish_id}" if fish_id else "F0"   # 普通品质
+                # 显示品质信息
+                quality_display = ""
+                if quality_level == 1:
+                    quality_display = " ✨高品质"
+                message += f"  - {fish['name']}{quality_display} x  {fish['quantity']} （{fish['actual_value']}金币 / 个） ID: {fcode}\n"
 
     message += f"\n🐟 总鱼数：{stats['total_count']} / {stats['capacity']} 条\n"
     message += f"💰 总价值：{stats['total_value']} 金币\n"
@@ -67,10 +76,17 @@ async def add_to_aquarium(self: "FishingPlugin", event: AstrMessageEvent):
         return
 
     try:
-        # 解析鱼ID（支持F开头的短码）
+        # 解析鱼ID（支持F开头的短码，包括品质标识）
         fish_token = args[1].strip().upper()
+        quality_level = 0  # 默认普通品质
+        
         if fish_token.startswith('F'):
-            fish_id = int(fish_token[1:])  # 去掉F前缀
+            # 检查是否有品质标识H
+            if fish_token.endswith('H'):
+                quality_level = 1  # 高品质
+                fish_id = int(fish_token[1:-1])  # 去掉F前缀和H后缀
+            else:
+                fish_id = int(fish_token[1:])  # 去掉F前缀
         else:
             fish_id = int(fish_token)
         
@@ -81,10 +97,10 @@ async def add_to_aquarium(self: "FishingPlugin", event: AstrMessageEvent):
                 yield event.plain_result("❌ 数量必须是正整数")
                 return
     except ValueError:
-        yield event.plain_result("❌ 鱼ID格式错误！请使用F开头的短码（如F3）或纯数字ID")
+        yield event.plain_result("❌ 鱼ID格式错误！请使用F开头的短码（如F3、F3H）或纯数字ID")
         return
 
-    result = self.aquarium_service.add_fish_to_aquarium(user_id, fish_id, quantity)
+    result = self.aquarium_service.add_fish_to_aquarium(user_id, fish_id, quantity, quality_level)
     
     if result["success"]:
         yield event.plain_result(f"✅ {result['message']}")
@@ -102,10 +118,17 @@ async def remove_from_aquarium(self: "FishingPlugin", event: AstrMessageEvent):
         return
 
     try:
-        # 解析鱼ID（支持F开头的短码）
+        # 解析鱼ID（支持F开头的短码，包括品质标识）
         fish_token = args[1].strip().upper()
+        quality_level = 0  # 默认普通品质
+        
         if fish_token.startswith('F'):
-            fish_id = int(fish_token[1:])  # 去掉F前缀
+            # 检查是否有品质标识H
+            if fish_token.endswith('H'):
+                quality_level = 1  # 高品质
+                fish_id = int(fish_token[1:-1])  # 去掉F前缀和H后缀
+            else:
+                fish_id = int(fish_token[1:])  # 去掉F前缀
         else:
             fish_id = int(fish_token)
         
@@ -116,10 +139,10 @@ async def remove_from_aquarium(self: "FishingPlugin", event: AstrMessageEvent):
                 yield event.plain_result("❌ 数量必须是正整数")
                 return
     except ValueError:
-        yield event.plain_result("❌ 鱼ID格式错误！请使用F开头的短码（如F3）或纯数字ID")
+        yield event.plain_result("❌ 鱼ID格式错误！请使用F开头的短码（如F3、F3H）或纯数字ID")
         return
 
-    result = self.aquarium_service.remove_fish_from_aquarium(user_id, fish_id, quantity)
+    result = self.aquarium_service.remove_fish_from_aquarium(user_id, fish_id, quantity, quality_level)
     
     if result["success"]:
         yield event.plain_result(f"✅ {result['message']}")

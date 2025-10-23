@@ -30,12 +30,17 @@ class AquariumService:
         enriched_items = []
         for item in aquarium_items:
             if fish_template := self.item_template_repo.get_fish_by_id(item.fish_id):
+                # 计算实际价值（高品质鱼双倍价值）
+                actual_value = fish_template.base_value * (1 + item.quality_level)
                 enriched_items.append({
                     "fish_id": item.fish_id,
                     "name": fish_template.name,
                     "rarity": fish_template.rarity,
                     "base_value": fish_template.base_value,
                     "quantity": item.quantity,
+                    "quality_level": item.quality_level,  # 添加品质等级
+                    "actual_value": actual_value,  # 添加实际价值
+                    "quality_label": "高品质" if item.quality_level == 1 else "普通",  # 添加品质标签
                     "added_at": item.added_at
                 })
 
@@ -50,7 +55,7 @@ class AquariumService:
             }
         }
 
-    def add_fish_to_aquarium(self, user_id: str, fish_id: int, quantity: int = 1) -> Dict[str, Any]:
+    def add_fish_to_aquarium(self, user_id: str, fish_id: int, quantity: int = 1, quality_level: int = 0) -> Dict[str, Any]:
         """将鱼添加到水族箱"""
         # 检查用户是否存在
         user = self.user_repo.get_by_id(user_id)
@@ -70,22 +75,24 @@ class AquariumService:
                 "message": f"水族箱容量不足！当前容量：{user.aquarium_capacity}，已有：{current_count}，需要：{quantity}"
             }
 
-        # 检查鱼塘中是否有足够的鱼
+        # 检查鱼塘中是否有足够的鱼（指定品质）
         fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
-        fish_item = next((item for item in fish_inventory if item.fish_id == fish_id), None)
+        fish_item = next((item for item in fish_inventory if item.fish_id == fish_id and item.quality_level == quality_level), None)
         if not fish_item or fish_item.quantity < quantity:
-            return {"success": False, "message": f"鱼塘中没有足够的{fish_template.name}"}
+            quality_label = "高品质" if quality_level == 1 else "普通"
+            return {"success": False, "message": f"鱼塘中没有足够的{quality_label}{fish_template.name}"}
 
-        # 从鱼塘移除鱼，添加到水族箱
-        self.inventory_repo.update_fish_quantity(user_id, fish_id, -quantity)
-        self.inventory_repo.add_fish_to_aquarium(user_id, fish_id, quantity)
+        # 从鱼塘移除鱼，添加到水族箱（保持品质）
+        self.inventory_repo.update_fish_quantity(user_id, fish_id, -quantity, quality_level)
+        self.inventory_repo.add_fish_to_aquarium(user_id, fish_id, quantity, quality_level)
 
+        quality_label = "高品质" if quality_level == 1 else "普通"
         return {
             "success": True, 
-            "message": f"成功将 {fish_template.name} x{quantity} 放入水族箱！"
+            "message": f"成功将 {quality_label}{fish_template.name} x{quantity} 放入水族箱！"
         }
 
-    def remove_fish_from_aquarium(self, user_id: str, fish_id: int, quantity: int = 1) -> Dict[str, Any]:
+    def remove_fish_from_aquarium(self, user_id: str, fish_id: int, quantity: int = 1, quality_level: int = 0) -> Dict[str, Any]:
         """从水族箱移除鱼到鱼塘"""
         # 检查用户是否存在
         user = self.user_repo.get_by_id(user_id)
@@ -97,19 +104,21 @@ class AquariumService:
         if not fish_template:
             return {"success": False, "message": "鱼类不存在"}
 
-        # 检查水族箱中是否有足够的鱼
+        # 检查水族箱中是否有足够的鱼（指定品质）
         aquarium_items = self.inventory_repo.get_aquarium_inventory(user_id)
-        fish_item = next((item for item in aquarium_items if item.fish_id == fish_id), None)
+        fish_item = next((item for item in aquarium_items if item.fish_id == fish_id and item.quality_level == quality_level), None)
         if not fish_item or fish_item.quantity < quantity:
-            return {"success": False, "message": f"水族箱中没有足够的{fish_template.name}"}
+            quality_label = "高品质" if quality_level == 1 else "普通"
+            return {"success": False, "message": f"水族箱中没有足够的{quality_label}{fish_template.name}"}
 
-        # 从水族箱移除鱼，添加到鱼塘
-        self.inventory_repo.remove_fish_from_aquarium(user_id, fish_id, quantity)
-        self.inventory_repo.add_fish_to_inventory(user_id, fish_id, quantity)
+        # 从水族箱移除鱼，添加到鱼塘（保持品质）
+        self.inventory_repo.remove_fish_from_aquarium(user_id, fish_id, quantity, quality_level)
+        self.inventory_repo.add_fish_to_inventory(user_id, fish_id, quantity, quality_level)
 
+        quality_label = "高品质" if quality_level == 1 else "普通"
         return {
             "success": True, 
-            "message": f"成功将 {fish_template.name} x{quantity} 从水族箱移回鱼塘！"
+            "message": f"成功将 {quality_label}{fish_template.name} x{quantity} 从水族箱移回鱼塘！"
         }
 
     def get_aquarium_upgrades(self) -> List[AquariumUpgrade]:

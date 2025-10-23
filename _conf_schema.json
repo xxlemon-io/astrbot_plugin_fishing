@@ -53,6 +53,14 @@
     "hint": "每次钓鱼后的冷却时间，单位为秒",
     "default": 180
   },
+  "quality_bonus_max_chance": {
+    "description": "高品质鱼最大触发概率",
+    "type": "float",
+    "hint": "装备品质加成触发高品质鱼的最大概率（0.0-1.0），默认0.35表示35%。使用对数压缩公式处理乘法累积的品质加成，避免概率过高",
+    "default": 0.35,
+    "min": 0.0,
+    "max": 1.0
+  },
   "daily_reset_hour": {
     "description": "每日刷新时间点",
     "type": "int",

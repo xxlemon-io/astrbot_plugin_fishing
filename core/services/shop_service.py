@@ -1,6 +1,8 @@
 from typing import Dict, Any, Optional, List, Tuple, Set
 from datetime import datetime, timedelta, timezone
 import copy
+import math
+import random
 
 # 导入仓储接口
 from ..repositories.abstract_repository import (
@@ -14,6 +16,7 @@ from ..domain.models import Shop, ShopItem, ShopItemCost, ShopItemReward
 
 class ShopService:
     """封装与系统商店相关的业务逻辑（新设计：shops + shop_items）"""
+    
 
     def __init__(
         self,
@@ -286,11 +289,17 @@ class ShopService:
             cost_type = cost_item["cost_type"]
             amount = cost_item["cost_amount"] * qty
             item_id = cost_item.get("cost_item_id")
+            quality_level = cost_item.get("quality_level", 0)  # 获取品质等级
             plural_map = {"item": "items", "fish": "fish", "rod": "rods", "accessory": "accessories"}
             if cost_type in ["coins", "premium"]:
                 return {cost_type: amount}
             elif cost_type in plural_map and item_id:
-                return {plural_map[cost_type]: {item_id: amount}}
+                if cost_type == "fish" and quality_level > 0:
+                    # 鱼类成本需要包含品质信息
+                    return {plural_map[cost_type]: {item_id: {"quantity": amount, "quality_level": quality_level}}}
+                else:
+                    # 其他类型保持原有格式
+                    return {plural_map[cost_type]: {item_id: amount}}
             return {}
 
         # 确保OR选项按某种稳定顺序处理，例如group_id
@@ -394,12 +403,27 @@ class ShopService:
         
         # 检查鱼类（包括鱼塘和水族箱）
         if costs.get("fish"):
-            for fish_id, need_qty in costs["fish"].items():
-                total_count = self.inventory_repo.get_user_total_fish_count(user.user_id, fish_id)
-                if total_count < need_qty:
-                    fish_tpl = self.item_template_repo.get_fish_by_id(fish_id)
-                    name = fish_tpl.name if fish_tpl else str(fish_id)
-                    return {"success": False, "message": f"鱼类不足：{name} x{need_qty}"}
+            for fish_id, fish_cost in costs["fish"].items():
+                # fish_cost 现在是一个字典，包含 quantity 和 quality_level
+                if isinstance(fish_cost, dict):
+                    need_qty = fish_cost.get("quantity", 0)
+                    quality_level = fish_cost.get("quality_level", 0)
+                else:
+                    # 兼容旧格式（直接是数量）
+                    need_qty = fish_cost
+                    quality_level = 0
+                
+                if need_qty > 0:
+                    # 检查指定品质的鱼类数量
+                    fish_inventory = self.inventory_repo.get_fish_inventory(user.user_id)
+                    fish_item = next((item for item in fish_inventory if item.fish_id == fish_id and item.quality_level == quality_level), None)
+                    available_qty = fish_item.quantity if fish_item else 0
+                    
+                    if available_qty < need_qty:
+                        fish_tpl = self.item_template_repo.get_fish_by_id(fish_id)
+                        name = fish_tpl.name if fish_tpl else str(fish_id)
+                        quality_label = "高品质" if quality_level == 1 else "普通"
+                        return {"success": False, "message": f"{quality_label}鱼类不足：{name} x{need_qty}（当前有 {available_qty} 条）"}
         
         # 检查鱼竿（排除上锁和装备中的）
         if costs.get("rods"):
@@ -453,10 +477,21 @@ class ShopService:
             for item_id, need_qty in costs["items"].items():
                 self.inventory_repo.decrease_item_quantity(user.user_id, item_id, need_qty)
         
-        # 扣除鱼类（智能扣除：优先从鱼塘，不足时从水族箱）
+        # 扣除鱼类（支持品质区分）
         if costs.get("fish"):
-            for fish_id, need_qty in costs["fish"].items():
-                self.inventory_repo.deduct_fish_smart(user.user_id, fish_id, need_qty)
+            for fish_id, fish_cost in costs["fish"].items():
+                # fish_cost 现在是一个字典，包含 quantity 和 quality_level
+                if isinstance(fish_cost, dict):
+                    need_qty = fish_cost.get("quantity", 0)
+                    quality_level = fish_cost.get("quality_level", 0)
+                else:
+                    # 兼容旧格式（直接是数量）
+                    need_qty = fish_cost
+                    quality_level = 0
+                
+                if need_qty > 0:
+                    # 扣除指定品质的鱼类
+                    self.inventory_repo.update_fish_quantity(user.user_id, fish_id, -need_qty, quality_level)
         
         # 扣除鱼竿（排除上锁和装备中的）
         if costs.get("rods"):
@@ -532,9 +567,13 @@ class ShopService:
                 
                 elif reward_type == "fish" and reward_item_id:
                     fish_tpl = self.item_template_repo.get_fish_by_id(reward_item_id)
-                    self.inventory_repo.update_fish_quantity(user_id, reward_item_id, reward_quantity)
                     if fish_tpl:
-                        obtained_items.append(f"🐟 {fish_tpl.name} x{reward_quantity}")
+                        # 从数据库获取奖励的品质等级设置
+                        quality_level = reward.get("quality_level", 0)
+                        self.inventory_repo.update_fish_quantity(user_id, reward_item_id, reward_quantity, quality_level)
+                        
+                        quality_label = " ✨高品质" if quality_level == 1 else ""
+                        obtained_items.append(f"🐟 {fish_tpl.name}{quality_label} x{reward_quantity}")
                 
                 elif reward_type == "coins":
                     # 直接给用户加金币
