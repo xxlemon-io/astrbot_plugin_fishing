@@ -276,7 +276,7 @@ class SqliteShopRepository(AbstractShopRepository):
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT * FROM shop_item_costs WHERE item_id = ? ORDER BY group_id ASC, cost_id ASC",
+            "SELECT *, quality_level FROM shop_item_costs WHERE item_id = ? ORDER BY group_id ASC, cost_id ASC",
             (item_id,)
         )
         rows = cursor.fetchall()
@@ -312,7 +312,7 @@ class SqliteShopRepository(AbstractShopRepository):
         fields = []
         params: List[Any] = []
         
-        for k in ["cost_type", "cost_amount", "cost_item_id", "cost_relation", "group_id"]:
+        for k in ["cost_type", "cost_amount", "cost_item_id", "cost_relation", "group_id", "quality_level"]:
             if k in data:
                 fields.append(f"{k} = ?")
                 params.append(data[k])
@@ -340,7 +340,7 @@ class SqliteShopRepository(AbstractShopRepository):
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT * FROM shop_item_rewards WHERE item_id = ? ORDER BY reward_id ASC",
+            "SELECT *, quality_level FROM shop_item_rewards WHERE item_id = ? ORDER BY reward_id ASC",
             (item_id,)
         )
         rows = cursor.fetchall()
@@ -374,7 +374,7 @@ class SqliteShopRepository(AbstractShopRepository):
         fields = []
         params: List[Any] = []
         
-        for k in ["reward_type", "reward_item_id", "reward_quantity", "reward_refine_level"]:
+        for k in ["reward_type", "reward_item_id", "reward_quantity", "reward_refine_level", "quality_level"]:
             if k in data:
                 fields.append(f"{k} = ?")
                 params.append(data[k])

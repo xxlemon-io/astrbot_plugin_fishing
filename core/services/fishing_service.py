@@ -451,7 +451,7 @@ class FishingService:
                 "name": fish_template.name,
                 "rarity": fish_template.rarity,
                 "weight": weight,
-                "value": value,
+                "value": value * 2 if quality_level == 1 else value,  # 高品质鱼双倍价值
                 "quality_level": quality_level,  # 添加品质等级
                 "quality_label": "高品质" if quality_level == 1 else "普通"  # 添加品质标签
             }
@@ -628,7 +628,7 @@ class FishingService:
         # - 低星（1-3星，索引 0-2）：普通鱼，作为权重来源
         # - 中高星（4-5星，索引 3-4）：稀有鱼，接收权重转移
         # - 超稀有（6+星，索引 5）：传说鱼，不参与计算以保持稀有性
-        low_star_total = sum(new_distribution[0:3])
+        low_star_total = sum(new_distribution[:3])
         mid_high_star_total = sum(new_distribution[3:5])
         
         # 边界情况：如果某一组概率为 0，则无法进行权重转移
@@ -658,9 +658,7 @@ class FishingService:
         
         # 归一化处理：确保所有概率之和精确为 1.0
         # 这是必要的，因为浮点运算可能产生微小误差
-        total = sum(new_distribution)
-        if total > 0:
-            new_distribution = [x / total for x in new_distribution]
+        new_distribution = [x / sum(new_distribution) for x in new_distribution]
         
         return new_distribution
 
