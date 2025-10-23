@@ -500,7 +500,7 @@ class MarketService:
         elif listing.item_type == "commodity":
             from ..domain.models import UserCommodity
             # 检查卖家交易所容量
-            capacity = self.config.get("capacity", 1000)
+            capacity = self.config.get("exchange", {}).get("capacity", 1000)
             user_commodities = self.exchange_repo.get_user_commodities(listing.user_id)
             current_total_quantity = sum(item.quantity for item in user_commodities)
             if current_total_quantity + listing.quantity > capacity:

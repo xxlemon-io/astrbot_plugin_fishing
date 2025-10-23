@@ -353,7 +353,7 @@ class ExchangeHandlers:
                     msg += "─" * 20 + "\n"
 
             # 显示持仓容量和盈亏分析
-            capacity = self.plugin.exchange_service.config.get("capacity", 1000)
+            capacity = self.plugin.exchange_service.config.get("exchange", {}).get("capacity", 1000)
 
             inventory_result = self.plugin.exchange_service.get_user_inventory(user_id)
             if inventory_result["success"]:
@@ -538,7 +538,7 @@ class ExchangeHandlers:
 
             msg += "═" * 30 + "\n"
 
-            capacity = self.exchange_service.config.get("capacity", 1000)
+            capacity = self.exchange_service.config.get("exchange", {}).get("capacity", 1000)
             current_total_quantity = sum(
                 data.get("total_quantity", 0) for data in inventory.values()
             )
