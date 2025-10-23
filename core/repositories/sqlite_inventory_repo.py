@@ -668,7 +668,7 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             """, (user_id, fish_id, quality_level, quantity))
             conn.commit()
 
-    def remove_fish_from_aquarium(self, user_id: str, fish_id: int, quantity: int = 1) -> None:
+    def remove_fish_from_aquarium(self, user_id: str, fish_id: int, quantity: int = 1, quality_level: int = 0) -> None:
         """从用户水族箱移除鱼
         Raises InsufficientFishQuantityError if not enough fish to remove.
         """
@@ -677,27 +677,27 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             cursor.execute("""
                 UPDATE user_aquarium 
                 SET quantity = quantity - ?
-                WHERE user_id = ? AND fish_id = ? AND quantity >= ?
-            """, (quantity, user_id, fish_id, quantity))
+                WHERE user_id = ? AND fish_id = ? AND quality_level = ? AND quantity >= ?
+            """, (quantity, user_id, fish_id, quality_level, quantity))
             
             if cursor.rowcount == 0:
                 raise InsufficientFishQuantityError(
-                    f"用户 {user_id} 水族箱中没有足够的鱼类 {fish_id} 来移除 {quantity} 个"
+                    f"用户 {user_id} 水族箱中没有足够的鱼类 {fish_id}（品质等级 {quality_level}）来移除 {quantity} 个"
                 )
             
             # 如果数量为0或负数，删除记录
             cursor.execute("""
                 DELETE FROM user_aquarium 
-                WHERE user_id = ? AND fish_id = ? AND quantity <= 0
-            """, (user_id, fish_id))
+                WHERE user_id = ? AND fish_id = ? AND quality_level = ? AND quantity <= 0
+            """, (user_id, fish_id, quality_level))
             conn.commit()
 
-    def update_aquarium_fish_quantity(self, user_id: str, fish_id: int, delta: int) -> None:
+    def update_aquarium_fish_quantity(self, user_id: str, fish_id: int, delta: int, quality_level: int = 0) -> None:
         """更新用户水族箱中鱼的数量"""
         if delta > 0:
-            self.add_fish_to_aquarium(user_id, fish_id, delta)
+            self.add_fish_to_aquarium(user_id, fish_id, delta, quality_level)
         elif delta < 0:
-            self.remove_fish_from_aquarium(user_id, fish_id, -delta)
+            self.remove_fish_from_aquarium(user_id, fish_id, -delta, quality_level)
 
     def clear_aquarium_inventory(self, user_id: str, rarity: Optional[int] = None) -> None:
         """清空用户水族箱"""

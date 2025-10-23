@@ -454,7 +454,7 @@ class MarketService:
         elif listing.item_type == "item":
             self.inventory_repo.update_item_quantity(listing.user_id, listing.item_id, listing.quantity)
         elif listing.item_type == "fish":
-            self.inventory_repo.add_fish_to_aquarium(listing.user_id, listing.item_id, listing.quantity)
+            self.inventory_repo.add_fish_to_aquarium(listing.user_id, listing.item_id, listing.quantity, listing.quality_level)
         elif listing.item_type == "commodity":
             from ..domain.models import UserCommodity
             # 检查卖家交易所容量
