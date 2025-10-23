@@ -51,6 +51,8 @@ class FishingService:
         self.tax_thread: Optional[threading.Thread] = None
         self.tax_running = False
         self.last_tax_reset_time = get_last_reset_time(self.daily_reset_hour)
+        self.tax_execution_lock = threading.Lock()  # 防止税收并发执行的锁
+        self.tax_start_lock = threading.Lock()  # 防止重复创建税收线程的锁
         # 可选的消息通知回调：签名 (target: str, message: str) -> None，用于消息通知
         self._notifier = None
         # 通知目标可配置，默认群聊。可由 config['notifications']['relocation_target'] 覆盖
@@ -779,14 +781,24 @@ class FishingService:
 
     def apply_daily_taxes(self) -> None:
         """对所有高价值用户征收每日税收。"""
+        import uuid
+        
+        # 生成执行ID用于追踪和调试
+        execution_id = uuid.uuid4().hex[:8]
+        
         tax_config = self.config.get("tax", {})
         if tax_config.get("is_tax", False) is False:
+            logger.info(f"[税收-{execution_id}] 税收功能未启用，跳过")
             return
         
-        # 防止同一天内多次执行税收（例如插件重启）
+        logger.info(f"[税收-{execution_id}] 开始检查每日资产税（执行ID: {execution_id}）")
+        
+        # 防止同一天内多次执行税收（例如插件重启）- 多层防护的第二层
         if self.log_repo.has_daily_tax_today(self.daily_reset_hour):
-            logger.info("[税收] 今日已执行过每日资产税，跳过")
+            logger.info(f"[税收-{execution_id}] 今日已执行过每日资产税，跳过（应用层防护生效）")
             return
+        
+        logger.info(f"[税收-{execution_id}] 检查通过，开始执行税收")
         
         threshold = tax_config.get("threshold", 1000000)
         step_coins = tax_config.get("step_coins", 1000000)
@@ -795,7 +807,7 @@ class FishingService:
         max_rate = tax_config.get("max_rate", 0.35)
 
         high_value_users = self.user_repo.get_high_value_users(threshold)
-        logger.info(f"[税收] 开始执行每日资产税，共有 {len(high_value_users)} 个用户需要征税")
+        logger.info(f"[税收-{execution_id}] 开始执行每日资产税，共有 {len(high_value_users)} 个用户需要征税")
         
         total_tax_collected = 0
         taxed_user_count = 0
@@ -831,7 +843,7 @@ class FishingService:
                 total_tax_collected += tax_amount
                 taxed_user_count += 1
         
-        logger.info(f"[税收] 每日资产税执行完成，共对 {taxed_user_count} 个用户征税，总计 {total_tax_collected} 金币")
+        logger.info(f"[税收-{execution_id}] 每日资产税执行完成，共对 {taxed_user_count} 个用户征税，总计 {total_tax_collected} 金币")
 
     def enforce_zone_pass_requirements_for_all_users(self) -> None:
         """
@@ -924,15 +936,17 @@ class FishingService:
 
     def start_daily_tax_task(self):
         """启动每日税收的独立后台线程。"""
-        if self.tax_thread and self.tax_thread.is_alive():
-            logger.info("税收线程已在运行中")
-            return
+        # 使用锁确保线程创建检查和创建操作的原子性，防止重复创建线程
+        with self.tax_start_lock:
+            if self.tax_thread and self.tax_thread.is_alive():
+                logger.info("税收线程已在运行中")
+                return
 
-        logger.info("正在启动每日税收线程...")
-        self.tax_running = True
-        self.tax_thread = threading.Thread(target=self._daily_tax_loop, daemon=True)
-        self.tax_thread.start()
-        logger.info(f"税收线程已启动，每日重置时间点：{self.daily_reset_hour}点")
+            logger.info("正在启动每日税收线程...")
+            self.tax_running = True
+            self.tax_thread = threading.Thread(target=self._daily_tax_loop, daemon=True)
+            self.tax_thread.start()
+            logger.info(f"税收线程已启动，每日重置时间点：{self.daily_reset_hour}点")
 
     def stop_daily_tax_task(self):
         """停止每日税收的后台线程。"""
@@ -957,9 +971,11 @@ class FishingService:
                     logger.info(f"[税收线程] 检测到刷新时间点变更（每日{self.daily_reset_hour}点刷新），从 {self.last_tax_reset_time} 到 {current_reset_time}，开始执行每日税收...")
                     self.last_tax_reset_time = current_reset_time
                     
-                    # 执行每日税收
-                    self.apply_daily_taxes()
-                    logger.info("[税收线程] 每日税收执行完成")
+                    # 使用锁来防止并发执行税收（多层防护的第一层）
+                    with self.tax_execution_lock:
+                        logger.info("[税收线程] 已获取税收执行锁，开始执行税收")
+                        self.apply_daily_taxes()
+                        logger.info("[税收线程] 每日税收执行完成，释放锁")
                 
                 # 每小时检查一次（3600秒）
                 time.sleep(3600)
