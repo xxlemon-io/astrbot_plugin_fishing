@@ -173,7 +173,7 @@ class AbstractInventoryRepository(ABC):
     def get_fish_inventory_value(self, user_id: str, rarity: Optional[int] = None) -> int: pass
     # 向用户鱼类库存添加鱼
     @abstractmethod
-    def add_fish_to_inventory(self, user_id: str, fish_id: int, quantity: int = 1) -> None: pass
+    def add_fish_to_inventory(self, user_id: str, fish_id: int, quantity: int = 1, quality_level: int = 0) -> None: pass
     # 清空用户鱼类库存
     @abstractmethod
     def clear_fish_inventory(self, user_id: str, rarity: Optional[int] = None) -> None: pass
