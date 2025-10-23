@@ -37,16 +37,40 @@ def get_last_reset_time(reset_hour: int = 0) -> datetime:
         return today_reset - timedelta(days=1)
 
 def get_fish_template(new_fish_list, coins_chance):
-    sorted_fish_list = sorted(new_fish_list, key=lambda x: x.base_value, reverse=True)
-    random_index = random.randint(0, len(sorted_fish_list) - 1)
-    if coins_chance > 0:
-        max_move = random_index
-        move_rate = random.random() <= coins_chance
-        if move_rate:
-            return sorted_fish_list[min(max_move + 1, len(sorted_fish_list) - 1)]
-        return sorted_fish_list[max_move]
-    else:
-        return sorted_fish_list[random_index]
+    """
+    使用标准的加权随机算法从鱼类列表中选择一个模板。
+    - 解决了旧算法中存在的边界问题和行为异常的Bug。
+    - 逻辑清晰，行为可预测：价值越高的鱼，被选中的基础概率越大。
+    - coins_chance > 0 时，会放大高价值鱼的概率优势。
+    """
+    # 边界情况处理：如果列表为空，返回None
+    if not new_fish_list:
+        return None
+        
+    # 边界情况处理：如果列表只有一个元素，直接返回，避免不必要的计算
+    if len(new_fish_list) == 1:
+        return new_fish_list[0]
+
+    # 1. 为列表中的每一条鱼计算其抽选权重
+    weights = []
+    for fish in new_fish_list:
+        # 保证基础权重至少为1，以防鱼的价值为0或负数
+        base_weight = max(fish.base_value, 1)
+        
+        # 应用 coins_chance 加成。
+        # (1 + coins_chance) 是一个简单的放大系数，确保了加成效果。
+        # 例如，如果 coins_chance 是 0.5 (50%)，则权重会乘以 1.5
+        final_weight = base_weight * (1 + coins_chance) 
+        weights.append(final_weight)
+
+    # 2. 使用Python标准库的 random.choices 函数进行加权随机抽样
+    #   - new_fish_list: 从这个列表中抽样
+    #   - weights: 对应的权重列表
+    #   - k=1: 只抽取一个结果
+    #   [0]：因为 choices 返回的是一个列表，我们取出其中的第一个（也是唯一一个）元素
+    chosen_fish = random.choices(new_fish_list, weights=weights, k=1)[0]
+    
+    return chosen_fish
 
 def calculate_after_refine(before_value: float, refine_level: int, rarity: int = None) -> float:
     """
