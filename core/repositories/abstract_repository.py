@@ -208,7 +208,7 @@ class AbstractInventoryRepository(ABC):
     def get_user_total_fish_count(self, user_id: str, fish_id: int) -> int: pass
     # 智能扣除鱼类：优先从鱼塘扣除，不足时从水族箱扣除
     @abstractmethod
-    def deduct_fish_smart(self, user_id: str, fish_id: int, quantity: int) -> None: pass
+    def deduct_fish_smart(self, user_id: str, fish_id: int, quantity: int, quality_level: int = 0) -> None: pass
     # 获取所有水族箱升级配置
     @abstractmethod
     def get_aquarium_upgrades(self) -> List[AquariumUpgrade]: pass
