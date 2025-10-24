@@ -477,10 +477,11 @@ class ShopService:
             for item_id, need_qty in costs["items"].items():
                 self.inventory_repo.decrease_item_quantity(user.user_id, item_id, need_qty)
         
-        # 扣除鱼类（支持品质区分）
+        # 扣除鱼类（智能扣除：优先鱼塘，后水族箱）
         if costs.get("fish"):
-            for fish_id, fish_cost in costs["fish"].items():
-                # fish_cost 现在是一个字典，包含 quantity 和 quality_level
+            for fish_id_str, fish_cost in costs["fish"].items():
+                fish_id = int(fish_id_str)
+                
                 if isinstance(fish_cost, dict):
                     need_qty = fish_cost.get("quantity", 0)
                     quality_level = fish_cost.get("quality_level", 0)
@@ -490,13 +491,18 @@ class ShopService:
                     quality_level = 0
                 
                 if need_qty > 0:
-                    # 扣除指定品质的鱼类
-                    self.inventory_repo.update_fish_quantity(user.user_id, fish_id, -need_qty, quality_level)
+                    self.inventory_repo.deduct_fish_smart(
+                        user_id=user.user_id,
+                        fish_id=fish_id,
+                        quantity=need_qty,
+                        quality_level=quality_level
+                    )
         
         # 扣除鱼竿（排除上锁和装备中的）
         if costs.get("rods"):
             user_rods = self.inventory_repo.get_user_rod_instances(user.user_id)
-            for rod_id, need_qty in costs["rods"].items():
+            for rod_id_str, need_qty in costs["rods"].items():
+                rod_id = int(rod_id_str) # 确保 rod_id 是整数
                 remaining_qty = need_qty
                 for rod in user_rods:
                     if remaining_qty <= 0:
@@ -511,7 +517,8 @@ class ShopService:
         # 扣除饰品（排除上锁和装备中的）
         if costs.get("accessories"):
             user_accessories = self.inventory_repo.get_user_accessory_instances(user.user_id)
-            for accessory_id, need_qty in costs["accessories"].items():
+            for accessory_id_str, need_qty in costs["accessories"].items():
+                accessory_id = int(accessory_id_str) # 确保 accessory_id 是整数
                 remaining_qty = need_qty
                 for accessory in user_accessories:
                     if remaining_qty <= 0:
