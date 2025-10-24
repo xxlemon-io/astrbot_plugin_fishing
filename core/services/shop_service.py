@@ -224,7 +224,7 @@ class ShopService:
             if cost.get("cost_type") == "fish" and cost.get("cost_item_id"):
                 relevant_fish_ids.add(cost["cost_item_id"])
 
-        user_resources_copy = self._get_user_resources_copy(user, relevant_fish_ids)
+        user_resources_copy = self._get_user_resources_copy(user)
         
         # 3. 检查并从快照中扣除必须的 AND 成本
         can_pay_and, resources_after_and = self._check_and_get_remaining_resources(user_resources_copy, and_costs)
@@ -260,15 +260,35 @@ class ShopService:
         return {"success": True, "message": success_message}
 
     def _merge_costs(self, base_costs: Dict, new_costs: Dict) -> None:
-        """辅助函数：将 new_costs 合并到 base_costs 中"""
+        """辅助函数：将 new_costs 合并到 base_costs 中，能处理带品质的鱼类成本。"""
         base_costs["coins"] = base_costs.get("coins", 0) + new_costs.get("coins", 0)
         base_costs["premium"] = base_costs.get("premium", 0) + new_costs.get("premium", 0)
+
         for category in ["items", "fish", "rods", "accessories"]:
-            if category in new_costs:
-                if category not in base_costs:
-                    base_costs[category] = {}
-                for item_id, qty in new_costs[category].items():
-                    base_costs[category][item_id] = base_costs[category].get(item_id, 0) + qty
+            if category not in new_costs:
+                continue
+
+            if category not in base_costs:
+                base_costs[category] = {}
+
+            for item_id, new_value in new_costs[category].items():
+                # 如果是带品质的鱼类成本（值为字典）
+                if isinstance(new_value, dict) and 'quantity' in new_value:
+                    # 检查 base_costs 中是否已存在该鱼的记录
+                    if item_id not in base_costs[category]:
+                        # 首次添加，直接复制
+                        base_costs[category][item_id] = new_value.copy()
+                    else:
+                        # 已存在，需要合并数量
+                        existing_value = base_costs[category][item_id]
+                        # 健壮性检查：确保品质等级一致
+                        if existing_value.get('quality_level') != new_value.get('quality_level'):
+                            raise ValueError(f"无法合并不同品质等级的鱼类成本: ID {item_id}")
+                        
+                        existing_value['quantity'] += new_value['quantity']
+                # 否则，认为是普通的数量成本（值为整数）
+                else:
+                    base_costs[category][item_id] = base_costs[category].get(item_id, 0) + new_value
 
     def _get_cost_structure(self, costs: List[Dict[str, Any]], quantity: int) -> Dict[str, Any]:
         """解析数据库成本，返回包含必须成本(and_costs)和可选成本组(or_choices)的结构"""
@@ -318,22 +338,28 @@ class ShopService:
 
         return {"and_costs": and_costs, "or_choices": or_choices}
     
-    def _get_user_resources_copy(self, user: Any, relevant_fish_ids: Set[int]) -> Dict[str, Any]:
-        """获取用户当前可用资源的快照字典"""
+    def _get_user_resources_copy(self, user: Any) -> Dict[str, Any]:
+        """获取用户当前可用资源的快照字典，支持鱼类品质"""
         resources = {
             "coins": user.coins,
             "premium": user.premium_currency,
             "items": self.inventory_repo.get_user_item_inventory(user.user_id),
-            "fish": {},
+            "fish": {}, # 结构: {fish_id: {quality_level: count}}
             "rods": {},
             "accessories": {}
         }
         
-        # 使用新的高效批量方法
-        if relevant_fish_ids:
-            fish_counts = self.inventory_repo.get_user_fish_counts_in_bulk(user.user_id, relevant_fish_ids)
-            resources["fish"] = fish_counts
+        # 合并鱼塘和水族箱的鱼，并按品质区分
+        fish_inventory = self.inventory_repo.get_fish_inventory(user.user_id)
+        aquarium_inventory = self.inventory_repo.get_aquarium_inventory(user.user_id)
         
+        for fish_item in fish_inventory + aquarium_inventory:
+            fish_id = fish_item.fish_id
+            quality = fish_item.quality_level
+            if fish_id not in resources["fish"]:
+                resources["fish"][fish_id] = {}
+            resources["fish"][fish_id][quality] = resources["fish"][fish_id].get(quality, 0) + fish_item.quantity
+
         # 鱼竿和饰品只计入未锁定且未装备的
         for rod in self.inventory_repo.get_user_rod_instances(user.user_id):
             if not rod.is_locked and not rod.is_equipped:
@@ -345,7 +371,7 @@ class ShopService:
         return resources
 
     def _check_and_get_remaining_resources(self, resources: Dict, cost: Dict) -> Tuple[bool, Optional[Dict]]:
-        """在资源副本上检查并模拟扣除，返回是否成功和扣除后的新副本"""
+        """在资源副本上检查并模拟扣除，返回是否成功和扣除后的新副本（支持鱼类品质）"""
         res_copy = copy.deepcopy(resources)
         
         if res_copy.get("coins", 0) < cost.get("coins", 0): return (False, None)
@@ -354,13 +380,32 @@ class ShopService:
         if res_copy.get("premium", 0) < cost.get("premium", 0): return (False, None)
         res_copy["premium"] -= cost.get("premium", 0)
 
-        for category in ["items", "fish", "rods", "accessories"]:
+        for category in ["items", "rods", "accessories"]:
             if category in cost:
-                for item_id, qty in cost[category].items():
-                    if res_copy.get(category, {}).get(item_id, 0) < qty:
+                for item_id_str, need_qty in cost[category].items():
+                    item_id = int(item_id_str)
+                    if res_copy.get(category, {}).get(item_id, 0) < need_qty:
                         return (False, None)
-                    res_copy[category][item_id] -= qty
+                    res_copy[category][item_id] -= need_qty
         
+        # 单独处理鱼类，因为其结构特殊
+        if "fish" in cost:
+            for fish_id_str, fish_cost in cost["fish"].items():
+                fish_id = int(fish_id_str)
+                
+                if isinstance(fish_cost, dict): # 带品质的鱼
+                    need_qty = fish_cost["quantity"]
+                    quality = fish_cost["quality_level"]
+                else: # 普通鱼 (quality_level = 0)
+                    need_qty = fish_cost
+                    quality = 0
+                
+                user_has = res_copy.get("fish", {}).get(fish_id, {}).get(quality, 0)
+                if user_has < need_qty:
+                    return (False, None)
+                
+                res_copy["fish"][fish_id][quality] -= need_qty
+
         return (True, res_copy)
 
     def _find_payable_combination(
@@ -577,10 +622,11 @@ class ShopService:
                     if fish_tpl:
                         # 从数据库获取奖励的品质等级设置
                         quality_level = reward.get("quality_level", 0)
-                        self.inventory_repo.update_fish_quantity(user_id, reward_item_id, reward_quantity, quality_level)
+                        # 调用水族箱的库存更新方法
+                        self.inventory_repo.update_aquarium_fish_quantity(user_id, reward_item_id, reward_quantity, quality_level)
                         
                         quality_label = " ✨高品质" if quality_level == 1 else ""
-                        obtained_items.append(f"🐟 {fish_tpl.name}{quality_label} x{reward_quantity}")
+                        obtained_items.append(f"🐠 {fish_tpl.name}{quality_label} x{reward_quantity} (放入水族箱)")
                 
                 elif reward_type == "coins":
                     # 直接给用户加金币
