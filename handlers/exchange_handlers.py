@@ -406,9 +406,14 @@ class ExchangeHandlers:
             return max(0.0, min(100.0, rsi))
 
         def trend(series: List[int]) -> str:
-            if len(series) < 3:
+            MIN_WINDOW = 5
+            if len(series) < MIN_WINDOW:
+                # For very short series, trend is unreliable
                 return "stable"
-            start = series[max(0, len(series) - max(3, len(series)//3))]
+            # Use at least MIN_WINDOW or len(series)//3, whichever is larger
+            window = max(MIN_WINDOW, len(series)//3)
+            start_idx = max(0, len(series) - window)
+            start = series[start_idx]
             end = series[-1]
             if end > start * 1.02:
                 return "rising"
