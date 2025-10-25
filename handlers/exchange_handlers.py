@@ -419,9 +419,7 @@ class ExchangeHandlers:
             end = series[-1]
             if end > start * 1.02:
                 return "rising"
-            if end < start * 0.98:
-                return "falling"
-            return "stable"
+            return "falling" if end < start * 0.98 else "stable"
 
         def suggestion(trend_val: str, rsi_val: float, vol_val: float) -> str:
             if trend_val == "rising" and rsi_val < 70:
