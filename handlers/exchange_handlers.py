@@ -382,7 +382,9 @@ class ExchangeHandlers:
             # 简单标准差近似：与均值的偏差
             m = sum(series) / len(series)
             var = sum((x - m) ** 2 for x in series) / (len(series) - 1)
-            return sqrt(var) / m * 100 if m else 0.0
+            epsilon = 1e-6
+            denom = m if abs(m) >= epsilon else epsilon
+            return sqrt(var) / denom * 100
 
         def simple_rsi(series: List[int]) -> float:
             # 简易RSI：最近N-1日涨幅与跌幅的比率
