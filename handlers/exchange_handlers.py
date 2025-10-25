@@ -301,14 +301,23 @@ class ExchangeHandlers:
             prices = result["prices"]
             commodities = result["commodities"]
 
-            # 获取价格历史用于计算涨跌幅
+            # 获取价格历史用于计算涨跌幅（使用“上一次价格”而非“昨天”）
             price_history = self.exchange_service.get_price_history(days=2)
-            historical_prices = {}
-            if price_history["success"] and price_history["history"]:
-                # 获取昨天的价格
-                for comm_id, history in price_history["history"].items():
-                    if len(history) >= 2:
-                        historical_prices[comm_id] = history[-2]  # 倒数第二个价格（昨天）
+            previous_prices = {}
+            if price_history.get("success"):
+                updates = price_history.get("updates", []) or []
+                # 将更新按商品分组（updates 已按时间排序）
+                updates_by_comm: Dict[str, list] = {}
+                for u in updates:
+                    cid = u.get("commodity_id")
+                    if not cid:
+                        continue
+                    updates_by_comm.setdefault(cid, []).append(u)
+
+                # 取每个商品的倒数第二条作为“上一次价格”
+                for cid, ulist in updates_by_comm.items():
+                    if len(ulist) >= 2:
+                        previous_prices[cid] = ulist[-2].get("price")
 
             msg = "【📈 交易所行情】\n"
             msg += f"更新时间: {result.get('date', 'N/A')}\n"

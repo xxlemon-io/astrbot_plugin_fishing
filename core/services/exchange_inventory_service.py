@@ -313,19 +313,22 @@ class ExchangeInventoryService:
             if not inventory:
                 return {"success": False, "message": "库存为空"}
             
-            # 获取当前市场价格
-            today_str = datetime.now().strftime("%Y-%m-%d")
+            # 获取当前市场价格：先查今日，无则查昨日；仍无则失败
+            today = datetime.now().date()
+            today_str = today.strftime("%Y-%m-%d")
             prices = self.exchange_repo.get_prices_for_date(today_str)
-            
+
             if not prices:
-                # 如果没有今日价格，使用初始价格
-                current_prices = self.config.get("initial_prices", {
-                    "dried_fish": 6000,
-                    "fish_roe": 12000,
-                    "fish_oil": 9000
-                })
-            else:
-                current_prices = {price.commodity_id: price.price for price in prices}
+                yesterday_str = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+                prices = self.exchange_repo.get_prices_for_date(yesterday_str)
+
+            if not prices:
+                return {
+                    "success": False,
+                    "message": "暂无今日与昨日市场价格，无法执行清仓",
+                }
+
+            current_prices = {price.commodity_id: price.price for price in prices}
             
             # 按商品分组计算详细盈亏
             commodity_summary = {}
@@ -483,19 +486,22 @@ class ExchangeInventoryService:
             if not commodity_items:
                 return {"success": False, "message": f"您没有 {self.commodities[commodity_id]['name']}"}
             
-            # 获取当前市场价格
-            today_str = datetime.now().strftime("%Y-%m-%d")
+            # 获取当前市场价格：先查今日，无则查昨日；仍无则失败
+            today = datetime.now().date()
+            today_str = today.strftime("%Y-%m-%d")
             prices = self.exchange_repo.get_prices_for_date(today_str)
-            
+
             if not prices:
-                # 如果没有今日价格，使用初始价格
-                current_prices = self.config.get("initial_prices", {
-                    "dried_fish": 6000,
-                    "fish_roe": 12000,
-                    "fish_oil": 9000
-                })
-            else:
-                current_prices = {price.commodity_id: price.price for price in prices}
+                yesterday_str = (today - timedelta(days=1)).strftime("%Y-%m-%d")
+                prices = self.exchange_repo.get_prices_for_date(yesterday_str)
+
+            if not prices:
+                return {
+                    "success": False,
+                    "message": "暂无今日与昨日市场价格，无法执行清仓",
+                }
+
+            current_prices = {price.commodity_id: price.price for price in prices}
             current_price = current_prices.get(commodity_id, 0)
             
             # 计算详细盈亏
