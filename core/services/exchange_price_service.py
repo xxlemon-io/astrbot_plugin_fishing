@@ -391,9 +391,8 @@ class ExchangePriceService:
             if end is None:
                 if now_str >= start:
                     return (start, None)
-            else:
-                if start <= now_str < end:
-                    return (start, end)
+            elif start <= now_str < end:
+                return (start, end)
         return None
 
     def update_daily_prices(self):
