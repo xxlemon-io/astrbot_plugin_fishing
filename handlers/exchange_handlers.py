@@ -388,9 +388,12 @@ class ExchangeHandlers:
             # 简易RSI：最近N-1日涨幅与跌幅的比率
             if len(series) < 3:
                 return 50.0
+            window = min(15, len(series) - 1)
+            if window < 1:
+                return 50.0
             gains = 0.0
             losses = 0.0
-            for a, b in zip(series[-15:-1], series[-14:]):
+            for a, b in zip(series[-(window+1):-1], series[-window:]):
                 diff = b - a
                 if diff > 0:
                     gains += diff
