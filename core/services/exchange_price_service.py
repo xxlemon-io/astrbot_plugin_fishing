@@ -35,7 +35,21 @@ class ExchangePriceService:
             prices = self.exchange_repo.get_prices_for_date(today_str)
             
             if not prices:
-                # 如果没有今日价格，返回初始价格
+                # 如果没有今日价格，尝试获取昨日价格
+                yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+                y_prices = self.exchange_repo.get_prices_for_date(yesterday_str)
+                if y_prices:
+                    price_data = {p.commodity_id: p.price for p in y_prices}
+                    return {
+                        "success": True,
+                        "prices": price_data,
+                        "commodities": self.commodities,
+                        "market_sentiment": "neutral",
+                        "price_trend": "stable",
+                        "supply_demand": "平衡",
+                        "date": today_str
+                    }
+                # 昨日也没有则返回初始价格
                 initial_prices = self.config.get("initial_prices", {
                     "dried_fish": 6000,
                     "fish_roe": 12000,
@@ -100,7 +114,8 @@ class ExchangePriceService:
             for update in all_updates:
                 date_obj = datetime.strptime(update['date'], "%Y-%m-%d")
                 time_obj = datetime.strptime(update['time'], "%H:%M:%S")
-                label = f"{date_obj.strftime('%m-%d')} {time_obj.strftime('%H:%M')}"
+                # 统一到秒，避免 "HH:MM:SS" 与 "HH:MM" 的字符串比较问题
+                label = f"{date_obj.strftime('%m-%d')} {time_obj.strftime('%H:%M:%S')}"
                 if label not in labels:
                     labels.append(label)
             
@@ -109,25 +124,37 @@ class ExchangePriceService:
                 history[commodity_id] = []
                 commodity_updates = [u for u in all_updates if u['commodity_id'] == commodity_id]
                 
+                # 为安全起见确保按时间升序（all_updates 已排序，这里等同于稳定过滤）
+                # commodity_updates 已按 all_updates 的顺序排列
+
+                last_known_price: Optional[int] = None  # 跨 label 继承用
+
                 # 为每个标签点找到对应的价格
                 for label in labels:
                     # 找到该时间点之前的最新价格
                     label_time = label.split(' ')[1]  # 提取时间部分
                     label_date = label.split(' ')[0]  # 提取日期部分
                     
-                    # 找到该时间点之前的最新价格
+                    # 找到该时间点之前（含该时刻）的最新价格（同一天）
                     latest_price = None
                     for update in commodity_updates:
                         update_date = datetime.strptime(update['date'], "%Y-%m-%d").strftime('%m-%d')
                         if update_date == label_date and update['time'] <= label_time:
                             latest_price = update['price']
-                    
+                        # 这里不 break，确保拿到“该时刻之前”的最后一条
+
                     if latest_price is not None:
+                        last_known_price = latest_price
                         history[commodity_id].append(latest_price)
                     else:
-                        # 如果没有价格记录，使用初始价格
-                        initial_price = self.config.get("initial_prices", {}).get(commodity_id, 1000)
-                        history[commodity_id].append(initial_price)
+                        # 没有同日早于该时刻的记录，则延续上一个 label 的价格
+                        if last_known_price is not None:
+                            history[commodity_id].append(last_known_price)
+                        else:
+                            # 序列开头仍未知时，才使用初始价格
+                            initial_price = self.config.get("initial_prices", {}).get(commodity_id, 1000)
+                            last_known_price = initial_price
+                            history[commodity_id].append(initial_price)
             
             return {
                 "success": True,
@@ -145,47 +172,53 @@ class ExchangePriceService:
         try:
             logger.info("管理员手动触发价格更新...")
             today_str = datetime.now().strftime("%Y-%m-%d")
+            # 为本次批量更新生成统一的批次时间，确保多商品在同一时间点对齐
+            batch_now = datetime.now()
+            batch_time_str = batch_now.strftime("%H:%M:%S")
+            batch_created_at = batch_now.isoformat()
             
-            # 删除今日现有价格
-            self.exchange_repo.delete_prices_for_date(today_str)
-            logger.info("已删除今日现有价格，准备强制更新")
+            # 先获取“上一次价格”作为基准（优先今日最新，其次昨日，最后初始）
+            base_prices: Dict[str, int] = {}
+            today_prices = self.exchange_repo.get_prices_for_date(today_str)
+            if today_prices:
+                # 取今日各商品的最新一条（按时间升序覆盖即可）
+                for p in sorted(today_prices, key=lambda x: x.time):
+                    base_prices[p.commodity_id] = p.price
+
+            # 对缺失的商品，回退到昨日
+            if len(base_prices) < len(self.commodities):
+                yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+                y_prices = self.exchange_repo.get_prices_for_date(yesterday_str)
+                for p in sorted(y_prices, key=lambda x: x.time):
+                    if p.commodity_id not in base_prices:
+                        base_prices[p.commodity_id] = p.price
+
+            # 仍缺失则使用初始价格
+            if len(base_prices) < len(self.commodities):
+                for commodity_id in self.commodities.keys():
+                    if commodity_id not in base_prices:
+                        base_prices[commodity_id] = self.config.get("initial_prices", {}).get(commodity_id, 1000)
             
-            # 获取当前价格作为基础
-            current_prices = {}
-            for commodity_id in self.commodities.keys():
-                # 尝试获取当前价格
-                prices = self.exchange_repo.get_prices_for_date(today_str)
-                if prices:
-                    for price_obj in prices:
-                        if price_obj.commodity_id == commodity_id:
-                            current_prices[commodity_id] = price_obj.price
-                            break
-                
-                # 如果没有当前价格，使用初始价格
-                if commodity_id not in current_prices:
-                    current_prices[commodity_id] = self.config.get("initial_prices", {}).get(commodity_id, 1000)
-            
-            logger.info(f"基于当前价格更新：{current_prices}")
+            logger.info(f"基于当前价格更新：{base_prices}")
             
             # 计算新价格
             new_prices = {}
             for commodity_id in self.commodities.keys():
-                last_price = current_prices.get(commodity_id, 100)
+                last_price = base_prices.get(commodity_id, 100)
                 new_price = self._calculate_new_price(commodity_id, last_price)
                 new_prices[commodity_id] = new_price
                 
                 # 记录价格变化
                 change_percent = ((new_price - last_price) / last_price) * 100
                 logger.info(f"价格变化 {commodity_id}: {last_price} -> {new_price} ({change_percent:+.2f}%)")
-                
-                now = datetime.now()
+                # 使用统一的批次时间写入，避免同一批次内不同商品 time 不一致
                 self.exchange_repo.add_exchange_price(Exchange(
                     date=today_str,
-                    time=now.strftime("%H:%M:%S"),
+                    time=batch_time_str,
                     commodity_id=commodity_id,
                     price=new_price,
                     update_type="manual",
-                    created_at=now.isoformat()
+                    created_at=batch_created_at
                 ))
             
             logger.info(f"强制价格更新完成，新价格：{new_prices}")
@@ -203,6 +236,10 @@ class ExchangePriceService:
         """重置价格到初始值（管理员）"""
         try:
             today_str = datetime.now().strftime("%Y-%m-%d")
+            # 统一批次时间，确保写入的 time 一致
+            batch_now = datetime.now()
+            batch_time_str = batch_now.strftime("%H:%M:%S")
+            batch_created_at = batch_now.isoformat()
             
             # 删除今日现有价格
             self.exchange_repo.delete_prices_for_date(today_str)
@@ -215,14 +252,13 @@ class ExchangePriceService:
             })
             
             for commodity_id, price in initial_prices.items():
-                now = datetime.now()
                 self.exchange_repo.add_exchange_price(Exchange(
                     date=today_str,
-                    time=now.strftime("%H:%M:%S"),
+                    time=batch_time_str,
                     commodity_id=commodity_id,
                     price=price,
                     update_type="manual",
-                    created_at=now.isoformat()
+                    created_at=batch_created_at
                 ))
             
             return {
@@ -313,9 +349,14 @@ class ExchangePriceService:
                 logger.error("堆栈信息:", exc_info=True)
                 time.sleep(3600)  # 出错后等待1小时再重试
 
+    def _get_update_hours(self) -> List[int]:
+        """获取每天的更新时间点（小时）"""
+        # 如需可配，支持从配置读取：self.config.get("update_hours", [9, 15, 21])
+        return [9, 15, 21]
+
     def _get_next_update_time(self, now: datetime) -> datetime:
         """获取下一个更新时间"""
-        update_times = [9, 15, 21]  # 9点、15点、21点
+        update_times = self._get_update_hours()
         
         for hour in update_times:
             next_update = now.replace(hour=hour, minute=0, second=0, microsecond=0)
@@ -326,34 +367,91 @@ class ExchangePriceService:
         tomorrow = now + timedelta(days=1)
         return tomorrow.replace(hour=update_times[0], minute=0, second=0, microsecond=0)
 
+    def _get_current_update_window(self, now: datetime) -> Optional[tuple[str, Optional[str]]]:
+        """
+        返回当前更新时间窗口 (start_time_str, end_time_str)
+        - 区间为左闭右开 [start, end)
+        - 最后一个窗口 end 为 None，表示到当天结束
+        - 若当前不在任何窗口（如 09:00 前），返回 None
+        """
+        hours = self._get_update_hours()
+        hours_sorted = sorted(hours)
+        now_str = now.strftime("%H:%M:%S")
+
+        # 构造窗口边界字符串
+        starts = [f"{h:02d}:00:00" for h in hours_sorted]
+        # 若当前早于第一个窗口，返回 None（不更新）
+        if now_str < starts[0]:
+            return None
+
+        for i, start in enumerate(starts):
+            # 计算下一个窗口的开始
+            end = starts[i + 1] if i + 1 < len(starts) else None
+            # 判断是否落在 [start, end)
+            if end is None:
+                if now_str >= start:
+                    return (start, None)
+            else:
+                if start <= now_str < end:
+                    return (start, end)
+        return None
+
     def update_daily_prices(self):
         """更新每日价格"""
         try:
             today_str = datetime.now().strftime("%Y-%m-%d")
-            
-            # 检查今日是否已有价格更新
+            now = datetime.now()
+
+            # 确定当前是否处于允许的更新时间窗口
+            window = self._get_current_update_window(now)
+            if window is None:
+                logger.info("当前不在自动更新时间窗口内，跳过自动更新")
+                return
+            window_start, window_end = window
+            # 使用窗口开始时间作为本批次的统一时间戳，确保对齐
+            batch_time_str = window_start
+            batch_created_at = now.isoformat()
+
+            # 检查今日是否已有当前窗口的自动更新
             existing_prices = self.exchange_repo.get_prices_for_date(today_str)
             if existing_prices:
-                # 检查是否已经有今天的自动更新
-                auto_updates = [p for p in existing_prices if p.update_type == "auto"]
-                if auto_updates:
-                    logger.info("今日价格已更新，跳过自动更新")
+                auto_updates_in_window = [
+                    p for p in existing_prices
+                    if p.update_type == "auto"
+                    and p.time >= window_start
+                    and (window_end is None or p.time < window_end)
+                ]
+                if auto_updates_in_window:
+                    logger.info(f"今日在窗口 {window_start} - {window_end or '24:00:00'} 已更新，跳过自动更新")
                     return
             
-            # 获取昨日价格作为基础
-            yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-            last_prices = {p.commodity_id: p.price for p in self.exchange_repo.get_prices_for_date(yesterday_str)}
-            
-            if not last_prices:
-                # 如果没有昨日价格，使用初始价格
-                last_prices = self.config.get("initial_prices", {
+            # 以“上一次价格”为基准：优先取今日最新记录；若无则回退到昨日；再无则初始
+            last_prices: Dict[str, int] = {}
+            # 今日最新
+            if existing_prices:
+                for p in sorted(existing_prices, key=lambda x: x.time):
+                    last_prices[p.commodity_id] = p.price
+
+            # 回退到昨日（仅填补缺失的商品）
+            if len(last_prices) < len(self.commodities):
+                yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+                y_prices = self.exchange_repo.get_prices_for_date(yesterday_str)
+                for p in sorted(y_prices, key=lambda x: x.time):
+                    if p.commodity_id not in last_prices:
+                        last_prices[p.commodity_id] = p.price
+
+            # 最后使用初始价格补齐
+            if len(last_prices) < len(self.commodities):
+                init_prices = self.config.get("initial_prices", {
                     "dried_fish": 6000,
                     "fish_roe": 12000,
                     "fish_oil": 10000
                 })
-                logger.info(f"基于初始价格更新：{last_prices}")
-            else:
-                logger.info(f"基于昨日价格更新：{last_prices}")
+                for commodity_id in self.commodities.keys():
+                    if commodity_id not in last_prices:
+                        last_prices[commodity_id] = init_prices.get(commodity_id, 1000)
+
+            logger.info(f"基于上一次价格更新：{last_prices}")
 
             # 如果没有商品数据，跳过价格更新
             if not self.commodities:
@@ -366,14 +464,13 @@ class ExchangePriceService:
                 new_price = self._calculate_new_price(commodity_id, last_price)
                 new_prices[commodity_id] = new_price
                 
-                now = datetime.now()
                 self.exchange_repo.add_exchange_price(Exchange(
                     date=today_str,
-                    time=now.strftime("%H:%M:%S"),
+                    time=batch_time_str,
                     commodity_id=commodity_id,
                     price=new_price,
                     update_type="auto",
-                    created_at=now.isoformat()
+                    created_at=batch_created_at
                 ))
             
             logger.info(f"价格更新完成，新价格：{new_prices}")
