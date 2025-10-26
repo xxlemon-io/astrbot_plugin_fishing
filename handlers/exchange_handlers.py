@@ -1,5 +1,5 @@
 from astrbot.api.event import AstrMessageEvent
-from typing import Optional, Dict, Any, TYPE_CHECKING
+from typing import Optional, Dict, Any, TYPE_CHECKING, List
 from datetime import datetime
 
 if TYPE_CHECKING:
@@ -202,6 +202,263 @@ class ExchangeHandlers:
                 return None
         return None
 
+    def _sparkline(self, values: List[int]) -> str:
+        """将数值列表转换为简单的 Unicode sparkline。"""
+        if not values:
+            return ""
+        ticks = "▁▂▃▄▅▆▇█"
+        mn, mx = min(values), max(values)
+        if mx == mn:
+            return ticks[0] * len(values)
+        def scale(v: int) -> int:
+            idx = int((v - mn) / (mx - mn) * (len(ticks) - 1))
+            return max(0, min(len(ticks) - 1, idx))
+        return "".join(ticks[scale(v)] for v in values)
+
+    async def _view_price_history(self, event: AstrMessageEvent):
+        """查看价格历史曲线：
+        - 交易所 历史 -> 默认7天，显示所有商品
+        - 交易所 历史 [天数] -> 显示指定天数，所有商品
+        - 交易所 历史 [商品] -> 默认7天，仅该商品
+        - 交易所 历史 [商品] [天数] -> 指定商品与天数
+        """
+        args = event.message_str.split()
+        # 解析参数
+        target_commodity_name: Optional[str] = None
+        days = 7
+        # 支持的商品名映射
+        market_status = self.exchange_service.get_market_status()
+        if not market_status.get("success"):
+            yield event.plain_result(f"❌ 获取市场信息失败: {market_status.get('message','未知错误')}")
+            return
+        name_to_id = {info["name"]: cid for cid, info in market_status.get("commodities", {}).items()}
+
+        # 参数形态判断
+        # 交易所 历史
+        # 交易所 历史 X
+        # 交易所 历史 商品
+        # 交易所 历史 商品 X
+        if len(args) >= 3:
+            p = args[2]
+            # 若是数字，解析为天数
+            if p.isdigit():
+                days = max(1, min(30, int(p)))
+            else:
+                # 解析商品名
+                if p in name_to_id:
+                    target_commodity_name = p
+                else:
+                    # 不是数字也不是商品名——回显帮助
+                    yield event.plain_result(self._get_price_history_help())
+                    return
+                # 若还有第四个参数作为天数
+                if len(args) >= 4 and args[3].isdigit():
+                    days = max(1, min(30, int(args[3])))
+
+        # 获取历史数据
+        hist = self.exchange_service.get_price_history(days=days)
+        if not hist.get("success"):
+            yield event.plain_result(f"❌ 获取历史失败: {hist.get('message','未知错误')}")
+            return
+
+        history: Dict[str, List[int]] = hist.get("history", {})
+        labels: List[str] = hist.get("labels", [])
+
+        # 根据商品过滤
+        if target_commodity_name:
+            cid = name_to_id.get(target_commodity_name)
+            if not cid:
+                yield event.plain_result(f"❌ 找不到商品: {target_commodity_name}")
+                return
+            history = {cid: history.get(cid, [])}
+
+        # 没有任何数据
+        if not history:
+            yield event.plain_result("暂无历史数据。")
+            return
+
+        # 构造输出
+        msg = "【📈 价格历史】\n"
+        msg += f"区间: 近{days}天\n"
+        msg += "═" * 30 + "\n"
+
+        # 反查 id->name
+        id_to_name = {cid: info["name"] for cid, info in market_status.get("commodities", {}).items()}
+
+        for cid, series in history.items():
+            name = id_to_name.get(cid, cid)
+            if not series:
+                continue
+            spark = self._sparkline(series)
+            start = series[0]
+            end = series[-1]
+            change = end - start
+            pct = (change / start * 100) if start > 0 else 0
+            msg += f"{name}: {spark}\n"
+            msg += f"  起始 {start:,} → 当前 {end:,} 变化 {change:+,} ({pct:+.1f}%)\n"
+
+        # 附上少量时间刻度（最多显示首末和中间几个）
+        if labels:
+            picked: List[str] = []
+            if len(labels) <= 5:
+                picked = labels
+            else:
+                idxs = [0, len(labels)//4, len(labels)//2, 3*len(labels)//4, len(labels)-1]
+                seen = set()
+                for i in idxs:
+                    if 0 <= i < len(labels) and i not in seen:
+                        picked.append(labels[i])
+                        seen.add(i)
+            if picked:
+                msg += "─" * 30 + "\n"
+                msg += "时间刻度: " + " | ".join(picked) + "\n"
+
+        msg += "═" * 30 + "\n"
+        msg += "💡 用法：交易所 历史 [商品] [天数]；最多30天。"
+
+        yield event.plain_result(msg)
+
+    async def _view_market_analysis(self, event: AstrMessageEvent):
+        """市场分析：
+        - 交易所 分析 -> 默认分析全部商品，7天窗口
+        - 交易所 分析 [商品] -> 分析单商品，7天窗口
+        - 交易所 分析 [商品] [天数] -> 分析单商品，指定窗口（1-30）
+        - 交易所 分析 [天数] -> 分析全部商品，指定窗口
+        """
+        from math import sqrt
+        args = event.message_str.split()
+        target_commodity_name: Optional[str] = None
+        days = 7
+
+        market_status = self.exchange_service.get_market_status()
+        if not market_status.get("success"):
+            yield event.plain_result(f"❌ 获取市场信息失败: {market_status.get('message','未知错误')}")
+            return
+        commodities = market_status.get("commodities", {})
+        name_to_id = {info["name"]: cid for cid, info in commodities.items()}
+        id_to_name = {cid: info["name"] for cid, info in commodities.items()}
+
+        # 解析参数：可能是（分析）、（分析 X）、（分析 商品）、（分析 商品 X）
+        if len(args) >= 3:
+            p = args[2]
+            if p.isdigit():
+                days = max(1, min(30, int(p)))
+            else:
+                if p in name_to_id:
+                    target_commodity_name = p
+                else:
+                    yield event.plain_result(self._get_market_analysis_help())
+                    return
+                if len(args) >= 4 and args[3].isdigit():
+                    days = max(1, min(30, int(args[3])))
+
+        hist = self.exchange_service.get_price_history(days=days)
+        if not hist.get("success"):
+            yield event.plain_result(f"❌ 获取历史失败: {hist.get('message','未知错误')}")
+            return
+        history: Dict[str, List[int]] = hist.get("history", {})
+
+        # 过滤商品
+        if target_commodity_name:
+            cid = name_to_id.get(target_commodity_name)
+            if not cid:
+                yield event.plain_result(f"❌ 找不到商品: {target_commodity_name}")
+                return
+            history = {cid: history.get(cid, [])}
+
+        if not history:
+            yield event.plain_result("暂无可分析的数据。")
+            return
+
+        def sma(series: List[int], n: int) -> float:
+            if not series or n <= 0:
+                return 0.0
+            n = min(n, len(series))
+            return sum(series[-n:]) / n
+
+        def volatility(series: List[int]) -> float:
+            if len(series) < 2:
+                return 0.0
+            # 简单标准差近似：与均值的偏差
+            m = sum(series) / len(series)
+            var = sum((x - m) ** 2 for x in series) / (len(series) - 1)
+            epsilon = 1e-6
+            denom = m if abs(m) >= epsilon else epsilon
+            return sqrt(var) / denom * 100
+
+        def simple_rsi(series: List[int]) -> float:
+            # 简易RSI：最近N-1日涨幅与跌幅的比率
+            if len(series) < 3:
+                return 50.0
+            window = min(15, len(series) - 1)
+            if window < 1:
+                return 50.0
+            gains = 0.0
+            losses = 0.0
+            for a, b in zip(series[-(window+1):-1], series[-window:]):
+                diff = b - a
+                if diff > 0:
+                    gains += diff
+                elif diff < 0:
+                    losses -= diff
+            if gains + losses == 0:
+                return 50.0
+            rs = gains / max(1e-9, losses)
+            rsi = 100 - (100 / (1 + rs))
+            return max(0.0, min(100.0, rsi))
+
+        def trend(series: List[int]) -> str:
+            MIN_WINDOW = 5
+            if len(series) < MIN_WINDOW:
+                # For very short series, trend is unreliable
+                return "stable"
+            # Use at least MIN_WINDOW or len(series)//3, whichever is larger
+            window = max(MIN_WINDOW, len(series)//3)
+            start_idx = max(0, len(series) - window)
+            start = series[start_idx]
+            end = series[-1]
+            if end > start * 1.02:
+                return "rising"
+            return "falling" if end < start * 0.98 else "stable"
+
+        def suggestion(trend_val: str, rsi_val: float, vol_val: float) -> str:
+            if trend_val == "rising" and rsi_val < 70:
+                return "趋势向上，可考虑顺势少量买入"
+            if trend_val == "falling" and rsi_val > 30:
+                return "趋势向下，谨慎观望或逢反弹减仓"
+            if vol_val > 15:
+                return "波动较大，建议降低仓位控制风险"
+            return "以观望为主，等待更明确信号"
+
+        msg = "【📊 市场分析】\n"
+        msg += f"窗口: 近{days}天\n"
+        msg += "═" * 30 + "\n"
+
+        for cid, series in history.items():
+            if not series:
+                continue
+            name = id_to_name.get(cid, cid)
+            last = series[-1]
+            ma3 = sma(series, 3)
+            ma5 = sma(series, 5)
+            ma7 = sma(series, 7)
+            vol = volatility(series)
+            rsi = simple_rsi(series)
+            tr = trend(series)
+            sug = suggestion(tr, rsi, vol)
+
+            msg += f"{name}\n"
+            msg += f"  当前价: {last:,}\n"
+            msg += f"  均线: MA3={ma3:.0f}  MA5={ma5:.0f}  MA7={ma7:.0f}\n"
+            msg += f"  波动率: {vol:.1f}%  RSI: {rsi:.0f}\n"
+            msg += f"  趋势: {tr}  建议: {sug}\n"
+            msg += "─" * 20 + "\n"
+
+        msg += "💡 提示：指标仅供参考，注意风险控制。\n"
+        msg += "用法: 交易所 分析 [商品] [天数]"
+
+        yield event.plain_result(msg)
+
     async def exchange_main(self, event: AstrMessageEvent):
         """交易所主命令，根据参数分发到不同功能"""
         args = event.message_str.split()
@@ -224,9 +481,9 @@ class ExchangeHandlers:
             elif command in ["帮助", "help"]:
                 yield event.plain_result(self._get_exchange_help())
             elif command in ["历史", "history"]:
-                yield event.plain_result(self._get_price_history_help())
+                yield event.plain_result(self._view_price_history(event))
             elif command in ["分析", "analysis"]:
-                yield event.plain_result(self._get_market_analysis_help())
+                yield event.plain_result(self._view_market_analysis(event))
             elif command in ["统计", "stats"]:
                 yield event.plain_result(self._get_trading_stats_help())
             else:
