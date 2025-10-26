@@ -521,7 +521,7 @@ class MarketService:
 
     def delist_item(self, user_id: str, market_id: int) -> Dict[str, Any]:
         """
-        用户下架自己的商品，并返还上架手续费。
+        用户下架自己的商品。
         """
         user = self.user_repo.get_by_id(user_id)
         if not user:
@@ -534,28 +534,18 @@ class MarketService:
         if listing.user_id != user_id:
             return {"success": False, "message": "你只能下架自己的商品"}
 
-        # 1. 计算并返还上架手续费
-        tax_rate = self.config.get("market", {}).get("listing_tax_rate", 0.02)
-        tax_refund = int(listing.price * tax_rate)
-        
-        user.coins += tax_refund
-        self.user_repo.update(user)
-
-        # 2. 将物品返还给用户
+        # 将物品返还给用户
         try:
             self._return_listing_to_seller(listing)
             self.market_repo.remove_listing(market_id)
 
-            refund_message = f"，并退还手续费 {tax_refund} 金币" if tax_refund > 0 else ""
             quantity_text = f" x{listing.quantity}" if listing.quantity > 1 else ""
 
-            return {"success": True, "message": f"✅ 成功下架【{listing.item_name}】{quantity_text}，物品已返还到背包/水族箱{refund_message}"}
+            return {"success": True, "message": f"✅ 成功下架【{listing.item_name}】{quantity_text}，物品已返还到背包/水族箱"}
 
         except Exception as e:
-            user.coins -= tax_refund # 回滚金币
-            self.user_repo.update(user)
             logger.error(f"下架物品时发生错误: {e}")
-            return {"success": False, "message": f"下架失败，已回滚操作: {str(e)}"}
+            return {"success": False, "message": f"下架失败: {str(e)}"}
 
     def get_user_listings(self, user_id: str) -> Dict[str, Any]:
         """
