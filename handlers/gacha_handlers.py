@@ -149,6 +149,24 @@ async def multi_ten_gacha(self: "FishingPlugin", event: AstrMessageEvent, pool_i
     """多次十连抽卡，使用合并统计"""
     user_id = self._get_effective_user_id(event)
     
+    # 获取卡池信息以计算消耗
+    pool = self.gacha_service.gacha_repo.get_pool_by_id(pool_id)
+    if not pool:
+        yield event.plain_result("❌ 卡池不存在")
+        return
+    
+    # 计算总消耗
+    use_premium_currency = (getattr(pool, "cost_premium_currency", 0) or 0) > 0
+    total_draws = times * 10  # 每次十连是10次抽卡
+    if use_premium_currency:
+        total_cost = (pool.cost_premium_currency or 0) * total_draws
+        cost_type = "高级货币"
+        cost_unit = "点"
+    else:
+        total_cost = (pool.cost_coins or 0) * total_draws
+        cost_type = "金币"
+        cost_unit = ""
+    
     # 统计信息
     total_items = 0
     item_counts = {}  # 物品名称 -> 数量
@@ -190,6 +208,10 @@ async def multi_ten_gacha(self: "FishingPlugin", event: AstrMessageEvent, pool_i
     
     # 生成合并统计报告
     message = f"🎉 {times}次十连抽卡完成！共获得 {total_items} 件物品：\n\n"
+    
+    # 消耗统计
+    message += f"【💰 消耗统计】\n"
+    message += f"消耗{cost_type}：{total_cost:,}{cost_unit}\n\n"
     
     # 稀有度统计
     message += "【📊 稀有度统计】\n"
