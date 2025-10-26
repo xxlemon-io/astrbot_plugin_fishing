@@ -63,7 +63,9 @@ async def gacha(self: "FishingPlugin", event: AstrMessageEvent):
         # 添加卡池详细信息
         message += "【📋 卡池详情】使用「查看卡池 ID」命令查看详细物品概率\n"
         message += "【🎲 抽卡命令】使用「抽卡 ID」命令选择抽卡池进行单次抽卡\n"
-        message += "【🎯 十连命令】使用「十连 ID」命令进行十连抽卡"
+        message += "【🎯 十连命令】使用「十连 ID [次数]」命令进行十连抽卡\n"
+        message += "   - 单次十连：/十连 1\n"
+        message += "   - 多次十连：/十连 1 5 (进行5次十连，合并统计)"
         yield event.plain_result(message)
         return
     pool_id = args[1]
@@ -96,11 +98,35 @@ async def ten_gacha(self: "FishingPlugin", event: AstrMessageEvent):
     if len(args) < 2:
         yield event.plain_result("❌ 请指定要进行十连抽卡的抽奖池 ID，例如：/十连 1")
         return
+    
+    # 检查是否有次数参数
+    times = 1
+    if len(args) >= 3:
+        if args[2].isdigit():
+            times = int(args[2])
+            if times <= 0:
+                yield event.plain_result("❌ 抽卡次数必须大于0")
+                return
+            if times > 100:
+                yield event.plain_result("❌ 单次最多只能进行100次十连抽卡")
+                return
+        else:
+            yield event.plain_result("❌ 抽卡次数必须是数字")
+            return
+    
     pool_id = args[1]
     if not pool_id.isdigit():
         yield event.plain_result("❌ 抽奖池 ID 必须是数字，请检查后重试。")
         return
     pool_id = int(pool_id)
+    
+    # 如果是多次十连，使用合并统计功能
+    if times > 1:
+        async for result in multi_ten_gacha(self, event, pool_id, times):
+            yield result
+        return
+    
+    # 单次十连抽卡
     if result := self.gacha_service.perform_draw(user_id, pool_id, num_draws=10):
         if result["success"]:
             items = result.get("results", [])
@@ -117,6 +143,75 @@ async def ten_gacha(self: "FishingPlugin", event: AstrMessageEvent):
             yield event.plain_result(f"❌ 抽卡失败：{result['message']}")
     else:
         yield event.plain_result("❌ 出错啦！请稍后再试。")
+
+
+async def multi_ten_gacha(self: "FishingPlugin", event: AstrMessageEvent, pool_id: int, times: int):
+    """多次十连抽卡，使用合并统计"""
+    user_id = self._get_effective_user_id(event)
+    
+    # 统计信息
+    total_items = 0
+    item_counts = {}  # 物品名称 -> 数量
+    rarity_counts = {i: 0 for i in range(1, 11)}  # 稀有度统计，支持1-10星
+    coin_total = 0
+    
+    # 执行多次十连抽卡
+    for i in range(times):
+        if result := self.gacha_service.perform_draw(user_id, pool_id, num_draws=10):
+            if result["success"]:
+                items = result.get("results", [])
+                total_items += len(items)
+                
+                for item in items:
+                    if item.get("type") == "coins":
+                        coin_total += item['quantity']
+                    else:
+                        item_name = item['name']
+                        rarity = item.get('rarity', 1)
+                        
+                        # 统计物品数量
+                        if item_name in item_counts:
+                            item_counts[item_name] += 1
+                        else:
+                            item_counts[item_name] = 1
+                        
+                        # 统计稀有度
+                        if rarity in rarity_counts:
+                            rarity_counts[rarity] += 1
+                        elif rarity > 10:
+                            # 超过10星的物品归类到10星
+                            rarity_counts[10] += 1
+            else:
+                yield event.plain_result(f"❌ 第{i+1}次十连抽卡失败：{result['message']}")
+                return
+        else:
+            yield event.plain_result(f"❌ 第{i+1}次十连抽卡出错！")
+            return
+    
+    # 生成合并统计报告
+    message = f"🎉 {times}次十连抽卡完成！共获得 {total_items} 件物品：\n\n"
+    
+    # 稀有度统计
+    message += "【📊 稀有度统计】\n"
+    for rarity in [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]:  # 从高到低显示
+        count = rarity_counts[rarity]
+        if count > 0:
+            stars = "⭐" * rarity
+            message += f"{stars} {count} 件\n"
+    
+    # 金币统计
+    if coin_total > 0:
+        message += f"\n💰 金币总计：{coin_total}\n"
+    
+    # 物品统计（按稀有度排序）
+    if item_counts:
+        message += "\n【🎁 物品详情】\n"
+        # 按物品名称排序
+        sorted_items = sorted(item_counts.items())
+        for item_name, count in sorted_items:
+            message += f"{item_name} × {count}\n"
+    
+    yield event.plain_result(message)
 
 
 async def view_gacha_pool(self: "FishingPlugin", event: AstrMessageEvent):
