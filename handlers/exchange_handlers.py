@@ -481,9 +481,11 @@ class ExchangeHandlers:
             elif command in ["帮助", "help"]:
                 yield event.plain_result(self._get_exchange_help())
             elif command in ["历史", "history"]:
-                yield event.plain_result(self._view_price_history(event))
+                async for r in self._view_price_history(event):
+                    yield r
             elif command in ["分析", "analysis"]:
-                yield event.plain_result(self._view_market_analysis(event))
+                async for r in self._view_market_analysis(event):
+                    yield r
             elif command in ["统计", "stats"]:
                 yield event.plain_result(self._get_trading_stats_help())
             else:
