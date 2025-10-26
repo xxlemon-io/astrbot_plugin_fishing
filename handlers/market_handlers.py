@@ -757,15 +757,15 @@ async def list_any(
         )
     elif token.startswith("F"):
         try:
-            # 解析鱼类ID，支持品质标识（F3H = 高品质，F3 = 普通品质）
+            # 解析鱼类ID，支持品质标识（F3H = ✨高品质，F3 = 普通品质）
             quality_level = 0  # 默认普通品质
             if token.endswith("H"):
-                quality_level = 1  # 高品质
+                quality_level = 1  # ✨高品质
                 fish_id = int(token[1:-1])  # 去掉F前缀和H后缀
             else:
                 fish_id = int(token[1:])  # 去掉F前缀
         except Exception:
-            yield event.plain_result("❌ 无效的鱼类ID，请检查后重试。\n💡 支持格式：F3（普通品质）、F3H（高品质）")
+            yield event.plain_result("❌ 无效的鱼类ID，请检查后重试。\n💡 支持格式：F3（普通品质）、F3H（✨高品质）")
             return
         result = plugin.market_service.put_item_on_sale(
             user_id,

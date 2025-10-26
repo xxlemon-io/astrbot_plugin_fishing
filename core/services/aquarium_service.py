@@ -40,7 +40,7 @@ class AquariumService:
                     "quantity": item.quantity,
                     "quality_level": item.quality_level,  # 添加品质等级
                     "actual_value": actual_value,  # 添加实际价值
-                    "quality_label": "高品质" if item.quality_level == 1 else "普通",  # 添加品质标签
+                    "quality_label": "✨高品质" if item.quality_level == 1 else "普通",  # 添加品质标签
                     "added_at": item.added_at
                 })
 
@@ -79,14 +79,14 @@ class AquariumService:
         fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
         fish_item = next((item for item in fish_inventory if item.fish_id == fish_id and item.quality_level == quality_level), None)
         if not fish_item or fish_item.quantity < quantity:
-            quality_label = "高品质" if quality_level == 1 else "普通"
+            quality_label = "✨高品质" if quality_level == 1 else "普通"
             return {"success": False, "message": f"鱼塘中没有足够的{quality_label}{fish_template.name}"}
 
         # 从鱼塘移除鱼，添加到水族箱（保持品质）
         self.inventory_repo.update_fish_quantity(user_id, fish_id, -quantity, quality_level)
         self.inventory_repo.add_fish_to_aquarium(user_id, fish_id, quantity, quality_level)
 
-        quality_label = "高品质" if quality_level == 1 else "普通"
+        quality_label = "✨高品质" if quality_level == 1 else "普通"
         return {
             "success": True, 
             "message": f"成功将 {quality_label}{fish_template.name} x{quantity} 放入水族箱！"
@@ -108,14 +108,14 @@ class AquariumService:
         aquarium_items = self.inventory_repo.get_aquarium_inventory(user_id)
         fish_item = next((item for item in aquarium_items if item.fish_id == fish_id and item.quality_level == quality_level), None)
         if not fish_item or fish_item.quantity < quantity:
-            quality_label = "高品质" if quality_level == 1 else "普通"
+            quality_label = "✨高品质" if quality_level == 1 else "普通"
             return {"success": False, "message": f"水族箱中没有足够的{quality_label}{fish_template.name}"}
 
         # 从水族箱移除鱼，添加到鱼塘（保持品质）
         self.inventory_repo.remove_fish_from_aquarium(user_id, fish_id, quantity, quality_level)
         self.inventory_repo.add_fish_to_inventory(user_id, fish_id, quantity, quality_level)
 
-        quality_label = "高品质" if quality_level == 1 else "普通"
+        quality_label = "✨高品质" if quality_level == 1 else "普通"
         return {
             "success": True, 
             "message": f"成功将 {quality_label}{fish_template.name} x{quantity} 从水族箱移回鱼塘！"

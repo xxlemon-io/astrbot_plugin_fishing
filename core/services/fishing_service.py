@@ -455,7 +455,7 @@ class FishingService:
                 "weight": weight,
                 "value": value * 2 if quality_level == 1 else value,  # 高品质鱼双倍价值
                 "quality_level": quality_level,  # 添加品质等级
-                "quality_label": "高品质" if quality_level == 1 else "普通"  # 添加品质标签
+                "quality_label": "✨高品质" if quality_level == 1 else "普通"  # 添加品质标签
             }
         }
         

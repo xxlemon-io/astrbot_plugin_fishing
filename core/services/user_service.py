@@ -495,7 +495,7 @@ class UserService:
                         "quantity": item.quantity,
                         "quality_level": item.quality_level,  # 添加品质等级
                         "actual_value": actual_value,  # 添加实际价值
-                        "quality_label": "高品质" if item.quality_level == 1 else "普通",  # 添加品质标签
+                        "quality_label": "✨高品质" if item.quality_level == 1 else "普通",  # 添加品质标签
                         "total_value": actual_value * item.quantity  # 使用实际价值计算总价值
                     })
             
@@ -618,7 +618,7 @@ class UserService:
                 if not fish_template:
                     return {"success": False, "message": "鱼类不存在"}
                 self.inventory_repo.add_fish_to_inventory(user_id, item_id, quantity, quality_level)
-                quality_label = "高品质" if quality_level == 1 else "普通"
+                quality_label = "✨高品质" if quality_level == 1 else "普通"
                 return {"success": True, "message": f"成功添加 {quality_label}{fish_template.name} x{quantity}"}
                 
             elif item_type == "rod":

@@ -99,7 +99,7 @@ class InventoryService:
                     "quantity": item.quantity,
                     "quality_level": item.quality_level,  # 添加品质等级
                     "actual_value": actual_value,  # 添加实际价值
-                    "quality_label": "高品质" if item.quality_level == 1 else "普通"  # 添加品质标签
+                    "quality_label": "✨高品质" if item.quality_level == 1 else "普通"  # 添加品质标签
                 })
 
         return {
@@ -260,7 +260,7 @@ class InventoryService:
         
         # 计算总价值（高品质鱼双倍价值）
         total_value = 0
-        sold_details = {"普通": 0, "高品质": 0}
+        sold_details = {"普通": 0, "✨高品质": 0}
         
         for item in fish_inventory:
             fish_template = self.item_template_repo.get_fish_by_id(item.fish_id)
@@ -270,7 +270,7 @@ class InventoryService:
                 total_value += item_value
                 
                 if item.quality_level == 1:
-                    sold_details["高品质"] += item.quantity
+                    sold_details["✨高品质"] += item.quantity
                 else:
                     sold_details["普通"] += item.quantity
         
@@ -287,8 +287,8 @@ class InventoryService:
 
         # 构建详细消息
         message = f"💰 成功卖出鱼，获得 {sold_value} 金币"
-        if sold_details["高品质"] > 0:
-            message += f"\n📊 出售详情：普通鱼 {sold_details['普通']} 条，高品质鱼 {sold_details['高品质']} 条"
+        if sold_details["✨高品质"] > 0:
+            message += f"\n📊 出售详情：普通鱼 {sold_details['普通']} 条，✨高品质鱼 {sold_details['✨高品质']} 条"
 
         return {"success": True, "message": message}
 
@@ -307,7 +307,7 @@ class InventoryService:
         # 获取用户的鱼库存
         fish_inventory = self.inventory_repo.get_fish_inventory(user_id)
         total_value = 0
-        sold_details = {"普通": 0, "高品质": 0}
+        sold_details = {"普通": 0, "✨高品质": 0}
 
         for item in fish_inventory:
             fish_id = item.fish_id
@@ -318,7 +318,7 @@ class InventoryService:
                 total_value += item_value
                 
                 if item.quality_level == 1:
-                    sold_details["高品质"] += item.quantity
+                    sold_details["✨高品质"] += item.quantity
                 else:
                     sold_details["普通"] += item.quantity
                 
@@ -335,8 +335,8 @@ class InventoryService:
 
         # 构建详细消息
         message = f"💰 成功卖出稀有度 {rarity} 的鱼，获得 {total_value} 金币"
-        if sold_details["高品质"] > 0:
-            message += f"\n📊 出售详情：普通鱼 {sold_details['普通']} 条，高品质鱼 {sold_details['高品质']} 条"
+        if sold_details["✨高品质"] > 0:
+            message += f"\n📊 出售详情：普通鱼 {sold_details['普通']} 条，✨高品质鱼 {sold_details['✨高品质']} 条"
 
         return {"success": True, "message": message}
 
@@ -409,7 +409,7 @@ class InventoryService:
             details = sold_fish_details[r]
             quality_info = ""
             if details['high_quality'] > 0:
-                quality_info = f"（普通 {details['normal']} 条，高品质 {details['high_quality']} 条）"
+                quality_info = f"（普通 {details['normal']} 条，✨高品质 {details['high_quality']} 条）"
             message += f" - 稀有度 {r}: {details['count']} 条{quality_info}，价值 {details['value']} 金币\n"
 
         return {"success": True, "message": message, "gained_coins": total_value}

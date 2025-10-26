@@ -165,7 +165,7 @@ class MarketService:
         fish_item = next((item for item in fish_inventory if item.fish_id == item_instance_id and item.quality_level == quality_level), None)
         
         if not fish_item or fish_item.quantity < quantity:
-            quality_label = "高品质" if quality_level == 1 else "普通"
+            quality_label = "✨高品质" if quality_level == 1 else "普通"
             available_quantity = fish_item.quantity if fish_item else 0
             return {"success": False, "message": f"{quality_label}鱼类数量不足，当前有 {available_quantity} 条，需要 {quantity} 条"}
         

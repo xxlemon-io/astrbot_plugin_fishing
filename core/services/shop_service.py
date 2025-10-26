@@ -467,7 +467,7 @@ class ShopService:
                     if available_qty < need_qty:
                         fish_tpl = self.item_template_repo.get_fish_by_id(fish_id)
                         name = fish_tpl.name if fish_tpl else str(fish_id)
-                        quality_label = "高品质" if quality_level == 1 else "普通"
+                        quality_label = "✨高品质" if quality_level == 1 else "普通"
                         return {"success": False, "message": f"{quality_label}鱼类不足：{name} x{need_qty}（当前有 {available_qty} 条）"}
         
         # 检查鱼竿（排除上锁和装备中的）

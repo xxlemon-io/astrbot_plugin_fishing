@@ -704,7 +704,7 @@ class GameMechanicsService:
         quality_info = ""
         actual_value = stolen_fish_template.base_value
         if stolen_fish_item.quality_level == 1:
-            quality_info = "（高品质）"
+            quality_info = "（✨高品质）"
             actual_value = stolen_fish_template.base_value * 2
         
         return {

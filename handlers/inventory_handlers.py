@@ -66,7 +66,7 @@ async def pond(plugin: "FishingPlugin", event: AstrMessageEvent):
                     quality_level = fish.get('quality_level', 0)
                     # 生成带品质标识的FID
                     if quality_level == 1:
-                        fcode = f"F{fish_id}H" if fish_id else "F0H"  # H代表高品质
+                        fcode = f"F{fish_id}H" if fish_id else "F0H"  # H代表✨高品质
                     else:
                         fcode = f"F{fish_id}" if fish_id else "F0"   # 普通品质
                     # 显示品质信息
@@ -139,7 +139,7 @@ async def peek_pond(plugin: "FishingPlugin", event: AstrMessageEvent):
                     quality_level = fish.get('quality_level', 0)
                     # 生成带品质标识的FID
                     if quality_level == 1:
-                        fcode = f"F{fish_id}H" if fish_id else "F0H"  # H代表高品质
+                        fcode = f"F{fish_id}H" if fish_id else "F0H"  # H代表✨高品质
                     else:
                         fcode = f"F{fish_id}" if fish_id else "F0"   # 普通品质
                     # 显示品质信息
