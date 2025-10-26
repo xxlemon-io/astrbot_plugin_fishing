@@ -1,7 +1,7 @@
 import random
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
 from typing import Dict, List, Any, Optional
 
 from astrbot.api import logger
@@ -16,6 +16,7 @@ class ExchangePriceService:
     def __init__(self, exchange_repo: AbstractExchangeRepository, config: Dict[str, Any]):
         self.exchange_repo = exchange_repo
         self.config = config.get("exchange", {})
+        self._update_schedule = self._parse_update_schedule(self.config.get("update_timing"))
         
         # 商品定义
         self.commodities = {
@@ -349,23 +350,72 @@ class ExchangePriceService:
                 logger.error("堆栈信息:", exc_info=True)
                 time.sleep(3600)  # 出错后等待1小时再重试
 
-    def _get_update_hours(self) -> List[int]:
-        """获取每天的更新时间点（小时）"""
-        # 如需可配，支持从配置读取：self.config.get("update_hours", [9, 15, 21])
-        return [9, 15, 21]
+    def _parse_update_schedule(self, value: Any) -> List[dt_time]:
+        """Parse update_timing config into a sorted list of time objects."""
+        candidates: List[str] = []
+        if isinstance(value, str):
+            normalized = value.replace("、", ",")
+            normalized = normalized.replace("，", ",")
+            candidates = [part.strip() for part in normalized.split(",") if part.strip()]
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                if item is None:
+                    continue
+                for sub_part in str(item).replace("、", ",").split(","):
+                    sub_part = sub_part.strip()
+                    if sub_part:
+                        candidates.append(sub_part)
+
+        parsed: List[dt_time] = []
+        for candidate in candidates:
+            try:
+                parsed_time = datetime.strptime(candidate, "%H:%M").time()
+            except ValueError:
+                try:
+                    parsed_time = datetime.strptime(candidate, "%H").time()
+                except ValueError:
+                    logger.warning(f"Invalid update_timing entry skipped: {candidate}")
+                    continue
+            parsed.append(parsed_time.replace(second=0, microsecond=0))
+
+        if not parsed:
+            return [dt_time(hour=9), dt_time(hour=15), dt_time(hour=21)]
+
+        unique_sorted = sorted({(t.hour, t.minute) for t in parsed})
+        return [dt_time(hour=hour, minute=minute) for hour, minute in unique_sorted]
+
+    def get_update_schedule(self) -> List[dt_time]:
+        """Expose configured update schedule as datetime.time objects."""
+        return list(self._update_schedule)
+
+    def _get_update_times(self) -> List[dt_time]:
+        if not self._update_schedule:
+            self._update_schedule = [dt_time(hour=9), dt_time(hour=15), dt_time(hour=21)]
+        return self._update_schedule
 
     def _get_next_update_time(self, now: datetime) -> datetime:
         """获取下一个更新时间"""
-        update_times = self._get_update_hours()
-        
-        for hour in update_times:
-            next_update = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+        update_times = self._get_update_times()
+
+        for scheduled_time in update_times:
+            next_update = now.replace(
+                hour=scheduled_time.hour,
+                minute=scheduled_time.minute,
+                second=0,
+                microsecond=0,
+            )
             if next_update > now:
                 return next_update
         
         # 如果今天的所有更新时间都过了，返回明天的第一个更新时间
         tomorrow = now + timedelta(days=1)
-        return tomorrow.replace(hour=update_times[0], minute=0, second=0, microsecond=0)
+        first_time = update_times[0]
+        return tomorrow.replace(
+            hour=first_time.hour,
+            minute=first_time.minute,
+            second=0,
+            microsecond=0,
+        )
 
     def _get_current_update_window(self, now: datetime) -> Optional[tuple[str, Optional[str]]]:
         """
@@ -374,14 +424,15 @@ class ExchangePriceService:
         - 最后一个窗口 end 为 None，表示到当天结束
         - 若当前不在任何窗口（如 09:00 前），返回 None
         """
-        hours = self._get_update_hours()
-        hours_sorted = sorted(hours)
-        now_str = now.strftime("%H:%M:%S")
+        update_times = self._get_update_times()
+        if not update_times:
+            return None
 
-        # 构造窗口边界字符串
-        starts = [f"{h:02d}:00:00" for h in hours_sorted]
+        starts = [t for t in sorted(update_times)]
+        now_time = now.time()
+
         # 若当前早于第一个窗口，返回 None（不更新）
-        if now_str < starts[0]:
+        if now_time < starts[0]:
             return None
 
         for i, start in enumerate(starts):
@@ -389,10 +440,10 @@ class ExchangePriceService:
             end = starts[i + 1] if i + 1 < len(starts) else None
             # 判断是否落在 [start, end)
             if end is None:
-                if now_str >= start:
-                    return (start, None)
-            elif start <= now_str < end:
-                return (start, end)
+                if now_time >= start:
+                    return (start.strftime("%H:%M:%S"), None)
+            elif start <= now_time < end:
+                return (start.strftime("%H:%M:%S"), end.strftime("%H:%M:%S"))
         return None
 
     def update_daily_prices(self):
