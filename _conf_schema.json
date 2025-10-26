@@ -208,6 +208,11 @@
     "description": "交易所配置",
     "type": "object",
     "items": {
+      "update_timing": {
+        "type": "string",
+        "default": "9:00, 15:00, 21:00",
+        "description": "交易所每日价格更新的时间点，格式为HH:MM（24小时制）"
+      },
       "account_fee": {
         "type": "int",
         "default": 100000,

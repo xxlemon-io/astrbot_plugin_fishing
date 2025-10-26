@@ -1,6 +1,6 @@
 from astrbot.api.event import AstrMessageEvent
 from typing import Optional, Dict, Any, TYPE_CHECKING, List
-from datetime import datetime
+from datetime import datetime, timedelta
 
 if TYPE_CHECKING:
     from ..main import FishingPlugin
@@ -37,6 +37,13 @@ class ExchangeHandlers:
             "sideways": "↔️",
         }
         return trend_map.get(trend.lower(), "❓")
+
+    def _get_formatted_update_schedule(self) -> str:
+        """获取格式化的价格更新时间描述"""
+        schedule = self.exchange_service.price_service.get_update_schedule()
+        if not schedule:
+            return "未配置"
+        return "、".join(t.strftime("%H:%M") for t in schedule)
 
     def _get_price_history_help(self) -> str:
         """获取价格历史帮助信息"""
@@ -495,7 +502,8 @@ class ExchangeHandlers:
 
     def _get_exchange_help(self) -> str:
         """获取交易所帮助信息"""
-        return """【📈 交易所帮助】
+        schedule_display = self._get_formatted_update_schedule()
+        return f"""【📈 交易所帮助】
 ══════════════════════════════
 📊 市场信息
 • 交易所: 查看市场状态和价格
@@ -524,7 +532,7 @@ class ExchangeHandlers:
 • /风险: 查看风险评估
 
 ⏰ 时间信息
-• 价格更新: 每日9:00、15:00、21:00
+• 价格更新: 每日{schedule_display}
 • 商品保质期: 鱼干3天、鱼卵2天、鱼油1-3天
 • 交易时间: 24小时开放
 
@@ -536,7 +544,7 @@ class ExchangeHandlers:
 
 ══════════════════════════════
 💬 使用【交易所 帮助 [分类]】查看详细说明
-        """
+    """
 
     async def exchange_status(self, event: AstrMessageEvent):
         """查看交易所当前状态"""
@@ -600,8 +608,8 @@ class ExchangeHandlers:
                     msg += f"价格: {price:,} 金币"
 
                     # 计算涨跌幅
-                    if comm_id in historical_prices:
-                        prev_price = historical_prices[comm_id]
+                    if comm_id in previous_prices:
+                        prev_price = previous_prices[comm_id]
                         change = price - prev_price
                         change_percent = (
                             (change / prev_price) * 100 if prev_price > 0 else 0
@@ -659,14 +667,28 @@ class ExchangeHandlers:
                 msg += f"📦 当前持仓: 无法获取 / {capacity}\n"
 
             # 显示下次更新时间
-            next_update_times = [9, 15, 21]  # 9点、15点、21点
+            schedule = self.exchange_service.price_service.get_update_schedule()
             now = datetime.now()
             next_update = None
-            for hour in next_update_times:
-                update_time = now.replace(hour=hour, minute=0, second=0, microsecond=0)
+            for scheduled_time in schedule:
+                update_time = now.replace(
+                    hour=scheduled_time.hour,
+                    minute=scheduled_time.minute,
+                    second=0,
+                    microsecond=0,
+                )
                 if update_time > now:
                     next_update = update_time
                     break
+
+            if not next_update and schedule:
+                first_time = schedule[0]
+                next_update = (now + timedelta(days=1)).replace(
+                    hour=first_time.hour,
+                    minute=first_time.minute,
+                    second=0,
+                    microsecond=0,
+                )
 
             if next_update:
                 time_diff = next_update - now
@@ -674,7 +696,7 @@ class ExchangeHandlers:
                 minutes = int((time_diff.total_seconds() % 3600) // 60)
                 msg += f"⏰ 下次更新: {next_update.strftime('%H:%M')} (约{hours}小时{minutes}分钟后)\n"
             else:
-                msg += "⏰ 下次更新: 明日 09:00\n"
+                msg += "⏰ 下次更新: 未配置\n"
 
             msg += "═" * 30 + "\n"
             msg += "💡 使用【交易所 帮助】查看更多命令。"
