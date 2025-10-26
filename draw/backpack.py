@@ -99,15 +99,24 @@ async def draw_backpack_image(user_data: Dict[str, Any], data_dir: str) -> Image
             - accessories: 饰品列表
             - baits: 鱼饵列表
             - items: 道具列表
+            - is_truncated: 是否被截断
     
     Returns:
         PIL.Image.Image: 生成的背包图像
     """
     import asyncio
     
-    # 设置超时时间为30秒
+    # 计算物品总数
+    total_items = (len(user_data.get('rods', [])) + 
+                   len(user_data.get('accessories', [])) + 
+                   len(user_data.get('baits', [])) + 
+                   len(user_data.get('items', [])))
+    
+    # 如果物品数量过多，使用更短的超时时间
+    timeout = 20.0 if total_items > 100 else 30.0
+    
     try:
-        return await asyncio.wait_for(_draw_backpack_image_impl(user_data, data_dir), timeout=30.0)
+        return await asyncio.wait_for(_draw_backpack_image_impl(user_data, data_dir), timeout=timeout)
     except asyncio.TimeoutError:
         # 超时时返回简化版本
         return _create_fallback_image(user_data)
@@ -320,12 +329,13 @@ async def _draw_backpack_image_impl(user_data: Dict[str, Any], data_dir: str) ->
     draw.text((col1_x, row1_y), nickname_text, font=subtitle_font, fill=primary_medium)
     
     # 统计信息 + 装备总价值（用户名下方横向排布）
-    rods_count = len(user_data.get('rods', []))
-    accessories_count = len(user_data.get('accessories', []))
-    baits_count = len(user_data.get('baits', []))
-    items_count = len(user_data.get('items', []))
+    # 使用实际总数而非显示数量
+    rods_count = user_data.get('total_rods', len(user_data.get('rods', [])))
+    accessories_count = user_data.get('total_accessories', len(user_data.get('accessories', [])))
+    baits_count = user_data.get('total_baits', len(user_data.get('baits', [])))
+    items_count = user_data.get('total_items', len(user_data.get('items', [])))
     
-    # 计算总价值（简化估算）
+    # 计算总价值（基于显示的物品）
     total_value = 0
     for rod in user_data.get('rods', []):
         rarity = rod.get('rarity', 1)
@@ -792,8 +802,28 @@ async def _draw_backpack_image_impl(user_data: Dict[str, Any], data_dir: str) ->
 
     current_y += 20
 
-    # 6. 底部信息 - 显示生成时间
+    # 6. 底部信息 - 显示生成时间和截断提示
     ensure_height(height - 10)
+    
+    # 如果内容被截断或过滤，显示提示信息
+    if user_data.get('is_truncated', False):
+        filter_parts = []
+        if user_data.get('rods_filtered', False):
+            filter_parts.append(f"鱼竿:仅显示5星以上({user_data.get('displayed_rods', 0)}/{user_data.get('total_rods', 0)})")
+        if user_data.get('accessories_filtered', False):
+            filter_parts.append(f"饰品:仅显示5星以上({user_data.get('displayed_accessories', 0)}/{user_data.get('total_accessories', 0)})")
+        
+        if filter_parts:
+            warning_text = f"⚠️ 物品过多已智能过滤 | {' | '.join(filter_parts)}"
+        else:
+            warning_text = "⚠️ 物品过多，仅显示部分内容！"
+        
+        warning_text += " | 建议及时清理背包"
+        warning_w, warning_h = get_text_size(warning_text, small_font)
+        warning_x = (width - warning_w) // 2
+        draw.text((warning_x, current_y), warning_text, font=small_font, fill=warning_color)
+        current_y += warning_h + 10
+    
     footer_text = f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     footer_w, footer_h = get_text_size(footer_text, small_font)
     footer_x = (width - footer_w) // 2
@@ -824,40 +854,96 @@ async def _draw_backpack_image_impl(user_data: Dict[str, Any], data_dir: str) ->
     return image
 
 
-def get_user_backpack_data(inventory_service, user_id: str) -> Dict[str, Any]:
+def get_user_backpack_data(inventory_service, user_id: str, max_items_per_category: int = 50) -> Dict[str, Any]:
     """
-    获取用户背包数据
+    获取用户背包数据（带智能过滤）
+    
+    当装备数量过多时，自动过滤只显示5星以上装备，以提升性能和可读性
     
     Args:
         inventory_service: 库存服务
         user_id: 用户ID
+        max_items_per_category: 每个分类最多显示的物品数量（默认50）
     
     Returns:
         包含用户背包信息的字典
     """
     # 获取鱼竿库存
     rod_result = inventory_service.get_user_rod_inventory(user_id)
-    rods = rod_result.get('rods', []) if rod_result.get('success') else []
+    all_rods = rod_result.get('rods', []) if rod_result.get('success') else []
     
     # 获取饰品库存
     accessory_result = inventory_service.get_user_accessory_inventory(user_id)
-    accessories = accessory_result.get('accessories', []) if accessory_result.get('success') else []
+    all_accessories = accessory_result.get('accessories', []) if accessory_result.get('success') else []
     
     # 获取鱼饵库存
     bait_result = inventory_service.get_user_bait_inventory(user_id)
-    baits = bait_result.get('baits', []) if bait_result.get('success') else []
+    all_baits = bait_result.get('baits', []) if bait_result.get('success') else []
     
     # 获取道具库存
     item_result = inventory_service.get_user_item_inventory(user_id)
-    items = item_result.get('items', []) if item_result.get('success') else []
-
+    all_items = item_result.get('items', []) if item_result.get('success') else []
+    
+    # 智能过滤：装备过多时只显示5星以上
+    filtered_rods = all_rods
+    filtered_accessories = all_accessories
+    rods_filtered = False
+    accessories_filtered = False
+    
+    # 鱼竿过多时过滤
+    if len(all_rods) > 30:
+        high_rarity_rods = [r for r in all_rods if r.get('rarity', 1) >= 5]
+        if len(high_rarity_rods) > 0:
+            # 即使5星以上也限制最多100项
+            filtered_rods = high_rarity_rods[:min(100, max_items_per_category)]
+            rods_filtered = True
+        else:
+            # 如果没有5星以上，按稀有度排序取前N个
+            filtered_rods = sorted(all_rods, key=lambda x: x.get('rarity', 1), reverse=True)[:max_items_per_category]
+            rods_filtered = True
+    else:
+        filtered_rods = all_rods[:max_items_per_category]
+    
+    # 饰品过多时过滤
+    if len(all_accessories) > 30:
+        high_rarity_accessories = [a for a in all_accessories if a.get('rarity', 1) >= 5]
+        if len(high_rarity_accessories) > 0:
+            # 即使5星以上也限制最多100项
+            filtered_accessories = high_rarity_accessories[:min(100, max_items_per_category)]
+            accessories_filtered = True
+        else:
+            # 如果没有5星以上，按稀有度排序取前N个
+            filtered_accessories = sorted(all_accessories, key=lambda x: x.get('rarity', 1), reverse=True)[:max_items_per_category]
+            accessories_filtered = True
+    else:
+        filtered_accessories = all_accessories[:max_items_per_category]
+    
+    # 鱼饵和道具仍使用数量限制
+    filtered_baits = all_baits[:max_items_per_category]
+    filtered_items = all_items[:max_items_per_category]
+    
+    # 判断是否被截断或过滤
+    is_truncated = (len(all_rods) > len(filtered_rods) or 
+                   len(all_accessories) > len(filtered_accessories) or
+                   len(all_baits) > len(filtered_baits) or
+                   len(all_items) > len(filtered_items))
+    
     return {
         'user_id': user_id,
-        'nickname': user_id,  # 这里可以后续从用户服务获取昵称
-        'rods': rods,
-        'accessories': accessories,
-        'baits': baits,
-        'items': items
+        'nickname': user_id,
+        'rods': filtered_rods,
+        'accessories': filtered_accessories,
+        'baits': filtered_baits,
+        'items': filtered_items,
+        'total_rods': len(all_rods),
+        'total_accessories': len(all_accessories),
+        'total_baits': len(all_baits),
+        'total_items': len(all_items),
+        'displayed_rods': len(filtered_rods),
+        'displayed_accessories': len(filtered_accessories),
+        'is_truncated': is_truncated,
+        'rods_filtered': rods_filtered,
+        'accessories_filtered': accessories_filtered
     }
 
 
@@ -880,10 +966,14 @@ def _create_fallback_image(user_data: Dict[str, Any]) -> Image.Image:
     # 颜色定义
     primary_dark = (52, 73, 94)
     text_secondary = (120, 144, 156)
+    warning_orange = (255, 165, 0)
     
     # 绘制标题
     title_text = "📦 用户背包"
-    title_w, title_h = draw.textbbox((0, 0), title_text, font=title_font)[2:4]
+    try:
+        title_w, title_h = draw.textbbox((0, 0), title_text, font=title_font)[2:4]
+    except:
+        title_w, title_h = 200, 40
     draw.text(((width - title_w) // 2, 50), title_text, font=title_font, fill=primary_dark)
     
     # 用户信息
@@ -891,22 +981,37 @@ def _create_fallback_image(user_data: Dict[str, Any]) -> Image.Image:
     user_text = f"用户: {nickname}"
     draw.text((50, 120), user_text, font=content_font, fill=primary_dark)
     
-    # 统计信息
-    rods_count = len(user_data.get('rods', []))
-    accessories_count = len(user_data.get('accessories', []))
-    baits_count = len(user_data.get('baits', []))
-    items_count = len(user_data.get('items', []))
+    # 统计信息（使用实际总数）
+    rods_count = user_data.get('total_rods', len(user_data.get('rods', [])))
+    accessories_count = user_data.get('total_accessories', len(user_data.get('accessories', [])))
+    baits_count = user_data.get('total_baits', len(user_data.get('baits', [])))
+    items_count = user_data.get('total_items', len(user_data.get('items', [])))
     
     stats_text = f"鱼竿: {rods_count} | 饰品: {accessories_count} | 鱼饵: {baits_count} | 道具: {items_count}"
     draw.text((50, 160), stats_text, font=content_font, fill=text_secondary)
     
     # 提示信息
-    notice_text = "⚠️ 图片生成超时，请及时清理背包杂物！"
-    draw.text((50, 200), notice_text, font=small_font, fill=(255, 165, 0))
+    notice_text = "⚠️ 背包物品过多，图片生成超时！"
+    draw.text((50, 220), notice_text, font=content_font, fill=warning_orange)
+    
+    hint1_text = "💡 建议操作："
+    draw.text((50, 260), hint1_text, font=content_font, fill=primary_dark)
+    
+    hint2_text = "1. 使用分类命令查看（会自动过滤只显示5星以上装备）"
+    draw.text((70, 290), hint2_text, font=small_font, fill=text_secondary)
+    
+    hint3_text = "2. 及时清理低品质装备（批量出售鱼竿/饰品）"
+    draw.text((70, 320), hint3_text, font=small_font, fill=text_secondary)
+    
+    hint4_text = "3. 使用或出售多余的鱼饵和道具"
+    draw.text((70, 350), hint4_text, font=small_font, fill=text_secondary)
     
     # 底部时间
     footer_text = f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-    footer_w, footer_h = draw.textbbox((0, 0), footer_text, font=small_font)[2:4]
+    try:
+        footer_w, footer_h = draw.textbbox((0, 0), footer_text, font=small_font)[2:4]
+    except:
+        footer_w, footer_h = 250, 20
     draw.text(((width - footer_w) // 2, height - 50), footer_text, font=small_font, fill=text_secondary)
     
     return image

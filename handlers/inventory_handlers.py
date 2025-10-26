@@ -16,11 +16,25 @@ async def user_backpack(plugin: "FishingPlugin", event: AstrMessageEvent):
             # 导入绘制函数
             from ..draw.backpack import draw_backpack_image, get_user_backpack_data
 
-            # 获取用户背包数据
-            backpack_data = get_user_backpack_data(plugin.inventory_service, user_id)
+            # 获取用户背包数据（限制每个分类最多显示50个物品）
+            backpack_data = get_user_backpack_data(plugin.inventory_service, user_id, max_items_per_category=50)
 
             # 设置用户昵称
             backpack_data["nickname"] = user.nickname or user_id
+            
+            # 如果物品总数超过200，先给出警告提示
+            total_items = (backpack_data.get('total_rods', 0) + 
+                          backpack_data.get('total_accessories', 0) + 
+                          backpack_data.get('total_baits', 0) + 
+                          backpack_data.get('total_items', 0))
+            
+            if total_items > 200:
+                yield event.plain_result(
+                    f"⚠️ 检测到您的背包有 {total_items} 个物品！\n"
+                    "💡 物品过多可能导致图片生成较慢或失败，建议先清理背包。\n"
+                    "📝 您也可以使用「鱼竿」「饰品」「鱼饵」「道具」命令分类查看。\n"
+                    "⏳ 正在生成背包图片，请稍候..."
+                )
 
             # 生成背包图像
             image = await draw_backpack_image(backpack_data, plugin.data_dir)
@@ -28,15 +42,46 @@ async def user_backpack(plugin: "FishingPlugin", event: AstrMessageEvent):
             image_path = os.path.join(plugin.tmp_dir, "user_backpack.png")
             image.save(image_path)
             yield event.image_result(image_path)
+            
+            # 如果内容被截断或过滤，额外发送提示
+            if backpack_data.get('is_truncated', False):
+                filter_info = []
+                if backpack_data.get('rods_filtered', False):
+                    filter_info.append(f"鱼竿：仅显示5星以上 ({backpack_data['displayed_rods']}/{backpack_data['total_rods']})")
+                if backpack_data.get('accessories_filtered', False):
+                    filter_info.append(f"饰品：仅显示5星以上 ({backpack_data['displayed_accessories']}/{backpack_data['total_accessories']})")
+                
+                filter_text = "\n".join([f"• {info}" for info in filter_info]) if filter_info else ""
+                
+                yield event.plain_result(
+                    f"💡 提示：由于物品过多，已自动过滤显示内容。\n"
+                    f"{filter_text}\n\n"
+                    "🧹 建议及时清理背包：\n"
+                    "• /批量出售鱼竿 - 快速清理低品质鱼竿\n"
+                    "• /批量出售饰品 - 快速清理低品质饰品\n"
+                    "• /出售 [ID] - 出售指定装备\n\n"
+                    "📝 使用分类命令查看完整列表：\n"
+                    "• /鱼竿 - 查看所有鱼竿（自动过滤）\n"
+                    "• /饰品 - 查看所有饰品（自动过滤）\n"
+                    "• /鱼饵 - 查看所有鱼饵\n"
+                    "• /道具 - 查看所有道具"
+                )
         except Exception as e:
             # 记录错误日志
             from astrbot.api import logger
 
-            logger.error(f"生成背包图片时发生错误: {e}")
+            logger.error(f"生成背包图片时发生错误: {e}", exc_info=True)
 
             # 返回错误信息
             yield event.plain_result(
-                "❌ 生成背包图片时发生错误，请尝试清理背包。如果问题持续存在，请联系管理员。"
+                "❌ 生成背包图片时发生错误。\n\n"
+                "💡 可能的原因：\n"
+                "1. 背包物品过多导致处理超时\n"
+                "2. 内存不足\n\n"
+                "🔧 建议操作：\n"
+                "• 使用「鱼竿」「饰品」「鱼饵」「道具」命令分类查看\n"
+                "• 清理不需要的物品（出售低品质装备、使用道具等）\n"
+                "• 如果问题持续存在，请联系管理员"
             )
     else:
         yield event.plain_result("❌ 您还没有注册，请先使用 /注册 命令注册。")
@@ -183,18 +228,33 @@ async def rod(plugin: "FishingPlugin", event: AstrMessageEvent):
     user_id = plugin._get_effective_user_id(event)
     rod_info = plugin.inventory_service.get_user_rod_inventory(user_id)
     if rod_info and rod_info["rods"]:
-        rods = rod_info["rods"]
-        total_count = len(rods)
-
-        # 检查是否超过显示限制
-        if total_count > 20:
-            yield event.plain_result(
-                f"🎣 您有 {total_count} 根鱼竿，数量过多无法完整显示。\n💡 建议使用「背包」命令查看完整信息，或使用「出售鱼竿」命令清理不需要的鱼竿。"
-            )
-            return
+        all_rods = rod_info["rods"]
+        total_count = len(all_rods)
+        
+        # 智能过滤：鱼竿过多时只显示5星以上
+        rods = all_rods
+        is_filtered = False
+        
+        if total_count > 30:
+            high_rarity_rods = [r for r in all_rods if r.get('rarity', 1) >= 5]
+            if len(high_rarity_rods) > 0:
+                # 即使5星以上也限制最多100项
+                rods = high_rarity_rods[:100]
+                is_filtered = True
+            else:
+                # 如果没有5星以上，按稀有度排序取前50个
+                rods = sorted(all_rods, key=lambda x: x.get('rarity', 1), reverse=True)[:50]
+                is_filtered = True
+        
+        displayed_count = len(rods)
 
         # 构造输出信息,附带emoji
-        message = f"【🎣 鱼竿】共 {total_count} 根：\n"
+        if is_filtered:
+            message = f"【🎣 鱼竿】共 {total_count} 根，仅显示高品质鱼竿 {displayed_count} 根：\n"
+            message += "💡 提示：数量过多，仅显示5星以上鱼竿\n\n"
+        else:
+            message = f"【🎣 鱼竿】共 {total_count} 根：\n"
+        
         for rod in rods:
             message += format_accessory_or_rod(rod)
             if (
@@ -208,8 +268,14 @@ async def rod(plugin: "FishingPlugin", event: AstrMessageEvent):
         if len(message) > 3000:
             message = (
                 message[:3000]
-                + "\n\n📝 消息过长已截断，建议使用「背包」命令查看完整信息。"
+                + "\n\n📝 消息过长已截断。"
             )
+        
+        # 如果被过滤，添加清理建议
+        if is_filtered:
+            message += "\n\n🧹 建议及时清理低品质鱼竿：\n"
+            message += "• /批量出售鱼竿 - 快速清理低品质鱼竿\n"
+            message += "• /出售 [鱼竿ID] - 出售指定鱼竿"
 
         yield event.plain_result(message)
     else:
@@ -306,18 +372,33 @@ async def accessories(plugin: "FishingPlugin", event: AstrMessageEvent):
     user_id = plugin._get_effective_user_id(event)
     accessories_info = plugin.inventory_service.get_user_accessory_inventory(user_id)
     if accessories_info and accessories_info["accessories"]:
-        accessories = accessories_info["accessories"]
-        total_count = len(accessories)
-
-        # 检查是否超过显示限制
-        if total_count > 20:
-            yield event.plain_result(
-                f"💍 您有 {total_count} 个饰品，数量过多无法完整显示。\n💡 建议使用「背包」命令查看完整信息，或使用「出售饰品」命令清理不需要的饰品。"
-            )
-            return
+        all_accessories = accessories_info["accessories"]
+        total_count = len(all_accessories)
+        
+        # 智能过滤：饰品过多时只显示5星以上
+        accessories = all_accessories
+        is_filtered = False
+        
+        if total_count > 30:
+            high_rarity_accessories = [a for a in all_accessories if a.get('rarity', 1) >= 5]
+            if len(high_rarity_accessories) > 0:
+                # 即使5星以上也限制最多100项
+                accessories = high_rarity_accessories[:100]
+                is_filtered = True
+            else:
+                # 如果没有5星以上，按稀有度排序取前50个
+                accessories = sorted(all_accessories, key=lambda x: x.get('rarity', 1), reverse=True)[:50]
+                is_filtered = True
+        
+        displayed_count = len(accessories)
 
         # 构造输出信息,附带emoji
-        message = f"【💍 饰品】共 {total_count} 个：\n"
+        if is_filtered:
+            message = f"【💍 饰品】共 {total_count} 个，仅显示高品质饰品 {displayed_count} 个：\n"
+            message += "💡 提示：数量过多，仅显示5星以上饰品\n\n"
+        else:
+            message = f"【💍 饰品】共 {total_count} 个：\n"
+        
         for accessory in accessories:
             message += format_accessory_or_rod(accessory)
             message += f"   -精炼等级: {accessory.get('refine_level', 1)}\n"
@@ -326,8 +407,14 @@ async def accessories(plugin: "FishingPlugin", event: AstrMessageEvent):
         if len(message) > 3000:
             message = (
                 message[:3000]
-                + "\n\n📝 消息过长已截断，建议使用「背包」命令查看完整信息。"
+                + "\n\n📝 消息过长已截断。"
             )
+        
+        # 如果被过滤，添加清理建议
+        if is_filtered:
+            message += "\n\n🧹 建议及时清理低品质饰品：\n"
+            message += "• /批量出售饰品 - 快速清理低品质饰品\n"
+            message += "• /出售 [饰品ID] - 出售指定饰品"
 
         yield event.plain_result(message)
     else:
