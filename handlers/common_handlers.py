@@ -78,3 +78,34 @@ async def fishing_help(self: "FishingPlugin", event: AstrMessageEvent):
     output_path = os.path.join(self.tmp_dir, "fishing_help.png")
     image.save(output_path)
     yield event.image_result(output_path)
+
+async def transfer_coins(self: "FishingPlugin", event: AstrMessageEvent):
+    """转账金币"""
+    from ..utils import parse_target_user_id
+    
+    args = event.message_str.split(" ")
+    
+    # 解析目标用户ID（支持@和用户ID两种方式）
+    target_user_id, error_msg = parse_target_user_id(event, args, 1)
+    if error_msg:
+        yield event.plain_result(error_msg)
+        return
+    
+    # 检查转账金额参数
+    if len(args) < 3:
+        yield event.plain_result(
+            "❌ 请指定转账金额，例如：/转账 @用户 1000 或 /转账 123456789 1000"
+        )
+        return
+    
+    amount_str = args[2]
+    if not amount_str.isdigit():
+        yield event.plain_result("❌ 转账金额必须是数字，请检查后重试。")
+        return
+    
+    amount = int(amount_str)
+    from_user_id = self._get_effective_user_id(event)
+    
+    # 调用转账服务
+    result = self.user_service.transfer_coins(from_user_id, target_user_id, amount)
+    yield event.plain_result(result["message"])

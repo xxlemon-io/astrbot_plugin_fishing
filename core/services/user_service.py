@@ -299,6 +299,52 @@ class UserService:
             "message": f"金币数量已更新，当前金币：{user.coins}"
         }
 
+    def transfer_coins(self, from_user_id: str, to_user_id: str, amount: int) -> Dict[str, Any]:
+        """
+        用户之间转账金币。
+        Args:
+            from_user_id: 转账方用户ID
+            to_user_id: 接收方用户ID
+            amount: 转账金额
+        Returns:
+            包含成功状态和消息的字典。
+        """
+        # 检查转账金额
+        if amount <= 0:
+            return {"success": False, "message": "转账金额必须大于0"}
+        
+        # 检查是否转账给自己
+        if from_user_id == to_user_id:
+            return {"success": False, "message": "不能转账给自己"}
+        
+        # 获取转账方用户
+        from_user = self.user_repo.get_by_id(from_user_id)
+        if not from_user:
+            return {"success": False, "message": "转账方用户不存在"}
+        
+        # 获取接收方用户
+        to_user = self.user_repo.get_by_id(to_user_id)
+        if not to_user:
+            return {"success": False, "message": "接收方用户不存在"}
+        
+        # 检查余额是否足够
+        if from_user.coins < amount:
+            return {"success": False, "message": f"余额不足，当前金币：{from_user.coins}"}
+        
+        # 执行转账
+        from_user.coins -= amount
+        to_user.coins += amount
+        
+        # 更新数据库
+        self.user_repo.update(from_user)
+        self.user_repo.update(to_user)
+        
+        return {
+            "success": True,
+            "message": f"✅ 转账成功！向 {to_user.nickname} 转账 {amount} 金币\n"
+                      f"💰 您的余额：{from_user.coins} 金币"
+        }
+
     def get_tax_record(self, user_id: str) -> Dict[str, Any]:
         user = self.user_repo.get_by_id(user_id)
         if not user:

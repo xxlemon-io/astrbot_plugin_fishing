@@ -462,6 +462,11 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.coins(self, event):
             yield r
 
+    @filter.command("转账")
+    async def transfer_coins(self, event: AstrMessageEvent):
+        async for r in common_handlers.transfer_coins(self, event):
+            yield r
+
     @filter.command("高级货币", alias={"钻石", "星石"})
     async def premium(self, event: AstrMessageEvent):
         async for r in inventory_handlers.premium(self, event):
