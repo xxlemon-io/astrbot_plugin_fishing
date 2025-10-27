@@ -804,12 +804,14 @@ class GameMechanicsService:
             thief.last_electric_fish_time = now  # 失败也要更新CD
             self.user_repo.update(thief)
             
-            # 根据惩罚程度显示不同的消息
-            if penalty_rate < 0.1:
+            # 根据惩罚程度显示不同的消息（动态基于配置的最大天罚）
+            # 轻微: 0-20%的max, 中度: 20-50%的max, 严重: 50-80%的max, 毁灭性: 80-100%的max
+            relative_penalty = penalty_rate / max_penalty_rate if max_penalty_rate > 0 else 0
+            if relative_penalty < 0.2:
                 severity = "⚡ 轻微天罚"
-            elif penalty_rate < 0.25:
+            elif relative_penalty < 0.5:
                 severity = "⚡⚡ 中度天罚"
-            elif penalty_rate < 0.4:
+            elif relative_penalty < 0.8:
                 severity = "⚡⚡⚡ 严重天罚"
             else:
                 severity = "⚡⚡⚡⚡ 毁灭性天罚"

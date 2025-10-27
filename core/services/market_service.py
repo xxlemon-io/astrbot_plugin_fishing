@@ -386,6 +386,10 @@ class MarketService:
         if not listing:
             return {"success": False, "message": "该商品不存在或已被购买"}
 
+        # 检查是否购买自己的商品
+        if buyer_id == listing.user_id:
+            return {"success": False, "message": "不能购买自己上架的物品，请先下架"}
+
         seller = self.user_repo.get_by_id(listing.user_id)
         if not seller:
             return {"success": False, "message": "卖家信息丢失，交易无法进行"}
