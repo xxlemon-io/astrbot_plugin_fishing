@@ -928,13 +928,10 @@ def _get_display_code_for_market_item(item) -> str:
         return f"R{_to_base36(item_instance_id)}"
     elif item_type == "accessory" and item_instance_id:
         return f"A{_to_base36(item_instance_id)}"
-    elif item_type == "item":
-        # 道具在市场中使用Base36编码的市场ID
+    elif item_type == "item" or item_type == "fish":
+        # 道具和鱼类在市场中使用Base36编码的市场ID
+        # 品质信息通过物品名称的"✨高品质"标识来展示，ID保持统一格式
         return f"M{_to_base36(item.market_id)}"
-    elif item_type == "fish":
-        # 鱼类在市场中使用Base36编码的市场ID，并显示品质
-        quality_suffix = "H" if getattr(item, 'quality_level', 0) == 1 else ""
-        return f"M{_to_base36(item.market_id)}{quality_suffix}"
     elif item_type == "commodity" and item_instance_id:
         return f"C{_to_base36(item_instance_id)}"
     else:

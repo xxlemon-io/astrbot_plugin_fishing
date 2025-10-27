@@ -461,7 +461,12 @@ class MarketService:
 
             quantity_text = f" x{listing.quantity}" if listing.quantity > 1 else ""
             
-            message = f"✅ 成功购买【{listing.item_name}】{quantity_text}，花费 {listing.price} 金币！"
+            # 为鱼类添加品质显示
+            quality_text = ""
+            if listing.item_type == "fish" and listing.quality_level == 1:
+                quality_text = " ✨高品质"
+            
+            message = f"✅ 成功购买【{listing.item_name}{quality_text}】{quantity_text}，花费 {listing.price} 金币！"
             # 如果是鱼类，提示用户去水族箱查收
             if listing.item_type == "fish":
                 message += "\n🐠 请前往水族箱查收您的鱼类！"

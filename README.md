@@ -30,7 +30,7 @@
 [![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
-[![Version](https://img.shields.io/badge/Version-2.3.6-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.3.6)
+[![Version](https://img.shields.io/badge/Version-2.3.8-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.3.8)
 [![Major Update](https://img.shields.io/badge/Major-Update-red.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
 
 ## ✨ 功能特点
@@ -104,6 +104,9 @@
  
 ## 📦 更新记录
 
+#### v2.3.8 (高品质鱼类市场Bug修复)
+
+- **🐟 修复高品质鱼类市场购买Bug**：修复了高品质鱼类上架后无法购买的问题
 #### v2.3.7 (市场购买Bug修复 + 电鱼天罚系统优化 + 每日税收系统重构 + 转账手续费系统)
 
 - **🚨 税收系统重构**：实现逐用户检查机制，解决税收遗漏和重复扣税问题
