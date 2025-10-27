@@ -305,7 +305,7 @@ class UserService:
         Args:
             from_user_id: 转账方用户ID
             to_user_id: 接收方用户ID
-            amount: 转账金额
+            amount: 转账金额（接收方实际到账金额）
         Returns:
             包含成功状态和消息的字典。
         """
@@ -327,22 +327,60 @@ class UserService:
         if not to_user:
             return {"success": False, "message": "接收方用户不存在"}
         
-        # 检查余额是否足够
-        if from_user.coins < amount:
-            return {"success": False, "message": f"余额不足，当前金币：{from_user.coins}"}
+        # 计算转账手续费
+        tax_config = self.config.get("tax", {})
+        transfer_tax_rate = tax_config.get("transfer_tax_rate", 0.05)  # 默认5%
+        tax_amount = int(amount * transfer_tax_rate)
+        total_cost = amount + tax_amount  # 转账方需支付的总金额
+        
+        # 检查余额是否足够（包含手续费）
+        if from_user.coins < total_cost:
+            return {
+                "success": False,
+                "message": f"❌ 余额不足！\n"
+                          f"💰 到账金额：{amount} 金币\n"
+                          f"💸 转账手续费（{int(transfer_tax_rate*100)}%）：{tax_amount} 金币\n"
+                          f"📊 需要总计：{total_cost} 金币\n"
+                          f"💳 当前余额：{from_user.coins} 金币"
+            }
+        
+        # 记录转账前的金额
+        original_coins = from_user.coins
         
         # 执行转账
-        from_user.coins -= amount
-        to_user.coins += amount
+        from_user.coins -= total_cost  # 扣除转账金额 + 手续费
+        to_user.coins += amount  # 接收方只收到实际转账金额
         
         # 更新数据库
         self.user_repo.update(from_user)
         self.user_repo.update(to_user)
         
+        # 记录转账税收
+        if tax_amount > 0:
+            tax_log = TaxRecord(
+                tax_id=0,  # DB会自增
+                user_id=from_user_id,
+                tax_amount=tax_amount,
+                tax_rate=transfer_tax_rate,
+                original_amount=original_coins,
+                balance_after=from_user.coins,
+                timestamp=get_now(),
+                tax_type="转账手续费"
+            )
+            self.log_repo.add_tax_record(tax_log)
+        
+        # 构建返回消息
+        message = f"✅ 转账成功！\n"
+        message += f"👤 接收方：{to_user.nickname}\n"
+        message += f"💰 到账金额：{amount} 金币\n"
+        if tax_amount > 0:
+            message += f"💸 转账手续费（{int(transfer_tax_rate*100)}%）：{tax_amount} 金币\n"
+            message += f"📊 扣除总计：{total_cost} 金币\n"
+        message += f"💳 您的余额：{from_user.coins} 金币"
+        
         return {
             "success": True,
-            "message": f"✅ 转账成功！向 {to_user.nickname} 转账 {amount} 金币\n"
-                      f"💰 您的余额：{from_user.coins} 金币"
+            "message": message
         }
 
     def get_tax_record(self, user_id: str) -> Dict[str, Any]:
