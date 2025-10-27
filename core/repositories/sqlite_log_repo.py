@@ -365,23 +365,32 @@ class SqliteLogRepository(AbstractLogRepository):
                 ),
             )
 
-            # 2) 仅保留当前用户最近10条税收记录
+            # 2) 仅保留当前用户最近税收记录
+            # 策略：优先保留每日资产税记录（重要），剩余空间保留最近的其他税收记录
+            cutoff_time = datetime.now(self.UTC8) - timedelta(days=30)
             cursor.execute(
                 """
                 DELETE FROM taxes
                 WHERE user_id = ?
                   AND tax_id NOT IN (
+                    -- 保留所有30天内的每日资产税（核心记录，必须保留）
                     SELECT tax_id FROM taxes
                     WHERE user_id = ?
+                      AND tax_type = '每日资产税'
+                      AND timestamp >= ?
+                    UNION
+                    -- 保留最近50条其他税收记录
+                    SELECT tax_id FROM taxes
+                    WHERE user_id = ?
+                      AND tax_type != '每日资产税'
                     ORDER BY timestamp DESC, tax_id DESC
                     LIMIT 50
                   )
                 """,
-                (record.user_id, record.user_id),
+                (record.user_id, record.user_id, cutoff_time, record.user_id),
             )
 
             # 3) 清理30天前的税收记录（全局）
-            cutoff_time = datetime.now(self.UTC8) - timedelta(days=30)
             cursor.execute(
                 """
                 DELETE FROM taxes
@@ -422,6 +431,22 @@ class SqliteLogRepository(AbstractLogRepository):
                 WHERE tax_type = '每日资产税'
                 AND timestamp >= ?
             """, (last_reset,))
+            result = cursor.fetchone()
+            return result[0] > 0 if result else False
+    
+    def has_user_daily_tax_today(self, user_id: str, reset_hour: int = 0) -> bool:
+        """检查某个用户今天是否已经被征收过每日资产税"""
+        from ..utils import get_last_reset_time
+        last_reset = get_last_reset_time(reset_hour)
+        
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COUNT(*) FROM taxes
+                WHERE user_id = ?
+                AND tax_type = '每日资产税'
+                AND timestamp >= ?
+            """, (user_id, last_reset))
             result = cursor.fetchone()
             return result[0] > 0 if result else False
 

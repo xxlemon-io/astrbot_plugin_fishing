@@ -486,6 +486,9 @@ class AbstractLogRepository(ABC):
     # 获取用户的税收历史
     @abstractmethod
     def get_tax_records(self, user_id: str, limit: int = 10) -> List[TaxRecord]: pass
+    # 检查某个用户今天是否已经被征收过每日资产税
+    @abstractmethod
+    def has_user_daily_tax_today(self, user_id: str, reset_hour: int = 0) -> bool: pass
     # 获取用户历史上最大的擦弹倍数
     @abstractmethod
     def get_max_wipe_bomb_multiplier(self, user_id: str) -> float: pass

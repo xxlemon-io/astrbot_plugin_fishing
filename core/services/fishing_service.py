@@ -780,7 +780,7 @@ class FishingService:
         return {"success": True, "message": success_message}
 
     def apply_daily_taxes(self) -> None:
-        """对所有高价值用户征收每日税收。"""
+        """对所有高价值用户征收每日税收。逐用户检查，确保不遗漏也不重复征收。"""
         import uuid
         
         # 生成执行ID用于追踪和调试
@@ -793,13 +793,6 @@ class FishingService:
         
         logger.info(f"[税收-{execution_id}] 开始检查每日资产税（执行ID: {execution_id}）")
         
-        # 防止同一天内多次执行税收（例如插件重启）- 多层防护的第二层
-        if self.log_repo.has_daily_tax_today(self.daily_reset_hour):
-            logger.info(f"[税收-{execution_id}] 今日已执行过每日资产税，跳过（应用层防护生效）")
-            return
-        
-        logger.info(f"[税收-{execution_id}] 检查通过，开始执行税收")
-        
         threshold = tax_config.get("threshold", 1000000)
         step_coins = tax_config.get("step_coins", 1000000)
         step_rate = tax_config.get("step_rate", 0.01)
@@ -807,12 +800,19 @@ class FishingService:
         max_rate = tax_config.get("max_rate", 0.35)
 
         high_value_users = self.user_repo.get_high_value_users(threshold)
-        logger.info(f"[税收-{execution_id}] 开始执行每日资产税，共有 {len(high_value_users)} 个用户需要征税")
+        logger.info(f"[税收-{execution_id}] 检测到 {len(high_value_users)} 个达到税收阈值的用户，开始逐个检查")
         
         total_tax_collected = 0
         taxed_user_count = 0
+        skipped_user_count = 0
 
         for user in high_value_users:
+            # 检查该用户今天是否已经被征收过税
+            if self.log_repo.has_user_daily_tax_today(user.user_id, self.daily_reset_hour):
+                logger.debug(f"[税收-{execution_id}] 用户 {user.user_id} 今日已缴税，跳过")
+                skipped_user_count += 1
+                continue
+            
             tax_rate = 0.0
             # 根据资产确定税率
             if user.coins >= threshold:
@@ -843,7 +843,7 @@ class FishingService:
                 total_tax_collected += tax_amount
                 taxed_user_count += 1
         
-        logger.info(f"[税收-{execution_id}] 每日资产税执行完成，共对 {taxed_user_count} 个用户征税，总计 {total_tax_collected} 金币")
+        logger.info(f"[税收-{execution_id}] 每日资产税执行完成，征税 {taxed_user_count} 人，跳过 {skipped_user_count} 人（已缴税），总计 {total_tax_collected} 金币")
 
     def enforce_zone_pass_requirements_for_all_users(self) -> None:
         """
@@ -975,19 +975,19 @@ class FishingService:
                 # 检查是否到达每日重置时间点
                 current_reset_time = get_last_reset_time(self.daily_reset_hour)
                 
-                # 判断是否需要执行税收：
-                # 1. 时间点变更（跨天了）
-                # 2. 或者首次启动且今天还没有税收记录（处理重启场景）
+                # 判断是否需要执行税收检查：
+                # 1. 时间点变更（跨天了）- 新的一天开始，需要检查所有用户
+                # 2. 或者首次启动 - 检查是否有遗漏的用户（逐用户检查会自动跳过已缴税的用户）
                 should_execute = False
                 
                 if current_reset_time != self.last_tax_reset_time:
-                    # 时间点变更，肯定要执行
+                    # 时间点变更，新的一天开始
                     logger.info(f"[税收线程] 检测到刷新时间点变更（每日{self.daily_reset_hour}点刷新），从 {self.last_tax_reset_time} 到 {current_reset_time}")
                     should_execute = True
                     self.last_tax_reset_time = current_reset_time
-                elif first_check and not self.log_repo.has_daily_tax_today(self.daily_reset_hour):
-                    # 首次检查且今天没有税收记录（插件在重置时间点后重启的场景）
-                    logger.info(f"[税收线程] 首次检查发现今日尚未执行税收，准备补充执行")
+                elif first_check:
+                    # 首次检查，检查是否有遗漏的用户（逐用户检查会自动避免重复扣税）
+                    logger.info(f"[税收线程] 首次检查，将检查所有高资产用户的缴税情况（已缴税用户会自动跳过）")
                     should_execute = True
                 
                 # 首次检查完成后，标记为非首次
