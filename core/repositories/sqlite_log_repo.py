@@ -380,11 +380,14 @@ class SqliteLogRepository(AbstractLogRepository):
                       AND timestamp >= ?
                     UNION
                     -- 保留最近50条其他税收记录
-                    SELECT tax_id FROM taxes
-                    WHERE user_id = ?
-                      AND tax_type != '每日资产税'
-                    ORDER BY timestamp DESC, tax_id DESC
-                    LIMIT 50
+                    SELECT tax_id FROM (
+                        SELECT tax_id, timestamp
+                        FROM taxes
+                        WHERE user_id = ?
+                          AND tax_type != '每日资产税'
+                        ORDER BY timestamp DESC, tax_id DESC
+                        LIMIT 50
+                    )
                   )
                 """,
                 (record.user_id, record.user_id, cutoff_time, record.user_id),
