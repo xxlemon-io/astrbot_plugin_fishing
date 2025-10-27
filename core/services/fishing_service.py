@@ -963,22 +963,42 @@ class FishingService:
         except Exception as e:
             logger.error(f"[税收线程] 初始化日志输出失败: {e}")
         
+        # 立即执行第一次检查，避免在重置时间点后重启时错过当天的税收
+        first_check = True
+        
         while self.tax_running:
             try:
+                # 第一次检查不sleep，之后每小时检查一次
+                if not first_check:
+                    time.sleep(3600)
+                
                 # 检查是否到达每日重置时间点
                 current_reset_time = get_last_reset_time(self.daily_reset_hour)
+                
+                # 判断是否需要执行税收：
+                # 1. 时间点变更（跨天了）
+                # 2. 或者首次启动且今天还没有税收记录（处理重启场景）
+                should_execute = False
+                
                 if current_reset_time != self.last_tax_reset_time:
-                    logger.info(f"[税收线程] 检测到刷新时间点变更（每日{self.daily_reset_hour}点刷新），从 {self.last_tax_reset_time} 到 {current_reset_time}，开始执行每日税收...")
+                    # 时间点变更，肯定要执行
+                    logger.info(f"[税收线程] 检测到刷新时间点变更（每日{self.daily_reset_hour}点刷新），从 {self.last_tax_reset_time} 到 {current_reset_time}")
+                    should_execute = True
                     self.last_tax_reset_time = current_reset_time
-                    
+                elif first_check and not self.log_repo.has_daily_tax_today(self.daily_reset_hour):
+                    # 首次检查且今天没有税收记录（插件在重置时间点后重启的场景）
+                    logger.info(f"[税收线程] 首次检查发现今日尚未执行税收，准备补充执行")
+                    should_execute = True
+                
+                # 首次检查完成后，标记为非首次
+                first_check = False
+                
+                if should_execute:
                     # 使用锁来防止并发执行税收（多层防护的第一层）
                     with self.tax_execution_lock:
                         logger.info("[税收线程] 已获取税收执行锁，开始执行税收")
                         self.apply_daily_taxes()
                         logger.info("[税收线程] 每日税收执行完成，释放锁")
-                
-                # 每小时检查一次（3600秒）
-                time.sleep(3600)
                 
             except Exception as e:
                 logger.error(f"[税收线程] 出错: {e}")
