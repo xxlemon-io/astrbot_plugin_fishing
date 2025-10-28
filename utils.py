@@ -378,10 +378,8 @@ def parse_target_user_id(event, args: list, arg_index: int = 1) -> Tuple[Optiona
     # 如果没有@，尝试从参数中获取
     if len(args) > arg_index:
         target_user_id = args[arg_index]
-        if target_user_id.isdigit():
-            return target_user_id, None
-        else:
-            return None, f"❌ 用户 ID 必须是数字，请检查后重试。"
+        # 接受任意字符串格式的 user_id（支持 QQ 纯数字和钉钉复杂字符串等各种平台）
+        return target_user_id, None
     
     # 如果既没有@也没有参数，返回错误
-    return None, f"❌ 请指定目标用户（用户ID或@用户），例如：/命令 123456789 或 /命令 @用户"
+    return None, f"❌ 请指定目标用户（用户ID或@用户），例如：/命令 <用户ID> 或 /命令 @用户"
