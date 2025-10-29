@@ -37,6 +37,27 @@ class MarketService:
         self.item_template_repo = item_template_repo
         self.exchange_repo = exchange_repo
         self.config = config
+        
+        # 确保虚拟市场用户存在（用于托管上架的装备）
+        self._ensure_market_user_exists()
+
+    def _ensure_market_user_exists(self):
+        """确保虚拟市场用户存在，用于托管上架的装备实例"""
+        market_user_id = "MARKET"
+        
+        # 检查市场用户是否已存在
+        if not self.user_repo.check_exists(market_user_id):
+            # 创建虚拟市场用户
+            from ..domain.models import User
+            market_user = User(
+                user_id=market_user_id,
+                nickname="[系统-市场托管]",
+                created_at=datetime.now(),
+                coins=0,
+                premium_currency=0
+            )
+            self.user_repo.add(market_user)
+            logger.info("创建虚拟市场用户(MARKET)用于托管上架装备")
 
     def cleanup_expired_listings(self):
         """
