@@ -312,9 +312,15 @@ class AbstractInventoryRepository(ABC):
     # 获取用户的鱼竿实例
     @abstractmethod
     def update_rod_instance(self, instance): pass
+    # 转移鱼竿实例所有权
+    @abstractmethod
+    def transfer_rod_instance_ownership(self, rod_instance_id: int, new_user_id: str) -> None: pass
     # 获取用户的饰品实例
     @abstractmethod
     def update_accessory_instance(self, instance): pass
+    # 转移饰品实例所有权
+    @abstractmethod
+    def transfer_accessory_instance_ownership(self, accessory_instance_id: int, new_user_id: str) -> None: pass
     # 获取用户的同一鱼竿实例
     @abstractmethod
     def get_same_rod_instances(self, user_id, rod_id) -> List[UserRodInstance]: pass

@@ -594,6 +594,17 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
             """, (rod_instance.rod_id, rod_instance.is_equipped, rod_instance.current_durability, rod_instance.refine_level, rod_instance.is_locked, rod_instance.rod_instance_id, rod_instance.user_id))
             conn.commit()
 
+    def transfer_rod_instance_ownership(self, rod_instance_id: int, new_user_id: str) -> None:
+        """转移鱼竿实例所有权"""
+        with self._connection_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE user_rods
+                SET user_id = ?, is_equipped = 0
+                WHERE rod_instance_id = ?
+            """, (new_user_id, rod_instance_id))
+            conn.commit()
+
     def update_accessory_instance(self, accessory_instance: UserAccessoryInstance):
         """更新配件实例信息"""
         with self._connection_manager.get_connection() as conn:
@@ -603,6 +614,17 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
                 SET accessory_id = ?, is_equipped = ?, refine_level = ?, is_locked = ?
                 WHERE accessory_instance_id = ? AND user_id = ?
             """, (accessory_instance.accessory_id, accessory_instance.is_equipped, accessory_instance.refine_level, accessory_instance.is_locked, accessory_instance.accessory_instance_id, accessory_instance.user_id))
+            conn.commit()
+
+    def transfer_accessory_instance_ownership(self, accessory_instance_id: int, new_user_id: str) -> None:
+        """转移饰品实例所有权"""
+        with self._connection_manager.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE user_accessories
+                SET user_id = ?, is_equipped = 0
+                WHERE accessory_instance_id = ?
+            """, (new_user_id, accessory_instance_id))
             conn.commit()
 
     def get_same_rod_instances(self, user_id: int, rod_id: str) -> List[UserRodInstance]:

@@ -210,11 +210,13 @@ class MarketService:
         }
 
     def _execute_listing_transaction(self, user_id: str, item_type: str, item_instance_id: int, quantity: int, quality_level: int) -> None:
-        """执行上架事务"""
+        """执行上架事务 - 对于装备类物品，转移所有权到'MARKET'而不是删除"""
         if item_type == "rod":
-            self.inventory_repo.delete_rod_instance(item_instance_id)
+            # 不删除鱼竿实例，而是转移所有权到市场（虚拟用户）
+            self.inventory_repo.transfer_rod_instance_ownership(item_instance_id, "MARKET")
         elif item_type == "accessory":
-            self.inventory_repo.delete_accessory_instance(item_instance_id)
+            # 不删除饰品实例，而是转移所有权到市场（虚拟用户）
+            self.inventory_repo.transfer_accessory_instance_ownership(item_instance_id, "MARKET")
         elif item_type == "item":
             self.inventory_repo.update_item_quantity(user_id, item_instance_id, -quantity)
         elif item_type == "fish":
@@ -434,19 +436,11 @@ class MarketService:
                 self.exchange_repo.add_user_commodity(new_commodity)
 
             elif listing.item_type == "rod":
-                rod_template = self.item_template_repo.get_rod_by_id(listing.item_id)
-                self.inventory_repo.add_rod_instance(
-                    user_id=buyer_id,
-                    rod_id=listing.item_id,
-                    durability=rod_template.durability if rod_template else None,
-                    refine_level=listing.refine_level
-                )
+                # 直接转移鱼竿实例所有权给买家（保留所有属性包括耐久度）
+                self.inventory_repo.transfer_rod_instance_ownership(listing.item_instance_id, buyer_id)
             elif listing.item_type == "accessory":
-                self.inventory_repo.add_accessory_instance(
-                    user_id=buyer_id,
-                    accessory_id=listing.item_id,
-                    refine_level=listing.refine_level
-                )
+                # 直接转移饰品实例所有权给买家（保留所有属性）
+                self.inventory_repo.transfer_accessory_instance_ownership(listing.item_instance_id, buyer_id)
             elif listing.item_type == "item":
                 # 给买家添加道具
                 self.inventory_repo.update_item_quantity(buyer_id, listing.item_id, listing.quantity)
@@ -489,19 +483,11 @@ class MarketService:
     def _return_listing_to_seller(self, listing):
         """将挂单物品返还给卖家"""
         if listing.item_type == "rod":
-            rod_template = self.item_template_repo.get_rod_by_id(listing.item_id)
-            self.inventory_repo.add_rod_instance(
-                user_id=listing.user_id,
-                rod_id=listing.item_id,
-                durability=rod_template.durability if rod_template else None,
-                refine_level=listing.refine_level
-            )
+            # 直接转移鱼竿实例所有权回卖家（保留所有属性包括耐久度）
+            self.inventory_repo.transfer_rod_instance_ownership(listing.item_instance_id, listing.user_id)
         elif listing.item_type == "accessory":
-            self.inventory_repo.add_accessory_instance(
-                user_id=listing.user_id,
-                accessory_id=listing.item_id,
-                refine_level=listing.refine_level
-            )
+            # 直接转移饰品实例所有权回卖家（保留所有属性）
+            self.inventory_repo.transfer_accessory_instance_ownership(listing.item_instance_id, listing.user_id)
         elif listing.item_type == "item":
             self.inventory_repo.update_item_quantity(listing.user_id, listing.item_id, listing.quantity)
         elif listing.item_type == "fish":
