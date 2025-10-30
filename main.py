@@ -857,6 +857,7 @@ class FishingPlugin(Star):
         """插件被卸载/停用时调用"""
         logger.info("钓鱼插件正在终止...")
         self.fishing_service.stop_auto_fishing_task()
+        self.fishing_service.stop_daily_tax_task()  # 终止独立的税收线程
         self.achievement_service.stop_achievement_check_task()
         self.exchange_service.stop_daily_price_update_task() # 终止交易所后台任务
         if self.web_admin_task:
