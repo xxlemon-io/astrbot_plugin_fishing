@@ -110,6 +110,7 @@
 - **🛡️ 增强MARKET用户创建机制**：在转移装备所有权之前自动检查并创建MARKET系统用户，确保外键约束满足
 - **⚡ 提升系统健壮性**：即使MarketService初始化时MARKET用户创建失败，系统也能在需要时自动创建
 - **🧵 修复税收线程管理Bug**：插件卸载时正确停止税收线程，防止重复启动导致的多个税收线程并发问题
+  
 *感谢 [@XiGuang](https://github.com/XiGuang) 的贡献 ([#84](https://github.com/xxlemon-io/astrbot_plugin_fishing/pull/84))*
 
 #### v2.3.10 (市场耐久度保留机制)
