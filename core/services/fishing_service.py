@@ -797,7 +797,9 @@ class FishingService:
         step_coins = tax_config.get("step_coins", 1000000)
         step_rate = tax_config.get("step_rate", 0.01)
         min_rate = tax_config.get("min_rate", 0.001)
-        max_rate = tax_config.get("max_rate", 0.35)
+        max_rate = tax_config.get("max_rate", 0.2)
+        
+        logger.info(f"[税收-{execution_id}] 税收配置：起征点={threshold}, 步长={step_coins}, 步长税率={step_rate*100}%, 最小税率={min_rate*100}%, 最大税率={max_rate*100}%")
 
         high_value_users = self.user_repo.get_high_value_users(threshold)
         logger.info(f"[税收-{execution_id}] 检测到 {len(high_value_users)} 个达到税收阈值的用户，开始逐个检查")
