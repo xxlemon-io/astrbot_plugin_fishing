@@ -4,6 +4,7 @@ from typing import Optional, List, Dict, Any, Set
 from datetime import datetime
 import json
 
+from astrbot.api import logger
 # 导入抽象基类和领域模型
 from .abstract_repository import AbstractInventoryRepository
 from ..domain.models import UserFishInventoryItem, UserAquariumItem, UserRodInstance, UserAccessoryInstance, FishingZone, AquariumUpgrade
@@ -598,6 +599,20 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         """转移鱼竿实例所有权"""
         with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
+            
+            # 确保目标用户存在（特别是系统用户如"MARKET"）
+            cursor.execute("SELECT 1 FROM users WHERE user_id = ?", (new_user_id,))
+            if cursor.fetchone() is None:
+                # 如果目标用户不存在，创建一个系统用户
+                if new_user_id == "MARKET":
+                    cursor.execute("""
+                        INSERT INTO users (user_id, nickname, coins, premium_currency, created_at)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (new_user_id, "[系统-市场托管]", 0, 0, datetime.now()))
+                    logger.info(f"自动创建系统用户: {new_user_id}")
+                else:
+                    raise ValueError(f"目标用户 {new_user_id} 不存在")
+            
             cursor.execute("""
                 UPDATE user_rods
                 SET user_id = ?, is_equipped = 0
@@ -620,6 +635,20 @@ class SqliteInventoryRepository(AbstractInventoryRepository):
         """转移饰品实例所有权"""
         with self._connection_manager.get_connection() as conn:
             cursor = conn.cursor()
+            
+            # 确保目标用户存在（特别是系统用户如"MARKET"）
+            cursor.execute("SELECT 1 FROM users WHERE user_id = ?", (new_user_id,))
+            if cursor.fetchone() is None:
+                # 如果目标用户不存在，创建一个系统用户
+                if new_user_id == "MARKET":
+                    cursor.execute("""
+                        INSERT INTO users (user_id, nickname, coins, premium_currency, created_at)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (new_user_id, "[系统-市场托管]", 0, 0, datetime.now()))
+                    logger.info(f"自动创建系统用户: {new_user_id}")
+                else:
+                    raise ValueError(f"目标用户 {new_user_id} 不存在")
+            
             cursor.execute("""
                 UPDATE user_accessories
                 SET user_id = ?, is_equipped = 0
