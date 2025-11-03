@@ -99,8 +99,9 @@ async def steal_fish(plugin: "FishingPlugin", event: AstrMessageEvent):
     if hasattr(message_obj, "message"):
         for comp in message_obj.message:
             if isinstance(comp, At):
-                target_id = comp.qq
-                break
+                if comp.qq != message_obj.self_id:
+                    target_id = str(comp.qq)
+                    break
 
     if target_id is None:
         parts = event.message_str.strip().split()
@@ -137,8 +138,10 @@ async def electric_fish(plugin: "FishingPlugin", event: AstrMessageEvent):
     if hasattr(message_obj, "message"):
         for comp in message_obj.message:
             if isinstance(comp, At):
-                target_id = comp.qq
-                break
+                # 排除机器人本身的id
+                if comp.qq != message_obj.self_id:
+                    target_id = str(comp.qq)
+                    break
 
     if target_id is None:
         parts = event.message_str.strip().split()

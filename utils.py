@@ -368,8 +368,10 @@ def parse_target_user_id(event, args: list, arg_index: int = 1) -> Tuple[Optiona
         # 检查消息中是否有At对象
         for comp in message_obj.message:
             if isinstance(comp, At):
-                target_id = comp.qq
-                break
+                # 排除机器人本身的id
+                if comp.qq != message_obj.self_id:
+                    target_id = str(comp.qq)
+                    break
     
     # 如果从@中获取到了用户ID，直接返回
     if target_id is not None:
