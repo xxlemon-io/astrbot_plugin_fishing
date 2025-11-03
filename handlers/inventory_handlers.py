@@ -137,8 +137,10 @@ async def peek_pond(plugin: "FishingPlugin", event: AstrMessageEvent):
         # 检查消息中是否有At对象
         for comp in message_obj.message:
             if isinstance(comp, At):
-                target_user_id = str(comp.qq)
-                break
+                # 排除机器人本身的id
+                if comp.qq != message_obj.self_id:
+                    target_user_id = str(comp.qq)
+                    break
 
     # 如果没有@，尝试从消息文本中解析
     if target_user_id is None:
