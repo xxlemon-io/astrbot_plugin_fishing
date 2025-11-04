@@ -104,6 +104,12 @@
  
 ## 📦 更新记录
 
+#### v2.3.12 (DingTalk平台At逻辑适配)
+
+- **🔧 修复DingTalk平台At逻辑**：在处理At列表时排除机器人自身ID，确保正确识别目标用户
+
+*感谢 [@k1ngr4m](https://github.com/k1ngr4m) 的贡献 ([#87](https://github.com/xxlemon-io/astrbot_plugin_fishing/pull/87))*
+
 #### v2.3.11 (市场上架外键约束修复 + 税收线程管理优化)
 
 - **🔧 修复市场上架外键约束错误**：修复用户上架鱼竿/饰品时出现"FOREIGN KEY constraint failed"错误的问题
