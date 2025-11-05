@@ -495,6 +495,12 @@ class FishingPlugin(Star):
         async for r in common_handlers.transfer_coins(self, event):
             yield r
 
+    @filter.command("更新昵称", alias={"修改昵称", "改昵称", "昵称"})
+    async def update_nickname(self, event: AstrMessageEvent):
+        """更新你的游戏昵称。用法：更新昵称 新昵称"""
+        async for r in common_handlers.update_nickname(self, event):
+            yield r
+
     @filter.command("高级货币", alias={"钻石", "星石"})
     async def premium(self, event: AstrMessageEvent):
         """查看你当前拥有的高级货币（钻石/星石）数量"""
