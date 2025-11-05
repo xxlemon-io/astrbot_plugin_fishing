@@ -531,3 +531,44 @@ async def reward_all_items(plugin: "FishingPlugin", event: AstrMessageEvent):
     yield event.plain_result(
         f"✅ 全体发放道具完成！\n📦 道具：{item_name} x{quantity}\n✅ 成功：{success_count} 位用户\n❌ 失败：{failed_count} 位用户"
     )
+
+
+async def replenish_fish_pools(plugin: "FishingPlugin", event: AstrMessageEvent):
+    """补充鱼池 - 重置所有钓鱼区域的稀有鱼剩余数量"""
+    try:
+        # 获取所有钓鱼区域
+        all_zones = plugin.inventory_repo.get_all_zones()
+        
+        if not all_zones:
+            yield event.plain_result("❌ 没有找到任何钓鱼区域。")
+            return
+        
+        # 重置所有有配额的区域的稀有鱼计数
+        reset_count = 0
+        zone_details = []
+        
+        for zone in all_zones:
+            if zone.daily_rare_fish_quota > 0:  # 只重置有配额的区域
+                zone.rare_fish_caught_today = 0
+                plugin.inventory_repo.update_fishing_zone(zone)
+                reset_count += 1
+                zone_details.append(f"🎣 {zone.name}：配额 {zone.daily_rare_fish_quota} 条")
+        
+        if reset_count == 0:
+            yield event.plain_result("❌ 没有找到任何有稀有鱼配额的钓鱼区域。")
+            return
+        
+        # 构建结果消息
+        result_msg = f"✅ 鱼池补充完成！已重置 {reset_count} 个钓鱼区域的稀有鱼剩余数量。\n\n"
+        result_msg += "📋 重置详情：\n"
+        result_msg += "\n".join(zone_details)
+        result_msg += f"\n\n🔄 所有区域的稀有鱼(4星及以上)剩余数量已重置为满配额状态。"
+        
+        yield event.plain_result(result_msg)
+        
+        logger.info(f"管理员 {event.get_sender_id()} 执行了鱼池补充操作，重置了 {reset_count} 个钓鱼区域")
+        
+    except Exception as e:
+        logger.error(f"补充鱼池时发生错误: {e}")
+        yield event.plain_result(f"❌ 补充鱼池时发生错误：{str(e)}")
+        return

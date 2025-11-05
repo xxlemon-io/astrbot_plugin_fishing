@@ -841,6 +841,13 @@ class FishingPlugin(Star):
         async for r in admin_handlers.reward_all_items(self, event):
             yield r
 
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("补充鱼池")
+    async def replenish_fish_pools(self, event: AstrMessageEvent):
+        """[管理员] 重置所有钓鱼区域的稀有鱼剩余数量"""
+        async for r in admin_handlers.replenish_fish_pools(self, event):
+            yield r
+
     async def _check_port_active(self):
         """验证端口是否实际已激活"""
         try:
