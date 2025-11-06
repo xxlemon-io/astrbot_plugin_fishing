@@ -53,6 +53,7 @@ class FishingService:
         self.last_tax_reset_time = get_last_reset_time(self.daily_reset_hour)
         self.tax_execution_lock = threading.Lock()  # 防止税收并发执行的锁
         self.tax_start_lock = threading.Lock()  # 防止重复创建税收线程的锁
+        self.rare_fish_reset_lock = threading.Lock()  # 防止稀有鱼重置并发执行的锁
         # 可选的消息通知回调：签名 (target: str, message: str) -> None，用于消息通知
         self._notifier = None
         # 通知目标可配置，默认群聊。可由 config['notifications']['relocation_target'] 覆盖
@@ -102,6 +103,9 @@ class FishingService:
         Returns:
             一个包含结果的字典。
         """
+        # 在执行钓鱼前，先检查并执行每日重置（如果需要）
+        self._reset_rare_fish_daily_quota()
+        
         user = self.user_repo.get_by_id(user_id)
         if not user:
             return {"success": False, "message": "用户不存在，无法钓鱼。"}
@@ -917,6 +921,45 @@ class FishingService:
         if relocated_users:
             logger.info(f"被传送用户详情：{relocated_users}")
 
+    def _reset_rare_fish_daily_quota(self) -> bool:
+        """
+        检查并重置所有区域的稀有鱼每日配额计数。
+        
+        使用快速路径检查模式优化性能：
+        1. 快速路径：无锁检查时间，如果不需要重置直接返回（99.9%的情况）
+        2. 慢速路径：加锁后再次确认（double-check），避免并发问题
+        
+        Returns:
+            bool: 如果执行了重置返回 True，否则返回 False
+        """
+        # 快速路径：无锁检查，避免大多数情况下的锁竞争
+        current_reset_time = get_last_reset_time(self.daily_reset_hour)
+        if current_reset_time == self.last_reset_time:
+            # 不需要重置，直接返回（99.9%的情况）
+            return False
+        
+        # 慢速路径：可能需要重置，获取锁后再次确认（double-check pattern）
+        with self.rare_fish_reset_lock:
+            # 再次检查，防止在获取锁的过程中其他线程已经执行了重置
+            current_reset_time = get_last_reset_time(self.daily_reset_hour)
+            if current_reset_time != self.last_reset_time:
+                # 如果刷新时间点变了，执行每日重置任务
+                logger.info(f"检测到刷新时间点变更（每日{self.daily_reset_hour}点刷新），从 {self.last_reset_time} 到 {current_reset_time}，开始执行稀有鱼配额重置...")
+                self.last_reset_time = current_reset_time
+                
+                # 重置所有受配额限制区域的稀有鱼计数（4星及以上）
+                all_zones = self.inventory_repo.get_all_zones()
+                reset_count = 0
+                for zone in all_zones:
+                    if zone.daily_rare_fish_quota > 0:  # 只重置有配额的区域
+                        zone.rare_fish_caught_today = 0
+                        self.inventory_repo.update_fishing_zone(zone)
+                        reset_count += 1
+                
+                logger.info(f"稀有鱼配额重置完成，共重置 {reset_count} 个区域的计数")
+                return True
+        
+        return False
 
     def start_auto_fishing_task(self):
         """启动自动钓鱼的后台线程。"""
@@ -1018,19 +1061,10 @@ class FishingService:
 
         while self.auto_fishing_running:
             try:
-                # 检查是否到达刷新时间点
-                current_reset_time = get_last_reset_time(self.daily_reset_hour)
-                if current_reset_time != self.last_reset_time:
-                    # 如果刷新时间点变了，执行每日重置任务
-                    logger.info(f"自动钓鱼线程检测到刷新时间点变更（每日{self.daily_reset_hour}点刷新），从 {self.last_reset_time} 到 {current_reset_time}，开始执行每日任务...")
-                    self.last_reset_time = current_reset_time
-                    
-                    # 重置所有受配额限制区域的稀有鱼计数（4星及以上）
-                    all_zones = self.inventory_repo.get_all_zones()
-                    for zone in all_zones:
-                        if zone.daily_rare_fish_quota > 0:  # 只重置有配额的区域
-                            zone.rare_fish_caught_today = 0
-                            self.inventory_repo.update_fishing_zone(zone)
+                # 检查并执行每日重置（如果需要）
+                if self._reset_rare_fish_daily_quota():
+                    # 如果执行了重置，说明是新的一天，执行其他每日任务
+                    logger.info("自动钓鱼线程检测到新的一天，开始执行每日任务...")
                     
                     # 注意：每日税收已由独立的税收线程处理，不再在此执行
                     
