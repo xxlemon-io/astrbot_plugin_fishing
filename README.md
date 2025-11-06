@@ -110,9 +110,10 @@
 
 *感谢 [@k1ngr4m](https://github.com/k1ngr4m) 的贡献 ([#87](https://github.com/xxlemon-io/astrbot_plugin_fishing/pull/87))*
 
----
 
 > 📋 **完整更新历史请查看 [CHANGELOG.md](CHANGELOG.md)**
+
+---
 
 
 ![image](https://github.com/user-attachments/assets/4dd1a179-967f-4cb9-82a5-ca3754b80bb0)
