@@ -2,24 +2,22 @@
 
 <div align="center">
 
-# 🎣 AstrBot 钓鱼插件 (Fork Enhanced)
-
-> **致谢原作者**: 本项目基于 [@xxlemon-io](https://github.com/xxlemon-io/astrbot_plugin_fishing) 的优秀项目进行二次开发和功能增强
+# 🎣 AstrBot 钓鱼插件
 
 ## 🚀 重大更新通知 🚀
 
 <div style="background: linear-gradient(135deg, #0ea5e9 0%,#86a4f8 100%); padding: 20px; border-radius: 15px; margin: 20px 0; box-shadow: 0 8px 32px hsla(199, 94.70%, 62.70%, 0.89);">
 
-### ✨ **v2.4.0 骰宝游戏系统** ✨
+### ✨ **v2.3.0 品质系统重构** ✨
 
-🎉 **Fork版本重大更新！**
+🎉 **重大平衡性更新！**
 
-🎲 **骰宝游戏系统** - 完整的多人实时下注骰宝游戏
-🎯 **25种下注方式** - 大小单双、点数下注、豹子等丰富玩法
-💰 **智能下注合并** - 相同类型下注自动合并，优化体验
-�️ **双模式显示** - 图片/文本模式切换，适应不同场景
-⚙️ **高度可配置** - 倒计时、显示模式等参数可自定义
-📊 **完整帮助系统** - 详细的游戏规则和赔率信息  
+🔧 **稀有度加成修复** - 稀有度加成现在正确影响4-5星鱼概率  
+✨ **品质系统重构** - 引入二元品质系统，高品质鱼按双倍价值出售  
+⚙️ **可配置概率** - 管理员可调整高品质鱼触发概率，灵活平衡游戏  
+📊 **数学优化** - 使用对数压缩公式，避免高品质鱼过于常见  
+🎯 **装备协同** - 鱼竿、饰品、鱼饵搭配更有意义  
+⚖️ **经济平衡** - 保持高品质鱼稀有性，避免经济通胀  
 
 **立即体验全新2.3.0版本，感受更平衡的钓鱼体验！** 🎊
 
@@ -27,24 +25,23 @@
 
 </div>
 
-一个功能齐全的钓鱼游戏系统插件，为您的机器人添加有趣的钓鱼休闲游戏和刺激的骰宝游戏体验。
+一个功能齐全的钓鱼游戏系统插件，为您的机器人添加有趣的钓鱼休闲游戏。
 
 [![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
-[![Version](https://img.shields.io/badge/Version-2.4.0-brightgreen.svg)](https://github.com/Akiyo-dayo/astrbot_plugin_fishing/releases/tag/v2.4.0)
-[![Fork Enhanced](https://img.shields.io/badge/Fork-Enhanced-purple.svg)](https://github.com/Akiyo-dayo/astrbot_plugin_fishing)
+[![Version](https://img.shields.io/badge/Version-2.3.12-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.3.12)
+[![Major Update](https://img.shields.io/badge/Major-Update-red.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
 
 ## ✨ 功能特点
 
 <div align="center">
 
-### 🆕 **v2.4.0 Fork增强版** 🆕
+### 🆕 **v2.3.0 重大更新** 🆕
 
 </div>
 
 - **完整的钓鱼游戏系统**：多种鱼类和稀有度，丰富的钓鱼体验
-- **🎲 骰宝游戏系统**：25种下注方式的多人实时骰宝游戏，支持图片/文本双模式显示
 - **可扩展的稀有度系统**：支持1-10星稀有度，新增6-10星颜色映射
 - **🆕 全新商店系统**：多商店类型（普通、高级、限时），支持复杂商品机制和成本组合
 - **🆕 统一短码系统**：所有物品使用Base36编码，操作更便捷
@@ -103,7 +100,7 @@
 - 📝 **代码优化**：改进代码质量和可维护性
 - 🛡️ **安全加固**：增强系统安全性
 
-如果您有功能建议或发现问题，欢迎在 [Issues](https://github.com/Akiyo-dayo/astrbot_plugin_fishing/issues) 中提出！
+如果您有功能建议或发现问题，欢迎在 [Issues](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues) 中提出！
  
 ## 📦 更新记录
 
@@ -574,7 +571,6 @@
 | `/全体扣除金币 [数量]` | - | 从所有用户扣除金币 |
 | `/全体扣除高级货币 [数量]` | - | 从所有用户扣除高级货币 |
 | `/全体发放道具 [道具ID] [数量]` | - | 给所有用户发放指定道具（管理员） |
-| `/补充鱼池` | - | 重置所有钓鱼区域的稀有鱼剩余数量（管理员） |
 | `/开启钓鱼后台管理` | - | 启动 Web 管理后台（管理员） |
 | `/关闭钓鱼后台管理` | - | 关闭 Web 管理后台（管理员） |
 | `/代理上线 [用户ID]` | `/login [用户ID]` | 扮演指定用户，方便调试（管理员） |
@@ -590,7 +586,7 @@
 我们欢迎各种形式的贡献！无论您是开发者、用户还是爱好者，都可以为项目做出贡献：
 
 #### 对于开发者
-- 🐛 **报告Bug**：在 [Issues](https://github.com/Akiyo-dayo/astrbot_plugin_fishing/issues) 中报告发现的问题
+- 🐛 **报告Bug**：在 [Issues](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues) 中报告发现的问题
 - 💡 **功能建议**：提出新功能想法和改进建议
 - 🔧 **代码贡献**：提交 Pull Request 改进代码
 - 📖 **文档完善**：帮助完善文档和注释
@@ -616,20 +612,18 @@
 - 确保代码通过所有测试
 - 提交信息使用清晰的中文描述
 
-### 🙏 致谢原作者和贡献者
+### 🏆 贡献者
 
-感谢 [@xxlemon-io](https://github.com/xxlemon-io) 及其团队为原项目做出的贡献！
+感谢所有为这个项目做出贡献的开发者们！
 
 <a href="https://github.com/xxlemon-io/astrbot_plugin_fishing/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=xxlemon-io/astrbot_plugin_fishing" />
 </a>
 
-本Fork版本在原项目基础上进行功能增强，特别感谢原作者的开源精神！
-
 ## 📞 支持与联系
 
-- 🐛 **问题反馈**：[GitHub Issues](https://github.com/Akiyo-dayo/astrbot_plugin_fishing/issues)
-- 💬 **讨论交流**：[GitHub Discussions](https://github.com/Akiyo-dayo/astrbot_plugin_fishing/discussions)
+- 🐛 **问题反馈**：[GitHub Issues](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues)
+- 💬 **讨论交流**：[GitHub Discussions](https://github.com/xxlemon-io/astrbot_plugin_fishing/discussions)
 - 📧 **邮件联系**：通过 GitHub 个人资料联系
 
 ## 🙏 致谢与项目来源
@@ -638,9 +632,8 @@
 
 - **原始版本**：[@baa131/astrbot_plugin_fishing](https://github.com/baa131/astrbot_plugin_fishing) v1.0.0
 - **基础版本**：[@tinkerbellqwq/astrbot_plugin_fishing](https://github.com/tinkerbellqwq/astrbot_plugin_fishing) v1.4.6
-- **主要基础**：[@xxlemon-io/astrbot_plugin_fishing](https://github.com/xxlemon-io/astrbot_plugin_fishing) v2.3.12
 
-感谢所有原作者的贡献和开源精神，让我们能够在此基础上继续改进和完善这个项目。
+感谢原作者的贡献和开源精神，让我们能够在此基础上继续改进和完善这个项目。
 
 ## 📜 开源协议与法律声明
 
@@ -665,8 +658,6 @@
 
 **如果这个项目对您有帮助，请给我们一个 ⭐ Star！**
 
-Made with ❤️ by Akiyo-dayo (Fork Enhanced Version)
-
-基于 [@xxlemon-io/astrbot_plugin_fishing](https://github.com/xxlemon-io/astrbot_plugin_fishing) 进行功能增强
+Made with ❤️ by the AstrBot Fishing Plugin Community
 
 </div>
