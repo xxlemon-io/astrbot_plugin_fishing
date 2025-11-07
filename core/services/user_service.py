@@ -530,6 +530,46 @@ class UserService:
         self.user_repo.update(user)
         return {"success": True, "message": "用户信息更新成功"}
 
+    def update_nickname(self, user_id: str, new_nickname: str) -> Dict[str, Any]:
+        """
+        允许用户更新自己的昵称
+        
+        Args:
+            user_id: 用户ID
+            new_nickname: 新昵称
+            
+        Returns:
+            包含操作结果的字典
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "❌ 用户不存在，请先注册"}
+        
+        # 验证新昵称
+        if not isinstance(new_nickname, str) or len(new_nickname.strip()) == 0:
+            return {"success": False, "message": "❌ 昵称不能为空"}
+        
+        new_nickname = new_nickname.strip()
+        
+        if len(new_nickname) > 32:
+            return {"success": False, "message": "❌ 昵称长度不能超过32个字符"}
+        
+        # 检查是否与当前昵称相同
+        if user.nickname == new_nickname:
+            return {"success": False, "message": f"❌ 您的昵称已经是 {new_nickname}，无需更改"}
+        
+        old_nickname = user.nickname or user_id
+        user.nickname = new_nickname
+        
+        try:
+            self.user_repo.update(user)
+            return {
+                "success": True, 
+                "message": f"✅ 昵称更新成功！\n📝 旧昵称：{old_nickname}\n🆕 新昵称：{new_nickname}"
+            }
+        except Exception as e:
+            return {"success": False, "message": f"❌ 更新昵称时发生错误：{str(e)}"}
+
     def delete_user_for_admin(self, user_id: str) -> Dict[str, Any]:
         """
         删除用户（管理员操作）

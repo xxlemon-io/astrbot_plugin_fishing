@@ -109,3 +109,28 @@ async def transfer_coins(self: "FishingPlugin", event: AstrMessageEvent):
     # 调用转账服务
     result = self.user_service.transfer_coins(from_user_id, target_user_id, amount)
     yield event.plain_result(result["message"])
+
+
+async def update_nickname(self: "FishingPlugin", event: AstrMessageEvent):
+    """更新用户昵称"""
+    args = event.message_str.split(" ")
+    
+    # 检查是否提供了新昵称
+    if len(args) < 2:
+        yield event.plain_result(
+            "❌ 请提供新昵称，例如：/更新昵称 新的昵称\n"
+            "💡 昵称要求：\n"
+            "  - 不能为空\n"
+            "  - 长度不超过32个字符\n"
+            "  - 支持中文、英文、数字和常用符号"
+        )
+        return
+    
+    # 提取新昵称（支持包含空格的昵称）
+    new_nickname = " ".join(args[1:])
+    
+    user_id = self._get_effective_user_id(event)
+    
+    # 调用用户服务更新昵称
+    result = self.user_service.update_nickname(user_id, new_nickname)
+    yield event.plain_result(result["message"])
