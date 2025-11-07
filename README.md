@@ -113,6 +113,11 @@
 
 *感谢 [@Akiyo-dayo](https://github.com/Akiyo-dayo) 的贡献 ([#90](https://github.com/xxlemon-io/astrbot_plugin_fishing/pull/90))*
 
+#### v2.3.13 (稀有鱼配额自动重置 + 钓鱼道具效果增强)
+
+- **🔄 稀有鱼每日配额自动重置**：新增自动重置机制，确保稀有鱼配额每日准时刷新
+- **🎣 钓鱼道具效果增强**：优化便携声纳等钓鱼道具的使用体验，支持立即执行钓鱼操作
+
 #### v2.3.12 (DingTalk平台At逻辑适配)
 
 - **🔧 修复DingTalk平台At逻辑**：在处理At列表时排除机器人自身ID，确保正确识别目标用户

@@ -25,6 +25,25 @@
 
 *感谢 [@Akiyo-dayo](https://github.com/Akiyo-dayo) 的贡献 ([#90](https://github.com/xxlemon-io/astrbot_plugin_fishing/pull/90))*
 
+#### v2.3.13 (稀有鱼配额自动重置 + 钓鱼道具效果增强)
+
+- **🔄 稀有鱼每日配额自动重置**：新增自动重置机制，确保稀有鱼配额每日准时刷新
+  - 在自动钓鱼任务启动时自动检查并重置所有区域的稀有鱼配额
+  - 使用快速路径检查优化性能，避免不必要的锁竞争
+  - 添加锁机制防止并发执行，确保重置操作的线程安全
+  - 提高系统效率，减少代码重复
+- **🎣 钓鱼道具效果增强**：优化便携声纳等钓鱼道具的使用体验
+  - 重构 `ResetFishingCooldownEffect`，支持立即执行钓鱼操作
+  - 改进单次和批量使用的处理逻辑，提供更详细的结果反馈
+  - 优化道具描述，使功能说明更清晰易懂
+  - 增强错误处理机制，提升用户体验
+
+#### v2.3.12 (DingTalk平台At逻辑适配)
+
+- **🔧 修复DingTalk平台At逻辑**：在处理At列表时排除机器人自身ID，确保正确识别目标用户
+
+*感谢 [@k1ngr4m](https://github.com/k1ngr4m) 的贡献 ([#87](https://github.com/xxlemon-io/astrbot_plugin_fishing/pull/87))*
+
 #### v2.3.11 (市场上架外键约束修复 + 税收线程管理优化)
 
 - **🔧 修复市场上架外键约束错误**：修复用户上架鱼竿/饰品时出现"FOREIGN KEY constraint failed"错误的问题
