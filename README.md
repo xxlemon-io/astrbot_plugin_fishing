@@ -643,6 +643,10 @@
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 打开一个 **Pull Request**
 
+⚠️ **重要提示**：请将您的 Pull Request 提交到 **`develop`** 分支，而不是 `main` 分支。`main` 分支用于稳定版本发布，所有新功能和改进都应该先合并到 `develop` 分支进行测试。
+
+📖 更多详细信息请查看 [CONTRIBUTING.md](CONTRIBUTING.md)
+
 ### 📄 代码规范
 
 - 遵循 Python PEP 8 代码规范
