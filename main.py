@@ -207,7 +207,7 @@ class FishingPlugin(Star):
         self.gacha_service = GachaService(self.gacha_repo, self.user_repo, self.inventory_repo, self.item_template_repo,
                                          self.log_repo, self.achievement_repo)
         # UserService 依赖 GachaService，因此在 GachaService 之后实例化
-        self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.gacha_service, self.game_config)
+        self.user_service = UserService(self.user_repo, self.log_repo, self.inventory_repo, self.item_template_repo, self.gacha_service, self.game_config, self.achievement_repo)
         self.inventory_service = InventoryService(
             self.inventory_repo,
             self.user_repo,
@@ -1113,6 +1113,27 @@ class FishingPlugin(Star):
     async def sync_initial_data(self, event: AstrMessageEvent):
         """[管理员] 同步游戏初始设定数据到数据库"""
         async for r in admin_handlers.sync_initial_data(self, event):
+            yield r
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("授予称号")
+    async def grant_title(self, event: AstrMessageEvent):
+        """[管理员] 授予用户称号。用法：授予称号 @用户 称号名称"""
+        async for r in admin_handlers.grant_title(self, event):
+            yield r
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("移除称号")
+    async def revoke_title(self, event: AstrMessageEvent):
+        """[管理员] 移除用户称号。用法：移除称号 @用户 称号名称"""
+        async for r in admin_handlers.revoke_title(self, event):
+            yield r
+
+    @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("创建称号")
+    async def create_title(self, event: AstrMessageEvent):
+        """[管理员] 创建自定义称号。用法：创建称号 称号名称 描述 [显示格式]"""
+        async for r in admin_handlers.create_title(self, event):
             yield r
 
     @filter.permission_type(PermissionType.ADMIN)
