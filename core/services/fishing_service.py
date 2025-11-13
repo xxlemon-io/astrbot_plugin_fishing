@@ -490,6 +490,7 @@ class FishingService:
                     "rarity": fish_template.rarity,
                     "description": fish_template.description,
                     "value": fish_template.base_value,
+                    "icon_url": fish_template.icon_url,
                     "first_caught_time": stat.first_caught_at,
                     "last_caught_time": stat.last_caught_at,
                     "max_weight": stat.max_weight,
