@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 from astrbot.api import logger
 from datetime import datetime
 
-from .utils import get_user_avatar
+from .utils import get_user_avatar, get_fish_icon
 from .styles import (
     IMG_WIDTH, PADDING, CORNER_RADIUS,
     COLOR_BACKGROUND, COLOR_HEADER_BG, COLOR_TEXT_WHITE, COLOR_TEXT_DARK,
@@ -124,6 +124,25 @@ async def draw_pokedex(pokedex_data: Dict[str, Any], user_info: Dict[str, Any], 
         draw_rounded_rectangle(draw, (PADDING, card_y1, IMG_WIDTH - PADDING, card_y2), CORNER_RADIUS, fill=card_bg, outline=COLOR_CARD_BORDER)
         # 左侧内容区域
         left_pane_x = PADDING + 30
+        
+        # 尝试加载并显示鱼类图标
+        icon_size = 50
+        icon_x = left_pane_x
+        icon_y = card_y1 + (FISH_CARD_HEIGHT - icon_size) // 2
+        icon_url = fish.get("icon_url")
+        if icon_url and data_dir:
+            try:
+                fish_icon = await get_fish_icon(icon_url, data_dir, icon_size)
+                if fish_icon:
+                    # 计算图标居中位置
+                    icon_x_offset = icon_x
+                    icon_y_offset = icon_y
+                    img.paste(fish_icon, (icon_x_offset, icon_y_offset), fish_icon)
+                    # 调整文本位置，为图标留出空间
+                    left_pane_x += icon_size + 15
+            except Exception as e:
+                logger.warning(f"加载鱼类图标失败: {e}, URL: {icon_url}")
+        
         # 鱼名和稀有度 - 调整位置适应更小的卡片
         name_y = card_y1 + 10
         draw.text((left_pane_x, name_y), fish.get("name", "未知鱼"), font=FONT_FISH_NAME, fill=text_primary)
