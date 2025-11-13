@@ -495,6 +495,9 @@ class ExchangeHandlers:
                     yield r
             elif command in ["统计", "stats"]:
                 yield event.plain_result(self._get_trading_stats_help())
+            elif command in ["状态", "status"]:
+                async for r in self.exchange_status(event):
+                    yield r
             else:
                 yield event.plain_result(
                     "❌ 未知命令。使用【交易所 帮助】查看可用命令。"
