@@ -11,6 +11,7 @@ from .styles import (
     COLOR_SUCCESS, COLOR_WARNING, COLOR_ERROR, COLOR_GOLD, COLOR_RARE,
     COLOR_REFINE_RED, COLOR_REFINE_ORANGE, COLOR_CORNER, load_font
 )
+from .text_utils import load_font_with_cjk_fallback, draw_text_smart
 
 def format_rarity_display(rarity: int) -> str:
     """格式化稀有度显示，支持显示到10星，10星以上显示为★★★★★★★★★★+"""
@@ -69,7 +70,7 @@ async def draw_state_image(user_data: Dict[str, Any], data_dir: str) -> Image.Im
     image = create_vertical_gradient(width, height, bg_top, bg_bot)
     draw = ImageDraw.Draw(image)
 
-    # 2. 加载字体
+    # 2. 加载字体（称号字体使用CJK回退支持）
     def load_font(name, size):
         path = os.path.join(os.path.dirname(__file__), "resource", name)
         try:
@@ -77,10 +78,12 @@ async def draw_state_image(user_data: Dict[str, Any], data_dir: str) -> Image.Im
         except Exception as e:
             return ImageFont.load_default()
 
+    font_path = os.path.join(os.path.dirname(__file__), "resource", "DouyinSansBold.otf")
     title_font = load_font("DouyinSansBold.otf", 28)
     subtitle_font = load_font("DouyinSansBold.otf", 24)
     content_font = load_font("DouyinSansBold.otf", 20)
-    small_font = load_font("DouyinSansBold.otf", 16)
+    # 称号字体使用CJK回退支持，确保繁体中文能正确显示
+    small_font = load_font_with_cjk_fallback(font_path, 16)
     tiny_font = load_font("DouyinSansBold.otf", 14)
 
     # 3. 颜色定义 - 温和协调的海洋主题配色
@@ -108,7 +111,9 @@ async def draw_state_image(user_data: Dict[str, Any], data_dir: str) -> Image.Im
 
     # 4. 获取文本尺寸的辅助函数
     def get_text_size(text, font):
-        bbox = draw.textbbox((0, 0), text, font=font)
+        # 如果是FontWithFallback类型，使用主字体测量（简化处理）
+        actual_font = font.primary_font if hasattr(font, 'primary_font') else font
+        bbox = draw.textbbox((0, 0), text, font=actual_font)
         return bbox[2] - bbox[0], bbox[3] - bbox[1]
 
     # 5. 绘制圆角矩形
@@ -175,7 +180,14 @@ async def draw_state_image(user_data: Dict[str, Any], data_dir: str) -> Image.Im
         else:
             title_text = f"{current_title}"
 
-        draw.text((col1_x + nickname_width + 10, row1_y + height_offset), title_text, font=small_font, fill=rare_color)
+        # 使用智能文本绘制，自动处理繁体中文等缺失字符
+        draw_text_smart(
+            draw,
+            (col1_x + nickname_width + 10, row1_y + height_offset),
+            title_text,
+            small_font,
+            rare_color
+        )
     # else:
     #     title_text = "未装备
     #     draw.text((col1_x + nickname_width + 10, row1_y + height_offset), title_text, font=small_font, fill=text_color)

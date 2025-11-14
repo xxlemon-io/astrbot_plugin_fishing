@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 加载用户详情
     const loadUserDetail = async (userId) => {
         try {
-            const url = userDetailUrl + userId;
+            const url = userDetailUrl + encodeURIComponent(userId);
             const response = await fetch(url);
             const data = await response.json();
             
@@ -226,15 +226,147 @@ document.addEventListener('DOMContentLoaded', function() {
         col4.appendChild(table4);
 
         row2.appendChild(col3); row2.appendChild(col4);
-
         content.appendChild(row1);
         content.appendChild(row2);
+
+        // 称号列表（仅查看，不提供编辑功能）
+        const row3 = document.createElement('div'); row3.className = 'row mt-3';
+        const col5 = document.createElement('div'); col5.className = 'col-12';
+        const titleHeading = document.createElement('h6');
+        titleHeading.textContent = '拥有的称号';
+        col5.appendChild(titleHeading);
+        
+        if (data.titles && data.titles.length > 0) {
+            const titleUl = document.createElement('ul');
+            titleUl.className = 'list-group mt-2';
+            data.titles.forEach(title => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                const titleInfo = document.createElement('span');
+                
+                // 安全地创建DOM元素，避免XSS攻击
+                const strong = document.createElement('strong');
+                strong.textContent = title.name;
+                titleInfo.appendChild(strong);
+                
+                if (title.is_current) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-success ms-2';
+                    badge.textContent = '当前装备';
+                    titleInfo.appendChild(badge);
+                }
+                
+                li.appendChild(titleInfo);
+                titleUl.appendChild(li);
+            });
+            col5.appendChild(titleUl);
+        } else {
+            const emptyMsg = document.createElement('p');
+            emptyMsg.className = 'text-muted mb-0';
+            emptyMsg.textContent = '该用户暂无称号';
+            col5.appendChild(emptyMsg);
+        }
+        
+        row3.appendChild(col5);
+        content.appendChild(row3);
     }
+
+    // 加载可用称号列表
+    const loadAvailableTitles = async (selectElement) => {
+        try {
+            const response = await fetch(baseUrl + '/api/titles');
+            const data = await response.json();
+            if (data.success && data.titles) {
+                data.titles.forEach(title => {
+                    const option = document.createElement('option');
+                    option.value = title.name;
+                    option.textContent = title.name;
+                    selectElement.appendChild(option);
+                });
+            }
+        } catch (error) {
+            console.error('Error loading titles:', error);
+        }
+    };
+
+    // 授予称号给用户
+    const grantTitleToUser = async (userId, titleName, reloadInEdit = false) => {
+        if (!confirm(`确定要授予用户称号 "${titleName}" 吗？`)) {
+            return;
+        }
+        try {
+            const response = await fetch(baseUrl + '/users/' + encodeURIComponent(userId) + '/grant_title', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ title_name: titleName })
+            });
+            const result = await response.json();
+            if (result.success) {
+                alert(result.message);
+                // 根据上下文重新加载
+                if (reloadInEdit) {
+                    // 在编辑模态框中，重新加载用户数据并更新称号管理部分
+                    const detailResponse = await fetch(userDetailUrl + encodeURIComponent(userId));
+                    const detailData = await detailResponse.json();
+                    if (detailData.success) {
+                        loadTitleManagementSection(userId, detailData);
+                    }
+                } else {
+                    // 在详情模态框中，重新加载用户详情
+                    loadUserDetail(userId);
+                }
+            } else {
+                alert('授予失败：' + result.message);
+            }
+        } catch (error) {
+            console.error('Error granting title:', error);
+            alert('授予称号时发生错误');
+        }
+    };
+
+    // 移除用户的称号
+    const revokeTitleFromUser = async (userId, titleName, reloadInEdit = false) => {
+        if (!confirm(`确定要移除用户的称号 "${titleName}" 吗？`)) {
+            return;
+        }
+        try {
+            const response = await fetch(baseUrl + '/users/' + encodeURIComponent(userId) + '/revoke_title', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ title_name: titleName })
+            });
+            const result = await response.json();
+            if (result.success) {
+                alert(result.message);
+                // 根据上下文重新加载
+                if (reloadInEdit) {
+                    // 在编辑模态框中，重新加载用户数据并更新称号管理部分
+                    const detailResponse = await fetch(userDetailUrl + encodeURIComponent(userId));
+                    const detailData = await detailResponse.json();
+                    if (detailData.success) {
+                        loadTitleManagementSection(userId, detailData);
+                    }
+                } else {
+                    // 在详情模态框中，重新加载用户详情
+                    loadUserDetail(userId);
+                }
+            } else {
+                alert('移除失败：' + result.message);
+            }
+        } catch (error) {
+            console.error('Error revoking title:', error);
+            alert('移除称号时发生错误');
+        }
+    };
 
     // 加载用户进行编辑
     const loadUserForEdit = async (userId) => {
         try {
-            const url = userDetailUrl + userId;
+            const url = userDetailUrl + encodeURIComponent(userId);
             const response = await fetch(url);
             const data = await response.json();
             
@@ -256,9 +388,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('fishing_zone_id').value = user.fishing_zone_id;
                 document.getElementById('auto_fishing_enabled').checked = user.auto_fishing_enabled;
                 
+                // 加载称号管理部分
+                loadTitleManagementSection(userId, data);
+                
                 // 标记为编辑模式并设置表单动作
                 form.dataset.mode = 'edit';
-                const actionUrl = updateUserUrl + userId + '/update';
+                const actionUrl = updateUserUrl + encodeURIComponent(userId) + '/update';
                 form.action = actionUrl;
                 
                 // 显示模态框
@@ -272,10 +407,92 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // 加载称号管理部分到编辑模态框
+    const loadTitleManagementSection = (userId, data) => {
+        const titleSection = document.getElementById('titleManagementSection');
+        titleSection.innerHTML = '';
+        
+        // 显示用户拥有的称号
+        const titlesList = document.createElement('div');
+        titlesList.className = 'mb-3';
+        if (data.titles && data.titles.length > 0) {
+            const titleListTitle = document.createElement('strong');
+            titleListTitle.textContent = '拥有的称号:';
+            titlesList.appendChild(titleListTitle);
+            const titleUl = document.createElement('ul');
+            titleUl.className = 'list-group mt-2';
+            data.titles.forEach(title => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                const titleInfo = document.createElement('span');
+                
+                // 安全地创建DOM元素，避免XSS攻击
+                const strong = document.createElement('strong');
+                strong.textContent = title.name;
+                titleInfo.appendChild(strong);
+                
+                if (title.is_current) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-success ms-2';
+                    badge.textContent = '当前装备';
+                    titleInfo.appendChild(badge);
+                }
+                
+                li.appendChild(titleInfo);
+                if (!title.is_current) {
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'btn btn-sm btn-danger';
+                    removeBtn.textContent = '移除';
+                    removeBtn.onclick = () => {
+                        revokeTitleFromUser(userId, title.name, true);
+                    };
+                    li.appendChild(removeBtn);
+                }
+                titleUl.appendChild(li);
+            });
+            titlesList.appendChild(titleUl);
+        } else {
+            const emptyMsg = document.createElement('p');
+            emptyMsg.className = 'text-muted mb-0';
+            emptyMsg.textContent = '该用户暂无称号';
+            titlesList.appendChild(emptyMsg);
+        }
+        titleSection.appendChild(titlesList);
+        
+        // 授予称号功能
+        const grantTitleDiv = document.createElement('div');
+        grantTitleDiv.className = 'input-group';
+        const titleSelect = document.createElement('select');
+        titleSelect.className = 'form-select';
+        titleSelect.id = 'titleSelect_edit_' + userId;
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = '选择称号...';
+        titleSelect.appendChild(defaultOption);
+        grantTitleDiv.appendChild(titleSelect);
+        const grantBtn = document.createElement('button');
+        grantBtn.className = 'btn btn-success';
+        grantBtn.type = 'button';
+        grantBtn.textContent = '授予称号';
+        grantBtn.onclick = () => {
+            const selectedTitle = titleSelect.value;
+            if (selectedTitle) {
+                grantTitleToUser(userId, selectedTitle, true);
+            } else {
+                alert('请选择要授予的称号');
+            }
+        };
+        grantTitleDiv.appendChild(grantBtn);
+        titleSection.appendChild(grantTitleDiv);
+        
+        // 加载所有可用称号
+        loadAvailableTitles(titleSelect);
+    }
+
     // 更新用户
     const updateUser = async (userId, userData) => {
         try {
-            const url = updateUserUrl + userId + '/update';
+            const url = updateUserUrl + encodeURIComponent(userId) + '/update';
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -301,7 +518,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 删除用户
     const deleteUser = async (userId) => {
         try {
-            const url = deleteUserUrl + userId + '/delete';
+            const url = deleteUserUrl + encodeURIComponent(userId) + '/delete';
             const response = await fetch(url, {
                 method: 'POST'
             });
