@@ -190,7 +190,7 @@ def _find_cjk_font() -> Optional[str]:
     
     # 使用项目资源目录中的字体（按优先级排序）
     cjk_fonts = [
-        "NotoSansTC-VariableFont_wght.ttf",  # Noto Sans 繁体中文（优先）
+        "NotoSansTC-Bold.ttf",  # Noto Sans 繁体中文（优先）
         "NotoSansJP-Bold.ttf",  # Noto Sans 日文（后备）
     ]
     
