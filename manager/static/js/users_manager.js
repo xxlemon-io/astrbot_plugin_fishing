@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 加载用户详情
     const loadUserDetail = async (userId) => {
         try {
-            const url = userDetailUrl + userId;
+            const url = userDetailUrl + encodeURIComponent(userId);
             const response = await fetch(url);
             const data = await response.json();
             
@@ -323,7 +323,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         try {
-            const response = await fetch(baseUrl + '/users/' + userId + '/grant_title', {
+            const response = await fetch(baseUrl + '/users/' + encodeURIComponent(userId) + '/grant_title', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -350,7 +350,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         try {
-            const response = await fetch(baseUrl + '/users/' + userId + '/revoke_title', {
+            const response = await fetch(baseUrl + '/users/' + encodeURIComponent(userId) + '/revoke_title', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -374,7 +374,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 加载用户进行编辑
     const loadUserForEdit = async (userId) => {
         try {
-            const url = userDetailUrl + userId;
+            const url = userDetailUrl + encodeURIComponent(userId);
             const response = await fetch(url);
             const data = await response.json();
             
@@ -398,7 +398,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // 标记为编辑模式并设置表单动作
                 form.dataset.mode = 'edit';
-                const actionUrl = updateUserUrl + userId + '/update';
+                const actionUrl = updateUserUrl + encodeURIComponent(userId) + '/update';
                 form.action = actionUrl;
                 
                 // 显示模态框
@@ -415,7 +415,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 更新用户
     const updateUser = async (userId, userData) => {
         try {
-            const url = updateUserUrl + userId + '/update';
+            const url = updateUserUrl + encodeURIComponent(userId) + '/update';
             const response = await fetch(url, {
                 method: 'POST',
                 headers: {
@@ -441,7 +441,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 删除用户
     const deleteUser = async (userId) => {
         try {
-            const url = deleteUserUrl + userId + '/delete';
+            const url = deleteUserUrl + encodeURIComponent(userId) + '/delete';
             const response = await fetch(url, {
                 method: 'POST'
             });

@@ -25,7 +25,11 @@ async def get_user_avatar(user_id: str, data_dir: str, avatar_size: int = 50) ->
         cache_dir = os.path.join(data_dir, "avatar_cache")
         os.makedirs(cache_dir, exist_ok=True)
         
-        avatar_cache_path = os.path.join(cache_dir, f"{user_id}_avatar.png")
+        # 安全化user_id用于文件名
+        import re
+        safe_user_id = re.sub(r'[^a-zA-Z0-9._-]', '_', user_id)
+        safe_user_id = re.sub(r'_+', '_', safe_user_id).strip('_') or 'unknown'
+        avatar_cache_path = os.path.join(cache_dir, f"{safe_user_id}_avatar.png")
         
         # 检查是否有缓存的头像（24小时刷新）
         avatar_image = None
