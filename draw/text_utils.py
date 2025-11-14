@@ -179,35 +179,25 @@ def get_text_metrics_batch(texts: List[str], font: ImageFont.FreeTypeFont, cache
     return results
 
 
-def _find_system_cjk_font() -> Optional[str]:
+def _find_cjk_font() -> Optional[str]:
     """
-    查找系统CJK字体路径（支持繁体中文字符）
+    查找CJK字体路径（支持繁体中文字符）
     
     Returns:
         字体文件路径，如果找不到则返回None
     """
-    system = platform.system()
+    resource_dir = os.path.join(os.path.dirname(__file__), "resource")
     
-    if system == "Windows":
-        font_dir = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts")
-        # 优先使用支持繁体中文的字体
-        cjk_fonts = ["simsun.ttc", "simsun.ttf", "mingliu.ttc", "pmingliu.ttc"]
-        for font_name in cjk_fonts:
-            font_path = os.path.join(font_dir, font_name)
-            if os.path.exists(font_path):
-                return font_path
-    elif system == "Darwin":  # macOS
-        for font_dir in ["/System/Library/Fonts", "/Library/Fonts"]:
-            for font_name in ["STHeiti Light.ttc", "PingFang.ttc"]:
-                font_path = os.path.join(font_dir, font_name)
-                if os.path.exists(font_path):
-                    return font_path
-    elif system == "Linux":
-        for font_dir in ["/usr/share/fonts", "/usr/local/share/fonts"]:
-            for font_name in ["wqy-microhei.ttc", "wqy-zenhei.ttc"]:
-                font_path = os.path.join(font_dir, font_name)
-                if os.path.exists(font_path):
-                    return font_path
+    # 使用项目资源目录中的字体（按优先级排序）
+    cjk_fonts = [
+        "NotoSansTC-VariableFont_wght.ttf",  # Noto Sans 繁体中文（优先）
+        "NotoSansJP-Bold.ttf",  # Noto Sans 日文（后备）
+    ]
+    
+    for font_name in cjk_fonts:
+        font_path = os.path.join(resource_dir, font_name)
+        if os.path.exists(font_path):
+            return font_path
     
     return None
 
@@ -222,26 +212,37 @@ class FontWithFallback:
         self.fallback_font = fallback_font
         self._char_cache = {}  # 缓存字符到字体的映射
     
+    def _is_cjk_char(self, char: str) -> bool:
+        """判断是否为CJK字符（中文、日文、韩文）"""
+        if not char:
+            return False
+        code = ord(char)
+        # CJK统一汉字、CJK扩展A/B/C/D/E、CJK兼容汉字、日文平假名/片假名、韩文等
+        return (
+            0x4E00 <= code <= 0x9FFF or  # CJK统一汉字
+            0x3400 <= code <= 0x4DBF or  # CJK扩展A
+            0x20000 <= code <= 0x2A6DF or  # CJK扩展B
+            0x2A700 <= code <= 0x2B73F or  # CJK扩展C
+            0x2B740 <= code <= 0x2B81F or  # CJK扩展D
+            0x2B820 <= code <= 0x2CEAF or  # CJK扩展E
+            0xF900 <= code <= 0xFAFF or  # CJK兼容汉字
+            0x3040 <= code <= 0x309F or  # 日文平假名
+            0x30A0 <= code <= 0x30FF or  # 日文片假名
+            0xAC00 <= code <= 0xD7AF     # 韩文音节
+        )
+    
     def _get_font_for_char(self, char: str) -> ImageFont.FreeTypeFont:
         """获取适合该字符的字体"""
         if char in self._char_cache:
             return self._char_cache[char]
         
-        # 检查主字体是否支持该字符
-        try:
-            mask = self.primary_font.getmask(char)
-            if mask.size[0] > 0 and mask.size[1] > 0:
-                self._char_cache[char] = self.primary_font
-                return self.primary_font
-        except Exception:
-            pass
-        
-        # 使用回退字体
-        if self.fallback_font:
+        # 对于CJK字符，如果有回退字体，直接使用回退字体以确保正确显示
+        # 这样可以避免主字体可能将繁体字映射到其他字符的问题
+        if self.fallback_font and self._is_cjk_char(char):
             self._char_cache[char] = self.fallback_font
             return self.fallback_font
         
-        # 没有回退字体，使用主字体
+        # 非CJK字符或没有回退字体，使用主字体
         self._char_cache[char] = self.primary_font
         return self.primary_font
     
@@ -285,13 +286,14 @@ def load_font_with_cjk_fallback(font_path: str, size: int) -> FontWithFallback:
     except Exception:
         primary_font = ImageFont.load_default()
     
-    # 尝试加载系统CJK字体作为回退
+    # 加载CJK字体作为回退（仅使用项目资源中的字体，不查询系统）
     fallback_font = None
-    cjk_font_path = _find_system_cjk_font()
+    cjk_font_path = _find_cjk_font()
     if cjk_font_path:
         try:
             fallback_font = ImageFont.truetype(cjk_font_path, size)
-        except Exception:
+        except Exception as e:
+            # 如果加载失败，记录错误但不抛出异常
             pass
     
     return FontWithFallback(primary_font, fallback_font)
