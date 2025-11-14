@@ -270,7 +270,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const removeBtn = document.createElement('button');
                     removeBtn.className = 'btn btn-sm btn-danger';
                     removeBtn.textContent = '移除';
-                    removeBtn.onclick = () => revokeTitleFromUser(user.user_id, title.name);
+                    removeBtn.onclick = () => revokeTitleFromUser(user.user_id, title.name, false);
                     li.appendChild(removeBtn);
                 }
                 titleUl.appendChild(li);
@@ -301,7 +301,7 @@ document.addEventListener('DOMContentLoaded', function() {
         grantBtn.onclick = () => {
             const selectedTitle = titleSelect.value;
             if (selectedTitle) {
-                grantTitleToUser(user.user_id, selectedTitle);
+                grantTitleToUser(user.user_id, selectedTitle, false);
             } else {
                 alert('请选择要授予的称号');
             }
@@ -337,7 +337,7 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // 授予称号给用户
-    const grantTitleToUser = async (userId, titleName) => {
+    const grantTitleToUser = async (userId, titleName, reloadInEdit = false) => {
         if (!confirm(`确定要授予用户称号 "${titleName}" 吗？`)) {
             return;
         }
@@ -352,8 +352,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await response.json();
             if (result.success) {
                 alert(result.message);
-                // 重新加载用户详情
-                loadUserDetail(userId);
+                // 根据上下文重新加载
+                if (reloadInEdit) {
+                    // 在编辑模态框中，重新加载用户数据并更新称号管理部分
+                    const detailResponse = await fetch(userDetailUrl + encodeURIComponent(userId));
+                    const detailData = await detailResponse.json();
+                    if (detailData.success) {
+                        loadTitleManagementSection(userId, detailData);
+                    }
+                } else {
+                    // 在详情模态框中，重新加载用户详情
+                    loadUserDetail(userId);
+                }
             } else {
                 alert('授予失败：' + result.message);
             }
@@ -364,7 +374,7 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // 移除用户的称号
-    const revokeTitleFromUser = async (userId, titleName) => {
+    const revokeTitleFromUser = async (userId, titleName, reloadInEdit = false) => {
         if (!confirm(`确定要移除用户的称号 "${titleName}" 吗？`)) {
             return;
         }
@@ -379,8 +389,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await response.json();
             if (result.success) {
                 alert(result.message);
-                // 重新加载用户详情
-                loadUserDetail(userId);
+                // 根据上下文重新加载
+                if (reloadInEdit) {
+                    // 在编辑模态框中，重新加载用户数据并更新称号管理部分
+                    const detailResponse = await fetch(userDetailUrl + encodeURIComponent(userId));
+                    const detailData = await detailResponse.json();
+                    if (detailData.success) {
+                        loadTitleManagementSection(userId, detailData);
+                    }
+                } else {
+                    // 在详情模态框中，重新加载用户详情
+                    loadUserDetail(userId);
+                }
             } else {
                 alert('移除失败：' + result.message);
             }
@@ -415,6 +435,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('fishing_zone_id').value = user.fishing_zone_id;
                 document.getElementById('auto_fishing_enabled').checked = user.auto_fishing_enabled;
                 
+                // 加载称号管理部分
+                loadTitleManagementSection(userId, data);
+                
                 // 标记为编辑模式并设置表单动作
                 form.dataset.mode = 'edit';
                 const actionUrl = updateUserUrl + encodeURIComponent(userId) + '/update';
@@ -429,6 +452,88 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error loading user for edit:', error);
             alert('加载用户信息时发生错误');
         }
+    }
+
+    // 加载称号管理部分到编辑模态框
+    const loadTitleManagementSection = (userId, data) => {
+        const titleSection = document.getElementById('titleManagementSection');
+        titleSection.innerHTML = '';
+        
+        // 显示用户拥有的称号
+        const titlesList = document.createElement('div');
+        titlesList.className = 'mb-3';
+        if (data.titles && data.titles.length > 0) {
+            const titleListTitle = document.createElement('strong');
+            titleListTitle.textContent = '拥有的称号:';
+            titlesList.appendChild(titleListTitle);
+            const titleUl = document.createElement('ul');
+            titleUl.className = 'list-group mt-2';
+            data.titles.forEach(title => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                const titleInfo = document.createElement('span');
+                
+                // 安全地创建DOM元素，避免XSS攻击
+                const strong = document.createElement('strong');
+                strong.textContent = title.name;
+                titleInfo.appendChild(strong);
+                
+                if (title.is_current) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-success ms-2';
+                    badge.textContent = '当前装备';
+                    titleInfo.appendChild(badge);
+                }
+                
+                li.appendChild(titleInfo);
+                if (!title.is_current) {
+                    const removeBtn = document.createElement('button');
+                    removeBtn.className = 'btn btn-sm btn-danger';
+                    removeBtn.textContent = '移除';
+                    removeBtn.onclick = () => {
+                        revokeTitleFromUser(userId, title.name, true);
+                    };
+                    li.appendChild(removeBtn);
+                }
+                titleUl.appendChild(li);
+            });
+            titlesList.appendChild(titleUl);
+        } else {
+            const emptyMsg = document.createElement('p');
+            emptyMsg.className = 'text-muted mb-0';
+            emptyMsg.textContent = '该用户暂无称号';
+            titlesList.appendChild(emptyMsg);
+        }
+        titleSection.appendChild(titlesList);
+        
+        // 授予称号功能
+        const grantTitleDiv = document.createElement('div');
+        grantTitleDiv.className = 'input-group';
+        const titleSelect = document.createElement('select');
+        titleSelect.className = 'form-select';
+        titleSelect.id = 'titleSelect_edit_' + userId;
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = '选择称号...';
+        titleSelect.appendChild(defaultOption);
+        grantTitleDiv.appendChild(titleSelect);
+        const grantBtn = document.createElement('button');
+        grantBtn.className = 'btn btn-success';
+        grantBtn.type = 'button';
+        grantBtn.textContent = '授予称号';
+        grantBtn.onclick = () => {
+            const selectedTitle = titleSelect.value;
+            if (selectedTitle) {
+                grantTitleToUser(userId, selectedTitle, true);
+            } else {
+                alert('请选择要授予的称号');
+            }
+        };
+        grantTitleDiv.appendChild(grantBtn);
+        titleSection.appendChild(grantTitleDiv);
+        
+        // 加载所有可用称号
+        loadAvailableTitles(titleSelect);
     }
 
     // 更新用户
