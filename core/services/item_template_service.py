@@ -1,6 +1,6 @@
 from typing import Dict, Any, List, Optional
 from ..repositories.abstract_repository import AbstractItemTemplateRepository, AbstractGachaRepository
-from ..domain.models import Fish, Rod, Bait, Accessory, GachaPool, Item
+from ..domain.models import Fish, Rod, Bait, Accessory, GachaPool, Item, Title
 
 
 class ItemTemplateService:
@@ -94,6 +94,19 @@ class ItemTemplateService:
 
     def delete_item_template(self, item_id: int):
         self.item_template_repo.delete_item_template(item_id)
+
+    # --- Title Methods ---
+    def get_title_by_id(self, title_id: int) -> Optional[Title]:
+        return self.item_template_repo.get_title_by_id(title_id)
+
+    def get_title_by_name(self, name: str) -> Optional[Title]:
+        return self.item_template_repo.get_title_by_name(name)
+
+    def update_title_template(self, title_id: int, data: Dict[str, Any]):
+        self.item_template_repo.update_title_template(title_id, data)
+
+    def delete_title_template(self, title_id: int):
+        self.item_template_repo.delete_title_template(title_id)
 
     # --- Gacha Pool Methods ---
     def get_all_gacha_pools(self) -> List[GachaPool]:
