@@ -29,7 +29,7 @@
 [![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
-[![Version](https://img.shields.io/badge/Version-2.4.0-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.4.0)
+[![Version](https://img.shields.io/badge/Version-2.4.2-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.4.2)
 [![Major Update](https://img.shields.io/badge/Major-Update-red.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
 
 ## ✨ 功能特点
@@ -104,6 +104,22 @@
 如果您有功能建议或发现问题，欢迎在 [Issues](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues) 中提出！
  
 ## 📦 更新记录
+
+#### v2.4.2 (称号管理系统 + 文件名安全化 + CJK字体支持)
+
+- **🏆 完整称号管理系统**：新增完整的称号管理功能，支持创建、编辑、删除和授予称号
+  - 新增 `/授予称号 @用户 称号名称` 命令，管理员可通过命令授予用户称号
+  - 新增 `/移除称号 @用户 称号名称` 命令，管理员可通过命令移除用户称号
+  - 新增 `/创建称号 称号名称 描述 [显示格式]` 命令，管理员可创建自定义称号
+  - 新增称号管理Web界面，支持在后台管理界面中管理所有称号
+  - 用户详情页面现在显示用户拥有的所有称号列表
+- **🛡️ 文件名安全化处理**：新增文件名安全化功能，防止特殊字符导致文件系统问题
+- **🌏 CJK字体回退支持**：新增CJK字体回退机制，确保缺少的字符正确显示
+
+#### v2.4.1 (交易所状态命令修复 + 鱼类图鉴图标显示功能)
+
+- **🐛 修复交易所状态命令无法识别**：修复了 `/交易所 状态` 命令无法识别的问题
+- **🖼️ 鱼类图鉴图标显示功能**：新增鱼类图标在图鉴中的显示支持
 
 #### v2.4.0 (骰宝游戏全面重构 + 用户昵称系统 + 管理员鱼池管理)
 
@@ -615,6 +631,9 @@
 | `/代理上线 [用户ID]` | `/login [用户ID]` | 扮演指定用户，方便调试（管理员） |
 | `/代理下线` | `/logout` | 结束扮演（管理员） |
 | `/同步初始设定` | `/同步设定`, `/同步数据`, `/同步` | 从 initial_data.py 同步商店、道具等模板数据（管理员） |
+| `/授予称号 [@用户/用户ID] [称号名称]` | - | 授予用户称号（管理员） |
+| `/移除称号 [@用户/用户ID] [称号名称]` | - | 移除用户称号（管理员） |
+| `/创建称号 [称号名称] [描述] [显示格式]` | - | 创建自定义称号（管理员） |
 | `/补充鱼池` | - | 重置所有钓鱼区域的稀有鱼剩余数量（管理员） |
 | `/骰宝结算` | - | 跳过倒计时直接结算当前骰宝游戏（管理员） |
 | `/骰宝倒计时 [秒数]` | - | 设置骰宝游戏倒计时时间（管理员） |
