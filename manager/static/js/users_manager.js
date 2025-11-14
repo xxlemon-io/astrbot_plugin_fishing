@@ -251,7 +251,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 const li = document.createElement('li');
                 li.className = 'list-group-item d-flex justify-content-between align-items-center';
                 const titleInfo = document.createElement('span');
-                titleInfo.innerHTML = `<strong>${title.name}</strong>${title.is_current ? ' <span class="badge bg-success">当前装备</span>' : ''}`;
+                
+                // 安全地创建DOM元素，避免XSS攻击
+                const strong = document.createElement('strong');
+                strong.textContent = title.name;
+                titleInfo.appendChild(strong);
+                
+                if (title.is_current) {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-success';
+                    badge.textContent = '当前装备';
+                    titleInfo.appendChild(document.createTextNode(' '));
+                    titleInfo.appendChild(badge);
+                }
+                
                 li.appendChild(titleInfo);
                 if (!title.is_current) {
                     const removeBtn = document.createElement('button');
@@ -264,7 +277,10 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             titlesList.appendChild(titleUl);
         } else {
-            titlesList.innerHTML = '<p class="text-muted">该用户暂无称号</p>';
+            const emptyMsg = document.createElement('p');
+            emptyMsg.className = 'text-muted';
+            emptyMsg.textContent = '该用户暂无称号';
+            titlesList.appendChild(emptyMsg);
         }
         titleCardBody.appendChild(titlesList);
         
@@ -274,7 +290,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const titleSelect = document.createElement('select');
         titleSelect.className = 'form-select';
         titleSelect.id = 'titleSelect_' + user.user_id;
-        titleSelect.innerHTML = '<option value="">选择称号...</option>';
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = '选择称号...';
+        titleSelect.appendChild(defaultOption);
         grantTitleDiv.appendChild(titleSelect);
         const grantBtn = document.createElement('button');
         grantBtn.className = 'btn btn-success';
