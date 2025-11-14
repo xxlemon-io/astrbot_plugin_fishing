@@ -229,22 +229,14 @@ document.addEventListener('DOMContentLoaded', function() {
         content.appendChild(row1);
         content.appendChild(row2);
 
-        // 称号管理部分（独立一行）
+        // 称号列表（仅查看，不提供编辑功能）
         const row3 = document.createElement('div'); row3.className = 'row mt-3';
         const col5 = document.createElement('div'); col5.className = 'col-12';
-        col5.innerHTML = '<h6>称号管理</h6>';
-        const titleSection = document.createElement('div');
-        titleSection.className = 'card';
-        const titleCardBody = document.createElement('div');
-        titleCardBody.className = 'card-body';
+        const titleHeading = document.createElement('h6');
+        titleHeading.textContent = '拥有的称号';
+        col5.appendChild(titleHeading);
         
-        // 显示用户拥有的称号
-        const titlesList = document.createElement('div');
-        titlesList.className = 'mb-3';
         if (data.titles && data.titles.length > 0) {
-            const titleListTitle = document.createElement('strong');
-            titleListTitle.textContent = '拥有的称号:';
-            titlesList.appendChild(titleListTitle);
             const titleUl = document.createElement('ul');
             titleUl.className = 'list-group mt-2';
             data.titles.forEach(title => {
@@ -259,61 +251,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (title.is_current) {
                     const badge = document.createElement('span');
-                    badge.className = 'badge bg-success';
+                    badge.className = 'badge bg-success ms-2';
                     badge.textContent = '当前装备';
-                    titleInfo.appendChild(document.createTextNode(' '));
                     titleInfo.appendChild(badge);
                 }
                 
                 li.appendChild(titleInfo);
-                if (!title.is_current) {
-                    const removeBtn = document.createElement('button');
-                    removeBtn.className = 'btn btn-sm btn-danger';
-                    removeBtn.textContent = '移除';
-                    removeBtn.onclick = () => revokeTitleFromUser(user.user_id, title.name, false);
-                    li.appendChild(removeBtn);
-                }
                 titleUl.appendChild(li);
             });
-            titlesList.appendChild(titleUl);
+            col5.appendChild(titleUl);
         } else {
             const emptyMsg = document.createElement('p');
-            emptyMsg.className = 'text-muted';
+            emptyMsg.className = 'text-muted mb-0';
             emptyMsg.textContent = '该用户暂无称号';
-            titlesList.appendChild(emptyMsg);
+            col5.appendChild(emptyMsg);
         }
-        titleCardBody.appendChild(titlesList);
         
-        // 授予称号功能
-        const grantTitleDiv = document.createElement('div');
-        grantTitleDiv.className = 'input-group';
-        const titleSelect = document.createElement('select');
-        titleSelect.className = 'form-select';
-        titleSelect.id = 'titleSelect_' + user.user_id;
-        const defaultOption = document.createElement('option');
-        defaultOption.value = '';
-        defaultOption.textContent = '选择称号...';
-        titleSelect.appendChild(defaultOption);
-        grantTitleDiv.appendChild(titleSelect);
-        const grantBtn = document.createElement('button');
-        grantBtn.className = 'btn btn-success';
-        grantBtn.textContent = '授予称号';
-        grantBtn.onclick = () => {
-            const selectedTitle = titleSelect.value;
-            if (selectedTitle) {
-                grantTitleToUser(user.user_id, selectedTitle, false);
-            } else {
-                alert('请选择要授予的称号');
-            }
-        };
-        grantTitleDiv.appendChild(grantBtn);
-        titleCardBody.appendChild(grantTitleDiv);
-        
-        // 加载所有可用称号
-        loadAvailableTitles(titleSelect);
-        
-        titleSection.appendChild(titleCardBody);
-        col5.appendChild(titleSection);
         row3.appendChild(col5);
         content.appendChild(row3);
     }
