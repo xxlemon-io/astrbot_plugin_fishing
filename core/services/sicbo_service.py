@@ -217,9 +217,7 @@ class SicboService:
         # 验证下注金额
         if amount < self.min_bet:
             return {"success": False, "message": f"❌ 最小下注金额为 {self.min_bet:,} 金币"}
-        
-        if amount > self.max_bet:
-            return {"success": False, "message": f"❌ 最大下注金额为 {self.max_bet:,} 金币"}
+            # 移除单笔最大下注限制：不再对单笔下注设置上限（如需限额请在配置或外部钱包策略中处理）
         
         if not user.can_afford(amount):
             return {"success": False, "message": f"❌ 金币不足！当前拥有 {user.coins:,} 金币"}
@@ -284,12 +282,15 @@ class SicboService:
             
             return {
                 "success": True,
-                "message": f"✅ 下注成功！\n"
-                          f"🎯 下注类型：{normalized_bet_type}\n"
-                          f"💰 下注金额：{amount:,} 金币\n"
-                          f"📊 赔率：1:{odds}\n"
-                          f"💳 您本局总下注：{user_total_bet:,} 金币\n"
-                          f"⏰ 剩余时间：{int(remaining_time)} 秒",
+                "message": (
+                    f"✅ 下注成功！\n"
+                    f"💰 下注下限：{self.min_bet:,} 金币（单笔无上限）\n"
+                    f"🎯 下注类型：{normalized_bet_type}\n"
+                    f"💰 下注金额：{amount:,} 金币\n"
+                    f"📊 赔率：1:{odds}\n"
+                    f"💳 您本局总下注：{user_total_bet:,} 金币\n"
+                    f"⏰ 剩余时间：{int(remaining_time)} 秒"
+                ),
                 "remaining_time": int(remaining_time),
                 "merged": False
             }
