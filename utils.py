@@ -500,3 +500,69 @@ def parse_amount(amount_str: str) -> int:
         pass
 
     raise ValueError(f"无法解析的金额: {amount_str}")
+
+
+def parse_count(count_str: str) -> int:
+    """
+    解析用户输入的数量字符串，支持多种写法：
+    - 阿拉伯数字："5" => 5
+    - 中文数字："五" => 5, "十个" => 10, "三个" => 3
+    
+    返回整数数量，若解析失败则抛出 ValueError。
+    """
+    if not isinstance(count_str, str):
+        raise ValueError("count must be a string")
+
+    s = count_str.strip()
+    if not s:
+        raise ValueError("empty count")
+
+    # 移除常见量词
+    s = s.replace('个', '').replace('只', '').replace('份', '').replace('张', '')
+    s = s.replace(' ', '').replace(',', '').replace('，', '')
+
+    # 快速处理纯数字
+    if re.fullmatch(r"\d+", s):
+        num = int(s)
+        if num > 200:
+            raise ValueError(f"数量不能超过200: {count_str}")
+        return num
+
+    # 中文数字映射
+    cn_num_map = {
+        '零': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5,
+        '六': 6, '七': 7, '八': 8, '九': 9, '十': 10
+    }
+    
+    # 直接匹配单个中文数字
+    if s in cn_num_map:
+        return cn_num_map[s]
+    
+    # 处理 "十X" 或 "X十" 的情况
+    if s.startswith('十'):
+        if len(s) == 1:
+            return 10
+        if len(s) == 2 and s[1] in cn_num_map:
+            return 10 + cn_num_map[s[1]]
+    
+    if s.endswith('十'):
+        if len(s) == 2 and s[0] in cn_num_map:
+            return cn_num_map[s[0]] * 10
+    
+    # 处理 "X十Y" 的情况
+    if '十' in s and len(s) == 3:
+        parts = s.split('十')
+        if len(parts) == 2 and parts[0] in cn_num_map and parts[1] in cn_num_map:
+            return cn_num_map[parts[0]] * 10 + cn_num_map[parts[1]]
+    
+    # 处理更复杂的中文数字（复用 parse_amount 的逻辑，但只支持小数字）
+    try:
+        # 对于数量，我们限制最大值为200
+        result = parse_amount(s)
+        if result > 200:
+            raise ValueError(f"数量不能超过200: {count_str}")
+        return result
+    except ValueError:
+        pass
+    
+    raise ValueError(f"无法解析的数量: {count_str}")

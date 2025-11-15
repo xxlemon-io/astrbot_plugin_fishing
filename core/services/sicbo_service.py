@@ -186,11 +186,11 @@ class SicboService:
             "success": True,
             "message": f"🎲 骰宝游戏开庄！倒计时 {self.countdown_seconds} 秒\n\n"
                       f"📋 下注说明：\n"
-                      f"• 押大/小：/押大 金额 或 /押小 金额\n"
-                      f"• 押单/双：/押单 金额 或 /押双 金额\n"
-                      f"• 押豹子：/押豹子 金额\n"
-                      f"• 押点数：/押一点 金额 (一点~六点)\n"
-                      f"• 押总点：/押4点 金额 (4点~17点)\n\n"
+                      f"• 鸭大/小：/鸭大 金额 或 /鸭小 金额\n"
+                      f"• 鸭单/双：/鸭单 金额 或 /鸭双 金额\n"
+                      f"• 鸭豹子：/鸭豹子 金额\n"
+                      f"• 鸭点数：/鸭一点 金额 (一点~六点)\n"
+                      f"• 鸭总点：/鸭4点 金额 (4点~17点)\n\n"
                       f"💰 下注范围：{self.min_bet:,} - {self.max_bet:,} 金币\n"
                       f"⏰ 倒计时结束后自动开奖！",
             "game_id": game_id,
@@ -487,6 +487,7 @@ class SicboService:
         # 分别统计盈利和亏损的玩家
         winners = []
         losers = []
+        break_even = []  # 新增：持平的玩家
         for user_id, total_profit in user_profits.items():
             user = self.user_repo.get_by_id(user_id)
             nickname = user.nickname if user and user.nickname else user_id
@@ -495,6 +496,8 @@ class SicboService:
                 winners.append((nickname, total_profit))
             elif total_profit < 0:
                 losers.append((nickname, total_profit))
+            else:  # total_profit == 0
+                break_even.append(nickname)
         
         # 显示结果
         if winners:
@@ -509,7 +512,14 @@ class SicboService:
             for nickname, loss in losers:
                 message += f"• {nickname}: {int(loss):,} 金币\n"
         
-        if not winners and not losers:
+        if break_even:
+            if winners or losers:
+                message += f"\n"
+            message += f"⚖️ 持平玩家：\n"
+            for nickname in break_even:
+                message += f"• {nickname}: ±0 金币\n"
+        
+        if not winners and not losers and not break_even:
             message += f"🤔 本局无人参与\n"
         
         logger.info(f"骰宝游戏结算完成: {game.game_id}, 结果: {dice}, 总派彩: {total_payout}")
