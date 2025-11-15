@@ -87,7 +87,9 @@ class SqliteShopRepository(AbstractShopRepository):
         if shop_type:
             where.append("shop_type = ?")
             params.append(shop_type)
-            
+        
+        # 注意：这里使用f-string构建SQL是安全的，因为where列表中的字段名
+        # 来自固定的列表（不是用户输入），所有用户输入都通过参数化查询传递
         sql = f"SELECT * FROM shops WHERE {' AND '.join(where)} ORDER BY sort_order ASC, shop_id ASC"
         cursor.execute(sql, params)
         rows = cursor.fetchall()
@@ -157,6 +159,8 @@ class SqliteShopRepository(AbstractShopRepository):
             return
             
         params.append(shop_id)
+        # 安全说明：fields列表中的字段名来自固定的白名单，不包含用户输入
+        # 所有用户提供的值都通过参数化查询（params）安全传递
         cursor.execute(
             f"UPDATE shops SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE shop_id = ?",
             params
@@ -247,6 +251,7 @@ class SqliteShopRepository(AbstractShopRepository):
             return
             
         params.append(item_id)
+        # 安全说明：fields列表中的字段名来自固定的白名单，不包含用户输入
         cursor.execute(
             f"UPDATE shop_items SET {', '.join(fields)}, updated_at = CURRENT_TIMESTAMP WHERE item_id = ?",
             params
@@ -321,6 +326,7 @@ class SqliteShopRepository(AbstractShopRepository):
             return
             
         params.append(cost_id)
+        # 安全说明：fields列表中的字段名来自固定的白名单，不包含用户输入
         cursor.execute(
             f"UPDATE shop_item_costs SET {', '.join(fields)} WHERE cost_id = ?",
             params
@@ -383,6 +389,7 @@ class SqliteShopRepository(AbstractShopRepository):
             return
             
         params.append(reward_id)
+        # 安全说明：fields列表中的字段名来自固定的白名单，不包含用户输入
         cursor.execute(
             f"UPDATE shop_item_rewards SET {', '.join(fields)} WHERE reward_id = ?",
             params

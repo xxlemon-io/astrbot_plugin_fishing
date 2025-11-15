@@ -261,6 +261,8 @@ class SqliteGachaRepository(AbstractGachaRepository):
 
         params.append(item_pool_id)
 
+        # 安全说明：updates列表中的字段名来自固定的白名单（item_type, item_id, quantity, weight）
+        # 不包含用户输入，所有用户提供的值都通过参数化查询安全传递
         set_clause = ", ".join(updates)
         query = f"UPDATE gacha_pool_items SET {set_clause} WHERE gacha_pool_item_id = ?"
 

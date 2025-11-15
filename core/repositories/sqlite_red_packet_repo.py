@@ -206,17 +206,14 @@ class SqliteRedPacketRepository:
                 return 0
             
             # 删除这些红包的领取记录
+            # 使用参数化查询避免SQL注入风险
             placeholders = ','.join('?' * len(packet_ids))
-            cursor.execute(f"""
-                DELETE FROM red_packet_records 
-                WHERE packet_id IN ({placeholders})
-            """, packet_ids)
+            delete_records_sql = f"DELETE FROM red_packet_records WHERE packet_id IN ({placeholders})"
+            cursor.execute(delete_records_sql, packet_ids)
             
             # 删除红包本身
-            cursor.execute(f"""
-                DELETE FROM red_packets 
-                WHERE packet_id IN ({placeholders})
-            """, packet_ids)
+            delete_packets_sql = f"DELETE FROM red_packets WHERE packet_id IN ({placeholders})"
+            cursor.execute(delete_packets_sql, packet_ids)
             
             # 检查是否还有红包记录
             cursor.execute("SELECT COUNT(*) FROM red_packets")

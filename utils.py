@@ -566,3 +566,55 @@ def parse_count(count_str: str) -> int:
         pass
     
     raise ValueError(f"无法解析的数量: {count_str}")
+
+
+def safe_parse_amount(amount_str: str, error_prefix: str = "金额") -> tuple[bool, int | str]:
+    """
+    安全地解析金额字符串，返回(成功, 结果或错误消息)
+    
+    Args:
+        amount_str: 要解析的金额字符串
+        error_prefix: 错误消息前缀，默认为"金额"
+    
+    Returns:
+        (True, amount) 如果解析成功
+        (False, error_message) 如果解析失败
+    
+    Example:
+        success, result = safe_parse_amount("1000")
+        if success:
+            amount = result
+        else:
+            error_msg = result
+    """
+    try:
+        amount = parse_amount(amount_str)
+        return True, amount
+    except ValueError as e:
+        return False, f"❌ {error_prefix}格式错误: {e}"
+
+
+def safe_parse_count(count_str: str, error_prefix: str = "数量") -> tuple[bool, int | str]:
+    """
+    安全地解析数量字符串，返回(成功, 结果或错误消息)
+    
+    Args:
+        count_str: 要解析的数量字符串
+        error_prefix: 错误消息前缀，默认为"数量"
+    
+    Returns:
+        (True, count) 如果解析成功
+        (False, error_message) 如果解析失败
+    
+    Example:
+        success, result = safe_parse_count("5")
+        if success:
+            count = result
+        else:
+            error_msg = result
+    """
+    try:
+        count = parse_count(count_str)
+        return True, count
+    except ValueError as e:
+        return False, f"❌ {error_prefix}格式错误: {e}"

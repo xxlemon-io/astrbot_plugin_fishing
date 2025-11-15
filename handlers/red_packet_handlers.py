@@ -5,7 +5,7 @@
 from typing import TYPE_CHECKING
 
 from astrbot.api.event import AstrMessageEvent
-from ..utils import parse_amount, parse_count
+from ..utils import safe_parse_amount, safe_parse_count
 
 if TYPE_CHECKING:
     from ..main import FishingPlugin
@@ -78,23 +78,24 @@ async def send_red_packet(plugin: "FishingPlugin", event: AstrMessageEvent):
         yield event.plain_result(help_text)
         return
     
-    # 解析参数
-    try:
-        amount = parse_amount(args[1])
-    except ValueError as e:
-        yield event.plain_result(f"❌ 金额格式错误: {e}")
+    # 解析金额参数
+    success, result = safe_parse_amount(args[1])
+    if not success:
+        yield event.plain_result(result)  # result是错误消息
         return
+    amount = result  # result是解析后的金额
     
     count = 1
     packet_type = 'normal'
     password = None
     
+    # 解析数量参数（可选）
     if len(args) >= 3:
-        try:
-            count = parse_count(args[2])
-        except ValueError as e:
-            yield event.plain_result(f"❌ 数量格式错误: {e}")
+        success, result = safe_parse_count(args[2])
+        if not success:
+            yield event.plain_result(result)  # result是错误消息
             return
+        count = result  # result是解析后的数量
     
     if len(args) >= 4:
         type_arg = args[3]
