@@ -71,13 +71,14 @@ def format_weight(grams):
 # --- 新增结束 ---
 
 
-def draw_fishing_ranking(user_data: List[Dict], output_path: str):
+def draw_fishing_ranking(user_data: List[Dict], output_path: str, ranking_type: str = "coins"):
     """
     绘制钓鱼排行榜图片
 
     参数:
     user_data: 用户数据列表，每个用户是一个字典，包含昵称、称号、金币、钓鱼数量、总重量、鱼竿、饰品等信息
     output_path: 输出图片路径
+    ranking_type: 排行榜类型 ('coins', 'max_coins', 'fish_count', 'total_weight_caught')
     """
     # 准备字体
     try:
@@ -108,8 +109,15 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str):
     draw_rounded_rectangle(draw, (PADDING, PADDING, IMG_WIDTH - PADDING, PADDING + HEADER_HEIGHT),
                           radius=CORNER_RADIUS, fill=COLOR_HEADER_BG)
 
-    # 绘制标题
+    # 根据排行榜类型设置标题
     title_text = "钓鱼排行榜 TOP10"
+    if ranking_type == "max_coins":
+        title_text = "金币历史最高 TOP10"
+    elif ranking_type == "fish_count":
+        title_text = "钓获数量排行榜 TOP10"
+    elif ranking_type == "total_weight_caught":
+        title_text = "钓获重量排行榜 TOP10"
+    
     _, (title_width, title_height) = get_text_metrics(title_text, font_title, draw)
     title_x = (IMG_WIDTH - title_width) // 2
     title_y = PADDING + (HEADER_HEIGHT - title_height) // 2
@@ -134,6 +142,7 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str):
         nickname = user.get("nickname", "未知用户")
         title = user.get("title", "无称号")
         coins = user.get("coins", 0)
+        max_coins = user.get("max_coins", 0)
         fish_count = user.get("fish_count", 0)
         fishing_rod = user.get("fishing_rod", "普通鱼竿")
         accessory = user.get("accessory", "无饰品")
@@ -179,7 +188,7 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str):
         title_display = title if len(title) <= 8 else title[:6] + ".."
         draw.text((title_x, title_y), f"【{title_display}】", font=font_small, fill=COLOR_ACCENT)
 
-        # --- 修改：重新布局底部信息行（三列固定布局）---
+        # --- 修改：重新布局底部信息行（根据排行榜类型显示）---
         bottom_line_y = name_y + get_text_metrics(nickname, font_name, draw)[1][1] + 10
         
         # 卡片的可用宽度
@@ -193,11 +202,21 @@ def draw_fishing_ranking(user_data: List[Dict], output_path: str):
         fish_x = name_x
         draw.text((fish_x, bottom_line_y), fish_text, font=font_regular, fill=COLOR_FISH_COUNT)
 
-        # 2. 金币信息 - 固定在中间位置
-        coins_text = f"金币: {format_large_number(coins)}"
+        # 2. 金币信息 - 固定在中间位置（根据排行榜类型显示）
+        if ranking_type == "max_coins":
+            # 显示历史最高金币和当前金币（简化版本避免重叠）
+            max_str = format_large_number(max_coins)
+            curr_str = format_large_number(coins)
+            coins_text = f"最高:{max_str} 当前:{curr_str}"
+            # 使用小字体避免重叠
+            coins_font = font_small
+        else:
+            coins_text = f"金币: {format_large_number(coins)}"
+            coins_font = font_regular
+        
         # 固定"金币:"标签的起始位置在卡片中间偏左一点
-        coins_x = card_center - 50
-        draw.text((coins_x, bottom_line_y), coins_text, font=font_regular, fill=COLOR_COINS)
+        coins_x = card_center - 80
+        draw.text((coins_x, bottom_line_y), coins_text, font=coins_font, fill=COLOR_COINS)
 
         # 3. 装备信息 - 固定在右侧位置
         rod_display = fishing_rod if len(fishing_rod) <= 8 else fishing_rod[:7] + ".."

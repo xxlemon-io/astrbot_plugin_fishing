@@ -1,10 +1,11 @@
+import dataclasses
 import sqlite3
 import threading
-import dataclasses
-from typing import Optional, List, Dict, Any
 from datetime import datetime
+from typing import Optional, List, Dict, Any
 
 from astrbot.api import logger
+
 from ..domain.models import User, TaxRecord
 from .abstract_repository import AbstractUserRepository
 
@@ -59,6 +60,7 @@ class SqliteUserRepository(AbstractUserRepository):
             total_fishing_count=row["total_fishing_count"],
             total_weight_caught=row["total_weight_caught"],
             total_coins_earned=row["total_coins_earned"],
+            max_coins=row["max_coins"] if "max_coins" in row_keys else 0,
             consecutive_login_days=row["consecutive_login_days"],
             fish_pond_capacity=row["fish_pond_capacity"],
             aquarium_capacity=row["aquarium_capacity"] if "aquarium_capacity" in row_keys else 50,
@@ -134,7 +136,12 @@ class SqliteUserRepository(AbstractUserRepository):
         """
         [已修正] 更新一个现有的用户记录。
         这个版本是动态的，可以处理 User 模型中的所有字段，未来扩展也无需修改。
+        自动更新 max_coins 如果当前金币数超过历史最高。
         """
+        # 自动更新历史最高金币数
+        if user.coins > user.max_coins:
+            user.max_coins = user.coins
+        
         fields = [f.name for f in dataclasses.fields(User) if f.name != 'user_id']
         set_clause = ", ".join([f"{field} = ?" for field in fields])
         values = [getattr(user, field) for field in fields]
@@ -167,7 +174,7 @@ class SqliteUserRepository(AbstractUserRepository):
     def _get_top_users_base_query(self, order_by_column: str, limit: int) -> List[User]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            if order_by_column not in ["total_fishing_count", "coins", "total_weight_caught"]:
+            if order_by_column not in ["total_fishing_count", "coins", "total_weight_caught", "max_coins"]:
                 raise ValueError("Invalid order by column")
             
             query = f"SELECT * FROM users ORDER BY {order_by_column} DESC LIMIT ?"
@@ -179,6 +186,10 @@ class SqliteUserRepository(AbstractUserRepository):
 
     def get_top_users_by_coins(self, limit: int) -> List[User]:
         return self._get_top_users_base_query("coins", limit)
+
+    def get_top_users_by_max_coins(self, limit: int) -> List[User]:
+        """获取历史最高金币排行榜"""
+        return self._get_top_users_base_query("max_coins", limit)
 
     def get_top_users_by_weight(self, limit: int) -> List[User]:
         return self._get_top_users_base_query("total_weight_caught", limit)
