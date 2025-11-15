@@ -162,6 +162,15 @@ class AbstractItemTemplateRepository(ABC):
     # 添加称号模板
     @abstractmethod
     def add_title_template(self, title_data: Dict[str, Any]) -> Title: pass
+    # 更新称号模板
+    @abstractmethod
+    def update_title_template(self, title_id: int, title_data: Dict[str, Any]) -> None: pass
+    # 删除称号模板
+    @abstractmethod
+    def delete_title_template(self, title_id: int) -> None: pass
+    # 通过名称查找称号模板
+    @abstractmethod
+    def get_title_by_name(self, name: str) -> Optional[Title]: pass
 
 class AbstractInventoryRepository(ABC):
     """用户库存仓储接口"""
@@ -535,6 +544,9 @@ class AbstractAchievementRepository(ABC):
     # 授予用户一个称号
     @abstractmethod
     def grant_title_to_user(self, user_id: str, title_id: int) -> None: pass
+    # 移除用户的一个称号
+    @abstractmethod
+    def revoke_title_from_user(self, user_id: str, title_id: int) -> None: pass
     # 获取用户钓到的不同鱼种数量
     @abstractmethod
     def get_user_unique_fish_count(self, user_id: str) -> int: pass

@@ -1,0 +1,124 @@
+{% extends "layout.html" %}
+
+{% block title %}称号管理{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="fas fa-trophy"></i> 称号管理</h2>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#titleModal" id="addTitleBtn">
+            <i class="fas fa-plus"></i> 添加新称号
+        </button>
+    </div>
+
+    <div class="table-responsive mt-4">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>名称</th>
+                    <th>描述</th>
+                    <th>显示格式</th>
+                    <th class="text-end">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for title in titles %}
+                <tr>
+                    <td>{{ title.title_id }}</td>
+                    <td><strong>{{ title.name }}</strong></td>
+                    <td>{{ title.description or '无' }}</td>
+                    <td><code>{{ title.display_format }}</code></td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-info edit-btn"
+                                data-bs-toggle="modal"
+                                data-bs-target="#titleModal"
+                                data-item-json='{{ title|tojson|safe }}'>
+                            <i class="fas fa-edit"></i> 编辑
+                        </button>
+                        <form action="{{ url_for('admin_bp.delete_title', title_id=title.title_id) }}" method="post" class="d-inline" onsubmit="return confirm('确定要删除【{{ title.name }}】吗？');">
+                            <button type="submit" class="btn btn-sm btn-danger">
+                                <i class="fas fa-trash"></i> 删除
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="titleModal" tabindex="-1" aria-labelledby="titleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="title-form" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="titleModalLabel">管理称号</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="title_id" name="title_id">
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label for="name" class="form-label">称号名称 <span class="text-danger">*</span></label>
+                            <input type="text" id="name" name="name" class="form-control" required>
+                        </div>
+                        <div class="col-12">
+                            <label for="description" class="form-label">描述</label>
+                            <textarea id="description" name="description" class="form-control" rows="3"></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label for="display_format" class="form-label">显示格式</label>
+                            <input type="text" id="display_format" name="display_format" class="form-control" value="{name}" placeholder="{name}">
+                            <div class="form-text">
+                                可使用占位符：<code>{name}</code>（称号名称）、<code>{username}</code>（用户名）
+                                <br>示例：<code>{name}</code>、<code>{username}, {name}!</code>、<code>伟大的 {username}</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('titleModal');
+    const form = document.getElementById('title-form');
+    const modalLabel = document.getElementById('titleModalLabel');
+    
+    // 添加按钮点击事件
+    document.getElementById('addTitleBtn').addEventListener('click', function() {
+        modalLabel.textContent = '添加新称号';
+        form.action = '{{ url_for("admin_bp.add_title") }}';
+        form.reset();
+        document.getElementById('title_id').value = '';
+    });
+    
+    // 编辑按钮点击事件
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const titleData = JSON.parse(this.getAttribute('data-item-json'));
+            modalLabel.textContent = '编辑称号';
+            form.action = '{{ url_for("admin_bp.edit_title", title_id=0) }}'.replace('0', titleData.title_id);
+            document.getElementById('title_id').value = titleData.title_id;
+            document.getElementById('name').value = titleData.name || '';
+            document.getElementById('description').value = titleData.description || '';
+            document.getElementById('display_format').value = titleData.display_format || '{name}';
+        });
+    });
+    
+    // 表单提交
+    form.addEventListener('submit', function(e) {
+        // 表单验证已在HTML中完成
+    });
+});
+</script>
+{% endblock %}
+

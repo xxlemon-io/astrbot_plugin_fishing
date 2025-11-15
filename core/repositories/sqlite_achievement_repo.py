@@ -92,6 +92,12 @@ class SqliteAchievementRepository(AbstractAchievementRepository):
             cursor.execute("INSERT OR IGNORE INTO user_titles (user_id, title_id, unlocked_at) VALUES (?, ?, ?)", (user_id, title_id, datetime.now()))
             conn.commit()
 
+    def revoke_title_from_user(self, user_id: str, title_id: int) -> None:
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM user_titles WHERE user_id = ? AND title_id = ?", (user_id, title_id))
+            conn.commit()
+
     # --- 新增的成就检查方法实现 ---
 
     def get_user_unique_fish_count(self, user_id: str) -> int:

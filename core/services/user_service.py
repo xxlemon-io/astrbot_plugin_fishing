@@ -7,7 +7,8 @@ from ..repositories.abstract_repository import (
     AbstractUserRepository,
     AbstractLogRepository,
     AbstractInventoryRepository,
-    AbstractItemTemplateRepository
+    AbstractItemTemplateRepository,
+    AbstractAchievementRepository
 )
 from .gacha_service import GachaService
 from ..domain.models import User, TaxRecord
@@ -37,7 +38,8 @@ class UserService:
         inventory_repo: AbstractInventoryRepository,
         item_template_repo: AbstractItemTemplateRepository,
         gacha_service: "GachaService",
-        config: Dict[str, Any]
+        config: Dict[str, Any],
+        achievement_repo: Optional[AbstractAchievementRepository] = None
     ):
         self.user_repo = user_repo
         self.log_repo = log_repo
@@ -45,6 +47,7 @@ class UserService:
         self.item_template_repo = item_template_repo
         self.gacha_service = gacha_service
         self.config = config
+        self.achievement_repo = achievement_repo
 
     def register(self, user_id: str, nickname: str) -> Dict[str, Any]:
         """
@@ -267,6 +270,98 @@ class UserService:
         title_template = self.item_template_repo.get_title_by_id(title_id)
         return {"success": True, "message": f"✅ 成功装备 {title_template.name}！"}
 
+    def grant_title_to_user_by_name(self, user_id: str, title_name: str) -> Dict[str, Any]:
+        """
+        通过称号名称授予用户称号。
+        """
+        if not self.achievement_repo:
+            return {"success": False, "message": "成就仓储未初始化"}
+        
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+        
+        title = self.item_template_repo.get_title_by_name(title_name)
+        if not title:
+            return {"success": False, "message": f"称号 '{title_name}' 不存在"}
+        
+        # 检查用户是否已拥有该称号
+        owned_titles = self.inventory_repo.get_user_titles(user_id)
+        if title.title_id in owned_titles:
+            return {"success": False, "message": f"用户已拥有称号 '{title_name}'"}
+        
+        self.achievement_repo.grant_title_to_user(user_id, title.title_id)
+        return {"success": True, "message": f"✅ 成功授予用户称号 '{title_name}'"}
+
+    def revoke_title_from_user_by_name(self, user_id: str, title_name: str) -> Dict[str, Any]:
+        """
+        通过称号名称移除用户的称号。
+        """
+        if not self.achievement_repo:
+            return {"success": False, "message": "成就仓储未初始化"}
+        
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            return {"success": False, "message": "用户不存在"}
+        
+        title = self.item_template_repo.get_title_by_name(title_name)
+        if not title:
+            return {"success": False, "message": f"称号 '{title_name}' 不存在"}
+        
+        # 检查用户是否拥有该称号
+        owned_titles = self.inventory_repo.get_user_titles(user_id)
+        if title.title_id not in owned_titles:
+            return {"success": False, "message": f"用户未拥有称号 '{title_name}'"}
+        
+        # 如果用户正在使用该称号，则清空当前称号
+        if user.current_title_id == title.title_id:
+            user.current_title_id = None
+            self.user_repo.update(user)
+        
+        self.achievement_repo.revoke_title_from_user(user_id, title.title_id)
+        return {"success": True, "message": f"✅ 成功移除用户称号 '{title_name}'"}
+
+    def create_custom_title(self, name: str, description: str, display_format: str = "{name}") -> Dict[str, Any]:
+        """
+        创建自定义称号。
+        """
+        # 检查称号名称是否已存在
+        existing_title = self.item_template_repo.get_title_by_name(name)
+        if existing_title:
+            return {"success": False, "message": f"称号名称 '{name}' 已存在"}
+        
+        # 获取下一个可用的称号ID
+        all_titles = self.item_template_repo.get_all_titles()
+        if all_titles:
+            next_id = max(t.title_id for t in all_titles) + 1
+        else:
+            next_id = 1
+        
+        title_data = {
+            "title_id": next_id,
+            "name": name,
+            "description": description,
+            "display_format": display_format
+        }
+        
+        self.item_template_repo.add_title_template(title_data)
+        return {"success": True, "message": f"✅ 成功创建称号 '{name}' (ID: {next_id})", "title_id": next_id}
+
+    def get_all_titles_for_admin(self) -> Dict[str, Any]:
+        """
+        获取所有称号供管理使用。
+        """
+        titles = self.item_template_repo.get_all_titles()
+        titles_data = []
+        for title in titles:
+            titles_data.append({
+                "title_id": title.title_id,
+                "name": title.name,
+                "description": title.description,
+                "display_format": title.display_format
+            })
+        return {"success": True, "titles": titles_data}
+
     def get_user_currency(self, user_id: str) -> Optional[Dict[str, Any]]:
         """
         获取用户的货币信息。
@@ -476,12 +571,26 @@ class UserService:
             if title_template:
                 current_title = title_template.name
         
+        # 获取用户拥有的所有称号
+        owned_titles = self.inventory_repo.get_user_titles(user_id)
+        titles_list = []
+        for title_id in owned_titles:
+            title_template = self.item_template_repo.get_title_by_id(title_id)
+            if title_template:
+                titles_list.append({
+                    "title_id": title_id,
+                    "name": title_template.name,
+                    "description": title_template.description,
+                    "is_current": (title_id == user.current_title_id)
+                })
+        
         return {
             "success": True,
             "user": user,
             "equipped_rod": equipped_rod,
             "equipped_accessory": equipped_accessory,
-            "current_title": current_title
+            "current_title": current_title,
+            "titles": titles_list
         }
 
     def update_user_for_admin(self, user_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
