@@ -65,15 +65,14 @@ async def place_bet(plugin: "FishingPlugin", event: AstrMessageEvent, bet_type: 
         return
     
     amount_str = args[1]
-    
-    # 支持中文数字
-    amount_str = amount_str.replace("万", "0000").replace("千", "000").replace("百", "00")
-    
-    if not amount_str.isdigit():
-        yield event.plain_result("❌ 下注金额必须是数字")
+
+    # 使用通用解析器，支持中文与混写
+    try:
+        from ..utils import parse_amount
+        amount = parse_amount(amount_str)
+    except Exception as e:
+        yield event.plain_result(f"❌ 无法解析下注金额：{str(e)}。示例：/押大 1000 或 /押大 1万 或 /押大 一千万")
         return
-    
-    amount = int(amount_str)
     
     try:
         result = plugin.sicbo_service.place_bet(user_id, bet_type, amount, game_session_id)
