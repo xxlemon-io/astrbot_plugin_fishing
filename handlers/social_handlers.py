@@ -85,7 +85,10 @@ async def ranking(plugin: "FishingPlugin", event: AstrMessageEvent):
     unique_id = getattr(
         event, "message_id", f"{user_id_for_filename}_{int(time.time())}"
     )
-    output_path = os.path.join(plugin.tmp_dir, f"fishing_ranking_{unique_id}.png")
+    # 安全化文件名，移除特殊字符
+    from ..utils import sanitize_filename
+    safe_unique_id = sanitize_filename(str(unique_id))
+    output_path = os.path.join(plugin.tmp_dir, f"fishing_ranking_{safe_unique_id}.png")
 
     draw_fishing_ranking(user_data, output_path=output_path)
     yield event.image_result(output_path)

@@ -325,18 +325,43 @@ def safe_datetime_handler(
     return None
 
 
+def sanitize_filename(filename: str) -> str:
+    """将字符串转换为安全的文件名，移除或替换特殊字符
+    
+    Args:
+        filename: 原始字符串（可能包含特殊字符）
+        
+    Returns:
+        str: 安全的文件名，特殊字符被替换为下划线
+    """
+    import re
+    # 替换所有非字母数字、下划线、连字符的字符为下划线
+    # 保留字母、数字、下划线、连字符和点（用于文件扩展名）
+    safe_name = re.sub(r'[^a-zA-Z0-9._-]', '_', filename)
+    # 移除连续的下划线
+    safe_name = re.sub(r'_+', '_', safe_name)
+    # 移除开头和结尾的下划线
+    safe_name = safe_name.strip('_')
+    # 如果结果为空，使用默认值
+    if not safe_name:
+        safe_name = 'unknown'
+    return safe_name
+
+
 def safe_get_file_path(handler_instance, filename: str) -> str:
     """安全生成文件路径，使用处理器的临时目录
     
     Args:
         handler_instance: 处理器实例，需要有 tmp_dir 属性
-        filename: 文件名
+        filename: 文件名（会自动进行安全化处理）
         
     Returns:
         str: 完整的文件路径
     """
     import os
-    return os.path.join(handler_instance.tmp_dir, filename)
+    # 确保文件名是安全的
+    safe_filename = sanitize_filename(filename)
+    return os.path.join(handler_instance.tmp_dir, safe_filename)
 
 
 def parse_target_user_id(event, args: list, arg_index: int = 1) -> Tuple[Optional[str], Optional[str]]:

@@ -818,7 +818,8 @@ async def get_user_detail(user_id):
         "user": user_dict,
         "equipped_rod": result["equipped_rod"],
         "equipped_accessory": result["equipped_accessory"],
-        "current_title": result["current_title"]
+        "current_title": result["current_title"],
+        "titles": result.get("titles", [])
     }
 
 @admin_bp.route("/users/<user_id>/update", methods=["POST"])
@@ -1123,6 +1124,137 @@ async def update_accessory_instance(user_id, instance_id):
         return user_service.update_user_accessory_instance_for_admin(user_id, instance_id, data)
     except Exception as e:
         return {"success": False, "message": f"更新饰品实例时发生错误: {str(e)}"}, 500
+
+# --- 称号管理 ---
+@admin_bp.route("/titles")
+@login_required
+@admin_required
+async def manage_titles():
+    user_service = current_app.config["USER_SERVICE"]
+    result = user_service.get_all_titles_for_admin()
+    if not result["success"]:
+        await flash("获取称号列表失败：" + result.get("message", "未知错误"), "danger")
+        return redirect(url_for("admin_bp.index"))
+    return await render_template("titles.html", titles=result["titles"])
+
+@admin_bp.route("/titles/add", methods=["POST"])
+@login_required
+@admin_required
+async def add_title():
+    user_service = current_app.config["USER_SERVICE"]
+    form = await request.form
+    name = form.get("name", "").strip()
+    description = form.get("description", "").strip()
+    display_format = form.get("display_format", "{name}").strip()
+    
+    if not name:
+        await flash("称号名称不能为空", "danger")
+        return redirect(url_for("admin_bp.manage_titles"))
+    
+    if not description:
+        description = f"自定义称号：{name}"
+    
+    result = user_service.create_custom_title(name, description, display_format)
+    if result["success"]:
+        await flash(result["message"], "success")
+    else:
+        await flash(result["message"], "danger")
+    return redirect(url_for("admin_bp.manage_titles"))
+
+@admin_bp.route("/titles/edit/<int:title_id>", methods=["POST"])
+@login_required
+@admin_required
+async def edit_title(title_id):
+    item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
+    form = await request.form
+    name = form.get("name", "").strip()
+    description = form.get("description", "").strip()
+    display_format = form.get("display_format", "{name}").strip()
+    
+    if not name:
+        await flash("称号名称不能为空", "danger")
+        return redirect(url_for("admin_bp.manage_titles"))
+    
+    # 检查称号是否存在
+    existing_title = item_template_service.get_title_by_id(title_id)
+    if not existing_title:
+        await flash(f"称号ID {title_id} 不存在", "danger")
+        return redirect(url_for("admin_bp.manage_titles"))
+    
+    # 检查名称是否与其他称号冲突
+    title_by_name = item_template_service.get_title_by_name(name)
+    if title_by_name and title_by_name.title_id != title_id:
+        await flash(f"称号名称 '{name}' 已被其他称号使用", "danger")
+        return redirect(url_for("admin_bp.manage_titles"))
+    
+    # 更新称号
+    title_data = {
+        "name": name,
+        "description": description,
+        "display_format": display_format
+    }
+    item_template_service.update_title_template(title_id, title_data)
+    await flash(f"称号ID {title_id} 更新成功！", "success")
+    return redirect(url_for("admin_bp.manage_titles"))
+
+@admin_bp.route("/titles/delete/<int:title_id>", methods=["POST"])
+@login_required
+@admin_required
+async def delete_title(title_id):
+    item_template_service = current_app.config["ITEM_TEMPLATE_SERVICE"]
+    try:
+        item_template_service.delete_title_template(title_id)
+        await flash(f"称号ID {title_id} 已删除！", "warning")
+    except Exception as e:
+        await flash(f"删除失败：{str(e)}", "danger")
+    return redirect(url_for("admin_bp.manage_titles"))
+
+@admin_bp.route("/users/<user_id>/grant_title", methods=["POST"])
+@login_required
+@admin_required
+async def grant_title_to_user(user_id):
+    user_service = current_app.config["USER_SERVICE"]
+    try:
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        
+        title_name = data.get("title_name")
+        if not title_name:
+            return {"success": False, "message": "缺少称号名称"}, 400
+        
+        result = user_service.grant_title_to_user_by_name(user_id, title_name)
+        return result
+    except Exception as e:
+        return {"success": False, "message": f"授予称号时发生错误: {str(e)}"}, 500
+
+@admin_bp.route("/users/<user_id>/revoke_title", methods=["POST"])
+@login_required
+@admin_required
+async def revoke_title_from_user(user_id):
+    user_service = current_app.config["USER_SERVICE"]
+    try:
+        data = await request.get_json()
+        if not data:
+            return {"success": False, "message": "无效的请求数据"}, 400
+        
+        title_name = data.get("title_name")
+        if not title_name:
+            return {"success": False, "message": "缺少称号名称"}, 400
+        
+        result = user_service.revoke_title_from_user_by_name(user_id, title_name)
+        return result
+    except Exception as e:
+        return {"success": False, "message": f"移除称号时发生错误: {str(e)}"}, 500
+
+@admin_bp.route("/api/titles", methods=["GET"])
+@login_required
+@admin_required
+async def api_get_all_titles():
+    """获取所有称号列表的API"""
+    user_service = current_app.config["USER_SERVICE"]
+    result = user_service.get_all_titles_for_admin()
+    return jsonify(result)
 
 # --- 道具管理 ---
 @admin_bp.route("/items")
