@@ -371,25 +371,26 @@ def draw_text_smart(
         temp_img = Image.new('RGB', (200, 100), (255, 255, 255))
         temp_draw = ImageDraw.Draw(temp_img)
         
-        # 计算主字体的基线偏移（用于y轴对齐）
-        # 使用一个参考字符（如"A"或中文字符）来统一基线
-        # textbbox返回的bbox是 (left, top, right, bottom)
-        # 我们需要统一所有字符的top位置
-        reference_char = "A" if any(ord(c) < 128 for c in text) else text[0]
-        primary_bbox = temp_draw.textbbox((0, 0), reference_char, font=font.primary_font)
-        primary_top = primary_bbox[1]  # 主字体的顶部偏移（相对于(0,0)）
+        # 计算baseline对齐：使用主字体的标准字符作为基线参考
+        # 这确保无论使用哪个字体渲染，字符都在同一水平线上
+        # 使用"X"作为参考字符（标准拉丁字母，所有字体都支持）
+        reference_bbox = temp_draw.textbbox((0, 0), "X", font=font.primary_font)
+        reference_baseline = reference_bbox[3]  # 使用底部（baseline）作为参考
         
         for i, char in enumerate(text):
             # 获取适合该字符的字体
             char_font = font._get_font_for_char(char)
             
-            # 计算当前字符字体的顶部偏移
+            # 获取当前字符的bbox
             char_bbox = temp_draw.textbbox((0, 0), char, font=char_font)
-            char_top = char_bbox[1]  # 当前字符字体的顶部偏移
+            char_baseline = char_bbox[3]  # 当前字符的底部
+            char_top = char_bbox[1]  # 当前字符的顶部
+            char_height = char_baseline - char_top
             
-            # 调整y坐标，使所有字符的顶部对齐
-            # 这样即使字体不同，字符也会在同一水平线上
-            char_y = y + (primary_top - char_top)
+            # 计算y坐标：让所有字符的底部对齐到参考baseline
+            # 基本思路：字符底部 = y + reference_baseline
+            # 所以：char_top_position = y + reference_baseline - char_height
+            char_y = y + reference_baseline - char_height
             
             # 测量字符宽度
             # 为了保持字符间距一致，统一使用主字体来测量宽度
