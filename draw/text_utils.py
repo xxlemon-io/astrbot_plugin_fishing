@@ -371,11 +371,11 @@ def draw_text_smart(
         temp_img = Image.new('RGB', (200, 100), (255, 255, 255))
         temp_draw = ImageDraw.Draw(temp_img)
         
-        # 计算baseline对齐：使用主字体的标准字符作为基线参考
-        # 这确保无论使用哪个字体渲染，字符都在同一水平线上
-        # 使用"X"作为参考字符（标准拉丁字母，所有字体都支持）
-        reference_bbox = temp_draw.textbbox((0, 0), "X", font=font.primary_font)
-        reference_baseline = reference_bbox[3]  # 使用底部（baseline）作为参考
+        # 计算中线对齐：使用主字体的标准字符的垂直中心作为参考
+        # 这确保无论使用哪个字体渲染，字符都在同一水平视觉中心线上
+        # 使用"A"作为参考字符（标准拉丁字母大写，所有字体都支持）
+        reference_bbox = temp_draw.textbbox((0, 0), "A", font=font.primary_font)
+        reference_center_y = (reference_bbox[1] + reference_bbox[3]) / 2  # 垂直中心
         
         for i, char in enumerate(text):
             # 获取适合该字符的字体
@@ -383,14 +383,12 @@ def draw_text_smart(
             
             # 获取当前字符的bbox
             char_bbox = temp_draw.textbbox((0, 0), char, font=char_font)
-            char_baseline = char_bbox[3]  # 当前字符的底部
-            char_top = char_bbox[1]  # 当前字符的顶部
-            char_height = char_baseline - char_top
+            char_center_y = (char_bbox[1] + char_bbox[3]) / 2  # 当前字符的垂直中心
             
-            # 计算y坐标：让所有字符的底部对齐到参考baseline
-            # 基本思路：字符底部 = y + reference_baseline
-            # 所以：char_top_position = y + reference_baseline - char_height
-            char_y = y + reference_baseline - char_height
+            # 计算y坐标：让所有字符的垂直中心对齐到参考中心
+            # 基本思路：字符中心 = y + reference_center_y
+            # 所以：char_y = y + (reference_center_y - char_center_y)
+            char_y = y + (reference_center_y - char_center_y)
             
             # 测量字符宽度
             # 为了保持字符间距一致，统一使用主字体来测量宽度
