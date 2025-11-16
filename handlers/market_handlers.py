@@ -1,5 +1,5 @@
 from astrbot.api.event import filter, AstrMessageEvent
-from ..utils import format_rarity_display, parse_target_user_id
+from ..utils import format_rarity_display, parse_target_user_id, parse_amount
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -513,7 +513,7 @@ async def buy_in_shop(plugin: "FishingPlugin", event: AstrMessageEvent):
     user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 3:
-        yield event.plain_result("❌ 用法：商店购买 商店ID 商品ID [数量]")
+        yield event.plain_result("❌ 用法：商店购买 商店ID 商品ID [数量]\n💡 支持中文数字，如：商店购买 1 2 五")
         return
     shop_id, item_id = args[1], args[2]
     if not shop_id.isdigit() or not item_id.isdigit():
@@ -522,10 +522,14 @@ async def buy_in_shop(plugin: "FishingPlugin", event: AstrMessageEvent):
     # 默认购买1个，如果指定了数量则使用指定数量
     qty = 1
     if len(args) >= 4:
-        if not args[3].isdigit() or int(args[3]) <= 0:
-            yield event.plain_result("❌ 数量必须是正整数")
+        try:
+            qty = parse_amount(args[3])
+            if qty <= 0:
+                yield event.plain_result("❌ 数量必须是正整数")
+                return
+        except Exception as e:
+            yield event.plain_result(f"❌ 无法解析数量：{str(e)}。示例：1 或 五 或 一千")
             return
-        qty = int(args[3])
     result = plugin.shop_service.purchase_item(user_id, int(item_id), qty)
     if result.get("success"):
         yield event.plain_result(result["message"])
@@ -666,11 +670,11 @@ async def list_any(
     args = event.message_str.split(" ")
     if len(args) < 3:
         yield event.plain_result(
-            "❌ 用法：/上架 ID 价格 [数量] [匿名]\n示例：/上架 R2N9C 1000、/上架 D1 100 10、/上架 F3 50 5 匿名\n💡 挂单有效期为5天，过期将自动下架返还\n💡 匿名参数必须在最后"
+            "❌ 用法：/上架 ID 价格 [数量] [匿名]\n示例：/上架 R2N9C 1000、/上架 D1 1万 10、/上架 F3 五十 5 匿名\n💡 挂单有效期为5天，过期将自动下架返还\n💡 匿名参数必须在最后\n💡 支持中文数字，如：一千、1万、五十等"
         )
         return
     token = args[1].strip().upper()
-    price = args[2]
+    price_str = args[2]
 
     # 解析数量和匿名参数
     quantity = 1
@@ -682,23 +686,35 @@ async def list_any(
         if last_arg in ["匿名", "anonymous"]:
             is_anonymous = True
             # 如果最后一个参数是匿名，那么数量参数在倒数第二个位置
-            if len(args) > 4 and args[-2].isdigit():
-                quantity = int(args[-2])
-                if quantity <= 0:
-                    yield event.plain_result("❌ 数量必须是正整数。")
+            if len(args) > 4:
+                try:
+                    quantity = parse_amount(args[-2])
+                    if quantity <= 0:
+                        yield event.plain_result("❌ 数量必须是正整数。")
+                        return
+                except Exception as e:
+                    yield event.plain_result(f"❌ 无法解析数量：{str(e)}")
                     return
         else:
             # 如果最后一个参数不是匿名，那么它就是数量参数
-            if args[-1].isdigit():
-                quantity = int(args[-1])
+            try:
+                quantity = parse_amount(args[-1])
                 if quantity <= 0:
                     yield event.plain_result("❌ 数量必须是正整数。")
                     return
+            except Exception:
+                # 如果解析失败，可能不是数量参数，保持默认值1
+                quantity = 1
 
-    if not price.isdigit() or int(price) <= 0:
-        yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
+    # 解析价格，支持中文数字
+    try:
+        price = parse_amount(price_str)
+        if price <= 0:
+            yield event.plain_result("❌ 上架价格必须是正整数，请检查后重试。")
+            return
+    except Exception as e:
+        yield event.plain_result(f"❌ 无法解析价格：{str(e)}。示例：1000 或 1万 或 一千")
         return
-    price = int(price)
 
     # 检查是否为数字ID（旧格式）
     if token.isdigit():

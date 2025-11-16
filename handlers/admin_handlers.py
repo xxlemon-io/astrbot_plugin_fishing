@@ -7,7 +7,7 @@ from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.core.star.filter.permission import PermissionType
 from astrbot.api.message_components import At, Node, Plain
 
-from ..utils import parse_target_user_id, _is_port_available
+from ..utils import parse_target_user_id, _is_port_available, parse_amount
 from ..manager.server import create_app
 from typing import TYPE_CHECKING
 
@@ -145,13 +145,17 @@ async def reward_all_coins(plugin: "FishingPlugin", event: AstrMessageEvent):
     """给所有注册用户发放金币"""
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定奖励的金币数量，例如：/全体奖励金币 1000")
+        yield event.plain_result("❌ 请指定奖励的金币数量，例如：/全体奖励金币 1000 或 /全体奖励金币 一万")
         return
-    amount = args[1]
-    if not amount.isdigit() or int(amount) <= 0:
-        yield event.plain_result("❌ 奖励数量必须是正整数，请检查后重试。")
+    
+    try:
+        amount_int = parse_amount(args[1])
+        if amount_int <= 0:
+            yield event.plain_result("❌ 奖励数量必须是正整数，请检查后重试。")
+            return
+    except ValueError as e:
+        yield event.plain_result(f"❌ 数量格式错误：{str(e)}")
         return
-    amount_int = int(amount)
     user_ids = plugin.user_repo.get_all_user_ids()
     if not user_ids:
         yield event.plain_result("❌ 当前没有注册用户。")
@@ -280,20 +284,24 @@ async def reward_coins(plugin: "FishingPlugin", event: AstrMessageEvent):
     # 检查金币数量参数
     if len(args) < 3:
         yield event.plain_result(
-            "❌ 请指定金币数量，例如：/奖励金币 @用户 1000 或 /奖励金币 123456789 1000"
+            "❌ 请指定金币数量，例如：/奖励金币 @用户 1000 或 /奖励金币 @用户 一万"
         )
         return
 
-    coins = args[2]
-    if not coins.isdigit():
-        yield event.plain_result("❌ 金币数量必须是数字，请检查后重试。")
+    try:
+        coins = parse_amount(args[2])
+        if coins <= 0:
+            yield event.plain_result("❌ 金币数量必须是正整数，请检查后重试。")
+            return
+    except ValueError as e:
+        yield event.plain_result(f"❌ 数量格式错误：{str(e)}")
         return
 
     if (current_coins := plugin.user_service.get_user_currency(target_user_id)) is None:
         yield event.plain_result("❌ 用户不存在或未注册，请检查后重试。")
         return
     if result := plugin.user_service.modify_user_coins(
-        target_user_id, int(current_coins.get("coins") + int(coins))
+        target_user_id, int(current_coins.get("coins") + coins)
     ):
         yield event.plain_result(f"✅ 成功给用户 {target_user_id} 奖励 {coins} 金币")
     else:

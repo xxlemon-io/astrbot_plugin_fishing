@@ -209,6 +209,7 @@ class User:
     total_fishing_count: int = 0
     total_weight_caught: int = 0
     total_coins_earned: int = 0
+    max_coins: int = 0  # 历史最高金币数
     consecutive_login_days: int = 0
     fish_pond_capacity: int = 480
     aquarium_capacity: int = 50  # 水族箱容量
@@ -538,3 +539,33 @@ class ShopOfferReward:
     item_id: int
     quantity: int
     refine_level: Optional[int] = None
+
+
+# ---------------------------------
+# 红包系统实体 (Red Packet Entities)
+# ---------------------------------
+
+@dataclass
+class RedPacket:
+    """红包实体"""
+    packet_id: int
+    sender_id: str
+    group_id: str
+    packet_type: str  # 'normal' 普通红包, 'lucky' 拼手气红包, 'password' 口令红包
+    total_amount: int
+    total_count: int
+    remaining_amount: int
+    remaining_count: int
+    password: Optional[str] = None  # 口令红包的口令
+    created_at: datetime = None
+    expires_at: datetime = None
+    is_expired: bool = False
+
+@dataclass
+class RedPacketRecord:
+    """红包领取记录"""
+    record_id: int
+    packet_id: int
+    user_id: str
+    amount: int
+    claimed_at: datetime = None

@@ -330,9 +330,10 @@ def draw_sicbo_result(dice1: int, dice2: int, dice3: int, results: List[Dict], p
     # 玩家结果
     players_y = result_y + 60
     if player_results:
-        # 分离盈利和亏损玩家
+        # 分离盈利、亏损和持平玩家
         winners = [(p['username'], p['profit']) for p in player_results if p['profit'] > 0]
         losers = [(p['username'], p['profit']) for p in player_results if p['profit'] < 0]
+        break_even = [p['username'] for p in player_results if p['profit'] == 0]
         
         # 显示中奖玩家
         if winners:
@@ -365,6 +366,24 @@ def draw_sicbo_result(dice1: int, dice2: int, dice3: int, results: List[Dict], p
                 
             if len(losers) > 8:
                 more_text = f"  ... 还有 {len(losers) - 8} 位未中奖者"
+                draw.text((70, players_y), more_text, fill=COLOR_TEXT_DARK, font=content_font)
+                players_y += 25
+        
+        # 显示持平玩家
+        if break_even:
+            if winners or losers:
+                players_y += 10  # 间隔
+            break_even_title = "⚖️ 持平玩家："
+            draw.text((50, players_y), break_even_title, fill=COLOR_TEXT_DARK, font=subtitle_font)
+            players_y += 35
+            
+            for username in break_even[:8]:  # 最多显示8个
+                break_even_text = f"  ⚖️ {username}：±0 金币"
+                draw.text((70, players_y), break_even_text, fill=COLOR_WARNING, font=content_font)
+                players_y += 25
+                
+            if len(break_even) > 8:
+                more_text = f"  ... 还有 {len(break_even) - 8} 位持平者"
                 draw.text((70, players_y), more_text, fill=COLOR_TEXT_DARK, font=content_font)
     else:
         no_player_text = "🤔 本局无人参与"

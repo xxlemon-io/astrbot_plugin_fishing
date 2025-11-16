@@ -1,7 +1,7 @@
 import os
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.core.message.components import At
-from ..utils import to_percentage, format_accessory_or_rod, format_rarity_display
+from ..utils import to_percentage, format_accessory_or_rod, format_rarity_display, parse_amount
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -330,7 +330,7 @@ async def use_item(plugin: "FishingPlugin", event: AstrMessageEvent):
     user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     if len(args) < 2:
-        yield event.plain_result("❌ 请指定要使用的道具 ID，例如：/使用道具 1")
+        yield event.plain_result("❌ 请指定要使用的道具 ID，例如：/使用道具 1\n💡 支持中文数字，如：/使用道具 1 五")
         return
 
     item_id_str = args[1]
@@ -341,10 +341,14 @@ async def use_item(plugin: "FishingPlugin", event: AstrMessageEvent):
     item_id = int(item_id_str)
 
     quantity = 1
-    if len(args) > 2 and args[2].isdigit():
-        quantity = int(args[2])
-        if quantity <= 0:
-            yield event.plain_result("❌ 数量必须是正整数。")
+    if len(args) > 2:
+        try:
+            quantity = parse_amount(args[2])
+            if quantity <= 0:
+                yield event.plain_result("❌ 数量必须是正整数。")
+                return
+        except Exception as e:
+            yield event.plain_result(f"❌ 无法解析数量：{str(e)}。示例：1 或 五 或 一千")
             return
 
     result = plugin.inventory_service.use_item(user_id, item_id, quantity)
@@ -728,7 +732,7 @@ async def sell_equipment(plugin: "FishingPlugin", event: AstrMessageEvent, equip
     args = event.message_str.split(" ")
     if len(args) < 2:
         yield event.plain_result(
-            "❌ 请指定要出售的物品ID，例如：/出售 R1A2B（鱼竿）、/出售 A3C4D（饰品）、/出售 D1（道具）\n💡 道具支持数量参数：/出售 D1 10（出售10个道具）"
+            "❌ 请指定要出售的物品ID，例如：/出售 R1A2B（鱼竿）、/出售 A3C4D（饰品）、/出售 D1（道具）\n💡 道具支持数量参数：/出售 D1 10（出售10个道具）或 /出售 D1 一千（支持中文数字）"
         )
         return
 
@@ -773,10 +777,14 @@ async def sell_equipment(plugin: "FishingPlugin", event: AstrMessageEvent, equip
 
         # 解析数量参数
         quantity = 1
-        if len(args) >= 3 and args[2].isdigit():
-            quantity = int(args[2])
-            if quantity <= 0:
-                yield event.plain_result("❌ 数量必须是正整数")
+        if len(args) >= 3:
+            try:
+                quantity = parse_amount(args[2])
+                if quantity <= 0:
+                    yield event.plain_result("❌ 数量必须是正整数")
+                    return
+            except Exception as e:
+                yield event.plain_result(f"❌ 无法解析数量：{str(e)}。示例：1 或 五 或 一千")
                 return
 
         # 出售道具

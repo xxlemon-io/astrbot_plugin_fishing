@@ -186,11 +186,11 @@ class SicboService:
             "success": True,
             "message": f"🎲 骰宝游戏开庄！倒计时 {self.countdown_seconds} 秒\n\n"
                       f"📋 下注说明：\n"
-                      f"• 押大/小：/押大 金额 或 /押小 金额\n"
-                      f"• 押单/双：/押单 金额 或 /押双 金额\n"
-                      f"• 押豹子：/押豹子 金额\n"
-                      f"• 押点数：/押一点 金额 (一点~六点)\n"
-                      f"• 押总点：/押4点 金额 (4点~17点)\n\n"
+                      f"• 鸭大/小：/鸭大 金额 或 /鸭小 金额\n"
+                      f"• 鸭单/双：/鸭单 金额 或 /鸭双 金额\n"
+                      f"• 鸭豹子：/鸭豹子 金额\n"
+                      f"• 鸭点数：/鸭一点 金额 (一点~六点)\n"
+                      f"• 鸭总点：/鸭4点 金额 (4点~17点)\n\n"
                       f"💰 下注范围：{self.min_bet:,} - {self.max_bet:,} 金币\n"
                       f"⏰ 倒计时结束后自动开奖！",
             "game_id": game_id,
@@ -217,9 +217,7 @@ class SicboService:
         # 验证下注金额
         if amount < self.min_bet:
             return {"success": False, "message": f"❌ 最小下注金额为 {self.min_bet:,} 金币"}
-        
-        if amount > self.max_bet:
-            return {"success": False, "message": f"❌ 最大下注金额为 {self.max_bet:,} 金币"}
+            # 移除单笔最大下注限制：不再对单笔下注设置上限（如需限额请在配置或外部钱包策略中处理）
         
         if not user.can_afford(amount):
             return {"success": False, "message": f"❌ 金币不足！当前拥有 {user.coins:,} 金币"}
@@ -284,12 +282,15 @@ class SicboService:
             
             return {
                 "success": True,
-                "message": f"✅ 下注成功！\n"
-                          f"🎯 下注类型：{normalized_bet_type}\n"
-                          f"💰 下注金额：{amount:,} 金币\n"
-                          f"📊 赔率：1:{odds}\n"
-                          f"💳 您本局总下注：{user_total_bet:,} 金币\n"
-                          f"⏰ 剩余时间：{int(remaining_time)} 秒",
+                "message": (
+                    f"✅ 下注成功！\n"
+                    f"💰 下注下限：{self.min_bet:,} 金币（单笔无上限）\n"
+                    f"🎯 下注类型：{normalized_bet_type}\n"
+                    f"💰 下注金额：{amount:,} 金币\n"
+                    f"📊 赔率：1:{odds}\n"
+                    f"💳 您本局总下注：{user_total_bet:,} 金币\n"
+                    f"⏰ 剩余时间：{int(remaining_time)} 秒"
+                ),
                 "remaining_time": int(remaining_time),
                 "merged": False
             }
@@ -486,6 +487,7 @@ class SicboService:
         # 分别统计盈利和亏损的玩家
         winners = []
         losers = []
+        break_even = []  # 新增：持平的玩家
         for user_id, total_profit in user_profits.items():
             user = self.user_repo.get_by_id(user_id)
             nickname = user.nickname if user and user.nickname else user_id
@@ -494,6 +496,8 @@ class SicboService:
                 winners.append((nickname, total_profit))
             elif total_profit < 0:
                 losers.append((nickname, total_profit))
+            else:  # total_profit == 0
+                break_even.append(nickname)
         
         # 显示结果
         if winners:
@@ -508,7 +512,14 @@ class SicboService:
             for nickname, loss in losers:
                 message += f"• {nickname}: {int(loss):,} 金币\n"
         
-        if not winners and not losers:
+        if break_even:
+            if winners or losers:
+                message += f"\n"
+            message += f"⚖️ 持平玩家：\n"
+            for nickname in break_even:
+                message += f"• {nickname}: ±0 金币\n"
+        
+        if not winners and not losers and not break_even:
             message += f"🤔 本局无人参与\n"
         
         logger.info(f"骰宝游戏结算完成: {game.game_id}, 结果: {dice}, 总派彩: {total_payout}")

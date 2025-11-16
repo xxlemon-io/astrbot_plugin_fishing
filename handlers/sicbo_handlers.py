@@ -11,16 +11,33 @@ from ..draw.sicbo import (
     draw_sicbo_result, draw_sicbo_user_bets, draw_sicbo_countdown_setting, draw_sicbo_help,
     draw_sicbo_odds, save_image_to_temp
 )
+from ..utils import parse_amount
 
 if TYPE_CHECKING:
     from ..main import FishingPlugin
 
 
+def _get_game_session_id(event: AstrMessageEvent) -> str:
+    """
+    获取骰宝游戏的会话ID
+    在群聊中使用群ID确保所有群成员共享同一个游戏
+    在私聊中使用unified_msg_origin
+    """
+    group_id = event.get_group_id()
+    if group_id:
+        # 群聊：使用 platform:group:群ID 作为游戏会话ID
+        platform_name = getattr(event.platform_meta, 'platform_name', 'aiocqhttp')
+        return f"{platform_name}:group:{group_id}"
+    else:
+        # 私聊：使用unified_msg_origin
+        return event.unified_msg_origin
+
+
 async def start_sicbo_game(plugin: "FishingPlugin", event: AstrMessageEvent):
     """开庄命令"""
     try:
-        # 获取游戏会话ID - 使用unified_msg_origin确保会话唯一性
-        game_session_id = event.unified_msg_origin
+        # 获取游戏会话ID
+        game_session_id = _get_game_session_id(event)
         
         # 构建会话信息
         session_info = {
@@ -56,7 +73,9 @@ async def start_sicbo_game(plugin: "FishingPlugin", event: AstrMessageEvent):
 
 async def place_bet(plugin: "FishingPlugin", event: AstrMessageEvent, bet_type: str):
     """下注命令的通用处理函数"""
-    game_session_id = event.unified_msg_origin
+    # 获取游戏会话ID
+    game_session_id = _get_game_session_id(event)
+    
     user_id = plugin._get_effective_user_id(event)
     args = event.message_str.split(" ")
     
@@ -65,15 +84,13 @@ async def place_bet(plugin: "FishingPlugin", event: AstrMessageEvent, bet_type: 
         return
     
     amount_str = args[1]
-    
-    # 支持中文数字
-    amount_str = amount_str.replace("万", "0000").replace("千", "000").replace("百", "00")
-    
-    if not amount_str.isdigit():
-        yield event.plain_result("❌ 下注金额必须是数字")
+
+    # 使用通用解析器，支持中文与混写
+    try:
+        amount = parse_amount(amount_str)
+    except Exception as e:
+        yield event.plain_result(f"❌ 无法解析下注金额：{str(e)}。示例：/鸭大 1000 或 /鸭大 1万 或 /鸭大 一千万")
         return
-    
-    amount = int(amount_str)
     
     try:
         result = plugin.sicbo_service.place_bet(user_id, bet_type, amount, game_session_id)
@@ -270,7 +287,7 @@ async def bet_17_points(plugin: "FishingPlugin", event: AstrMessageEvent):
 async def sicbo_status(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看骰宝游戏状态"""
     try:
-        game_session_id = event.unified_msg_origin
+        game_session_id = _get_game_session_id(event)
         result = plugin.sicbo_service.get_game_status(game_session_id)
         
         if result["success"]:
@@ -314,7 +331,7 @@ async def sicbo_status(plugin: "FishingPlugin", event: AstrMessageEvent):
 
 async def my_bets(plugin: "FishingPlugin", event: AstrMessageEvent):
     """查看我的下注"""
-    game_session_id = event.unified_msg_origin
+    game_session_id = _get_game_session_id(event)
     user_id = plugin._get_effective_user_id(event)
     try:
         result = plugin.sicbo_service.get_user_bets(user_id, game_session_id)
@@ -431,7 +448,7 @@ async def sicbo_odds(plugin: "FishingPlugin", event: AstrMessageEvent):
 async def force_settle_sicbo(plugin: "FishingPlugin", event: AstrMessageEvent):
     """管理员强制结算骰宝游戏"""
     try:
-        game_session_id = event.unified_msg_origin
+        game_session_id = _get_game_session_id(event)
         result = await plugin.sicbo_service.force_settle_game(game_session_id)
         yield event.plain_result(result["message"])
     except Exception as e:

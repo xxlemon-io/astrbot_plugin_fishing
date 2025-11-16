@@ -111,7 +111,7 @@ class UserService:
         获取排行榜数据，支持按不同标准排序。
 
         Args:
-            sort_by: 排序标准 ('coins', 'fish_count', 'total_weight_caught')
+            sort_by: 排序标准 ('coins', 'max_coins', 'fish_count', 'total_weight_caught')
             limit: 返回的用户数量限制
 
         Returns:
@@ -122,6 +122,8 @@ class UserService:
             top_users = self.user_repo.get_top_users_by_fish_count(limit)
         elif sort_by == "total_weight_caught":
             top_users = self.user_repo.get_top_users_by_weight(limit)
+        elif sort_by == "max_coins":
+            top_users = self.user_repo.get_top_users_by_max_coins(limit)
         else: # 默认按金币排序
             top_users = self.user_repo.get_top_users_by_coins(limit)
         
@@ -134,6 +136,7 @@ class UserService:
                 "user_id": user.user_id,  # <--- 添加 user_id
                 "nickname": user.nickname,
                 "coins": user.coins,
+                "max_coins": user.max_coins,  # 添加历史最高金币
                 "fish_count": user.total_fishing_count,
                 "total_weight_caught": user.total_weight_caught,
                 "current_title_id": user.current_title_id, # <--- 添加 current_title_id

@@ -410,3 +410,159 @@ def parse_target_user_id(event, args: list, arg_index: int = 1) -> Tuple[Optiona
     
     # 如果既没有@也没有参数，返回错误
     return None, f"❌ 请指定目标用户（用户ID或@用户），例如：/命令 <用户ID> 或 /命令 @用户"
+
+
+def parse_amount(amount_str: str) -> int:
+    """
+    解析用户输入的金额字符串，支持多种写法：
+    - 阿拉伯数字，允许逗号分隔："1,000,000" => 1000000
+    - 带单位：万/千/百/亿/百万/千万 等（支持混合写法，如 "1千万", "一千三百万", "13百万"）
+    - 支持中文数字（零一二三四五六七八九十百千万亿）
+
+    返回整数金额，若解析失败则抛出 ValueError。
+    """
+    if not isinstance(amount_str, str):
+        raise ValueError("amount must be a string")
+
+    s = amount_str.strip()
+    if not s:
+        raise ValueError("empty amount")
+
+    # 先移除千分位逗号和空白
+    s = s.replace(',', '').replace('，', '').replace(' ', '')
+
+    # 快速处理纯数字
+    if re.fullmatch(r"\d+", s):
+        return int(s)
+
+    # 支持常见带单位的阿拉伯数字，如 1万, 1千万, 13百万
+    m = re.fullmatch(r"(?P<num>\d+(?:\.\d+)?)(?P<unit>百万|千万|[万千百亿兆])?", s)
+    if m:
+        num = float(m.group('num'))
+        unit = m.group('unit')
+        if not unit:
+            return int(num)
+        mul_map = {'千': 10**3, '百': 10**2, '万': 10**4, '百万': 10**6, '千万': 10**7, '亿': 10**8, '兆': 10**12}
+        mul = mul_map.get(unit, 1)
+        return int(num * mul)
+
+    # 将中文数字部分转换为阿拉伯数字（支持混写）
+    cn_num_map = {
+        '零': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5,
+        '六': 6, '七': 7, '八': 8, '九': 9
+    }
+    unit_map = {'十': 10, '百': 100, '千': 1000, '万': 10**4, '亿': 10**8}
+
+    try:
+        total = 0
+        section = 0
+        number = 0
+        i = 0
+        s_len = len(s)
+        while i < s_len:
+            ch = s[i]
+            if ch in cn_num_map:
+                number = cn_num_map[ch]
+                i += 1
+            elif ch in unit_map:
+                unit_val = unit_map[ch]
+                if unit_val >= 10000:
+                    section = (section + number) * unit_val
+                    total += section
+                    section = 0
+                else:
+                    section += (number if number != 0 else 1) * unit_val
+                number = 0
+                i += 1
+            else:
+                # 处理复合单位 '百万','千万'
+                if s.startswith('百万', i):
+                    section = (section + number) * 10**6
+                    total += section
+                    section = 0
+                    number = 0
+                    i += 2
+                    continue
+                if s.startswith('千万', i):
+                    section = (section + number) * 10**7
+                    total += section
+                    section = 0
+                    number = 0
+                    i += 2
+                    continue
+                # 遇到无法识别的字符，抛错
+                raise ValueError(f"无法解析的数字字符串: {amount_str}")
+
+        total += section + number
+        if total > 0:
+            return int(total)
+    except ValueError:
+        pass
+
+    raise ValueError(f"无法解析的金额: {amount_str}")
+
+
+def parse_count(count_str: str) -> int:
+    """
+    解析用户输入的数量字符串，支持多种写法：
+    - 阿拉伯数字："5" => 5
+    - 中文数字："五" => 5, "十个" => 10, "三个" => 3
+    
+    返回整数数量，若解析失败则抛出 ValueError。
+    """
+    if not isinstance(count_str, str):
+        raise ValueError("count must be a string")
+
+    s = count_str.strip()
+    if not s:
+        raise ValueError("empty count")
+
+    # 移除常见量词
+    s = s.replace('个', '').replace('只', '').replace('份', '').replace('张', '')
+    s = s.replace(' ', '').replace(',', '').replace('，', '')
+
+    # 快速处理纯数字
+    if re.fullmatch(r"\d+", s):
+        num = int(s)
+        if num > 200:
+            raise ValueError(f"数量不能超过200: {count_str}")
+        return num
+
+    # 中文数字映射
+    cn_num_map = {
+        '零': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5,
+        '六': 6, '七': 7, '八': 8, '九': 9, '十': 10
+    }
+    
+    # 直接匹配单个中文数字
+    if s in cn_num_map:
+        return cn_num_map[s]
+    
+    # 处理 "十X" 或 "X十" 的情况
+    if s.startswith('十'):
+        if len(s) == 1:
+            return 10
+        if len(s) == 2 and s[1] in cn_num_map:
+            return 10 + cn_num_map[s[1]]
+    
+    if s.endswith('十'):
+        if len(s) == 2 and s[0] in cn_num_map:
+            return cn_num_map[s[0]] * 10
+    
+    # 处理 "X十Y" 的情况
+    if '十' in s and len(s) == 3:
+        parts = s.split('十')
+        if len(parts) == 2 and parts[0] in cn_num_map and parts[1] in cn_num_map:
+            return cn_num_map[parts[0]] * 10 + cn_num_map[parts[1]]
+    
+    # 处理更复杂的中文数字（复用 parse_amount 的逻辑，但只支持小数字）
+    try:
+        # 对于数量，我们限制最大值为200
+        result = parse_amount(s)
+        if result > 200:
+            raise ValueError(f"数量不能超过200: {count_str}")
+        return result
+    except ValueError:
+        pass
+    
+    raise ValueError(f"无法解析的数量: {count_str}")

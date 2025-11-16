@@ -3,7 +3,7 @@ from astrbot.api.event import filter, AstrMessageEvent
 from ..draw.help import draw_help_image
 from ..draw.state import draw_state_image, get_user_state_data
 from ..core.utils import get_now
-from ..utils import safe_datetime_handler
+from ..utils import safe_datetime_handler, parse_target_user_id, parse_amount
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -81,8 +81,6 @@ async def fishing_help(self: "FishingPlugin", event: AstrMessageEvent):
 
 async def transfer_coins(self: "FishingPlugin", event: AstrMessageEvent):
     """转账金币"""
-    from ..utils import parse_target_user_id
-    
     args = event.message_str.split(" ")
     
     # 解析目标用户ID（支持@和用户ID两种方式）
@@ -94,16 +92,19 @@ async def transfer_coins(self: "FishingPlugin", event: AstrMessageEvent):
     # 检查转账金额参数
     if len(args) < 3:
         yield event.plain_result(
-            "❌ 请指定转账金额，例如：/转账 @用户 1000 或 /转账 123456789 1000"
+            "❌ 请指定转账金额，例如：/转账 @用户 1000 或 /转账 @用户 1万 或 /转账 @用户 一千"
         )
         return
     
     amount_str = args[2]
-    if not amount_str.isdigit():
-        yield event.plain_result("❌ 转账金额必须是数字，请检查后重试。")
+    
+    # 使用通用解析器，支持中文与混写
+    try:
+        amount = parse_amount(amount_str)
+    except Exception as e:
+        yield event.plain_result(f"❌ 无法解析转账金额：{str(e)}。示例：/转账 @用户 1000 或 /转账 @用户 1万 或 /转账 @用户 一千")
         return
     
-    amount = int(amount_str)
     from_user_id = self._get_effective_user_id(event)
     
     # 调用转账服务
