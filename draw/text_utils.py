@@ -232,19 +232,43 @@ class FontWithFallback:
         )
     
     def _get_font_for_char(self, char: str) -> ImageFont.FreeTypeFont:
-        """获取适合该字符的字体"""
+        """
+        选择字符的渲染字体
+        
+        策略：
+        1. mask 为空 → 回退字体
+        2. CJK 字符且 bbox 无效 → 回退字体
+        3. 其他 → 主字体
+        """
         if char in self._char_cache:
             return self._char_cache[char]
         
-        # 对于CJK字符，如果有回退字体，直接使用回退字体以确保正确显示
-        # 这样可以避免主字体可能将繁体字映射到其他字符的问题
-        if self.fallback_font and self._is_cjk_char(char):
-            self._char_cache[char] = self.fallback_font
-            return self.fallback_font
-        
-        # 非CJK字符或没有回退字体，使用主字体
-        self._char_cache[char] = self.primary_font
-        return self.primary_font
+        try:
+            mask = self.primary_font.getmask(char)
+            
+            # mask 为空说明不支持
+            if mask.size[0] == 0 or mask.size[1] == 0:
+                font = self.fallback_font if self.fallback_font else self.primary_font
+                self._char_cache[char] = font
+                return font
+            
+            # CJK 字符：检查 bbox 是否有效
+            if self._is_cjk_char(char):
+                bbox = mask.getbbox()
+                if bbox is None or bbox[2] <= bbox[0] or bbox[3] <= bbox[1]:
+                    font = self.fallback_font if self.fallback_font else self.primary_font
+                    self._char_cache[char] = font
+                    return font
+            
+            # 主字体支持
+            self._char_cache[char] = self.primary_font
+            return self.primary_font
+            
+        except Exception:
+            # 异常时使用回退字体
+            font = self.fallback_font if self.fallback_font else self.primary_font
+            self._char_cache[char] = font
+            return font
     
     def getmask(self, text, mode="", *args, **kwargs):
         """获取文本的mask，自动处理回退"""
@@ -326,23 +350,72 @@ def draw_text_smart(
             draw.text(position, text, font=font.primary_font, fill=fill)
             return
         
-        # 有回退字体，逐个字符检查并绘制
+        # 检查是否所有字符都能用主字体渲染
+        need_fallback = False
+        for char in text:
+            char_font = font._get_font_for_char(char)
+            if char_font != font.primary_font:
+                need_fallback = True
+                break
+        
+        # 如果所有字符都能用主字体，直接一次性绘制（保持原始间距）
+        if not need_fallback:
+            draw.text(position, text, font=font.primary_font, fill=fill)
+            return
+        
+        # 需要回退字体，逐个字符检查并绘制
         x, y = position
         current_x = x
         
-        for char in text:
+        # 创建临时图像用于测量（复用以提高效率）
+        temp_img = Image.new('RGB', (200, 100), (255, 255, 255))
+        temp_draw = ImageDraw.Draw(temp_img)
+        
+        # 计算主字体的基线偏移（用于y轴对齐）
+        # 使用一个参考字符（如"A"或中文字符）来统一基线
+        # textbbox返回的bbox是 (left, top, right, bottom)
+        # 我们需要统一所有字符的top位置
+        reference_char = "A" if any(ord(c) < 128 for c in text) else text[0]
+        primary_bbox = temp_draw.textbbox((0, 0), reference_char, font=font.primary_font)
+        primary_top = primary_bbox[1]  # 主字体的顶部偏移（相对于(0,0)）
+        
+        for i, char in enumerate(text):
             # 获取适合该字符的字体
             char_font = font._get_font_for_char(char)
             
-            # 测量字符宽度
-            try:
-                bbox = draw.textbbox((0, 0), char, font=char_font)
-                char_width = bbox[2] - bbox[0]
-            except Exception:
-                char_width = font.primary_font.size // 2  # 估算宽度
+            # 计算当前字符字体的顶部偏移
+            char_bbox = temp_draw.textbbox((0, 0), char, font=char_font)
+            char_top = char_bbox[1]  # 当前字符字体的顶部偏移
             
-            # 绘制字符
-            draw.text((current_x, y), char, font=char_font, fill=fill)
+            # 调整y坐标，使所有字符的顶部对齐
+            # 这样即使字体不同，字符也会在同一水平线上
+            char_y = y + (primary_top - char_top)
+            
+            # 测量字符宽度
+            # 为了保持字符间距一致，统一使用主字体来测量宽度
+            try:
+                # 使用主字体测量宽度（保持一致的间距）
+                if hasattr(font.primary_font, 'getlength'):
+                    char_width = int(font.primary_font.getlength(char))
+                else:
+                    bbox = temp_draw.textbbox((0, 0), char, font=font.primary_font)
+                    char_width = bbox[2] - bbox[0]
+                    
+                    # 如果主字体无法测量（宽度为0），使用实际字符字体测量
+                    if char_width <= 0:
+                        if hasattr(char_font, 'getlength'):
+                            char_width = int(char_font.getlength(char))
+                        else:
+                            bbox = temp_draw.textbbox((0, 0), char, font=char_font)
+                            char_width = bbox[2] - bbox[0]
+                            if char_width <= 0:
+                                char_width = font.primary_font.size
+            except Exception:
+                # 如果测量失败，使用字体大小估算
+                char_width = font.primary_font.size
+            
+            # 绘制字符（使用调整后的y坐标，确保基线对齐）
+            draw.text((current_x, char_y), char, font=char_font, fill=fill)
             current_x += char_width
     else:
         # 普通字体，直接绘制
