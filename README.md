@@ -29,7 +29,7 @@
 [![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
-[![Version](https://img.shields.io/badge/Version-2.4.2-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.4.2)
+[![Version](https://img.shields.io/badge/Version-2.4.3-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.4.3)
 [![Major Update](https://img.shields.io/badge/Major-Update-red.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
 
 ## ✨ 功能特点
@@ -104,6 +104,25 @@
 如果您有功能建议或发现问题，欢迎在 [Issues](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues) 中提出！
  
 ## 📦 更新记录
+
+#### v2.4.3 (骰宝系统修复 + 中文数字输入支持 + 完整红包系统)
+
+- **🎲 修复骰宝系统隔离会话模式Bug**：修复了骰宝系统在"隔离会话"模式下无法多人游戏的问题
+  - 修正了会话隔离逻辑，现在多个玩家可以在同一群聊中正常参与骰宝游戏
+  - 确保在隔离模式下，每个玩家的下注和结算都能正确处理
+  - 优化了多人同时下注时的并发处理机制
+- **📝 优化骰宝游戏文本描述**：改进了骰宝游戏的提示信息和帮助文档
+  - 修正骰宝模式帮助描述，使功能说明更清晰易懂
+  - 优化开奖描述文本，统一了游戏提示信息的格式和风格
+- **🔢 全面支持中文数字输入**：大部分功能现在都支持中文数字输入
+  - 支持常见中文数字：一、二、三、十、百、千、万等
+  - 支持组合表达：十万、三千、五百等
+  - 涵盖钓鱼、交易、红包、骰宝等主要功能模块
+- **🧧 完整红包系统**：新增完整的红包社交互动功能
+  - 三种红包类型：普通红包、拼手气红包、口令红包
+  - 支持中文数字输入，24小时自动过期机制
+
+*感谢 [@Akiyo-dayo](https://github.com/Akiyo-dayo) 的贡献 ([#103](https://github.com/xxlemon-io/astrbot_plugin_fishing/pull/103))*
 
 #### v2.4.2 (称号管理系统 + 文件名安全化 + CJK字体支持)
 
@@ -610,6 +629,11 @@
 | `/查看成就` | `/成就` | 查看我的成就进度 |
 | `/税收记录` | - | 查看我的税收记录 |
 | `/鱼类图鉴` | `/图鉴` | 查看已解锁的鱼类图鉴（支持显示鱼类图标） |
+| `/发红包 [金额] [数量] [类型] [口令]` | `/发放红包` | 发送红包（支持中文数字输入） |
+| `/领红包 [红包ID] [口令]` | `/抢红包`、`/拿红包`、`/取红包`、`/领取红包` | 领取红包（口令红包需要输入口令） |
+| `/红包列表` | `/红包`、`/查看红包列表` | 查看当前群聊的所有活跃红包 |
+| `/红包详情 [红包ID]` | `/查看红包` | 查看红包详细信息和领取记录 |
+| `/撤回红包 [红包ID]` | `/撤销红包`、`/取消红包` | 撤回自己发送的未领完红包 |
 
 ### ⚙️ 管理后台（管理员）
 
@@ -638,6 +662,7 @@
 | `/骰宝结算` | - | 跳过倒计时直接结算当前骰宝游戏（管理员） |
 | `/骰宝倒计时 [秒数]` | - | 设置骰宝游戏倒计时时间（管理员） |
 | `/骰宝模式 [image/text]` | - | 设置骰宝消息模式（图片/文本）（管理员） |
+| `/清理红包 [所有]` | - | 清理过期红包（不带参数清理当前群，带"所有"清理全局）（管理员） |
 
 ---
 
