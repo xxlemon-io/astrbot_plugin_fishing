@@ -19,6 +19,7 @@ from .core.repositories.sqlite_log_repo import SqliteLogRepository
 from .core.repositories.sqlite_achievement_repo import SqliteAchievementRepository
 from .core.repositories.sqlite_user_buff_repo import SqliteUserBuffRepository
 from .core.repositories.sqlite_exchange_repo import SqliteExchangeRepository # 新增交易所Repo
+from .core.repositories.sqlite_red_packet_repo import SqliteRedPacketRepository # 新增红包Repo
 
 from .core.services.data_setup_service import DataSetupService
 from .core.services.item_template_service import ItemTemplateService
@@ -34,13 +35,25 @@ from .core.services.effect_manager import EffectManager
 from .core.services.fishing_zone_service import FishingZoneService
 from .core.services.exchange_service import ExchangeService # 新增交易所Service
 from .core.services.sicbo_service import SicboService # 新增骰宝Service
+from .core.services.red_packet_service import RedPacketService # 新增红包Service
 
 from .core.database.migration import run_migrations
 
 # ==========================================================
 # 导入所有指令函数
 # ==========================================================
-from .handlers import admin_handlers, common_handlers, inventory_handlers, fishing_handlers, market_handlers, social_handlers, gacha_handlers, aquarium_handlers, sicbo_handlers
+from .handlers import (
+    admin_handlers, 
+    common_handlers, 
+    inventory_handlers, 
+    fishing_handlers, 
+    market_handlers, 
+    social_handlers, 
+    gacha_handlers, 
+    aquarium_handlers, 
+    sicbo_handlers,
+    red_packet_handlers,
+)
 from .handlers.fishing_handlers import FishingHandlers
 from .handlers.exchange_handlers import ExchangeHandlers
 
@@ -249,6 +262,10 @@ class FishingPlugin(Star):
         # 设置骰宝服务的消息发送回调
         self.sicbo_service.set_message_callback(self._send_sicbo_announcement)
         
+        # 初始化红包服务
+        self.red_packet_repo = SqliteRedPacketRepository(db_path)
+        self.red_packet_service = RedPacketService(self.red_packet_repo, self.user_repo)
+        
         # 初始化交易所处理器
         self.exchange_handlers = ExchangeHandlers(self)
         
@@ -281,6 +298,9 @@ class FishingPlugin(Star):
             self.fishing_service.start_daily_tax_task()  # 启动独立的税收线程
         self.achievement_service.start_achievement_check_task()
         self.exchange_service.start_daily_price_update_task() # 启动交易所后台任务
+        
+        # 启动红包清理任务
+        self._red_packet_cleanup_task = asyncio.create_task(self._red_packet_cleanup_scheduler())
 
         # --- 5. 初始化核心游戏数据 ---
         data_setup_service = DataSetupService(
@@ -415,6 +435,20 @@ class FishingPlugin(Star):
         except Exception as e:
             logger.error(f"主动发送消息时发生错误: {e}")
             return False
+    
+    async def _red_packet_cleanup_scheduler(self):
+        """红包清理调度器 - 每小时清理一次过期红包"""
+        while True:
+            try:
+                await asyncio.sleep(3600)  # 每小时执行一次
+                cleaned_count = self.red_packet_service.cleanup_expired_packets()
+                if cleaned_count > 0:
+                    logger.info(f"定时清理了 {cleaned_count} 个过期红包")
+            except asyncio.CancelledError:
+                logger.info("红包清理任务已取消")
+                break
+            except Exception as e:
+                logger.error(f"红包清理任务出错: {e}")
 
     def _get_effective_user_id(self, event: AstrMessageEvent):
         """获取在当前上下文中应当作为指令执行者的用户ID。
@@ -596,13 +630,13 @@ class FishingPlugin(Star):
         async for r in inventory_handlers.use_equipment(self, event):
             yield r
 
-    @filter.command("金币")
+    @filter.command("金币", alias={"钱包", "余额"})
     async def coins(self, event: AstrMessageEvent):
         """查看你当前拥有的金币数量"""
         async for r in inventory_handlers.coins(self, event):
             yield r
 
-    @filter.command("转账")
+    @filter.command("转账", alias={"赠送"})
     async def transfer_coins(self, event: AstrMessageEvent):
         """转账金币给其他玩家。用法：转账 @用户 金额"""
         async for r in common_handlers.transfer_coins(self, event):
@@ -768,6 +802,38 @@ class FishingPlugin(Star):
     async def wheel_of_fate_stop(self, event: AstrMessageEvent):
         """在命运之轮游戏中选择放弃并结算奖励"""
         async for r in gacha_handlers.stop_wheel_of_fate(self, event):
+            yield r
+
+    # =========== 红包系统 ==========
+
+    @filter.command("发红包", alias={"发放红包"})
+    async def send_red_packet(self, event: AstrMessageEvent):
+        """发送红包。用法：发红包 [金额] [数量] [类型] [口令]"""
+        async for r in red_packet_handlers.send_red_packet(self, event):
+            yield r
+
+    @filter.command("领红包", alias={"抢红包", "拿红包", "取红包", "领取红包"})
+    async def claim_red_packet(self, event: AstrMessageEvent):
+        """领取红包。用法：领红包 [口令]"""
+        async for r in red_packet_handlers.claim_red_packet(self, event):
+            yield r
+
+    @filter.command("红包列表", alias={"红包", "查看红包列表"})
+    async def list_red_packets(self, event: AstrMessageEvent):
+        """查看当前群组可领取的红包列表"""
+        async for r in red_packet_handlers.list_red_packets(self, event):
+            yield r
+
+    @filter.command("红包详情", alias={"查看红包"})
+    async def red_packet_details(self, event: AstrMessageEvent):
+        """查看红包详情。用法：红包详情 [红包ID]"""
+        async for r in red_packet_handlers.red_packet_details(self, event):
+            yield r
+
+    @filter.command("撤回红包", alias={"撤销红包", "取消红包"})
+    async def revoke_red_packet(self, event: AstrMessageEvent):
+        """撤回红包并退还未领取的金额。用法：撤回红包 [红包ID]"""
+        async for r in red_packet_handlers.revoke_red_packet(self, event):
             yield r
 
     # =========== 骰宝游戏 ==========
@@ -1165,6 +1231,13 @@ class FishingPlugin(Star):
             yield r
 
     @filter.permission_type(PermissionType.ADMIN)
+    @filter.command("清理红包")
+    async def cleanup_red_packets(self, event: AstrMessageEvent):
+        """[管理员] 清理红包。用法：/清理红包 [所有]（不带参数清理当前群，带"所有"清理全局）"""
+        async for r in red_packet_handlers.cleanup_red_packets(self, event):
+            yield r
+
+    @filter.permission_type(PermissionType.ADMIN)
     @filter.command("骰宝结算")
     async def force_settle_sicbo(self, event: AstrMessageEvent):
         """[管理员] 跳过倒计时直接结算当前骰宝游戏"""
@@ -1204,6 +1277,11 @@ class FishingPlugin(Star):
         self.fishing_service.stop_daily_tax_task()  # 终止独立的税收线程
         self.achievement_service.stop_achievement_check_task()
         self.exchange_service.stop_daily_price_update_task() # 终止交易所后台任务
+        
+        # 取消红包清理任务
+        if hasattr(self, '_red_packet_cleanup_task') and self._red_packet_cleanup_task:
+            self._red_packet_cleanup_task.cancel()
+            
         if self.web_admin_task:
             self.web_admin_task.cancel()
         logger.info("钓鱼插件已成功终止。")
