@@ -29,7 +29,7 @@
 [![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
-[![Version](https://img.shields.io/badge/Version-2.4.4-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.4.4)
+[![Version](https://img.shields.io/badge/Version-2.4.5-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.4.5)
 [![Major Update](https://img.shields.io/badge/Major-Update-red.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
 
 ## ✨ 功能特点
@@ -104,6 +104,11 @@
 如果您有功能建议或发现问题，欢迎在 [Issues](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues) 中提出！
  
 ## 📦 更新记录
+
+#### v2.4.5 (交易所利润税基修复)
+
+- **⚖️ 税基按利润征收**：交易所卖出、清仓仅对正盈利征税，亏损时自动免税，解决 [#109](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues/109) 的不合理扣税  
+- **📊 透明提示**：用户消息/税务记录展示“毛收入 + 税基 + 税率 + 免税说明”，便于核对  
 
 #### v2.4.4 (CJK字符显示修复)
 
