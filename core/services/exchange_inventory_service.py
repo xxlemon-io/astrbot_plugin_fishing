@@ -1,7 +1,13 @@
 from datetime import datetime, timedelta
+from importlib import import_module
 from typing import Dict, List, Any, Optional
 
-from astrbot.api import logger
+try:
+    logger = import_module("astrbot.api").logger
+except ModuleNotFoundError:  # pragma: no cover - fallback for testing environments
+    import logging
+
+    logger = logging.getLogger(__name__)
 
 from ..domain.models import User, UserCommodity
 from ..repositories.abstract_repository import AbstractExchangeRepository, AbstractUserRepository, AbstractLogRepository
@@ -212,12 +218,17 @@ class ExchangeInventoryService:
                 remaining_quantity -= sold
             
             # 计算总收益（只有有效商品有价值）
+            items_to_process = expired_items + valid_items  # 供盈亏分析和库存扣减复用
             total_income = current_price * valid_sold
             is_all_expired = (expired_sold == quantity)
             
-            # 计算税费
+            # 计算盈亏分析（用于确定税基）
+            profit_loss = self._calculate_profit_loss_analysis(items_to_process, quantity, current_price)
+            taxable_profit = max(int(profit_loss.get("profit_loss", 0)), 0)
+
+            # 计算税费（仅对盈利部分征税）
             tax_rate = self.config.get("tax_rate", 0.05)
-            tax_amount = int(total_income * tax_rate)
+            tax_amount = int(taxable_profit * tax_rate)
             net_income = total_income - tax_amount
             
             # 扣除库存（优先扣除腐败商品）
@@ -249,23 +260,35 @@ class ExchangeInventoryService:
                     user_id=user_id,
                     tax_amount=tax_amount,
                     tax_rate=tax_rate,
-                    original_amount=total_income,
+                    original_amount=taxable_profit,
                     balance_after=user.coins,
-                    tax_type=f"卖出 {self.commodities[commodity_id]['name']} x{quantity}",
+                    tax_type=(f"卖出 {self.commodities[commodity_id]['name']} x{quantity} | "
+                              f"毛收入 {total_income:,} 金币 | 税基 {taxable_profit:,} 金币"),
                     timestamp=datetime.now()
                 )
+                if tax_amount == 0:
+                    tax_record.tax_type += " | 未盈利免税"
                 self.log_repo.add_tax_record(tax_record)
             
-            # 计算盈亏分析
-            profit_loss = self._calculate_profit_loss_analysis(items_to_process, quantity, current_price)
-            
             # 构造返回消息
+            tax_message = "💸 本次无税费（未盈利）"
+            if tax_amount > 0:
+                tax_message = (f"💸 盈利税：{tax_amount:,} 金币 "
+                               f"(税率 {tax_rate*100:.1f}%，税基 {taxable_profit:,} 金币)")
+
             if is_all_expired:
-                message = f"💀 清理腐败商品成功！处理了 {expired_sold} 个腐败的{self.commodities[commodity_id]['name']}，获得 0 金币（腐败商品无价值）"
+                message = (
+                    f"💀 清理腐败商品成功！处理了 {expired_sold} 个腐败的{self.commodities[commodity_id]['name']}，"
+                    "获得 0 金币（腐败商品无价值）\n"
+                    f"{tax_message}"
+                )
             elif expired_sold > 0:
-                message = f"✅ 卖出成功！处理了 {quantity} 个商品（其中 {expired_sold} 个已腐败），获得 {net_income:,} 金币（含税费 {tax_amount:,} 金币）\n💀 提示：腐败商品价值为0"
+                message = (
+                    f"✅ 卖出成功！处理了 {quantity} 个商品（其中 {expired_sold} 个已腐败），"
+                    f"获得 {net_income:,} 金币\n{tax_message}\n💀 提示：腐败商品价值为0"
+                )
             else:
-                message = f"✅ 卖出成功！获得 {net_income:,} 金币（含税费 {tax_amount:,} 金币）"
+                message = f"✅ 卖出成功！获得 {net_income:,} 金币\n{tax_message}"
             
             return {
                 "success": True,
@@ -379,11 +402,12 @@ class ExchangeInventoryService:
                 total_cost += item_cost
                 total_current_value += item_current_value
             
-            # 计算总税费
-            tax_rate = self.config.get("tax_rate", 0.05)
-            tax_amount = int(total_current_value * tax_rate)
-            net_income = total_current_value - tax_amount
+            # 计算税费，仅对盈利部分征税
             total_profit_loss = total_current_value - total_cost
+            tax_rate = self.config.get("tax_rate", 0.05)
+            taxable_profit = max(total_profit_loss, 0)
+            tax_amount = int(taxable_profit * tax_rate)
+            net_income = total_current_value - tax_amount
             
             # 清空库存
             for item in inventory:
@@ -401,11 +425,14 @@ class ExchangeInventoryService:
                     user_id=user_id,
                     tax_amount=tax_amount,
                     tax_rate=tax_rate,
-                    original_amount=total_current_value,
+                    original_amount=taxable_profit,
                     balance_after=user.coins,
-                    tax_type="清仓所有大宗商品",
+                    tax_type=(f"清仓所有大宗商品 | 当前价值 {total_current_value:,} 金币 | "
+                              f"税基 {taxable_profit:,} 金币"),
                     timestamp=datetime.now()
                 )
+                if tax_amount == 0:
+                    tax_record.tax_type += " | 未盈利免税"
                 self.log_repo.add_tax_record(tax_record)
             
             # 构建详细消息
@@ -416,7 +443,11 @@ class ExchangeInventoryService:
             message += f"💰 总成本：{total_cost:,} 金币\n"
             message += f"💎 当前价值：{total_current_value:,} 金币\n"
             message += f"📈 盈利率：{(total_profit_loss/total_cost*100):+.1f}%\n"
-            message += f"💸 税费：{tax_amount:,} 金币 ({tax_rate*100:.1f}%)\n"
+            if tax_amount > 0:
+                message += (f"💸 税费：{tax_amount:,} 金币 "
+                            f"(税率 {tax_rate*100:.1f}%，税基 {taxable_profit:,} 金币)\n")
+            else:
+                message += "💸 税费：0 金币（未盈利，免税）\n"
             message += f"💵 净收入：{net_income:,} 金币\n"
             message += f"─" * 25 + "\n"
             
@@ -525,10 +556,11 @@ class ExchangeInventoryService:
                 total_current_value += item_current_value
             
             total_profit_loss = total_current_value - total_cost
-            
-            # 计算税费
+        
+            # 计算税费（仅对盈利征税）
             tax_rate = self.config.get("tax_rate", 0.05)
-            tax_amount = int(total_current_value * tax_rate)
+            taxable_profit = max(total_profit_loss, 0)
+            tax_amount = int(taxable_profit * tax_rate)
             net_income = total_current_value - tax_amount
             
             # 清空指定商品库存
@@ -547,11 +579,14 @@ class ExchangeInventoryService:
                     user_id=user_id,
                     tax_amount=tax_amount,
                     tax_rate=tax_rate,
-                    original_amount=total_current_value,
+                    original_amount=taxable_profit,
                     balance_after=user.coins,
-                    tax_type=f"清仓 {self.commodities[commodity_id]['name']}",
+                    tax_type=(f"清仓 {self.commodities[commodity_id]['name']} | "
+                              f"当前价值 {total_current_value:,} 金币 | 税基 {taxable_profit:,} 金币"),
                     timestamp=datetime.now()
                 )
+                if tax_amount == 0:
+                    tax_record.tax_type += " | 未盈利免税"
                 self.log_repo.add_tax_record(tax_record)
             
             # 构建详细消息
@@ -565,7 +600,11 @@ class ExchangeInventoryService:
             message += f"💰 总成本：{total_cost:,} 金币\n"
             message += f"💎 当前价值：{total_current_value:,} 金币\n"
             message += f"📈 盈利率：{(total_profit_loss/total_cost*100):+.1f}%\n"
-            message += f"💸 税费：{tax_amount:,} 金币 ({tax_rate*100:.1f}%)\n"
+            if tax_amount > 0:
+                message += (f"💸 税费：{tax_amount:,} 金币 "
+                            f"(税率 {tax_rate*100:.1f}%，税基 {taxable_profit:,} 金币)\n")
+            else:
+                message += "💸 税费：0 金币（未盈利，免税）\n"
             message += f"💵 净收入：{net_income:,} 金币\n"
             message += f"─" * 25 + "\n"
             
