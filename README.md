@@ -29,7 +29,7 @@
 [![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
-[![Version](https://img.shields.io/badge/Version-2.4.5-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.4.5)
+[![Version](https://img.shields.io/badge/Version-2.4.6-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.4.6)
 [![Major Update](https://img.shields.io/badge/Major-Update-red.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
 
 ## ✨ 功能特点
@@ -104,6 +104,11 @@
 如果您有功能建议或发现问题，欢迎在 [Issues](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues) 中提出！
  
 ## 📦 更新记录
+
+#### v2.4.6 (成就奖励发放修复)
+
+- **🐛 修复成就奖励发放问题**：解决 [#114](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues/114) 中"鸟枪换炮"成就导致数据库锁定的问题
+  - 添加物品ID验证机制，防止外键约束失败
 
 #### v2.4.5 (交易所利润税基修复)
 
