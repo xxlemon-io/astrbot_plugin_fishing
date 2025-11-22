@@ -2,6 +2,7 @@ import threading
 import time
 import pkgutil
 import inspect
+import sqlite3
 from typing import Dict, Any, List, Optional, Set
 from datetime import datetime
 from astrbot.api import logger
@@ -117,59 +118,75 @@ class AchievementService:
         # 3. 根据解析出的 reward_type 分发奖励
         try:
             if reward_type == "coins":
-                # 确保 reward_value 和 reward_quantity 是数字
-                if isinstance(reward_value, int) and isinstance(reward_quantity, int):
-                    amount_to_add = reward_value * reward_quantity
-                    # 假设 user 对象可以直接修改，并且 user_repo.update() 会保存更改
-                    # 如果您的框架不是这样工作，请使用 self.user_repo.update_coins(user.user_id, amount_to_add)
-                    user.coins += amount_to_add
-                    self.user_repo.update(user)
-                    logger.info(f"已为用户 {user.user_id} 添加 {amount_to_add} 金币。")
-                    return True
-                else:
-                    logger.error(f"成就 '{achievement.name}' 的金币奖励值或数量不是整数。")
-                    return False
-                    
+                return self._grant_coins_reward(user, achievement, reward_value, reward_quantity)
             elif reward_type == "title":
-                # 称号奖励的数量通常是1，但我们仍然可以按逻辑处理
-                # 假设 grant_title_to_user 只需要 title_id
-                self.achievement_repo.grant_title_to_user(user.user_id, reward_value)
-                return True
-                
+                return self._grant_title_reward(user, achievement, reward_value)
             elif reward_type == "bait":
-                # 先检查 bait_id 是否存在，避免外键约束失败
-                bait_template = self.item_template_repo.get_bait_by_id(reward_value)
-                if bait_template:
-                    self.inventory_repo.update_bait_quantity(user.user_id, reward_value, delta=reward_quantity)
-                    logger.info(f"已为用户 {user.user_id} 添加 {reward_quantity} 个 {bait_template.name} (ID: {reward_value})。")
-                    return True
-                else:
-                    logger.error(f"尝试奖励鱼饵失败：找不到ID为 {reward_value} 的鱼饵模板。成就: '{achievement.name}' (ID: {achievement.id})")
-                    return False
-                
+                return self._grant_bait_reward(user, achievement, reward_value, reward_quantity)
             elif reward_type == "rod":
-                rod_template = self.item_template_repo.get_rod_by_id(reward_value)
-                if rod_template:
-                    # 循环添加指定数量的鱼竿
-                    for _ in range(reward_quantity):
-                        self.inventory_repo.add_rod_instance(user.user_id, reward_value, rod_template.durability)
-                    return True
-                else:
-                    logger.error(f"尝试奖励鱼竿失败：找不到ID为 {reward_value} 的鱼竿模板。")
-                    return False
-                    
+                return self._grant_rod_reward(user, achievement, reward_value, reward_quantity)
             elif reward_type == "accessory":
-                # 循环添加指定数量的饰品
-                for _ in range(reward_quantity):
-                    self.inventory_repo.add_accessory_instance(user.user_id, reward_value)
-                return True
-                
+                return self._grant_accessory_reward(user, achievement, reward_value, reward_quantity)
             else:
                 logger.warning(f"未知的成就奖励类型: '{reward_type}'，无法发放。")
                 return False
-        except Exception as e:
-            logger.error(f"发放成就奖励时发生异常: {e}", exc_info=True)
+        except (sqlite3.IntegrityError, sqlite3.OperationalError) as e:
+            # 只捕获预期的数据库完整性错误，避免掩盖编程错误
+            logger.error(f"发放成就奖励时发生数据库错误: {e}", exc_info=True)
             return False
+        # 其他异常（如 AttributeError, KeyError 等）应该重新抛出，以便发现编程错误
+
+    def _grant_coins_reward(self, user: User, achievement: BaseAchievement, reward_value: int, reward_quantity: int) -> bool:
+        """发放金币奖励"""
+        if not isinstance(reward_value, int) or not isinstance(reward_quantity, int):
+            logger.error(f"成就 '{achievement.name}' 的金币奖励值或数量不是整数。")
+            return False
+        
+        amount_to_add = reward_value * reward_quantity
+        user.coins += amount_to_add
+        self.user_repo.update(user)
+        logger.info(f"已为用户 {user.user_id} 添加 {amount_to_add} 金币。")
+        return True
+
+    def _grant_title_reward(self, user: User, achievement: BaseAchievement, reward_value: int) -> bool:
+        """发放称号奖励"""
+        self.achievement_repo.grant_title_to_user(user.user_id, reward_value)
+        return True
+
+    def _grant_bait_reward(self, user: User, achievement: BaseAchievement, reward_value: int, reward_quantity: int) -> bool:
+        """发放鱼饵奖励"""
+        bait_template = self.item_template_repo.get_bait_by_id(reward_value)
+        if not bait_template:
+            logger.error(f"尝试奖励鱼饵失败：找不到ID为 {reward_value} 的鱼饵模板。成就: '{achievement.name}' (ID: {achievement.id})")
+            return False
+        
+        self.inventory_repo.update_bait_quantity(user.user_id, reward_value, delta=reward_quantity)
+        logger.info(f"已为用户 {user.user_id} 添加 {reward_quantity} 个 {bait_template.name} (ID: {reward_value})。")
+        return True
+
+    def _grant_rod_reward(self, user: User, achievement: BaseAchievement, reward_value: int, reward_quantity: int) -> bool:
+        """发放鱼竿奖励"""
+        rod_template = self.item_template_repo.get_rod_by_id(reward_value)
+        if not rod_template:
+            logger.error(f"尝试奖励鱼竿失败：找不到ID为 {reward_value} 的鱼竿模板。成就: '{achievement.name}' (ID: {achievement.id})")
+            return False
+        
+        for _ in range(reward_quantity):
+            self.inventory_repo.add_rod_instance(user.user_id, reward_value, rod_template.durability)
+        logger.info(f"已为用户 {user.user_id} 添加 {reward_quantity} 个 {rod_template.name} (ID: {reward_value})。")
+        return True
+
+    def _grant_accessory_reward(self, user: User, achievement: BaseAchievement, reward_value: int, reward_quantity: int) -> bool:
+        """发放饰品奖励"""
+        accessory_template = self.item_template_repo.get_accessory_by_id(reward_value)
+        if not accessory_template:
+            logger.error(f"尝试奖励饰品失败：找不到ID为 {reward_value} 的饰品模板。成就: '{achievement.name}' (ID: {achievement.id})")
+            return False
+        
+        for _ in range(reward_quantity):
+            self.inventory_repo.add_accessory_instance(user.user_id, reward_value)
+        logger.info(f"已为用户 {user.user_id} 添加 {reward_quantity} 个 {accessory_template.name} (ID: {reward_value})。")
+        return True
             
     # --- 后台任务与核心逻辑 ---
 
