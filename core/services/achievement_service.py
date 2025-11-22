@@ -132,7 +132,13 @@ class AchievementService:
             self.achievement_repo.grant_title_to_user(user.user_id, reward_value)
             
         elif reward_type == "bait":
-            self.inventory_repo.update_bait_quantity(user.user_id, reward_value, delta=reward_quantity)
+            # 先检查 bait_id 是否存在，避免外键约束失败
+            bait_template = self.item_template_repo.get_bait_by_id(reward_value)
+            if bait_template:
+                self.inventory_repo.update_bait_quantity(user.user_id, reward_value, delta=reward_quantity)
+                logger.info(f"已为用户 {user.user_id} 添加 {reward_quantity} 个 {bait_template.name} (ID: {reward_value})。")
+            else:
+                logger.error(f"尝试奖励鱼饵失败：找不到ID为 {reward_value} 的鱼饵模板。成就: '{achievement.name}' (ID: {achievement.id})")
             
         elif reward_type == "rod":
             rod_template = self.item_template_repo.get_rod_by_id(reward_value)
