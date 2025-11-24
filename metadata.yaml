@@ -1,4 +1,5 @@
-﻿name: Fishing Another!
+﻿name: astrbot_plugin_fishing
+display_name: Fishing Another!
 version: 2.4.6
 author: "xxlemon"
 description: "全新架构钓鱼插件！更多交互，多商店系统、交易所、品质系统、水族箱和Web管理（支持原版fishing存档继续游玩）"
