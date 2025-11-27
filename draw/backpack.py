@@ -1000,7 +1000,7 @@ def _create_fallback_image(user_data: Dict[str, Any]) -> Image.Image:
     hint2_text = "1. 使用分类命令查看（会自动过滤只显示5星以上装备）"
     draw.text((70, 290), hint2_text, font=small_font, fill=text_secondary)
     
-    hint3_text = "2. 及时清理低品质装备（批量出售鱼竿/饰品）"
+    hint3_text = "2. 及时清理低品质装备（出售所有鱼竿/饰品）"
     draw.text((70, 320), hint3_text, font=small_font, fill=text_secondary)
     
     hint4_text = "3. 使用或出售多余的鱼饵和道具"
