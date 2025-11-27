@@ -176,14 +176,24 @@ class FishingPlugin(Star):
                     "2": sell_prices_config.get("by_rarity_2", 500),
                     "3": sell_prices_config.get("by_rarity_3", 2000),
                     "4": sell_prices_config.get("by_rarity_4", 5000),
-                    "5": sell_prices_config.get("by_rarity_5", 10000)
+                    "5": sell_prices_config.get("by_rarity_5", 10000),
+                    "6": sell_prices_config.get("by_rarity_6", 20000),
+                    "7": sell_prices_config.get("by_rarity_7", 50000),
+                    "8": sell_prices_config.get("by_rarity_8", 100000),
+                    "9": sell_prices_config.get("by_rarity_9", 200000),
+                    "10": sell_prices_config.get("by_rarity_10", 500000)
                 },
                 "accessory": { 
                     "1": sell_prices_config.get("by_rarity_1", 100),
                     "2": sell_prices_config.get("by_rarity_2", 500),
                     "3": sell_prices_config.get("by_rarity_3", 2000),
                     "4": sell_prices_config.get("by_rarity_4", 5000),
-                    "5": sell_prices_config.get("by_rarity_5", 10000)
+                    "5": sell_prices_config.get("by_rarity_5", 10000),
+                    "6": sell_prices_config.get("by_rarity_6", 20000),
+                    "7": sell_prices_config.get("by_rarity_7", 50000),
+                    "8": sell_prices_config.get("by_rarity_8", 100000),
+                    "9": sell_prices_config.get("by_rarity_9", 200000),
+                    "10": sell_prices_config.get("by_rarity_10", 500000)
                 },
                 "refine_multiplier": {
                     "1": 1.0, "2": 1.6, "3": 3.0, "4": 6.0, "5": 12.0,
