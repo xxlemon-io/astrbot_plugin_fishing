@@ -29,7 +29,7 @@
 [![AGPL-3.0 License](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0)
 [![Python](https://img.shields.io/badge/Python-3.8+-green.svg)](https://python.org)
 [![AstrBot](https://img.shields.io/badge/AstrBot-Plugin-orange.svg)](https://github.com/astrbot/astrbot)
-[![Version](https://img.shields.io/badge/Version-2.4.6-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.4.6)
+[![Version](https://img.shields.io/badge/Version-2.4.7-brightgreen.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.4.7)
 [![Major Update](https://img.shields.io/badge/Major-Update-red.svg)](https://github.com/xxlemon-io/astrbot_plugin_fishing/releases/tag/v2.0.0)
 
 ## ✨ 功能特点
@@ -104,6 +104,13 @@
 如果您有功能建议或发现问题，欢迎在 [Issues](https://github.com/xxlemon-io/astrbot_plugin_fishing/issues) 中提出！
  
 ## 📦 更新记录
+
+#### v2.4.7 (插件元数据规范化 + 命令文本优化)
+
+- **📦 插件元数据规范化**：优化插件元数据配置，提升插件管理体验
+  - 插件名称规范化：`name` 字段改为 `astrbot_plugin_fishing`
+  - 新增 `display_name` 字段：保留 `Fishing Another!` 作为显示名称
+- **📝 命令文本优化**：统一命令描述文本，将"批量出售"改为"出售所有"
 
 #### v2.4.6 (成就奖励发放修复)
 
