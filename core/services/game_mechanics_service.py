@@ -1008,11 +1008,20 @@ class GameMechanicsService:
         base_prices = sell_price_config.get(item_type, {})
         base_price = base_prices.get(str(rarity), 0)
 
+        # 如果配置中没有该稀有度的基础价格，使用基于稀有度的公式计算默认值
+        # 公式：基础价 = 100 * (2.5 ^ (rarity - 1))，确保高稀有度物品有合理的价格
+        if base_price <= 0:
+            # 使用指数增长公式：1星=100, 2星≈250, 3星≈625, 4星≈1562, 5星≈3906, 6星≈9765, 7星≈24414, 8星≈61035, 9星≈152587, 10星≈381469
+            base_price = int(100 * (2.5 ** (rarity - 1)))
+            # 确保最低价格为 100
+            base_price = max(100, base_price)
+
         refine_multipliers = sell_price_config.get("refine_multiplier", {})
         refine_multiplier = refine_multipliers.get(str(refine_level), 1.0)
 
         final_price = int(base_price * refine_multiplier)
 
+        # 确保最终价格至少为 30 金币（防止计算错误导致负值或零值）
         if final_price <= 0:
             return 30  # 默认最低价格
 
